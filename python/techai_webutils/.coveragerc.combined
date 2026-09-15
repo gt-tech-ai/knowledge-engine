@@ -1,0 +1,43 @@
+# Combined (unit + integration) coverage config for the Python coverage GATE,
+# the parallel to Go's combined coverage-gate over pkg/go + contracts/ent.
+#
+# `search test coverage --python` runs the unit suite then the integration suite
+# under one coverage dataset (--cov-append) and reports against this config.
+#
+# Denominator vs. the UNIT gate (pyproject.toml [tool.coverage.report] omit):
+#   - The redis/sqs/s3 wrappers are NOT omitted here — the integration suite covers
+#     them (the Python analogue of contracts/ent being covered only by Go's
+#     integration suite, then counted in the combined gate).
+#   - mocks (test doubles) and the OTel/gRPC-server runtime wiring that NEITHER
+#     suite exercises stay omitted (Go's combined gate likewise excludes
+#     unmeasurable app/entrypoint wiring).
+#
+# This file is loaded only via `--cov-config`/`--rcfile`; coverage.py never
+# auto-discovers it (only `.coveragerc`/setup.cfg/tox.ini/pyproject.toml).
+[run]
+relative_files = true
+# Distinct from the unit run's coverage_unit.dat so the gate can `coverage combine`
+# both datasets (uploaded as separate CI artifacts) without collision. Non-hidden
+# so GitHub upload-artifact keeps it.
+data_file = coverage_integration.dat
+
+[report]
+precision = 1
+omit =
+    */mocks/*
+    */clients/grpc/server.py
+    */clients/grpc/interceptors/tracing.py
+    */clients/grpc/interceptors/tracing_server.py
+    */clients/email/ses/provider.py
+    */clients/email/smtp/provider.py
+    */foundation/tracer/tracer.py
+    */foundation/observability.py
+    # Real-Ray wrappers: exercisable ONLY against a live Ray cluster (the RAY_INTEGRATION
+    # opt-in test — see tests/integration/test_ray_executor_integration.py). CI never
+    # installs the `ray` extra, so these are unimportable and excluded from CI's
+    # denominator automatically; omitting them here keeps the LOCAL combined gate equal
+    # to CI's instead of counting them as 0% when the opt-in test is skipped. The unit
+    # carve-out (pyproject [tool.coverage.report]) already omits real_ray_runtime.py.
+    */execution/executor/real_ray_runtime.py
+    */execution/executor/real_ray_pool.py
+    */tests/*

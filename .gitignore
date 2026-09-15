@@ -1,0 +1,20 @@
+# Build artifacts
+dist/
+build/
+*.whl
+*.tar.gz
+bin/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+# Go
+*.test
+*.out
+.coverage/
+# Editors / OS
+.DS_Store
+.idea/

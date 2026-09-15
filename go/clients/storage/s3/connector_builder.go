@@ -1,0 +1,58 @@
+package s3
+
+import (
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
+)
+
+// ConnectorClientBuilder builds a connector-scoped StorageClient signing with a connector's OWN
+// credentials + region. It is an UNNAMED func type (an alias, not a defined type) so a value of it is
+// assignable to connector/s3.S3ClientBuilder at the composition root — this package therefore never
+// imports pkg/go/clients/connector, so there is no lateral same-layer clients import.
+type ConnectorClientBuilder = func(
+	ctx context.Context,
+	creds aws.CredentialsProvider,
+	region string,
+) (interfaces.StorageClient, error)
+
+// NewConnectorClientBuilder returns the per-connector S3-client builder BOTH connector composition roots
+// (the API and the document-events worker) share — the ~30-line buildS3Client closure they previously
+// duplicated verbatim. Given the app's base S3Config (region + optional MinIO endpoint, captured once),
+// it builds a connector-scoped StorageClient signing with the connector's credentials, falling back to
+// the app region when the connector carries none. It depends only on storage config, so it stays free of
+// any pkg/go/clients/connector import; the composition root passes the result to connector.NewSourceBuilder.
+func NewConnectorClientBuilder(base infra.S3Config) ConnectorClientBuilder {
+	endpoint := ""
+	if base.Kind == "minio" {
+		endpoint = base.Endpoint
+	}
+	return func(
+		ctx context.Context,
+		creds aws.CredentialsProvider,
+		region string,
+	) (interfaces.StorageClient, error) {
+		if region == "" {
+			region = base.Region // per-connector region absent → the app-config region
+		}
+		cfg := infra.S3Config{Kind: "s3", Region: region}
+		if endpoint != "" {
+			cfg.Kind = "minio"
+			cfg.Endpoint = endpoint
+			cfg.ForcePathStyle = true
+		}
+		client, err := NewAWSClientWithCredentials(ctx, cfg, creds, region)
+		if err != nil {
+			return nil, errors.Wrap(
+				err,
+				errors.CodeInternal,
+				"connector s3: build client",
+			)
+		}
+		return NewClient(client, ""), nil
+	}
+}
