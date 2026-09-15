@@ -1,0 +1,87 @@
+"""Vector store interface for similarity search."""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from techai_webutils.core.interfaces.lifecycle import ManagedResource
+
+
+@dataclass(slots=True)
+class VectorSearchResult:
+    """A single result from a vector similarity search."""
+
+    document_id: str
+    """Identifier of the source document the matched chunk belongs to."""
+    chunk_id: str
+    """Identifier of the specific chunk that matched the query vector."""
+    content: str
+    """The matched chunk's text."""
+    score: float
+    """Similarity score between the query and this chunk (higher is closer)."""
+    metadata: dict[str, str]
+    """Metadata stored with the chunk (used for filtering and citation display)."""
+
+
+@dataclass(slots=True)
+class VectorEntry:
+    """A vector entry to be stored."""
+
+    id: str
+    """Unique identifier for this entry, used for upsert and existence probes."""
+    document_id: str
+    """Identifier of the source document this entry belongs to."""
+    content: str
+    """The chunk text stored alongside its vector."""
+    embedding: list[float]
+    """The dense vector to index (its dimension must match the store's ``dimension``)."""
+    metadata: dict[str, str]
+    """Metadata stored with the entry, available for filtered search and citations."""
+
+
+class VectorStore(ManagedResource, ABC):
+    """Abstract vector store for embedding storage and similarity search.
+
+    Phase 1: Basic upsert/search/delete operations.
+    Phase 2+: Batch operations, filtered search, hybrid search, index management.
+    """
+
+    @property
+    @abstractmethod
+    def dimension(self) -> int:
+        """The vector dimension of collections this store manages (must match the embedder)."""
+
+    @abstractmethod
+    async def upsert(self, collection: str, entries: list[VectorEntry]) -> None:
+        """Insert or update vector entries in the specified collection."""
+
+    @abstractmethod
+    async def search(
+        self,
+        collection: str,
+        query_embedding: list[float],
+        top_k: int = 10,
+        filters: dict[str, str] | None = None,
+    ) -> list[VectorSearchResult]:
+        """Search for similar vectors in the specified collection."""
+
+    @abstractmethod
+    async def delete(self, collection: str, ids: list[str]) -> None:
+        """Delete vector entries by ID from the specified collection."""
+
+    @abstractmethod
+    async def delete_by_document(self, collection: str, document_id: str) -> None:
+        """Delete all vector entries for a specific document."""
+
+    @abstractmethod
+    async def count_by_document(self, collection: str, document_id: str) -> int:
+        """Count the stored vector entries for a specific document (0 if none/collection absent)."""
+
+    async def existing_ids(self, collection: str, ids: list[str]) -> set[str]:  # noqa: ARG002
+        """Return the subset of ``ids`` already stored in ``collection`` (checkpoint/resume probe).
+
+        Concrete default: ``set()``. A store with no cheap existence probe reports "nothing indexed",
+        so an incremental indexer just re-embeds every chunk (idempotent upsert — correct, only not
+        resumable). Stores that CAN answer cheaply (e.g. Qdrant ``retrieve`` by id) override this so an
+        at-least-once redrive skips the sub-batches already upserted instead of re-embedding them.
+        """
+        return set()

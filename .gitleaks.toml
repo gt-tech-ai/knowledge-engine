@@ -1,0 +1,46 @@
+# gitleaks configuration for the Tech AI Knowledge Engine.
+#
+# `search security` runs `gitleaks dir .`, which scans the working tree (not git
+# history). This allowlist scopes it to genuine leak risks in COMMITTED code:
+#   - Local-dev secret files are gitignored (never committed) and only exist on a
+#     developer machine after `search setup` — they are not a leak. They are
+#     absent in CI's fresh checkout; the allowlist makes local runs match CI.
+#   - Build output and vendored deps are not source.
+#   - Auth0 client IDs / domains / audiences are PUBLIC identifiers (shipped in
+#     the SPA's window.__APP_CONFIG__); only the client SECRET is sensitive, and
+#     that lives in gitignored secrets.yaml.
+
+title = "platform gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Gitignored local-dev files, build output, and public identifiers"
+paths = [
+  '''(^|/)\.secrets/''',
+  '''(^|/)configs/secrets\.yaml$''',
+  '''(^|/)\.env(\.[^/]+)?$''',
+  '''(^|/)dist/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.claude/''',
+  '''(^|/)\.venv/''',
+  # Design docs (docs/spec/: epics, stories, plans, arch, roadmap, design, rca,
+  # audits, philosophy, demos) reference auth, tokens, keys, and crypto packages
+  # (e.g. crypto/subtle) BY NAME — these are references, not secrets. Real secrets
+  # live in gitignored configs/secrets.yaml (allowlisted above).
+  '''(^|/)docs/spec/''',
+  # Atlas migration-integrity checksums: contracts/ent/migrate/atlas.sum holds one base64 `h1:` hash
+  # per migration (a content checksum Atlas verifies), NOT a secret. Every new migration appends a line,
+  # so without this every migration commit trips generic-api-key.
+  '''(^|/)atlas\.sum$''',
+]
+regexes = [
+  # Auth0 dev-tenant client ID (public; embedded in the SPA runtime config).
+  '''AUTH0_CLIENT_ID_PLACEHOLDER''',
+  # Connector-credentials AES-256 DEV DEFAULT key in configs/base.yaml. This is the
+  # well-known base64 of bytes(0..31) — NOT a real secret; staging/prod override it via gitignored
+  # configs/secrets.yaml or an ESO externalsecret. Allowlisted so the committed dev default doesn't
+  # trip generic-api-key.
+  '''AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=''',
+]
