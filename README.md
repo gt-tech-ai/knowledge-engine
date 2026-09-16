@@ -53,13 +53,25 @@ pip install techai_webutils
 
 ## Developing
 
-The `go/cli` tooling module drives the checks:
+Generated mocks are gitignored — regenerate them first:
 
 ```bash
-cd go/cli && go run . lint       # golangci-lint (layer rules) + ruff + eslint-free
-go run . typecheck               # go vet + basedpyright
-go run . test unit               # unit suite
-go run . check                   # the static drift gates (structure, docs, comment-refs)
+go install go.uber.org/mock/mockgen@latest
+go generate ./go/tests/mocks/...
+```
+
+Then run the checks:
+
+```bash
+# Go
+go vet ./go/...
+golangci-lint run ./go/...          # layer-boundary rules + the linter set
+go test ./go/...                    # unit
+go test -tags=integration ./go/...  # integration (real deps via testcontainers)
+
+# Python
+cd python/techai_webutils
+uv run ruff check . && uv run basedpyright src && uv run pytest
 ```
 
 Integration tests use real dependencies in throwaway Docker containers

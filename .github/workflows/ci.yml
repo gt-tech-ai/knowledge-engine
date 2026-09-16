@@ -10,53 +10,62 @@ permissions:
 
 jobs:
   go:
-    name: Go (lint · vet · test)
+    name: Go — lint · vet · unit · integration · coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      # Tools installed directly (the org restricts Marketplace actions).
+      - name: Install mockgen + golangci-lint
+        run: |
+          go install go.uber.org/mock/mockgen@latest
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" latest
+
+      - name: Generate mocks
+        run: go generate ./go/tests/mocks/...
+
       - name: go vet
         run: go vet ./go/...
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: ./go/...
-      - name: go test (unit)
-        run: go test ./go/... -race -count=1
+
+      - name: golangci-lint (layer rules + linters)
+        run: "$(go env GOPATH)/bin/golangci-lint run ./go/..."
+
+      - name: Unit tests + coverage profile
+        run: >
+          go test ./go/... -race -count=1
+          -covermode=atomic -coverpkg=./go/... -coverprofile=cover.out
+
+      - name: Integration tests (testcontainers — real Postgres/Redis/MinIO/SQS)
+        run: go test -tags=integration ./go/... -count=1
+
+      - name: Coverage summary
+        run: |
+          go tool cover -func=cover.out | tail -1
+          # A numeric gate can be enforced here once the suite settles, e.g.:
+          #   pct=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
+          #   awk "BEGIN{exit !($pct >= 80)}"
 
   python:
-    name: Python (ruff · basedpyright · pytest)
+    name: Python — ruff · basedpyright · pytest
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: python/techai_webutils
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-      - run: uv sync --all-extras --dev
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Sync
+        run: uv sync --all-extras --dev
       - name: ruff
         run: uv run ruff check .
       - name: basedpyright
         run: uv run basedpyright src
       - name: pytest (unit)
         run: uv run pytest -m "not integration"
-
-  scanners:
-    name: Security & license (advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-      - name: trivy (license + vuln)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scanners: vuln,license
-          exit-code: "0"
+      - name: pytest (integration — testcontainers)
+        run: uv run pytest -m integration
