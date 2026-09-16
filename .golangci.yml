@@ -52,6 +52,10 @@ linters:
     # (see settings.revive) — the repo is already at 0 findings, so this locks it in.
     - revive
   settings:
+    exhaustive:
+      # A switch with a default: case is treated as exhaustive — this codebase
+      # uses default: as the fail-loud catch-all for unknown Kind values.
+      default-signifies-exhaustive: true
     gocritic:
       disabled-checks:
         - ifElseChain
@@ -677,9 +681,9 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Pre-existing code: exclude new aggressive linters from existing modules.
-      # These will be addressed incrementally in separate PRs.
-      - path: (pkg/go/|apps/go/|tools/cli/|contracts/ent/)
+      # Pre-existing code: exclude the aggressive style/wrapping linters from the
+      # library tree. These are addressed incrementally, not in one sweep.
+      - path: ^go/
         linters:
           - wrapcheck
           - exhaustive
