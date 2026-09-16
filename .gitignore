@@ -19,5 +19,3 @@ __pycache__/
 .DS_Store
 .idea/
 
-# Generated mocks (regenerate: go generate ./go/tests/mocks/...)
-go/tests/mocks/mock_*.go
