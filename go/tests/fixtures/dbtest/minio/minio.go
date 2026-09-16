@@ -17,7 +17,7 @@ import (
 
 const (
 	// minioImage is the pinned MinIO container image (matches the dev Compose stack).
-	minioImage = "minio/minio:latest"
+	minioImage = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
 	// minioAPIPort is the container's S3 API port.
 	minioAPIPort = "9000/tcp"
 

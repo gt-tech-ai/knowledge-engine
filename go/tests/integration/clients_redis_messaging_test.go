@@ -288,7 +288,7 @@ func (s *RedisMessagingSuite) TestSubscriber_HandlerError_LoggedNotRequeued() {
 
 	// Close drains the dispatch goroutine (wg.Wait), so reading the spy is race-free.
 	s.Require().NoError(sub.Close())
-	s.Contains(spy.ErrorCalls, "message handle failed")
+	s.Contains((*spy.ChildErrorCalls), "message handle failed")
 }
 
 // TestSubscriber_Close_IdempotentAndNilSafe tests that Close and the (P)Unsubscribe

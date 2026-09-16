@@ -54,12 +54,8 @@ jobs:
         run: uv run pytest -m "not integration"
 
   integration:
-    name: Integration (testcontainers — advisory)
+    name: Integration (testcontainers — real Postgres/Redis/MinIO/SQS)
     runs-on: ubuntu-latest
-    # Advisory while testcontainers-in-CI reliability is stabilised: real
-    # Postgres/Redis/MinIO/SQS containers can be flaky (image pulls, reaper,
-    # resource limits). The blocking core jobs above cover lint/type/unit.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

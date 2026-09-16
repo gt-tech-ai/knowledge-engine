@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # same dependency versions the platform deploys (and reuses already-pulled layers).
 _REDIS_IMAGE = "redis:7-alpine"
 _ELASTICMQ_IMAGE = "softwaremill/elasticmq:1.6.6"
-_MINIO_IMAGE = "minio/minio:latest"
+_MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
 
 # MinIO root credentials (match the compose defaults). ElasticMQ ignores creds.
 _MINIO_USER = "minioadmin"
