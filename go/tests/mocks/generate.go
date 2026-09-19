@@ -35,6 +35,7 @@
 //go:generate mockgen -destination=mock_retrier.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Retrier
 //go:generate mockgen -destination=mock_round_tripper.go -package=mocks net/http RoundTripper
 //go:generate mockgen -destination=mock_s3_api.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/storage/s3 S3API
+//go:generate mockgen -destination=mock_secretsmanager_api.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/awssm SecretsManagerAPI
 //go:generate mockgen -destination=mock_service.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Service
 //go:generate mockgen -destination=mock_sqs_api.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/sqs API
 //go:generate mockgen -destination=mock_storage.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces StorageClient
