@@ -107,3 +107,58 @@ func TestFileSource_GetMissingKeyIsNotFound(t *testing.T) {
 	_, err := src.Get(context.Background(), ref)
 	require.True(t, coreerr.Is(err, coreerr.CodeNotFound))
 }
+
+// TestFileSource_ReadsExportAndQuotedDotenv tests that the file Source reads a shell-
+// sourceable dotenv file — `export KEY="value"` — returning the unquoted credential.
+//
+// Why this test is important:
+//   - The git-ignored per-tenant credential files are maintained for BOTH shell `source`
+//     and this backend, so they use the shell `export KEY="value"` form. If the parser
+//     matched the key as `export KEY` or returned the value with its quotes, every real
+//     credential would resolve as not-found or fail the anti-mixing tenant guard — the
+//     exact failure seen in the field.
+//
+// What it tests:
+//   - `export CLIENT_SECRET="the-secret"` and a single-quoted domain both parse to the bare
+//     value; a plain `KEY=value` line still works; and a Put preserves the `export ` prefix.
+func TestFileSource_ReadsExportAndQuotedDotenv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".secrets.env")
+	require.NoError(t, os.WriteFile(path, []byte(
+		"export CLIENT_SECRET=\"the-secret\"\n"+
+			"export DOMAIN='dev.example.com'\n"+
+			"PLAIN=bare-value\n",
+	), 0o600))
+
+	ctrl := gomock.NewController(t)
+	runner := mocks.NewMockCommandRunner(ctrl) // Get must not call the runner.
+	sec := types.Ref{Env: "dev", Class: "bootstrap", Field: "client_secret"}
+	dom := types.Ref{Env: "dev", Class: "bootstrap", Field: "domain"}
+	plain := types.Ref{Env: "dev", Class: "bootstrap", Field: "plain"}
+	src := file.New(map[types.Ref]file.Location{
+		sec:   {Path: path, Key: "CLIENT_SECRET"},
+		dom:   {Path: path, Key: "DOMAIN"},
+		plain: {Path: path, Key: "PLAIN"},
+	}, runner)
+
+	got, err := src.Get(context.Background(), sec)
+	require.NoError(t, err)
+	assert.Equal(t, "the-secret", got.Reveal(), "export + double quotes stripped")
+
+	got, err = src.Get(context.Background(), dom)
+	require.NoError(t, err)
+	assert.Equal(t, "dev.example.com", got.Reveal(), "export + single quotes stripped")
+
+	got, err = src.Get(context.Background(), plain)
+	require.NoError(t, err)
+	assert.Equal(t, "bare-value", got.Reveal(), "plain KEY=value still parses")
+
+	// A Put on the export-format file preserves the `export ` prefix (still sourceable).
+	runner.EXPECT().
+		Run(gomock.Any(), gomock.Any(), "git", "check-ignore", "-q", gomock.Any()).
+		Return(nil)
+	require.NoError(t, src.Put(context.Background(), sec, types.NewSecret("rotated")))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "export CLIENT_SECRET=rotated",
+		"a rotated export-format key keeps its export prefix")
+}

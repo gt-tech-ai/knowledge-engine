@@ -83,6 +83,12 @@ func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) erro
 	if !ok {
 		return errors.NotFound(fmt.Sprintf("no file location mapped for credential %s", ref))
 	}
+	// Ensure the parent directory exists (0700 — a secrets dir), so a first write to a
+	// not-yet-created git-ignored store (e.g. .secrets/) succeeds; the check-ignore below
+	// also runs with this directory as its working dir.
+	if err := os.MkdirAll(filepath.Dir(loc.Path), 0o700); err != nil {
+		return errors.Wrap(err, errors.CodeInternal, "creating credential directory")
+	}
 	// `git check-ignore -q <path>` exits 0 when the path IS ignored; the CommandRunner
 	// returns a non-nil error for any non-zero exit (not-ignored, or git unavailable),
 	// so we fail SAFE — refuse the write unless git positively confirms the path ignored.
@@ -125,7 +131,13 @@ func upsert(data []byte, key, value string) []byte {
 	out := make([]string, 0, len(lines)+1)
 	for _, l := range lines {
 		if k, _, ok := splitKV(l); ok && k == key {
-			out = append(out, line)
+			// Preserve a shell `export ` prefix on the replaced line, so updating a key in a
+			// dotenv file maintained for both `source` and this backend keeps it sourceable.
+			if strings.HasPrefix(strings.TrimSpace(l), "export ") {
+				out = append(out, "export "+line)
+			} else {
+				out = append(out, line)
+			}
 			replaced = true
 			continue
 		}
@@ -142,9 +154,14 @@ func upsert(data []byte, key, value string) []byte {
 }
 
 // splitKV parses a single dotenv line into its key and value. It reports ok=false for a
-// blank line or a comment (leading '#'), or a line without '='.
+// blank line or a comment (leading '#'), or a line without '='. A leading `export ` is
+// tolerated (`export KEY=value`) so a git-ignored dotenv file maintained for BOTH shell
+// `source` and this backend parses identically — the key is matched without the prefix, and a
+// matching pair of surrounding single/double quotes on the value (shell quoting, e.g.
+// `KEY="value"`) is stripped so the value is the credential itself, not the quoted literal.
 func splitKV(line string) (key, value string, ok bool) {
 	trimmed := strings.TrimSpace(line)
+	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "export "))
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return "", "", false
 	}
@@ -152,5 +169,16 @@ func splitKV(line string) (key, value string, ok bool) {
 	if eq < 0 {
 		return "", "", false
 	}
-	return strings.TrimSpace(trimmed[:eq]), trimmed[eq+1:], true
+	return strings.TrimSpace(trimmed[:eq]), unquote(strings.TrimSpace(trimmed[eq+1:])), true
+}
+
+// unquote strips one matching pair of surrounding single or double quotes from a dotenv
+// value (shell quoting), leaving an unquoted or unbalanced value unchanged.
+func unquote(v string) string {
+	if len(v) >= 2 {
+		if c := v[0]; (c == '"' || c == '\'') && v[len(v)-1] == c {
+			return v[1 : len(v)-1]
+		}
+	}
+	return v
 }
