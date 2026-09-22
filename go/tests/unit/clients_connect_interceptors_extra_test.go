@@ -47,7 +47,9 @@ func TestLoggingInterceptor_StatusCodeMapping(t *testing.T) {
 		{connect.CodeUnavailable, false},
 		{connect.CodeDeadlineExceeded, false},
 		{connect.CodeInternal, false},
-		{connect.CodeCanceled, false},
+		// 499 client-closed-request: the caller cancelled/disconnected — a client outcome, logged at
+		// Warn so it does not fire the critical VVSearchServiceError alert.
+		{connect.CodeCanceled, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.code.String(), func(t *testing.T) {

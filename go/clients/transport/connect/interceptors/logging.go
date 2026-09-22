@@ -22,7 +22,10 @@ func is4xxConnectCode(code connect.Code) bool {
 		connect.CodePermissionDenied,
 		connect.CodeFailedPrecondition,
 		connect.CodeOutOfRange,
-		connect.CodeResourceExhausted:
+		connect.CodeResourceExhausted,
+		// A caller that cancels/disconnects mid-request (499 client-closed-request) is a client
+		// outcome, not a server fault — log at Warn so it does not trip VVSearchServiceError.
+		connect.CodeCanceled:
 		return true
 	}
 	return false
@@ -53,6 +56,9 @@ func connectCodeToHTTPStatus(code connect.Code) int {
 		return 503
 	case connect.CodeDeadlineExceeded:
 		return 504
+	case connect.CodeCanceled:
+		// 499 client-closed-request: the caller went away; not a server 5xx.
+		return 499
 	default:
 		return 500
 	}

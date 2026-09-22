@@ -1342,6 +1342,35 @@ func TestLoggingInterceptor_5xxCodeLogsAtError(t *testing.T) {
 	assert.Empty(t, *spy.ChildWarnCalls, "expected 0 calls")
 }
 
+// TestLoggingInterceptor_CanceledLogsAtWarn verifies that a client cancellation
+// (CodeCanceled, HTTP 499 client-closed-request) is logged at Warn, not Error.
+//
+// Why this test is important:
+//   - A caller that disconnects or cancels mid-request is a normal client outcome,
+//     not a server fault. Logging it at Error fires the critical VVSearchServiceError
+//     alert and inflates the error rate (the observed symptom: cancelled reads
+//     surfaced as error-level 500s across ListNotifications/ListWorkspaces).
+//
+// What it tests:
+//   - CodeCanceled -> Warn on the child logger, zero Error calls.
+func TestLoggingInterceptor_CanceledLogsAtWarn(t *testing.T) {
+	t.Parallel()
+
+	spy := fixtures.NewSpyLogger()
+	interceptor := interceptors.NewLoggingInterceptor(spy)
+
+	handler := interceptor.WrapUnary(
+		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
+			return nil, connect.NewError(connect.CodeCanceled, errors.New("client canceled"))
+		},
+	)
+
+	_, _ = handler(context.Background(), newTestRequest())
+
+	assert.Len(t, *spy.ChildWarnCalls, 1)
+	assert.Empty(t, *spy.ChildErrorCalls, "a cancellation must not log at Error")
+}
+
 // ---------------------------------------------------------------------------
 // Metrics interceptor
 // ---------------------------------------------------------------------------

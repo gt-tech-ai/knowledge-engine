@@ -15,6 +15,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
@@ -142,6 +144,16 @@ func setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 			MaxInterval:     5 * time.Second,
 			MaxElapsedTime:  30 * time.Second,
 		}),
+		// Keepalive so a wedged / half-open connection is detected and re-established in ~1 minute
+		// instead of stalling exports for many minutes (retry alone reuses the same broken connection;
+		// keepalive PINGs during an in-flight export tear it down and reconnect). PermitWithoutStream is
+		// false so pings fire only while an export is active — this never trips the collector's default
+		// gRPC keepalive enforcement, which only polices pings sent with no active stream.
+		otlptracegrpc.WithDialOption(grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                1 * time.Minute,
+			Timeout:             20 * time.Second,
+			PermitWithoutStream: false,
+		})),
 	}
 	if cfg.Insecure {
 		opts = append(opts, otlptracegrpc.WithInsecure())
@@ -177,7 +189,10 @@ func setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+		// A span queue larger than the SDK default (2048) so a burst on a freshly-started pod — a cold
+		// exporter catching up while its connection re-establishes — buffers spans instead of dropping
+		// them. Bounded so a prolonged outage still caps memory.
+		sdktrace.WithBatcher(exporter, sdktrace.WithMaxQueueSize(4096)),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sampler),
 	)
