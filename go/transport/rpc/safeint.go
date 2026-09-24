@@ -6,7 +6,7 @@ import (
 )
 
 // Int32OrPanic converts a signed integer to int32 for proto count/index fields whose value is
-// invariant-guaranteed to fit int32 (e.g. a per-org binding count, a chunk index). It PANICS if the
+// invariant-guaranteed to fit int32 (e.g. a per-tenant count, a chunk index). It PANICS if the
 // value is out of range — a deliberate loud failure for a "cannot happen" invariant, never a silent
 // truncation that would corrupt a displayed count/index and mask the upstream bug.
 //

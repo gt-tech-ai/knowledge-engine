@@ -21,7 +21,7 @@ const unreachableDB = "postgres://u:p@127.0.0.1:1/db?sslmode=disable"
 // DSN, applies the connection/worker caps, and constructs the River client offline.
 //
 // Why this test is important:
-//   - NewRuntime is the composition-root constructor for the document-events worker
+//   - NewRuntime is the composition-root constructor for a River worker
 //     runtime; a DSN-parse or client-construction regression stops every replica from
 //     booting, and it must fail loudly at construction rather than at first job.
 //

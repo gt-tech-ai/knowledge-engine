@@ -12,7 +12,7 @@ import (
 // TestInt32OrPanic tests the invariant-assertion int→int32 policy.
 //
 // Why this test is important:
-//   - It guards values that "cannot" exceed int32 (per-org counts, chunk indices); the contract is a
+//   - It guards values that "cannot" exceed int32 (per-tenant counts, chunk indices); the contract is a
 //     LOUD panic on violation, never a silent truncation — a silent wrap would corrupt a displayed
 //     count or index and mask the upstream bug. It must accept both int and int64 callers.
 //

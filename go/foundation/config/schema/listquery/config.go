@@ -3,7 +3,7 @@
 // threshold above which a facet-eligible field is served from the maintained
 // distinct_values table instead of a live DISTINCT, and the interval at which the
 // reconcile job recomputes refcounts. Pure data (mirrors infra/S3Config), read by the
-// suggest routing (threshold) and the document-events reconcile worker (interval).
+// suggest routing (threshold) and the reconcile job (interval).
 package listquery
 
 import (

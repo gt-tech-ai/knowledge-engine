@@ -86,8 +86,8 @@ func GetCallerIdentity(ctx context.Context) (string, bool) {
 	return caller, ok
 }
 
-// serviceAuthInterceptor authenticates the CALLING SERVICE on the internal, non-Kong RPCs
-// (Phase 1) for BOTH unary and streaming handlers — Connect applies a
+// serviceAuthInterceptor authenticates the CALLING SERVICE on the internal, non-gateway RPCs
+// for BOTH unary and streaming handlers — Connect applies a
 // connect.UnaryInterceptorFunc only to unary calls, so a unary-only guard would leave
 // server-streaming handlers unauthenticated.
 type serviceAuthInterceptor struct {

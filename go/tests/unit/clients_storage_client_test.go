@@ -315,7 +315,7 @@ func TestStorageClient_ListObjects_MapsContents(t *testing.T) {
 // while the listing is truncated.
 //
 // Why this test is important:
-//   - The connector-sync engine crash-resumes by checkpointing this token; if the token weren't passed
+//   - A sync engine crash-resumes by checkpointing this token; if the token weren't passed
 //     through (re-listing from the start) or the next token leaked when the listing was exhausted (an
 //     infinite loop), a large-bucket sync would loop or re-process objects.
 //

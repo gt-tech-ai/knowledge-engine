@@ -39,8 +39,8 @@ func newStreamConn(t *testing.T) *mocks.MockStreamingHandlerConn {
 // recovers a panic in a server-streaming handler and returns CodeInternal.
 //
 // Why this test is important:
-//   - Before F6 the recovery interceptor was unary-only, so a panic in a stream handler
-//     (e.g. QueryStream) unwound past the interceptor and crashed the serving goroutine,
+//   - Previously, the recovery interceptor was unary-only, so a panic in a stream handler
+//     (e.g. a streamed answer) unwound past the interceptor and crashed the serving goroutine,
 //     taking down every connection on it. This pins that the streaming path is now
 //     panic-safe, exactly like the unary path.
 //
@@ -66,7 +66,7 @@ func TestRecoveryInterceptor_Streaming_ConvertsPanic(t *testing.T) {
 // server-streaming RPC.
 //
 // Why this test is important:
-//   - Before F6 streaming RPCs (QueryStream) emitted no metrics at all, so their request
+//   - Previously, streaming RPCs emitted no metrics at all, so their request
 //     rate, error rate, and latency were invisible on dashboards. This pins that a stream
 //     is measured like a unary call: one counter increment (labeled with the terminal
 //     code) and one duration observation, keyed on the procedure.
@@ -101,7 +101,7 @@ func TestMetricsInterceptor_Streaming_RecordsCounterAndDuration(t *testing.T) {
 // a server span for a server-streaming RPC.
 //
 // Why this test is important:
-//   - Before F6 a streamed RPC produced no span, so it was invisible in distributed
+//   - Previously, a streamed RPC produced no span, so it was invisible in distributed
 //     traces and couldn't be correlated with the calls it fanned out to. This pins that
 //     the streaming path opens a span attributed to the RPC's service, like unary.
 //
@@ -130,7 +130,7 @@ func TestTracingInterceptor_Streaming_CreatesSpan(t *testing.T) {
 // emits exactly one access-log line for a successful server-streaming RPC.
 //
 // Why this test is important:
-//   - Before F6 streamed RPCs produced no access log, so a QueryStream request left no
+//   - Previously, streamed RPCs produced no access log, so a streamed request left no
 //     audit trail. This pins one-line-per-stream (not zero, not one-per-message).
 //
 // What it tests:
@@ -159,7 +159,7 @@ func TestLoggingInterceptor_Streaming_EmitsOneAccessLine(t *testing.T) {
 // sheds a server-streaming RPC when the limiter denies and admits it when allowed.
 //
 // Why this test is important:
-//   - Before F6 streamed RPCs bypassed rate limiting entirely, so a flood of QueryStream
+//   - Previously, streamed RPCs bypassed rate limiting entirely, so a flood of streaming
 //     opens could not be shed. This pins that a denied stream is rejected before the
 //     handler runs, and an allowed stream reaches it.
 //
@@ -201,7 +201,7 @@ func TestRateLimitInterceptor_Streaming_ShedsAndAllows(t *testing.T) {
 // sheds a server-streaming RPC when the concurrency limit is full.
 //
 // Why this test is important:
-//   - Before F6 streamed RPCs took no bulkhead slot, so unbounded concurrent streams
+//   - Previously, streamed RPCs took no bulkhead slot, so unbounded concurrent streams
 //     could exhaust the backing resource pool. This pins that a stream occupies a slot
 //     and is shed with ResourceExhausted when none is free. (A slot is held for the
 //     stream's full lifetime — a documented tradeoff; size DefaultInternalMaxConcurrent

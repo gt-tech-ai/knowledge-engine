@@ -69,8 +69,8 @@ func SpanID(ctx context.Context) string {
 // `access_token[=:] <t>` — the last explicitly (not by relying on `token=` being a
 // substring of `access_token=`) so the WebSocket auth token (`?access_token=<jwt>`)
 // is fully redacted, including its `access_` prefix, wherever a URL is
-// logged (e.g. Kong's access log). Kong's own access log is scrubbed at the Loki
-// pipeline too (Alloy), since it never passes through this Go redactor.
+// logged. A gateway's own access log never passes through this Go redactor, so
+// scrub it in the log pipeline too.
 //
 // Compiled with grafana/regexp, a pure-Go, RE2-compatible drop-in that is faster
 // on these small inputs (go-re2 regresses small inputs and is deliberately unused).

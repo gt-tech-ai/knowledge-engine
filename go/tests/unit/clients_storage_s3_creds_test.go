@@ -70,7 +70,7 @@ func TestUseStaticCredentials(t *testing.T) {
 }
 
 // TestNewConnectorClientBuilder verifies the shared per-connector S3-client builder both connector
-// composition roots (the API + the document-events worker) use.
+// composition roots use.
 //
 // Why this test is important:
 //   - The two roots previously duplicated this ~30-line closure verbatim; it is now the single source,

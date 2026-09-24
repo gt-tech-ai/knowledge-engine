@@ -1093,7 +1093,7 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 // synthesizes canonical dev claims when no identity headers are present.
 //
 // Why this test is important:
-//   - Local dev has no Kong, so identity headers are never set
+//   - Local dev has no gateway, so identity headers are never set
 //   - Stub mode must provide canonical claims so handlers can proceed in dev
 //   - The synthesized fields must use canonical header names (not X-Sub-ID etc.)
 //
@@ -1130,12 +1130,12 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 }
 
 // TestAuthInterceptor_StubMode_RealHeadersWin tests that when stub=true but
-// real identity headers ARE present (e.g. running behind Kong in dev), those
+// real identity headers ARE present (e.g. running behind a gateway in dev), those
 // headers take precedence over the synthesized dev claims.
 //
 // Why this test is important:
 //   - Stub mode must only fill the gap when no gateway is present; if it
-//     clobbered real Kong-injected headers, a dev request authenticated as a
+//     clobbered real gateway-injected headers, a dev request authenticated as a
 //     specific user would silently run as the canonical stub user instead,
 //     masking authorization bugs
 //
@@ -1156,8 +1156,8 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub:    "real-user-from-kong",
-		testHeaders.Tenant: "real-org-from-kong",
+		testHeaders.Sub:    "real-user-from-gateway",
+		testHeaders.Tenant: "real-org-from-gateway",
 	})
 
 	_, err := handler(context.Background(), req)
@@ -1165,8 +1165,8 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
-	assert.Equal(t, "real-user-from-kong", claims.Sub)
-	assert.Equal(t, "real-org-from-kong", claims.TenantID)
+	assert.Equal(t, "real-user-from-gateway", claims.Sub)
+	assert.Equal(t, "real-org-from-gateway", claims.TenantID)
 }
 
 // ---------------------------------------------------------------------------
@@ -1600,9 +1600,9 @@ func TestTracingInterceptor_ExtractsTraceContext(t *testing.T) {
 // records the X-Request-ID header as a span attribute.
 //
 // Why this test is important:
-//   - X-Request-ID from Kong is used for correlation with gateway logs
-//   - Recording it as a span attribute enables cross-referencing between Kong and service traces
-//   - Bridges two separate correlation systems (Kong's request ID and OTel's trace ID)
+//   - X-Request-ID from the gateway is used for correlation with gateway logs
+//   - Recording it as a span attribute enables cross-referencing between gateway and service traces
+//   - Bridges two separate correlation systems (the gateway's request ID and OTel's trace ID)
 //
 // What it tests:
 //   - A request with X-Request-ID header results in http.request_id span attribute
@@ -1610,7 +1610,7 @@ func TestTracingInterceptor_RecordsRequestID(t *testing.T) {
 	t.Parallel()
 
 	req := connect.NewRequest[*emptyMessage](nil)
-	req.Header().Set("X-Request-ID", "kong-abc123")
+	req.Header().Set("X-Request-ID", "gw-abc123")
 
 	// Use a spy tracer to capture span attributes
 	var recordedAttrs map[string]any
@@ -1633,7 +1633,7 @@ func TestTracingInterceptor_RecordsRequestID(t *testing.T) {
 
 	requestID, ok := recordedAttrs["http.request_id"]
 	assert.True(t, ok, "expected http.request_id span attribute")
-	assert.Equal(t, "kong-abc123", requestID)
+	assert.Equal(t, "gw-abc123", requestID)
 }
 
 // TestClientTracingInterceptor_InjectsTraceContext tests that the client-side

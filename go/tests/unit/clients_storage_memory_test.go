@@ -126,7 +126,7 @@ func TestStorageMemory_ListObjectsPage(t *testing.T) {
 // empty token — the in-memory analogue of S3's continuation-token pagination the sync engine crawls.
 //
 // Why this test is important:
-//   - The connector-sync engine pages a bucket with this primitive and checkpoints the token to
+//   - A sync engine pages a bucket with this primitive and checkpoints the token to
 //     crash-resume; the memory backend must paginate deterministically (a map has no stable order) so a
 //     unit-level engine test can drive the full streaming loop without a real object store.
 //

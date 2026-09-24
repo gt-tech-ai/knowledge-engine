@@ -101,7 +101,7 @@ class ServerInterceptorBuilder:
         """Add the tracing interceptor: continue the inbound W3C trace into a per-RPC SERVER span.
 
         ``service_name`` is the OTel instrumentation-scope name (e.g. ``"retrieval"``). The span is
-        parented on the inbound traceparent, so an upstream trace (Kong → API → this service) stays a
+        parented on the inbound traceparent, so an upstream trace (gateway → upstream service → this service) stays a
         single trace, and every inner client-stack span shares its trace id.
         """
         self._tracing_service = service_name
@@ -349,8 +349,8 @@ class _LoggingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mis
 class _ServiceAuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
     """Rejects RPCs lacking a valid service-to-service bearer token.
 
-    Authenticates the *caller* (e.g. the API service) so downstream claim-based authorization — the
-    clearance filtering — can trust the metadata. The token rides as ``authorization: Bearer <token>``
+    Authenticates the *calling service* so downstream claim-based authorization can trust the
+    metadata it forwards. The token rides as ``authorization: Bearer <token>``
     (the same header clients set). Dev-bypass: an empty expected token allows all calls.
     """
 

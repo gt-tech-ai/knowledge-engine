@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.parser import DocumentParser
 
-# Default per-parse address-space cap (512 MiB) and wall-clock ceiling (60 s) for the isolated backend
-# — the behavior-preserving defaults the ingestion worker's fast lane used before this factory existed.
+# Default per-parse address-space cap (512 MiB) and wall-clock ceiling (60 s) for the isolated backend;
+# the composition root overrides them from config.
 _DEFAULT_MEMORY_BYTES = 512 * 1024 * 1024
 """Default per-parse RLIMIT_AS cap (512 MiB) for the isolated backend."""
 _DEFAULT_TIMEOUT_SECONDS = 60.0

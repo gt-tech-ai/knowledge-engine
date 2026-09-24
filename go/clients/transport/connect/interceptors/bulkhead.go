@@ -10,8 +10,7 @@ import (
 )
 
 // Default internal load-shedding limits — safety-net ceilings for the internal
-// gRPC surface (identity resolver + the InternalService the Python fleet calls)
-// that Kong doesn't front. Sized generously so normal service-to-service
+// RPC surface (service-to-service calls) that no gateway fronts. Sized generously so normal service-to-service
 // load is never shed; they only engage under a genuine burst. Tune per service
 // as load data warrants (a follow-up may lift these into config).
 //

@@ -165,7 +165,7 @@ func TracingStreamClientInterceptor(
 		span.SetAttribute("rpc.method", rpcMethod)
 
 		// Propagate the trace over the wire so the streaming callee (e.g. retrieval's
-		// server-streaming QueryStream) continues this trace instead of starting a new one.
+		// a server-streaming RPC) continues this trace instead of starting a new one.
 		ctx = injectTraceContext(ctx)
 
 		stream, err := streamer(ctx, desc, cc, method, opts...)

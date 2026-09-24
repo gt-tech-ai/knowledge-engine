@@ -578,7 +578,7 @@ func TestGRPCTracingClientInterceptor_InjectsTraceparent(t *testing.T) {
 
 // TestGRPCTracingStreamClientInterceptor_InjectsTraceparent tests that the STREAM
 // client tracing interceptor propagates the active trace over the wire — the path
-// that matters for server-streaming RPCs like RetrievalService/QueryStream.
+// that matters for server-streaming RPCs such as a streamed query.
 //
 // Why this test is important:
 //   - The retrieval query is server-streaming, so only the stream interceptor is on

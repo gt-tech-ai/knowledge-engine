@@ -2,7 +2,7 @@
 
 Extracts the inbound W3C trace context (traceparent) from gRPC request metadata
 and starts a SERVER span as its child, so a trace started upstream (e.g. an HTTP
-request through Kong, or a Connect call from a Go service) continues into the
+request through a gateway, or a Connect call from a Go service) continues into the
 Python gRPC handler instead of starting a new, disconnected trace.
 """
 
@@ -52,9 +52,8 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
     ) -> Any:  # noqa: ANN401  (grpc handler type)
         """Wrap unary-unary AND unary-stream handlers in a SERVER span parented on inbound context.
 
-        The server-streaming case matters here: the reference RPC ``RetrievalService/QueryStream`` is
-        server-streaming, so a unary-only interceptor would leave the entire retrieval query path
-        (rewrite → retrieve → citations → generate) un-parented — each inner client span would start a
+        The server-streaming case matters here: a streaming RPC (e.g. a streamed answer) is common, so
+        a unary-only interceptor would leave the whole streamed request path un-parented — each inner client span would start a
         NEW root trace, breaking single-request correlation. Wrapping the whole streamed response in one
         SERVER span keeps that span active across every ``yield``, so every inner client-stack span is
         its child and shares the upstream trace id.

@@ -40,7 +40,7 @@ func (w *pingWorker) Work(_ context.Context, _ *river.Job[pingArgs]) error {
 // schedules a RunOnStart periodic job, works it, and stops cleanly.
 //
 // Why this test is important:
-//   - The document-events worker's three sweeps run as River periodic jobs; if the
+//   - A worker's periodic sweeps run as River periodic jobs; if the
 //     runtime doesn't schedule + work them, nothing drains the outbox. Leader
 //     election (river_leader) must be active so periodics fire once cluster-wide.
 //

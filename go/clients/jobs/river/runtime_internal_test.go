@@ -21,16 +21,16 @@ import (
 func TestBuildQueues(t *testing.T) {
 	t.Parallel()
 
-	q := buildQueues("connector-sync", 4)
+	q := buildQueues("heavy-sync", 4)
 	if len(q) != 1 {
 		t.Fatalf("want exactly 1 queue, got %d", len(q))
 	}
-	cfg, ok := q["connector-sync"]
+	cfg, ok := q["heavy-sync"]
 	if !ok {
-		t.Fatal("named queue connector-sync missing")
+		t.Fatal("named queue heavy-sync missing")
 	}
 	if cfg.MaxWorkers != 4 {
-		t.Errorf("connector-sync MaxWorkers = %d, want 4", cfg.MaxWorkers)
+		t.Errorf("heavy-sync MaxWorkers = %d, want 4", cfg.MaxWorkers)
 	}
 
 	def := buildQueues("", 0)

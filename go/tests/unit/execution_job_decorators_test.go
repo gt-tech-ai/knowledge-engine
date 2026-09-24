@@ -30,7 +30,7 @@ func execFullStack(job interfaces.AnyJob) interfaces.AnyJob {
 // panicking job into a returned error + failed result instead of crashing.
 //
 // Why this test is important:
-//   - The document-events worker is long-running; a panic in one periodic sweep
+//   - A worker is long-running; a panic in one periodic sweep
 //     run must not take down the process. Recovery is what guarantees that.
 //
 // What it tests:

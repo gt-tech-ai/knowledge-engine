@@ -106,7 +106,7 @@ var _ interfaces.ServiceTokenValidator = interceptors.NewStaticTokenValidator(ni
 // service-to-service auth interceptor into the assembled internal chain.
 //
 // Why this test is important:
-//   - WithServiceAuth is how the internal (non-Kong) mounts opt into caller authentication
+//   - WithServiceAuth is how the internal (non-gateway) mounts opt into caller authentication
 //
 // if Build dropped it the internal surface would stay unauthenticated (the
 //

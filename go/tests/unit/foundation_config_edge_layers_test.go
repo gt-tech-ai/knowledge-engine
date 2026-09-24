@@ -82,7 +82,7 @@ func hasMultipartPartsField(t reflect.Type) bool {
 // schema keeps the sweep-timing cross-field invariant.
 //
 // Why this test is important:
-//   - This invariant is the document-events WorkerConfig's hard-won safety rule:
+//   - This invariant is a sweeping worker's hard-won safety rule:
 //     the reaper/orphan TTLs must outlive an in-flight multipart upload's presign
 //     window, or a sweep deletes a live upload. Generalizing the config must NOT
 //     lose it.

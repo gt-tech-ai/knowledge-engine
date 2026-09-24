@@ -42,8 +42,8 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
         self._dimension = dimension
         # Collections we have already ensured this process — avoids a round-trip per upsert.
         self._ensured: set[str] = set()
-        # Serializes first-time collection creation: concurrent upserts (the ingestion worker fans out
-        # at ingestion_concurrency) could otherwise both pass the exists-check and race create_collection,
+        # Serializes first-time collection creation: concurrent upserts (a batch indexer fanning out)
+        # could otherwise both pass the exists-check and race create_collection,
         # the loser erroring "already exists" and failing an otherwise-good document.
         self._ensure_lock = asyncio.Lock()
 

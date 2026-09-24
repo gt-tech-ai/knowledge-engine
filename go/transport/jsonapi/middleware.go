@@ -10,8 +10,8 @@ import (
 )
 
 // contentTypeJSONAPI is the JSON:API media type set on all transformed
-// responses. The Kong post-function plugin uses this to detect responses
-// that have already been transformed.
+// responses, so a downstream proxy can detect responses that have already been
+// transformed.
 const contentTypeJSONAPI = "application/vnd.api+json"
 
 // maxBodySize is a safety limit for response buffering. Responses larger

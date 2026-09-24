@@ -97,7 +97,7 @@ func TestRedactPII_IPv4(t *testing.T) {
 // Why this test is important:
 //   - Token leaks in logs enable account takeover attacks
 //   - JWTs contain encoded user claims that reveal identity information
-//   - The WS auth path ships the JWT as `?access_token=<jwt>`; Kong's
+//   - The WS auth path ships the JWT as `?access_token=<jwt>`; the gateway's
 //     access log carries the full request line, so this value must be scrubbed —
 //     and intentionally, not by coincidence: a future narrowing of the token
 //     pattern that stopped matching `access_token=` would silently leak the JWT,
@@ -316,7 +316,7 @@ func TestSpanID_ExtractsFromContext(t *testing.T) {
 // Why this test is important:
 //   - WithContext must not early-return when correlation_id is empty but trace context is present
 //   - All three fields (correlation_id, trace_id, span_id) must be checked independently
-//   - Log entries need trace context even when Kong's correlation ID is absent
+//   - Log entries need trace context even when the gateway's correlation ID is absent
 //
 // What it tests:
 //   - Context with span but no correlation ID includes trace_id and span_id in log output

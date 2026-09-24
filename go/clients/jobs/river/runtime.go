@@ -29,10 +29,9 @@ type RuntimeConfig struct {
 
 	// ExtraQueues are ADDITIONAL named queues merged onto the base queue
 	// (QueueName), each with its own MaxWorkers cap. A worker that serves more
-	// than one job kind at DIFFERENT concurrency ceilings (e.g. the
-	// document-events sweeps on the default queue + connector syncs on the
-	// dedicated connector-sync queue at MaxWorkers=K, the admission
-	// gate) supplies them here.
+	// than one job kind at DIFFERENT concurrency ceilings (e.g. periodic
+	// sweeps on the default queue + heavy syncs on a dedicated queue capped
+	// at MaxWorkers=K) supplies them here.
 	ExtraQueues map[string]river.QueueConfig
 
 	// DatabaseURL is the pgx connection string for the runtime's dedicated

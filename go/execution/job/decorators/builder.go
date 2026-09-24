@@ -59,8 +59,8 @@ func (l *loggingJob) Execute(
 }
 
 // metricsJob wraps an AnyJob, recording run count (labeled by outcome) and
-// duration. Used by the document-events worker so every sweep emits run/error
-// counters and a latency histogram.
+// duration, so every run of a periodic job emits run/error counters and a
+// latency histogram.
 type metricsJob struct {
 	// inner is the wrapped job whose runs are measured.
 	inner interfaces.AnyJob

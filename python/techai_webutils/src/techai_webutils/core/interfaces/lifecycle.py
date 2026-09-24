@@ -2,7 +2,7 @@
 
 These mirror Go's ``interfaces.Lifecycle`` / ``HealthChecker`` / ``Client``.
 Python's lifecycle idiom is the async context manager managed by
-``contextlib.AsyncExitStack`` (see the ingestion worker's ``deps.py``): it enters
+``contextlib.AsyncExitStack`` at a service's composition root: it enters
 resources in registration order and exits them in reverse — exactly the role Go's
 ``foundation/lifecycle.Manager`` plays. These Protocols give that idiom a *named*
 contract and add the Kubernetes health-probe surface (liveness/readiness) the

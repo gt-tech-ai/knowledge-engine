@@ -1,8 +1,8 @@
 """Document metadata domain DTO — the fields a ``MetadataExtractor`` produces.
 
 Shared, dependency-free contract (the return type of
-``techai_webutils.core.interfaces.metadata.MetadataExtractor``); the ingestion worker writes these
-fields into the Bedrock KB sidecar. Lives in this shared library so any deployable programs against the same
+``techai_webutils.core.interfaces.metadata.MetadataExtractor``); an indexer writes these fields
+alongside each document (e.g. a knowledge-base metadata sidecar). Lives in this shared library so any deployable programs against the same
 DTO (like Go's ``go/core`` types).
 """
 

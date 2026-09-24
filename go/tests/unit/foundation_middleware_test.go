@@ -53,7 +53,7 @@ func TestRequestID_GeneratesWhenMissing(t *testing.T) {
 // upstream is preserved.
 //
 // Why this test is important:
-//   - Upstream proxies (Kong API gateway) set request IDs for end-to-end tracing
+//   - Upstream proxies (an API gateway) set request IDs for end-to-end tracing
 //   - Overwriting upstream IDs would break trace continuity across the gateway boundary
 //   - The response must echo the same ID back for client-side correlation
 //

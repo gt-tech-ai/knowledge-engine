@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.splitter import DocumentSplitter
 
-# Default per-index-unit byte ceiling (25 MiB) — mirrors the ingestion worker's
-# ``ingestion_chunk_max_bytes`` default; the composition root overrides it from config.
+# Default per-index-unit byte ceiling (25 MiB); the composition root overrides it from config.
 _DEFAULT_MAX_BYTES = 25 << 20
 """Default per-index-unit byte ceiling (25 MiB) for the ``kb_unit`` backend; overridden from config."""
 

@@ -79,8 +79,8 @@ type JoinTarget struct {
 type AggregateSpec struct {
 	// Table is the physical child table aggregated over, e.g. "documents".
 	Table string
-	// LocalKey is the base-row column the child rows correlate to, e.g. "id" (a connector) or "team_id"
-	// (a workspace_teams grant, whose members live on team_members.team_id).
+	// LocalKey is the base-row column the child rows correlate to, e.g. "id" or "team_id" (a grant row
+	// whose members live in another table under that id).
 	LocalKey string
 	// TargetKey is the FK column on Table referencing LocalKey, e.g. "connector_id" / "team_id".
 	TargetKey string

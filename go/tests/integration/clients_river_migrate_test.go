@@ -19,7 +19,7 @@ import (
 // creates River's own tables against a real Postgres.
 //
 // Why this test is important:
-//   - The document-events worker's River runtime cannot start until River's schema
+//   - A worker's River runtime cannot start until River's schema
 //
 // (river_job, river_leader, …) exists. applies it via River's own
 //

@@ -20,9 +20,8 @@ type ConnectorClientBuilder = func(
 	region string,
 ) (interfaces.StorageClient, error)
 
-// NewConnectorClientBuilder returns the per-connector S3-client builder BOTH connector composition roots
-// (the API and the document-events worker) share — the ~30-line buildS3Client closure they previously
-// duplicated verbatim. Given the app's base S3Config (region + optional MinIO endpoint, captured once),
+// NewConnectorClientBuilder returns the per-connector S3-client builder a consumer's composition roots
+// share, instead of each hand-rolling the client construction. Given the app's base S3Config (region + optional MinIO endpoint, captured once),
 // it builds a connector-scoped StorageClient signing with the connector's credentials, falling back to
 // the app region when the connector carries none. It depends only on storage config, so it stays free of
 // any go/clients/connector import; the composition root passes the result to connector.NewSourceBuilder.

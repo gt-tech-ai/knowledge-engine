@@ -30,7 +30,7 @@ type SQSElasticMQSuite struct {
 // TestSQSElasticMQSuite is the testify entrypoint for the ElasticMQ suite.
 //
 // Why this test is important:
-//   - The document-events relay publishes to SQS in dev via ElasticMQ; only a real
+//   - An outbox relay publishes to SQS in dev via ElasticMQ; only a real
 //     ElasticMQ proves the Kind-selected client + endpoint actually deliver.
 //
 // What it tests:

@@ -17,9 +17,9 @@ import (
 // are applied with River's native migrator rather than the Ent/Atlas migration
 // directory — keeping them out of an Ent/Atlas drift check (which diffs the Ent
 // schema against the Atlas migrations and would otherwise report perpetual drift
-// for the non-Ent river_* tables). The document-events worker's runtime cannot
-// start until these tables exist; the migration Job invokes Migrate after the
-// Atlas apply.
+// for the non-Ent river_* tables). A River runtime cannot start until these
+// tables exist, so a deployment's migration step invokes Migrate after the
+// schema apply.
 //
 // Migrate is idempotent: re-running it is a no-op once the schema is current.
 func Migrate(ctx context.Context, databaseURL string) error {

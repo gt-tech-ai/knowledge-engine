@@ -116,7 +116,7 @@ type StorageClient interface {
 	// (empty token = start of the listing) and returns the objects plus the token to resume from
 	// (nextToken == "" when the listing is exhausted). It is the resumable, memory-bounded streaming
 	// primitive a large-bucket crawl pages over — never materializing the full key list — so a caller
-	// (the connector-sync engine) holds at most one page at a time and can checkpoint the token to
+	// (e.g. a sync engine) holds at most one page at a time and can checkpoint the token to
 	// crash-resume. A non-positive limit lets the backend apply its default page size.
 	ListObjectsPageToken(
 		ctx context.Context,

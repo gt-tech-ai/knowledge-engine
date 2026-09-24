@@ -168,7 +168,9 @@ class TestLlmFactory:
         """
         from techai_webutils.clients.llm.bedrock import BedrockLlmProvider
 
-        assert isinstance(new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK)), BedrockLlmProvider)
+        assert isinstance(
+            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK, model="model-x")), BedrockLlmProvider
+        )
 
     def test_bedrock_with_fallback_model_wraps_in_fallback_chain(self) -> None:
         """Test that a bedrock provider with a fallback_model is wrapped in the fallback chain.
@@ -216,27 +218,13 @@ class TestLlmFactory:
             loud, actionable startup error.
 
         **What it tests:**
-          - new_llm_from_config(kind=BEDROCK, model="") raises ValueError naming the missing model.
+          - new_llm_from_config(kind=BEDROCK, model="") raises ValueError naming the missing model, and so
+            does a bedrock config that sets no model at all (there is no built-in default model).
         """
         with pytest.raises(ValueError, match="model"):
             new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK, model=""))
-
-    def test_default_models_are_active_inference_profiles(self) -> None:
-        """Test that the default Bedrock model constants are active inference-profile ids, not retired bare ids.
-
-        **Why this test is important:**
-          - The old defaults (anthropic.claude-3-*-2024…) are BOTH retired and bare (non-inference-profile);
-            every Anthropic model on Bedrock is inference-profile-only, so a bare id AccessDenies at runtime.
-            The canonical defaults must be active us.anthropic.* inference-profile ids so a
-            bedrock config that omits the model inherits a working default, not a guaranteed-failing one.
-
-        **What it tests:**
-          - DEFAULT_MODEL and DEFAULT_REWRITE_MODEL are us.anthropic.* inference-profile ids.
-        """
-        from techai_webutils.clients.llm.builder import DEFAULT_MODEL, DEFAULT_REWRITE_MODEL
-
-        assert DEFAULT_MODEL.startswith("us.anthropic.")
-        assert DEFAULT_REWRITE_MODEL.startswith("us.anthropic.")
+        with pytest.raises(ValueError, match="model"):
+            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK))
 
 
 class TestOllamaLlmProvider:

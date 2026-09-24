@@ -390,7 +390,7 @@ func TestRateLimitDecorator_AllowsWithinLimit(t *testing.T) {
 // decorator blocks requests when the rate limit is exceeded.
 //
 // Why this test is important:
-//   - Kong enforces tenant-level limits but the per-handler limiter provides
+//   - The gateway enforces tenant-level limits but the per-handler limiter provides
 //     defense-in-depth; if it doesn't reject over-limit requests, one tenant
 //     can exhaust resources for all others
 //
