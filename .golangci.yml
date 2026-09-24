@@ -43,12 +43,12 @@ linters:
     - testifylint
     # Architecture enforcement
     - depguard
-    # Error-theory enforcement (charter §9.1): ban code-less fmt.Errorf so every
+    # Error-theory enforcement (ARCHITECTURE.md#error-codes): ban code-less fmt.Errorf so every
     # error crossing a boundary carries an ErrorCode via core/errors Wrap/New.
     # Configured in settings.forbidigo; test files are excluded globally below.
     - forbidigo
     # Documentation completeness: every exported symbol carries a doc comment
-    # (CLAUDE.md Documentation Standards). Only revive's `exported` rule is enabled
+    # Only revive's `exported` rule is enabled
     # (see settings.revive) — the repo is already at 0 findings, so this locks it in.
     - revive
   settings:
@@ -83,14 +83,14 @@ linters:
           arguments:
             - disableStutteringCheck
     forbidigo:
-      # charter §9.1: every error crossing a boundary carries an ErrorCode via
+      # Every error crossing a boundary carries an ErrorCode via
       # core/errors Wrap/New. A code-less fmt.Errorf is forbidden in production
       # code (test files are globally excluded under exclusions.paths below).
       # Specifying `forbid` REPLACES forbidigo's default fmt.Print* patterns, so
       # only fmt.Errorf is banned — fmt.Println/Printf are untouched.
       forbid:
         - pattern: ^fmt\.Errorf$
-          msg: use core/errors Wrap/New (charter §9.1) — no code-less fmt.Errorf
+          msg: use core/errors Wrap/New — no code-less fmt.Errorf
     govet:
       enable:
         - fieldalignment
@@ -113,18 +113,10 @@ linters:
       key-naming-case: snake
     depguard:
       rules:
-        # ── Global: pkg/ must not import apps/ ──
-        pkg-no-apps:
-          files:
-            - "**/pkg/go/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps"
-              desc: "pkg/ must not import apps/"
-
         # ── Layer 0: core/ must not import any higher layer ──
         core-no-upper-layers:
           files:
-            - "**/pkg/go/core/**/*.go"
+            - "**/go/core/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/foundation"
               desc: "core/ must not import foundation/ (layer violation)"
@@ -144,7 +136,7 @@ linters:
         # ── Layer 1: foundation/ must not import layers 2+ ──
         foundation-no-upper-layers:
           files:
-            - "**/pkg/go/foundation/**/*.go"
+            - "**/go/foundation/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/clients"
               desc: "foundation/ must not import clients/ (layer violation)"
@@ -162,7 +154,7 @@ linters:
         # ── Layer 2: clients/ must not import layers 3+ ──
         clients-no-upper-layers:
           files:
-            - "**/pkg/go/clients/**/*.go"
+            - "**/go/clients/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/repos"
               desc: "clients/ must not import repos/ (layer violation)"
@@ -178,7 +170,7 @@ linters:
         # ── Layer 3: repos/ must not import layers 4+ ──
         repos-no-upper-layers:
           files:
-            - "**/pkg/go/repos/**/*.go"
+            - "**/go/repos/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/services"
               desc: "repos/ must not import services/ (layer violation)"
@@ -192,7 +184,7 @@ linters:
         # ── Layer 4: services/ must not import layers 5+ ──
         services-no-upper-layers:
           files:
-            - "**/pkg/go/services/**/*.go"
+            - "**/go/services/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/pipelines"
               desc: "services/ must not import pipelines/ (layer violation)"
@@ -204,7 +196,7 @@ linters:
         # ── Layer 5: pipelines/ must not import layers 6+ ──
         pipelines-no-upper-layers:
           files:
-            - "**/pkg/go/pipelines/**/*.go"
+            - "**/go/pipelines/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/workflows"
               desc: "pipelines/ must not import workflows/ (layer violation)"
@@ -214,465 +206,57 @@ linters:
         # ── Layer 6: workflows/ must not import layer 7 ──
         workflows-no-upper-layers:
           files:
-            - "**/pkg/go/workflows/**/*.go"
+            - "**/go/workflows/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/transport"
               desc: "workflows/ must not import transport/ (layer violation)"
 
-        # ── API app intra-layer boundaries ──
-        # Mirror the pkg/go set for apps/go/server/api so the
-        # transport→workflow→pipeline→service→repo→store ordering is lint-enforced inside the
-        # app, not just by convention. config/ (the composition root) and background/ (the
-        # maintenance tickers, documented) are deliberately unscoped. Lateral
-        # same-tier rules are intentionally omitted: the only real same-tier import is the
-        # legitimate shared services/authz policy kernel, and the pkg/go set being mirrored
-        # has no lateral rules either.
-        api-core-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/core/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/clients"
-              desc: "api core/ must not import clients/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/stores"
-              desc: "api core/ must not import stores/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/repos"
-              desc: "api core/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/services"
-              desc: "api core/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/pipelines"
-              desc: "api core/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api core/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api core/ must not import transport/ (layer violation)"
-
-        api-clients-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/clients/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/stores"
-              desc: "api clients/ must not import stores/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/repos"
-              desc: "api clients/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/services"
-              desc: "api clients/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/pipelines"
-              desc: "api clients/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api clients/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api clients/ must not import transport/ (layer violation)"
-
-        api-stores-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/stores/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/repos"
-              desc: "api stores/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/services"
-              desc: "api stores/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/pipelines"
-              desc: "api stores/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api stores/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api stores/ must not import transport/ (layer violation)"
-
-        api-repos-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/repos/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/services"
-              desc: "api repos/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/pipelines"
-              desc: "api repos/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api repos/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api repos/ must not import transport/ (layer violation)"
-
-        api-services-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/services/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/pipelines"
-              desc: "api services/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api services/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api services/ must not import transport/ (layer violation)"
-
-        api-pipelines-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/pipelines/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/workflows"
-              desc: "api pipelines/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api pipelines/ must not import transport/ (layer violation)"
-
-        api-workflows-no-upper-layers:
-          files:
-            - "**/apps/go/server/api/workflows/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/transport"
-              desc: "api workflows/ must not import transport/ (layer violation)"
-
-        # transport/ is the top tier, but must not SKIP past the domain tiers to data access:
-        # a handler reaches data through a workflow/service seam, never the concrete repos/stores
-        # (the D6-2-class shortcut). services/workflows/pipelines remain legal downward imports.
-        api-transport-no-datastore:
-          files:
-            - "**/apps/go/server/api/transport/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/repos"
-              desc: "api transport/ must not import repos/ directly — go through a workflow/service seam"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/api/stores"
-              desc: "api transport/ must not import stores/ directly — go through a workflow/service seam"
-
-        # ── Identity app intra-layer boundaries (H-1) ──
-        # Mirror the api set for apps/go/server/identity so the
-        # transport→workflow→pipeline→service→repo→store ordering is lint-enforced inside the
-        # app, not just by convention (api-parity, Epic 42.5). config/ (the composition root),
-        # hooks/ (Ent cache-invalidation hooks wired by Wire), health/ and docs/ are
-        # deliberately unscoped. No lateral same-tier rules (mirrors the api + pkg/go sets).
-        identity-core-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/core/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/clients"
-              desc: "identity core/ must not import clients/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/stores"
-              desc: "identity core/ must not import stores/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/repos"
-              desc: "identity core/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/services"
-              desc: "identity core/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/pipelines"
-              desc: "identity core/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity core/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity core/ must not import transport/ (layer violation)"
-
-        identity-clients-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/clients/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/stores"
-              desc: "identity clients/ must not import stores/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/repos"
-              desc: "identity clients/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/services"
-              desc: "identity clients/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/pipelines"
-              desc: "identity clients/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity clients/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity clients/ must not import transport/ (layer violation)"
-
-        identity-stores-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/stores/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/repos"
-              desc: "identity stores/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/services"
-              desc: "identity stores/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/pipelines"
-              desc: "identity stores/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity stores/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity stores/ must not import transport/ (layer violation)"
-
-        identity-repos-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/repos/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/services"
-              desc: "identity repos/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/pipelines"
-              desc: "identity repos/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity repos/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity repos/ must not import transport/ (layer violation)"
-
-        identity-services-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/services/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/pipelines"
-              desc: "identity services/ must not import pipelines/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity services/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity services/ must not import transport/ (layer violation)"
-
-        identity-pipelines-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/pipelines/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/workflows"
-              desc: "identity pipelines/ must not import workflows/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity pipelines/ must not import transport/ (layer violation)"
-
-        identity-workflows-no-upper-layers:
-          files:
-            - "**/apps/go/server/identity/workflows/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/transport"
-              desc: "identity workflows/ must not import transport/ (layer violation)"
-
-        # transport/ is the top tier, but must not SKIP the domain tiers to data access:
-        # a handler reaches data through a workflow/service seam, never the concrete repos/stores.
-        identity-transport-no-datastore:
-          files:
-            - "**/apps/go/server/identity/transport/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/repos"
-              desc: "identity transport/ must not import repos/ directly — go through a workflow/service seam"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/server/identity/stores"
-              desc: "identity transport/ must not import stores/ directly — go through a workflow/service seam"
-
-        # ── document-events worker intra-layer boundaries (DE-4) ──
-        # Mirror the api/identity sets for the first Go worker so its
-        # gate→jobs→services→repos→stores→core ordering is lint-enforced inside the app, not just by
-        # convention. config/ (the Wire composition root), health/ and main are deliberately unscoped.
-        # ⛔ The deny patterns key on the worker's LOCAL import paths ONLY — never pkg/go/execution/*:
-        # jobs/ (the sweeps + the connector workers) legitimately imports the SHARED
-        # pkg/go/execution/gate for gate.NewGate/RunGate, which must keep compiling. The LOCAL gate/
-        # package is the compose tier (gate.Configure/Plan), imported by config+main, not by jobs — so
-        # "jobs may not import [local] document-events/gate" is a real rule distinct from the shared gate.
-        worker-de-core-no-upper-layers:
-          files:
-            - "**/apps/go/worker/document-events/core/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/stores"
-              desc: "document-events core/ must not import stores/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/repos"
-              desc: "document-events core/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/services"
-              desc: "document-events core/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/jobs"
-              desc: "document-events core/ must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/gate"
-              desc: "document-events core/ must not import the local gate/ compose tier (layer violation)"
-
-        worker-de-stores-no-upper-layers:
-          files:
-            - "**/apps/go/worker/document-events/stores/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/repos"
-              desc: "document-events stores/ must not import repos/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/services"
-              desc: "document-events stores/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/jobs"
-              desc: "document-events stores/ must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/gate"
-              desc: "document-events stores/ must not import the local gate/ compose tier (layer violation)"
-
-        worker-de-repos-no-upper-layers:
-          files:
-            - "**/apps/go/worker/document-events/repos/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/services"
-              desc: "document-events repos/ must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/jobs"
-              desc: "document-events repos/ must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/gate"
-              desc: "document-events repos/ must not import the local gate/ compose tier (layer violation)"
-
-        worker-de-services-no-upper-layers:
-          files:
-            - "**/apps/go/worker/document-events/services/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/jobs"
-              desc: "document-events services/ must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/gate"
-              desc: "document-events services/ must not import the local gate/ compose tier (layer violation)"
-
-        # jobs/ is below the local gate/ compose tier; it may import pkg/go/execution/gate (shared) but
-        # not the local document-events/gate (which would be an upward import of the compose tier).
-        worker-de-jobs-no-local-gate:
-          files:
-            - "**/apps/go/worker/document-events/jobs/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/apps/go/worker/document-events/gate"
-              desc: "document-events jobs/ must not import the local gate/ compose tier (upward); use pkg/go/execution/gate"
-
-        # ── Enforce core/errors: no stdlib "errors" in pkg/ or tools/cli production code ──
+        # ── Enforce core/errors: no stdlib "errors" in production code (core/errors wraps it) ──
         enforce-core-errors:
           files:
-            - "**/pkg/go/**/*.go"
-            - "!**/pkg/go/core/errors/*.go"
-            - "!**/pkg/go/core/errors/**/*.go"
-            - "**/tools/cli/**/*.go"
-            - "!**/tools/cli/**/*_test.go"
+            - "**/go/**/*.go"
+            - "!**/go/core/errors/*.go"
+            - "!**/go/core/errors/**/*.go"
           deny:
             - pkg: "errors"
               desc: "use github.com/gt-tech-ai/knowledge-engine/go/core/errors instead of stdlib errors"
 
-        # ── Enforce foundation/logger: no log/slog in pkg/ except logger impl ──
+        # ── Enforce foundation/logger: no log/slog outside the logger implementation ──
         enforce-foundation-logger:
           files:
-            - "**/pkg/go/**/*.go"
-            - "!**/pkg/go/foundation/logger/*.go"
-            - "!**/pkg/go/foundation/logger/**/*.go"
+            - "**/go/**/*.go"
+            - "!**/go/foundation/logger/*.go"
+            - "!**/go/foundation/logger/**/*.go"
           deny:
             - pkg: "log/slog"
               desc: "use interfaces.Logger (core/interfaces) instead of log/slog directly"
             - pkg: "log$"
               desc: "use interfaces.Logger (core/interfaces) instead of stdlib log"
 
-        # ── pkg/go/helpers is a leaf utility: must not import other pkg/go layers ──
+        # ── go/helpers is a leaf utility: must not import other layers ──
         helpers-is-leaf:
           files:
-            - "**/pkg/go/helpers/**/*.go"
+            - "**/go/helpers/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/core"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/foundation"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/execution"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/clients"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/repos"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/services"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/pipelines"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/workflows"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/controllers"
-              desc: "pkg/go/helpers/ is a leaf utility; must not import other pkg/go layers"
+              desc: "go/helpers/ is a leaf utility; must not import other layers"
 
-        # ── CLI: nothing below the transport layer may import the UI package ──
-        # presentation is cmd-only; every lower tier stays UI-free.
-        cli-ui-boundary:
-          files:
-            - "**/tools/cli/domain/**/*.go"
-            - "**/tools/cli/toolset/**/*.go"
-            - "**/tools/cli/renovate/**/*.go"
-            - "**/tools/cli/services/**/*.go"
-            - "**/tools/cli/jobs/**/*.go"
-            - "**/tools/cli/gates/**/*.go"
-            - "**/tools/cli/harness/**/*.go"
-            - "**/tools/cli/config/**/*.go"
-            - "**/tools/cli/discovery/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/ui"
-              desc: "only cmd/ (transport) may import the ui package (presentation boundary)"
-
-        # ── CLI foundation (config, discovery) imports nothing upward ──
-        cli-foundation-no-upper:
-          files:
-            - "**/tools/cli/config/**/*.go"
-            - "**/tools/cli/discovery/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/domain"
-              desc: "CLI foundation must not import domain/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/toolset"
-              desc: "CLI foundation must not import toolset/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/renovate"
-              desc: "CLI foundation must not import renovate/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/services"
-              desc: "CLI foundation must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/jobs"
-              desc: "CLI foundation must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/gates"
-              desc: "CLI foundation must not import gates/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/cmd"
-              desc: "CLI foundation must not import cmd/ (layer violation)"
-
-        # ── CLI domain (domain, toolset, renovate) must not import higher tiers ──
-        cli-domain-no-upper:
-          files:
-            - "**/tools/cli/domain/**/*.go"
-            - "**/tools/cli/toolset/**/*.go"
-            - "**/tools/cli/renovate/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/services"
-              desc: "CLI domain tier must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/jobs"
-              desc: "CLI domain tier must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/gates"
-              desc: "CLI domain tier must not import gates/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/cmd"
-              desc: "CLI domain tier must not import cmd/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/harness"
-              desc: "CLI domain tier must not import harness/ (layer violation)"
-
-        # ── CLI services (OpServices) must not import higher CLI layers ──
-        # (lateral service → service is intentionally allowed — #7) ──
-        cli-services-no-upper:
-          files:
-            - "**/tools/cli/services/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/jobs"
-              desc: "CLI services layer must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/gates"
-              desc: "CLI services layer must not import gates/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/cmd"
-              desc: "CLI services layer must not import cmd/ (layer violation)"
-
-        # ── CLI E2E harnesses must not import higher CLI layers, nor the other
-        # domain subsystems (harness uses only domain/config/discovery) ──
-        cli-harness-no-upper:
-          files:
-            - "**/tools/cli/harness/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/toolset"
-              desc: "CLI harness must not import toolset/ (cross-subsystem violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/renovate"
-              desc: "CLI harness must not import renovate/ (cross-subsystem violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/services"
-              desc: "CLI harness must not import services/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/jobs"
-              desc: "CLI harness must not import jobs/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/gates"
-              desc: "CLI harness must not import gates/ (layer violation)"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/cmd"
-              desc: "CLI harness must not import cmd/ (layer violation)"
-
-        # ── CLI jobs must not import gates (upward) ──
-        cli-pipelines-no-upper:
-          files:
-            - "**/tools/cli/jobs/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/gates"
-              desc: "CLI jobs layer must not import gates/ (layer violation)"
-
-        # ── CLI composition root (app/) may import any lower tier but NOT cmd/
-        # (cmd imports app — the reverse would cycle) ──
-        cli-app-no-cmd:
-          files:
-            - "**/tools/cli/app/**/*.go"
-          deny:
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/tools/cli/cmd"
-              desc: "CLI composition root (app/) must not import cmd/ (import cycle)"
-
-        # ── CLI: lower tiers must use interfaces.Logger, not log/slog or stdlib log ──
-        cli-no-slog:
-          files:
-            - "**/tools/cli/domain/**/*.go"
-            - "**/tools/cli/toolset/**/*.go"
-            - "**/tools/cli/renovate/**/*.go"
-            - "**/tools/cli/discovery/**/*.go"
-            - "**/tools/cli/services/**/*.go"
-            - "**/tools/cli/jobs/**/*.go"
-            - "**/tools/cli/harness/**/*.go"
-            - "**/tools/cli/app/**/*.go"
-          deny:
-            - pkg: "log/slog"
-              desc: "CLI lower tiers must use interfaces.Logger, not log/slog directly"
-            - pkg: "log$"
-              desc: "CLI lower tiers must use interfaces.Logger, not stdlib log directly"
   exclusions:
     generated: lax
     presets:
