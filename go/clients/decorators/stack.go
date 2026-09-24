@@ -3,7 +3,7 @@
 //
 //	Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging
 //
-// around any direct-SDK client operation (S3, SQS, auth0, Bedrock, …). It
+// around any direct-SDK client operation (S3, SQS, Bedrock, …). It
 // generalizes the pattern proven in clients/storage/decorators (which hand-rolled
 // CB/Timeout/Tracing/Metrics/Logging): each per-client decorator delegates its
 // per-operation work to [Run], so every direct-SDK client gets the same

@@ -37,15 +37,8 @@ type Config struct {
 	// The cap that closes the unbounded-LIMIT gap on client-supplied page sizes.
 	MaxPageSize int `mapstructure:"max_page_size"`
 
-	// DefaultPageSize is the fallback page size when a request omits one, for the
-	// document + workspace stores (was the bare const 20).
+	// DefaultPageSize is the fallback page size when a request omits one.
 	DefaultPageSize int `mapstructure:"default_page_size"`
-
-	// PendingIndexingPageSize is the KB-sync reconciler cohort page size (was 100).
-	PendingIndexingPageSize int `mapstructure:"pending_indexing_page_size"`
-
-	// MaxPendingIndexingPageSize caps the reconciler cohort page size (was 1000).
-	MaxPendingIndexingPageSize int `mapstructure:"max_pending_indexing_page_size"`
 
 	// CountCap bounds the numeric pager's total_count: the offset arm counts
 	// matching rows only up to this cap, so a per-page total_count never pays a full-table
@@ -75,11 +68,9 @@ type Config struct {
 // without affecting any normal request.
 func DefaultConfig() Config {
 	return Config{
-		MaxPageSize:                1000,
-		DefaultPageSize:            20,
-		PendingIndexingPageSize:    100,
-		MaxPendingIndexingPageSize: 1000,
-		CountCap:                   10000,
+		MaxPageSize:     1000,
+		DefaultPageSize: 20,
+		CountCap:        10000,
 		Cache: Cache{
 			Enabled:    true,
 			SuggestTTL: 45 * time.Second,
@@ -100,18 +91,6 @@ func (c Config) Validate() error {
 	}
 	if c.MaxPageSize > 0 && c.MaxPageSize < c.DefaultPageSize {
 		return apperr.InvalidInput("stores.max_page_size must be >= default_page_size")
-	}
-	if c.PendingIndexingPageSize < 1 {
-		return apperr.InvalidInput("stores.pending_indexing_page_size must be >= 1")
-	}
-	if c.MaxPendingIndexingPageSize < 0 {
-		return apperr.InvalidInput("stores.max_pending_indexing_page_size must be >= 0")
-	}
-	if c.MaxPendingIndexingPageSize > 0 &&
-		c.MaxPendingIndexingPageSize < c.PendingIndexingPageSize {
-		return apperr.InvalidInput(
-			"stores.max_pending_indexing_page_size must be >= pending_indexing_page_size",
-		)
 	}
 	if c.CountCap < 0 {
 		return apperr.InvalidInput("stores.count_cap must be >= 0")

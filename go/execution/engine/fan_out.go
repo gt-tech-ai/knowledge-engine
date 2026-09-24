@@ -45,8 +45,8 @@ func FanOut[T any](
 
 	// Acquire a worker slot BEFORE spawning each goroutine so at most numWorkers
 	// goroutines are ever live at once — a 10k-item fan-out holds ≤numWorkers
-	// goroutines, not 10k blocked on the semaphore (the same pattern as
-	// clients/auth/auth0/client.go). On cancellation we stop spawning and mark the remaining items
+	// goroutines, not 10k blocked on the semaphore. On cancellation we stop spawning and mark the
+	// remaining items
 	// (the tail loop below) as cancelled, so every item still gets a result.
 	i := 0
 spawnLoop:

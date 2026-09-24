@@ -40,10 +40,9 @@ type Writer[T any, ID comparable] interface {
 // Updater is the standalone update-only write role: a single Update that
 // modifies an existing entity. It is the mirror of Inserter for the read-write
 // side — a resource whose creation happens through a bespoke path (not the
-// generic Create) but whose updates are the plain keyed mutation. The identity
-// OrganizationMemberService is the motivating case: members are created only via
-// GetOrCreateFromClaims (from Auth0 claims), never the generic Create, but are
-// updated by id. Like Inserter, it is NOT part of the Store/Repository/Service
+// generic Create) but whose updates are the plain keyed mutation — e.g. a membership
+// created only from the identity provider's claims on first sign-in, never through the
+// generic Create, but updated by id. Like Inserter, it is NOT part of the Store/Repository/Service
 // composition (those embed Writer, which carries both Create and Update); it is
 // the role a create-less-but-updatable resource embeds in place of Writer.
 type Updater[T any, ID comparable] interface {

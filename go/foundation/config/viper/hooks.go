@@ -32,7 +32,7 @@ const (
 // yields an empty (non-nil) map.
 //
 // Only string→map[string]string conversions are rewritten; every other decode
-// (a YAML-sourced map, a map[string]struct such as auth.auth0_roles, a slice)
+// (a YAML-sourced map, a map[string]struct, a slice)
 // passes through untouched, so the hook composes safely with the existing chain.
 func StringToStringMapHookFunc() mapstructure.DecodeHookFuncType {
 	return func(from, to reflect.Type, data any) (any, error) {

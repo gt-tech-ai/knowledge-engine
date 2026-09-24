@@ -12,6 +12,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -88,7 +89,7 @@ log:
 	assert.Equal(t, 8080, cfg.GetInt("server.port"))
 }
 
-// TestConfig_EnvVarsOverride tests that SEARCH_-prefixed environment variables
+// TestConfig_EnvVarsOverride tests that prefixed environment variables
 // take highest precedence.
 //
 // Why this test is important:
@@ -98,7 +99,7 @@ log:
 //   - Kubernetes ConfigMaps and Secrets are exposed as env vars, not files
 //
 // What it tests:
-//   - server.port is overridden from 8080 to 9090 by SEARCH_SERVER_PORT env var
+//   - server.port is overridden from 8080 to 9090 by MYAPP_SERVER_PORT env var
 //
 // NOTE: t.Setenv panics when called from a parallel test, so this test
 // must NOT call t.Parallel().
@@ -108,17 +109,14 @@ func TestConfig_EnvVarsOverride(t *testing.T) {
 server:
   port: 8080
 `)
-	t.Setenv("SEARCH_SERVER_PORT", "9090")
+	t.Setenv("MYAPP_SERVER_PORT", "9090")
 
-	var cfg interfaces.ConfigLoader
-	var err error
-	cfg, err = config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err, "New")
+	cfg := loadWithSchema(t, dir)
 
 	assert.Equal(t, 9090, cfg.GetInt("server.port"), "env override failed")
 }
 
-// TestConfig_StoragePublicEndpointEnvOverride tests that SEARCH_STORAGE_S3_PUBLIC_ENDPOINT
+// TestConfig_StoragePublicEndpointEnvOverride tests that MYAPP_STORAGE_S3_PUBLIC_ENDPOINT
 // binds to storage.s3.public_endpoint.
 //
 // Why this test is important:
@@ -127,7 +125,7 @@ server:
 //     override so browser uploads keep the unreachable in-cluster host. This guards the wiring.
 //
 // What it tests:
-//   - SEARCH_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
+//   - MYAPP_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
 func TestConfig_StoragePublicEndpointEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
@@ -135,15 +133,14 @@ storage:
   s3:
     public_endpoint: ""
 `)
-	t.Setenv("SEARCH_STORAGE_S3_PUBLIC_ENDPOINT", "http://localhost:9000")
+	t.Setenv("MYAPP_STORAGE_S3_PUBLIC_ENDPOINT", "http://localhost:9000")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err, "New")
+	cfg := loadWithSchema(t, dir)
 	assert.Equal(
 		t,
 		"http://localhost:9000",
 		cfg.GetString("storage.s3.public_endpoint"),
-		"SEARCH_STORAGE_S3_PUBLIC_ENDPOINT must bind to storage.s3.public_endpoint",
+		"MYAPP_STORAGE_S3_PUBLIC_ENDPOINT must bind to storage.s3.public_endpoint",
 	)
 }
 
@@ -191,14 +188,14 @@ func TestConfig_UnknownKindReturnsError(t *testing.T) {
 // What it tests:
 //   - Kind is KindViper
 //   - Viper.BaseDir is "."
-//   - Viper.Prefix is "SEARCH"
+//   - Viper.Prefix is "" (the consumer sets its own)
 func TestConfig_DefaultConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
 	assert.Equal(t, config.KindViper, cfg.Kind)
 	assert.Equal(t, ".", cfg.Viper.BaseDir)
-	assert.Equal(t, "SEARCH", cfg.Viper.Prefix)
+	assert.Empty(t, cfg.Viper.Prefix)
 }
 
 // TestConfig_NewFromConfig tests that NewFromConfig creates a working loader
@@ -411,19 +408,17 @@ database:
 	assert.Equal(t, "disable", dbCfg.SSLMode)
 }
 
-// TestConfig_MessagingSQSEnvOverride verifies SEARCH_MESSAGING_SQS_* env vars
+// TestConfig_MessagingSQSEnvOverride tests that the prefixed messaging.sqs env vars
 // override the YAML through UnmarshalKey.
 //
 // Why this test is important:
-//   - The document-events worker selects its SQS backend (Kind) + region/creds via
-//     env in staging/prod (SEARCH_MESSAGING_SQS_KIND=sqs). Viper's AutomaticEnv
-//     does NOT feed UnmarshalKey for unbound nested keys, so without explicit
-//     BindEnv the worker would silently stay on the YAML's "elasticmq" default and
-//     never publish to AWS SQS. This test guards that the binds exist.
+//   - Viper's AutomaticEnv does NOT feed UnmarshalKey for nested keys, so without a
+//     schema-derived BindEnv a worker unmarshaling "messaging.sqs" would silently keep
+//     the YAML's region and endpoint in staging/prod.
 //
 // What it tests:
-//   - With base.yaml messaging.sqs.kind=elasticmq, SEARCH_MESSAGING_SQS_KIND=sqs +
-//     SEARCH_MESSAGING_SQS_REGION override the unmarshalled values.
+//   - With base.yaml messaging.sqs.region=us-east-1, MYAPP_MESSAGING_SQS_REGION and the
+//     SQS_ENDPOINT alias override the unmarshalled values.
 //
 // NOTE: t.Setenv panics under t.Parallel, so this test is intentionally serial.
 func TestConfig_MessagingSQSEnvOverride(t *testing.T) {
@@ -431,34 +426,19 @@ func TestConfig_MessagingSQSEnvOverride(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
 messaging:
   sqs:
-    kind: elasticmq
     endpoint: http://localhost:9324
     region: us-east-1
 `)
-	t.Setenv("SEARCH_MESSAGING_SQS_KIND", "sqs")
-	t.Setenv("SEARCH_MESSAGING_SQS_REGION", "eu-west-1")
+	t.Setenv("MYAPP_MESSAGING_SQS_REGION", "eu-west-1")
+	t.Setenv("SQS_ENDPOINT", "https://sqs.eu-west-1.amazonaws.example")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err, "New")
+	cfg := loadWithSchema(t, dir)
 
-	var sqsCfg struct {
-		Kind     string `mapstructure:"kind"`
-		Endpoint string `mapstructure:"endpoint"`
-		Region   string `mapstructure:"region"`
-	}
+	var sqsCfg infra.SQSConfig
 	require.NoError(t, cfg.UnmarshalKey("messaging.sqs", &sqsCfg), "UnmarshalKey")
-	assert.Equal(
-		t,
-		"sqs",
-		sqsCfg.Kind,
-		"SEARCH_MESSAGING_SQS_KIND must override the YAML",
-	)
-	assert.Equal(
-		t,
-		"eu-west-1",
-		sqsCfg.Region,
-		"SEARCH_MESSAGING_SQS_REGION must override the YAML",
-	)
+	assert.Equal(t, "eu-west-1", sqsCfg.Region, "MYAPP_MESSAGING_SQS_REGION must override the YAML")
+	assert.Equal(t, "https://sqs.eu-west-1.amazonaws.example", sqsCfg.Endpoint,
+		"SQS_ENDPOINT must override the YAML")
 }
 
 // TestConfig_UnmarshalKeyWithDuration tests that UnmarshalKey correctly parses
@@ -508,9 +488,9 @@ server:
 // override YAML values via BindEnv.
 //
 // Why this test is important:
-//   - Existing deployments use DB_HOST, REDIS_HOST, etc. without SEARCH_ prefix
+//   - Existing deployments use DB_HOST, REDIS_HOST, etc. without the prefix
 //   - Breaking these would prevent local development and Docker Compose from working
-//   - BindEnv provides backward compatibility during migration to SEARCH_* convention
+//   - The envalias tags keep those names bound alongside the prefixed convention
 //
 // What it tests:
 //   - DB_HOST=override overrides YAML database.host
@@ -532,10 +512,7 @@ redis:
 	t.Setenv("DB_HOST", "override-host")
 	t.Setenv("REDIS_HOST", "override-redis")
 
-	var cfg interfaces.ConfigLoader
-	var err error
-	cfg, err = config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err, "New")
+	cfg := loadWithSchema(t, dir)
 
 	assert.Equal(
 		t,
@@ -744,107 +721,17 @@ func TestConfigBuilder_NewFromConfigUnknownKind(t *testing.T) {
 	)
 }
 
-// TestConfig_Auth0EnvVarOverride tests that AUTH0_DOMAIN, AUTH0_CLIENT_ID, and
-// AUTH0_AUDIENCE environment variables override the corresponding YAML values
-// via BindEnv, matching the production env-var injection pattern.
+// TestConfig_EnvSelectorFallsBackToAppEnv tests that the default loader selects the
+// overlay from APP_ENV.
 //
 // Why this test is important:
-//   - Kubernetes injects Auth0 credentials as environment variables from secrets,
-//     not as YAML files; without BindEnv the YAML values would silently win
-//   - A misconfigured BindEnv causes staging/prod to use wrong tenants with no error
-//   - This is the exact path used by the Kong seeder and every deployed service
+//   - Deployments declare their environment via APP_ENV / ENVIRONMENT; if the default
+//     loader ignored it, a staging pod would silently run on base.yaml alone —
+//     localhost queues and stubbed auth — with no error.
 //
 // What it tests:
-//   - AUTH0_DOMAIN env var overrides both auth.auth0.domain (JWT validation) and
-//     the flat auth.auth0_domain (identity Auth0-client provider)
-//   - AUTH0_CLIENT_ID env var populates both auth.auth0.client_id (nested) AND the
-//     flat auth.auth0_client_id the identity Auth0-client provider reads — the flat
-//     key had no BindEnv, so the deployed identity service (configured from the
-//     AUTH0_CLIENT_ID env/secret, not YAML) crashed on "auth.auth0_client_id not set"
-//   - AUTH0_MANAGEMENT_API_CLIENT_ID/SECRET populate the flat management-API keys
-//   - AUTH0_AUDIENCE env var overrides auth.auth0.audience YAML value
-//
-// NOTE: t.Setenv panics in parallel tests - must NOT call t.Parallel().
-func TestConfig_Auth0EnvVarOverride(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "base.yaml"), `
-auth:
-  stub: false
-  auth0:
-    domain: "original.us.auth0.com"
-    client_id: "original-client-id"
-    audience: "https://api.original.example.com"
-`)
-	t.Setenv("AUTH0_DOMAIN", "override.us.auth0.com")
-	t.Setenv("AUTH0_CLIENT_ID", "override-client-id")
-	t.Setenv("AUTH0_AUDIENCE", "https://api.override.example.com")
-	t.Setenv("AUTH0_MANAGEMENT_API_CLIENT_ID", "override-mgmt-id")
-	t.Setenv("AUTH0_MANAGEMENT_API_CLIENT_SECRET", "override-mgmt-secret")
-
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err, "New")
-
-	assert.Equal(
-		t,
-		"override.us.auth0.com",
-		cfg.GetString("auth.auth0.domain"),
-		"AUTH0_DOMAIN override failed",
-	)
-	assert.Equal(
-		t,
-		"override-client-id",
-		cfg.GetString("auth.auth0.client_id"),
-		"AUTH0_CLIENT_ID override failed",
-	)
-	assert.Equal(
-		t,
-		"https://api.override.example.com",
-		cfg.GetString("auth.auth0.audience"),
-		"AUTH0_AUDIENCE override failed",
-	)
-
-	// The flat auth.auth0_* keys the identity Auth0-client provider reads. The
-	// auth0_client_id binding is the regression guard: without it the deployed
-	// identity service starts with an empty client id and fails initialization.
-	assert.Equal(
-		t,
-		"override-client-id",
-		cfg.GetString("auth.auth0_client_id"),
-		"AUTH0_CLIENT_ID must also populate the flat auth.auth0_client_id key",
-	)
-	assert.Equal(
-		t,
-		"override.us.auth0.com",
-		cfg.GetString("auth.auth0_domain"),
-		"AUTH0_DOMAIN must populate the flat auth.auth0_domain key",
-	)
-	assert.Equal(
-		t,
-		"override-mgmt-id",
-		cfg.GetString("auth.auth0_management_api_id"),
-		"AUTH0_MANAGEMENT_API_CLIENT_ID must populate auth.auth0_management_api_id",
-	)
-	assert.Equal(
-		t,
-		"override-mgmt-secret",
-		cfg.GetString("auth.auth0_management_api_secret"),
-		"AUTH0_MANAGEMENT_API_CLIENT_SECRET must populate auth.auth0_management_api_secret",
-	)
-}
-
-// TestConfig_EnvSelectorFallsBackToAppEnv tests that the overlay is selected
-// from APP_ENV / ENVIRONMENT when SEARCH_ENV is unset.
-//
-// Why this test is important:
-//   - The Helm charts and the environment-config ConfigMap declare the
-//     deployment environment via APP_ENV / ENVIRONMENT, but the loader
-//     historically only read SEARCH_ENV. With SEARCH_ENV unset the staging pods
-//     silently ran on base.yaml alone — localhost SQS and stubbed auth — with no
-//     error. This guards viper.ResolveEnv, which closes that gap.
-//
-// What it tests:
-//   - With SEARCH_ENV empty and APP_ENV=staging, the staging overlay wins:
-//     messaging.sqs.endpoint is blanked (real-AWS SQS), not base's localhost URL
+//   - With APP_ENV=staging, the staging overlay wins: messaging.sqs.endpoint is
+//     blanked (real-AWS SQS), not base's localhost URL
 //
 // NOTE: t.Setenv panics in parallel tests - must NOT call t.Parallel().
 func TestConfig_EnvSelectorFallsBackToAppEnv(t *testing.T) {
@@ -859,9 +746,8 @@ messaging:
   sqs:
     endpoint: ""
 `)
-	// SEARCH_ENV (canonical selector) unset as in the pods; APP_ENV is what the
-	// service Helm charts set. SQS_ENDPOINT unset so the YAML value stands.
-	t.Setenv("SEARCH_ENV", "")
+	// SQS_ENDPOINT unset so the YAML value stands.
+	t.Setenv("ENVIRONMENT", "")
 	t.Setenv("APP_ENV", "staging")
 
 	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
@@ -880,7 +766,7 @@ messaging:
 //
 // Why this test is important:
 //   - A staging overlay overrides only a single nested queue key (to the -staging
-//     queue Terraform provisions) and relies on viper deep-merging the map so the
+//     queue the environment provisions) and relies on viper deep-merging the map so the
 //     sibling queue names survive from base. A shallow replace would silently drop
 //     those keys, breaking every queue but the overridden one.
 //
@@ -895,7 +781,7 @@ func TestConfig_OverlayDeepMergesQueuesMap(t *testing.T) {
 messaging:
   sqs:
     queues:
-      document_upload: "document-upload"
+      orders: "orders"
       notification: "notification"
 `)
 	writeFile(t, filepath.Join(dir, "staging.yaml"), `
@@ -919,8 +805,8 @@ messaging:
 	)
 	assert.Equal(
 		t,
-		"document-upload",
-		cfg.GetString("messaging.sqs.queues.document_upload"),
+		"orders",
+		cfg.GetString("messaging.sqs.queues.orders"),
 		"deep-merge must preserve sibling queue keys from base",
 	)
 }
@@ -936,7 +822,7 @@ messaging:
 //
 // What it tests:
 //   - With prefix MYAPP, MYAPP_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
-//   - With prefix MYAPP, SEARCH_STORAGE_S3_BUCKET does NOT override storage.s3.bucket.
+//   - With prefix MYAPP, OTHERAPP_STORAGE_S3_BUCKET does NOT override storage.s3.bucket.
 func TestConfig_CustomPrefixOwnsDerivedEnvBindings(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
@@ -946,7 +832,7 @@ storage:
     bucket: from-yaml
 `)
 	t.Setenv("MYAPP_STORAGE_S3_PUBLIC_ENDPOINT", "from-myapp-env")
-	t.Setenv("SEARCH_STORAGE_S3_BUCKET", "from-search-env")
+	t.Setenv("OTHERAPP_STORAGE_S3_BUCKET", "from-other-env")
 
 	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir), config.WithEnvPrefix("MYAPP"))
 	require.NoError(t, err, "New")

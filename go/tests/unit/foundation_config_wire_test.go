@@ -172,10 +172,10 @@ redis:
 //
 // Why this test is important:
 //   - 12-factor app: environment variables must take precedence
-//   - Legacy env vars (DB_HOST) must work alongside SEARCH_* names
+//   - Legacy env vars (DB_HOST) must work alongside the prefixed names
 //
 // What it tests:
-//   - SEARCH_DATABASE_HOST overrides YAML database.host
+//   - MYAPP_DATABASE_HOST overrides YAML database.host
 //   - Legacy DB_HOST also overrides YAML database.host
 func TestProvideConfig_EnvVarOverride(t *testing.T) {
 	// Note: Cannot use t.Parallel() with t.Setenv()
@@ -195,11 +195,10 @@ database:
 	require.NoError(t, err, "write config")
 
 	// Set env var override
-	t.Setenv("SEARCH_DATABASE_HOST", "prod-db.example.com")
+	t.Setenv("MYAPP_DATABASE_HOST", "prod-db.example.com")
 
 	// Act
-	loader, err := config.New(config.KindViper, config.WithBaseDir(tmpDir))
-	require.NoError(t, err, "config.New")
+	loader := loadWithSchema(t, tmpDir)
 
 	var dbCfg infra.DatabaseConfig
 	require.NoError(t, loader.UnmarshalKey("database", &dbCfg), "UnmarshalKey")

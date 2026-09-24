@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/stretchr/testify/assert"
@@ -27,25 +28,58 @@ storage:
 	return dir
 }
 
+// bindingSchema is a consumer root config: the loader derives an env binding for
+// every leaf, under the consumer's prefix, from these mapstructure/envalias tags.
+type bindingSchema struct {
+	// Database is the database section (database.*).
+	Database infra.DatabaseConfig `mapstructure:"database"`
+	// Storage groups the object store under storage.s3.
+	Storage struct {
+		// S3 is the object-store section (storage.s3.*).
+		S3 infra.S3Config `mapstructure:"s3"`
+	} `mapstructure:"storage"`
+	// Auth is the auth section (auth.*).
+	Auth infra.AuthConfig `mapstructure:"auth"`
+	// Redis is the cache section (redis.*).
+	Redis infra.RedisConfig `mapstructure:"redis"`
+	// Messaging groups the queue backend under messaging.sqs.
+	Messaging struct {
+		// SQS is the queue section (messaging.sqs.*).
+		SQS infra.SQSConfig `mapstructure:"sqs"`
+	} `mapstructure:"messaging"`
+}
+
+// loadWithSchema builds the loader over dir with bindingSchema and the MYAPP prefix,
+// the way a consumer builds it.
+func loadWithSchema(t *testing.T, dir string) interfaces.ConfigLoader {
+	t.Helper()
+	cfg, err := config.New(config.KindViper,
+		config.WithBaseDir(dir),
+		config.WithEnvironment(""),
+		config.WithEnvPrefix("MYAPP"),
+		config.WithSchema(&bindingSchema{}),
+	)
+	require.NoError(t, err)
+	return cfg
+}
+
 // TestConfig_DerivedEnvBinding_UnboundNestedField tests that a nested config
-// field with no hand-written BindEnv is overridable via its derived SEARCH_<PATH>
+// field with no hand-written BindEnv is overridable via its derived <PREFIX>_<PATH>
 // env var through UnmarshalKey.
 //
 // Why this test is important:
-//   - This is the whole point of: env bindings are derived from the
-//     mapstructure tag, so adding a field auto-binds its SEARCH_<PATH> var. Before
-//     tag-derivation, database.max_connections had no BindEnv, so
-//     SEARCH_DATABASE_MAX_CONNECTIONS was silently ignored by UnmarshalKey.
+//   - Env bindings are derived from the mapstructure tags of the consumer's schema,
+//     so adding a field auto-binds its <PREFIX>_<PATH> var; without a binding,
+//     UnmarshalKey silently ignores the env var for a key absent from the YAML.
 //
 // What it tests:
-//   - SEARCH_DATABASE_MAX_CONNECTIONS overrides database.max_connections when the
+//   - MYAPP_DATABASE_MAX_CONNECTIONS overrides database.max_connections when the
 //     "database" section is unmarshaled — with no loader edit for that field.
 func TestConfig_DerivedEnvBinding_UnboundNestedField(t *testing.T) {
 	dir := baseWithDB(t)
-	t.Setenv("SEARCH_DATABASE_MAX_CONNECTIONS", "77")
+	t.Setenv("MYAPP_DATABASE_MAX_CONNECTIONS", "77")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
+	cfg := loadWithSchema(t, dir)
 
 	var db infra.DatabaseConfig
 	require.NoError(t, cfg.UnmarshalKey("database", &db))
@@ -53,18 +87,16 @@ func TestConfig_DerivedEnvBinding_UnboundNestedField(t *testing.T) {
 		t,
 		77,
 		db.MaxConnections,
-		"SEARCH_DATABASE_MAX_CONNECTIONS must bind to database.max_connections via the derived tag path",
+		"MYAPP_DATABASE_MAX_CONNECTIONS must bind to database.max_connections via the derived tag path",
 	)
 }
 
 // TestConfig_LegacyEnvAlias_StillResolves tests that the legacy flat aliases
-// (DB_HOST, S3_BUCKET) still override their mapped fields after the binding is
-// derived from tags rather than the hand-maintained bindLegacyEnvVars.
+// (DB_HOST, S3_BUCKET, from the envalias tags) override their mapped fields.
 //
 // Why this test is important:
-//   - Deployments set the flat DB_HOST / S3_BUCKET names; if the tag-derived
-//     rewrite dropped an alias, the deployed service would silently fall back to
-//     the YAML default (wrong DB host / bucket) — a production outage.
+//   - Deployments set the flat DB_HOST / S3_BUCKET names; a dropped alias silently
+//     falls back to the YAML default (wrong DB host / bucket) — a production outage.
 //
 // What it tests:
 //   - DB_HOST overrides database.host and S3_BUCKET overrides storage.s3.bucket
@@ -74,8 +106,7 @@ func TestConfig_LegacyEnvAlias_StillResolves(t *testing.T) {
 	t.Setenv("DB_HOST", "db.internal")
 	t.Setenv("S3_BUCKET", "prod-bucket")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
+	cfg := loadWithSchema(t, dir)
 
 	var db infra.DatabaseConfig
 	require.NoError(t, cfg.UnmarshalKey("database", &db))
@@ -91,21 +122,20 @@ func TestConfig_LegacyEnvAlias_StillResolves(t *testing.T) {
 	)
 }
 
-// TestConfig_CanonicalSearchPath_Resolves tests that the canonical
-// SEARCH_<PATH> env var overrides its field (the primary, prefix-derived name).
+// TestConfig_CanonicalPrefixedPath_Resolves tests that the canonical
+// <PREFIX>_<PATH> env var overrides its field (the primary, prefix-derived name).
 //
 // Why this test is important:
-//   - SEARCH_<PATH> is the canonical override every field gets; a regression here
+//   - <PREFIX>_<PATH> is the canonical override every field gets; a regression here
 //     would break the documented, prefix-based override convention.
 //
 // What it tests:
-//   - SEARCH_DATABASE_HOST overrides database.host through UnmarshalKey.
-func TestConfig_CanonicalSearchPath_Resolves(t *testing.T) {
+//   - MYAPP_DATABASE_HOST overrides database.host through UnmarshalKey.
+func TestConfig_CanonicalPrefixedPath_Resolves(t *testing.T) {
 	dir := baseWithDB(t)
-	t.Setenv("SEARCH_DATABASE_HOST", "canonical.host")
+	t.Setenv("MYAPP_DATABASE_HOST", "canonical.host")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
+	cfg := loadWithSchema(t, dir)
 
 	var db infra.DatabaseConfig
 	require.NoError(t, cfg.UnmarshalKey("database", &db))
@@ -113,7 +143,7 @@ func TestConfig_CanonicalSearchPath_Resolves(t *testing.T) {
 		t,
 		"canonical.host",
 		db.Host,
-		"SEARCH_DATABASE_HOST must override database.host",
+		"MYAPP_DATABASE_HOST must override database.host",
 	)
 }
 
@@ -123,7 +153,7 @@ func TestConfig_CanonicalSearchPath_Resolves(t *testing.T) {
 // caller's comma-separated {current,previous} rotation pair.
 //
 // Why this test is important:
-//   - The deploy path (Phase 1) delivers the per-caller service tokens a
+//   - A deploy delivers the per-caller service tokens a
 //     server accepts as a single Kubernetes secretKeyRef env var — a scalar, the
 //     only shape a secretKeyRef can carry. Without a string→map decode hook the
 //     map field stays nil, so in enforce mode every internal caller is rejected: a
@@ -144,8 +174,7 @@ auth:
 `)
 	t.Setenv("SERVICE_AUTH_TOKENS", "ingestion=icur,iprev;notification=ntok")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
+	cfg := loadWithSchema(t, dir)
 
 	var auth infra.AuthConfig
 	require.NoError(t, cfg.UnmarshalKey("auth", &auth))
@@ -157,73 +186,5 @@ auth:
 		},
 		auth.ServiceTokens,
 		"SERVICE_AUTH_TOKENS must decode into the auth.service_tokens map, preserving the rotation-pair ','",
-	)
-}
-
-// TestConfig_NonSchemaKeys_StillBind tests that the keys read via GetString
-// rather than unmarshaled (not schema struct fields) still resolve their env
-// vars after the tag-derivation refactor moved the rest into deriveEnvBindings.
-//
-// Why this test is important:
-//   - messaging.sqs.kind (backend selector), auth.auth0_client_id (identity M2M
-//     grant), and server.api.identity_target (api→identity dial) are read via
-//     GetString and set from env/secrets in deployments — not YAML. If the
-//     refactor dropped these explicit binds, the deployed services would fail
-//     startup or silently mis-route. This guards the bindNonSchemaEnv remnant.
-//
-// What it tests:
-//   - SQS_KIND, AUTH0_CLIENT_ID, and IDENTITY_GRPC_TARGET override their keys.
-func TestConfig_NonSchemaKeys_StillBind(t *testing.T) {
-	dir := baseWithDB(t)
-	t.Setenv("SQS_KIND", "sqs")
-	t.Setenv("AUTH0_CLIENT_ID", "cid-123")
-	t.Setenv("IDENTITY_GRPC_TARGET", "identity:8090")
-
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
-
-	assert.Equal(
-		t,
-		"sqs",
-		cfg.GetString("messaging.sqs.kind"),
-		"SQS_KIND must bind messaging.sqs.kind",
-	)
-	assert.Equal(
-		t,
-		"cid-123",
-		cfg.GetString("auth.auth0_client_id"),
-		"AUTH0_CLIENT_ID must bind auth.auth0_client_id",
-	)
-	assert.Equal(t, "identity:8090", cfg.GetString("server.api.identity_target"),
-		"IDENTITY_GRPC_TARGET must bind server.api.identity_target")
-}
-
-// TestConfig_SeedPersonaPassword_FlatEnvBinds tests that the unprefixed
-// SEED_PERSONA_PASSWORD env var overrides seed.persona_password (read via
-// GetString), the seed personas Job's initial-password contract.
-//
-// Why this test is important:
-//   - seed.persona_password has no committed value in a deployed tenant (base.yaml
-//     ships no default); staging injects it as the SEED_PERSONA_PASSWORD env var
-//     from ESO (persona-credentials), the SAME AWS-SM value the edge Job logs in
-//     with. AutomaticEnv applies the SEARCH_ prefix, so without an explicit BindEnv
-//     the unprefixed SEED_PERSONA_PASSWORD is silently ignored and the seed Job
-//     falls back to the committed dev-only default — leaking it into staging and
-//     drifting from the edge login (login failure).
-//
-// What it tests:
-//   - SEED_PERSONA_PASSWORD overrides seed.persona_password through GetString.
-func TestConfig_SeedPersonaPassword_FlatEnvBinds(t *testing.T) {
-	dir := baseWithDB(t)
-	t.Setenv("SEED_PERSONA_PASSWORD", "Injected-Pw123!")
-
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
-	require.NoError(t, err)
-
-	assert.Equal(
-		t,
-		"Injected-Pw123!",
-		cfg.GetString("seed.persona_password"),
-		"SEED_PERSONA_PASSWORD must bind seed.persona_password",
 	)
 }

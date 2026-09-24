@@ -16,7 +16,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -195,7 +194,7 @@ func TestStorageClient_Presign_EncodesUnsafeFilename(t *testing.T) {
 	c, err := storage.NewFromConfig(
 		context.Background(),
 		storage.KindS3,
-		infra.DefaultS3Config(),
+		validS3Config(),
 	)
 	require.NoError(t, err)
 

@@ -25,6 +25,14 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
+// validS3Config is the default S3 config plus the bucket the consumer must name, so it
+// passes Validate.
+func validS3Config() infra.S3Config {
+	cfg := infra.DefaultS3Config()
+	cfg.Bucket = "objects"
+	return cfg
+}
+
 // TestStorageClient_NewFromConfig_BuildsRealClient covers the real-client build path
 // (NewFromConfig → New → the aws-sdk client factory) for both backends. It is offline:
 // the aws client + presigner are constructed but never call S3.
@@ -38,8 +46,8 @@ import (
 func TestStorageClient_NewFromConfig_BuildsRealClient(t *testing.T) {
 	t.Parallel()
 
-	minioCfg := infra.DefaultS3Config() // Kind "minio" + endpoint + static creds
-	s3Cfg := infra.DefaultS3Config()
+	minioCfg := validS3Config() // Kind "minio" + endpoint + static creds
+	s3Cfg := validS3Config()
 	s3Cfg.Kind = "s3"
 	s3Cfg.Endpoint = ""
 	s3Cfg.AccessKeyID = ""
@@ -65,7 +73,7 @@ func TestStorageClient_NewFromConfig_BuildsRealClient(t *testing.T) {
 func TestStorageClient_NewFromConfig_RejectsInvalidConfig(t *testing.T) {
 	t.Parallel()
 
-	badKind := infra.DefaultS3Config()
+	badKind := validS3Config()
 	badKind.Kind = "gcs"
 	_, err := storage.NewFromConfig(context.Background(), storage.KindS3, badKind)
 	require.Error(t, err)
@@ -646,7 +654,7 @@ func TestStorageClient_Presign_BuildsSignedURLs(t *testing.T) {
 	c, err := storage.NewFromConfig(
 		context.Background(),
 		storage.KindS3,
-		infra.DefaultS3Config(),
+		validS3Config(),
 	)
 	require.NoError(t, err)
 
@@ -694,7 +702,7 @@ func TestStorageClient_Presign_BuildsSignedURLs(t *testing.T) {
 func TestStorageClient_Presign_UsesPublicEndpoint(t *testing.T) {
 	t.Parallel()
 
-	cfg := infra.DefaultS3Config()
+	cfg := validS3Config()
 	cfg.Endpoint = "http://minio:9000"           // in-cluster: server-side ops
 	cfg.PublicEndpoint = "http://localhost:9000" // browser-reachable: presign only
 	c, err := storage.NewFromConfig(context.Background(), storage.KindS3, cfg)
@@ -769,7 +777,7 @@ func TestStorageClient_Presign_UsesPublicEndpoint(t *testing.T) {
 func TestStorageClient_Presign_EmptyPublicEndpointFallsBack(t *testing.T) {
 	t.Parallel()
 
-	cfg := infra.DefaultS3Config()
+	cfg := validS3Config()
 	cfg.Endpoint = "http://minio:9000"
 	cfg.PublicEndpoint = "" // opt-in: empty falls back to Endpoint
 	c, err := storage.NewFromConfig(context.Background(), storage.KindS3, cfg)
@@ -813,7 +821,7 @@ func TestStorageClient_Presign_EmptyPublicEndpointFallsBack(t *testing.T) {
 func TestStorageClient_PresignPutURL_SignsContentTypeAndHost(t *testing.T) {
 	t.Parallel()
 
-	cfg := infra.DefaultS3Config()
+	cfg := validS3Config()
 	cfg.Bucket = "b"
 	c, err := storage.NewFromConfig(context.Background(), storage.KindS3, cfg)
 	require.NoError(t, err)

@@ -26,14 +26,8 @@ type S3Config struct {
 	// already public, and for bare-metal MinIO where Endpoint is already localhost).
 	PublicEndpoint string `mapstructure:"public_endpoint" envalias:"S3_PUBLIC_ENDPOINT"`
 
-	// Bucket is the name of the S3 bucket used for document storage.
+	// Bucket is the name of the service's default bucket.
 	Bucket string `mapstructure:"bucket" envalias:"S3_BUCKET"`
-
-	// ImagesBucket is the name of the private S3 bucket that stores uploaded avatar
-	// and org-logo images. It is separate from the document Bucket: images
-	// are neither ingested nor KB-indexed, and are served to browsers via short-lived
-	// presigned GET URLs minted by the API service. Locked down exactly like Bucket.
-	ImagesBucket string `mapstructure:"images_bucket" envalias:"S3_IMAGES_BUCKET"`
 
 	// Region is the AWS region where the bucket is located (e.g. "us-east-1").
 	Region string `mapstructure:"region" envalias:"S3_REGION"`
@@ -74,8 +68,6 @@ func DefaultS3Config() S3Config {
 	return S3Config{
 		Kind:                   "minio",
 		Endpoint:               "http://localhost:9000",
-		Bucket:                 "documents",
-		ImagesBucket:           "images",
 		Region:                 "us-east-1",
 		AccessKeyID:            "minioadmin",
 		SecretAccessKey:        "minioadmin",

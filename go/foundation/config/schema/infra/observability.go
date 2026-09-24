@@ -3,13 +3,13 @@ package infra
 // TracingConfig holds distributed tracing configuration.
 type TracingConfig struct {
 	// Endpoint is the OTLP collector address (e.g. "localhost:4317").
-	Endpoint string `mapstructure:"endpoint" envalias:"SEARCH_TRACING_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT"`
+	Endpoint string `mapstructure:"endpoint" envalias:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 
 	// SampleRate is the fraction of traces to sample (0.0-1.0; 0.1 = 10%).
 	SampleRate float64 `mapstructure:"sample_rate"`
 
 	// Enabled controls whether distributed tracing is active.
-	Enabled bool `mapstructure:"enabled" envalias:"SEARCH_TRACING_ENABLED"`
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // MetricsConfig holds metrics export configuration.

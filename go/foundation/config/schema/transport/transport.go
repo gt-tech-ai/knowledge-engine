@@ -18,12 +18,12 @@ import (
 type WSConfig struct {
 	// AllowedOrigins lists the request Origins accepted on the WebSocket handshake
 	// when AllowInsecureOrigins is false. Behind a gateway (staging/prod) the
-	// browser's Origin (e.g. staging.knowledge-engine.com) differs from the upstream Host
-	// (api.app.svc.cluster.local:8092), so the coder/websocket default
+	// browser's Origin (e.g. app.example.com) differs from the upstream Host
+	// (e.g. ws.app.svc.cluster.local:8080), so the coder/websocket default
 	// Origin==Host check rejects every upgrade with 403; listing the frontend
 	// origin(s) here passes them through as the Accept OriginPatterns. Empty keeps
 	// the strict same-origin default. Patterns may include a wildcard subdomain
-	// (e.g. "*.knowledge-engine.com").
+	// (e.g. "*.example.com").
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 
 	// IdleTimeout closes a connection idle for longer than this (0 = no timeout).
@@ -52,7 +52,7 @@ type WSConfig struct {
 	MaxConnectionsPerUser int `mapstructure:"max_connections_per_user"`
 
 	// AllowInsecureOrigins disables the handshake Origin check (local dev only);
-	// replaces the ad-hoc os.Getenv("APP_ENV") devMode.
+	// never enable it outside local development.
 	AllowInsecureOrigins bool `mapstructure:"allow_insecure_origins"`
 }
 
@@ -91,7 +91,8 @@ type RateLimitConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 }
 
-// IdentityClientConfig tunes the api→identity gRPC client.
+// IdentityClientConfig tunes a service's client to an upstream identity service (the
+// per-request caller-context lookup).
 type IdentityClientConfig struct {
 	// Timeout bounds an identity RPC (was the hardcoded 5s).
 	Timeout time.Duration `mapstructure:"timeout"`
@@ -114,7 +115,7 @@ type Config struct {
 	// RateLimit toggles + tunes the token rate limiter.
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 
-	// IdentityClient tunes the api→identity gRPC client.
+	// IdentityClient tunes the client to an upstream identity service.
 	IdentityClient IdentityClientConfig `mapstructure:"identity_client"`
 
 	// MaxHeaderBytes caps the HTTP request header size (was Go's 1 MiB default).

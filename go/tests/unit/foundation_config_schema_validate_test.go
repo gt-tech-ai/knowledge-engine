@@ -7,7 +7,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/pipelines"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/repos"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/services"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/stores"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/transport"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workers"
@@ -185,37 +184,10 @@ func TestLayerConfigValidate_RemainingBranches(t *testing.T) {
 		"a negative pipeline timeout must be rejected",
 	)
 
-	// services: a zero bulk count (upload ceiling stays valid).
-	badBulk := services.DefaultConfig()
-	badBulk.Document.MaxBulkCount = 0
-	assert.Error(t, badBulk.Validate(), "a zero max_bulk_count must be rejected")
-
 	// stores: the branches the existing test does not cover.
 	badMaxPage := stores.DefaultConfig()
 	badMaxPage.MaxPageSize = -1
 	assert.Error(t, badMaxPage.Validate(), "a negative max_page_size must be rejected")
-
-	badPending := stores.DefaultConfig()
-	badPending.PendingIndexingPageSize = 0
-	assert.Error(
-		t,
-		badPending.Validate(),
-		"a zero pending_indexing_page_size must be rejected",
-	)
-
-	badMaxPending := stores.DefaultConfig()
-	badMaxPending.MaxPendingIndexingPageSize = -1
-	assert.Error(
-		t,
-		badMaxPending.Validate(),
-		"a negative max_pending_indexing_page_size must be rejected",
-	)
-
-	invertedPending := stores.DefaultConfig()
-	invertedPending.PendingIndexingPageSize = 100
-	invertedPending.MaxPendingIndexingPageSize = 50 // below the cohort page size
-	assert.Error(t, invertedPending.Validate(),
-		"a max_pending below pending_indexing_page_size must be rejected")
 
 	badCountCap := stores.DefaultConfig()
 	badCountCap.CountCap = -1

@@ -317,34 +317,34 @@ func TestServerConfig_Validate(t *testing.T) {
 // TestS3Config_Defaults tests that DefaultS3Config returns correct defaults.
 //
 // Why this test is important:
-//   - S3Config is used for document storage
+//   - S3Config is the object-store section every storage client reads
 //   - Defaults must match local MinIO setup for development
 //
 // What it tests:
 //   - Endpoint defaults to "http://localhost:9000"
-//   - Bucket defaults to "documents"
+//   - Bucket defaults to "" (the consumer names its bucket)
 //   - Region defaults to "us-east-1"
 func TestS3Config_Defaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := infra.DefaultS3Config()
 	assert.Equal(t, "http://localhost:9000", cfg.Endpoint)
-	assert.Equal(t, "documents", cfg.Bucket)
+	assert.Empty(t, cfg.Bucket)
 	assert.Equal(t, "us-east-1", cfg.Region)
 }
 
 // TestSQSConfig_Defaults tests that DefaultSQSConfig returns correct defaults.
 //
 // Why this test is important:
-//   - SQSConfig is used for async messaging (ingestion, notifications)
+//   - SQSConfig is the queue section every messaging client reads
 //   - Defaults must match local ElasticMQ setup for development
 //
 // What it tests:
 //   - Endpoint defaults to "http://localhost:9324"
 //   - Region defaults to "us-east-1"
 //   - Static dev credentials default to "local"
-//   - The document/notification queue names resolve (consumers/publishers key off
-//     this map; a missing entry silently disables that flow)
+//   - No queues are predefined (the consumer names its queues) and the map is
+//     non-nil, so a consumer can add entries to the default
 func TestSQSConfig_Defaults(t *testing.T) {
 	t.Parallel()
 
@@ -353,8 +353,8 @@ func TestSQSConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "us-east-1", cfg.Region)
 	assert.Equal(t, "local", cfg.AccessKeyID)
 	assert.Equal(t, "local", cfg.SecretAccessKey)
-	assert.Equal(t, "document-upload", cfg.Queues["document_upload"])
-	assert.Equal(t, "notification", cfg.Queues["notification"])
+	assert.NotNil(t, cfg.Queues)
+	assert.Empty(t, cfg.Queues)
 }
 
 // TestLoggingConfig_Defaults tests that DefaultLoggingConfig returns correct defaults.
@@ -432,19 +432,19 @@ func TestAppConfig_DefaultAndValidate(t *testing.T) {
 	)
 }
 
-// TestAuthConfig_Validate tests that Validate enforces required Auth0 fields
+// TestAuthConfig_Validate tests that Validate enforces the required OIDC fields
 // when stub mode is disabled.
 //
 // Why this test is important:
-//   - Misconfigured Auth0 settings cause every authenticated request to fail at runtime
-//   - Stub mode must bypass validation so local dev doesn't require real Auth0 credentials
-//   - Missing domain or audience errors are only surfaced at startup; late discovery
+//   - Misconfigured identity-provider settings cause every authenticated request to fail at runtime
+//   - Stub mode must bypass validation so local dev doesn't require a real identity provider
+//   - Missing issuer or audience errors are only surfaced at startup; late discovery
 //     (e.g., during a live request) is far harder to diagnose
 //
 // What it tests:
-//   - stub=true skips domain and audience checks (returns nil)
-//   - Full non-stub config (domain + audience) passes validation
-//   - Missing domain with stub=false returns an error
+//   - stub=true skips issuer and audience checks (returns nil)
+//   - Full non-stub config (issuer + audience) passes validation
+//   - Missing issuer with stub=false returns an error
 //   - Missing audience with stub=false returns an error
 //   - service_stub=true with stub=false is rejected — a real deploy (end-user auth
 //
@@ -458,31 +458,31 @@ func TestAuthConfig_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "stub mode skips domain/audience check",
+			name:    "stub mode skips issuer/audience check",
 			cfg:     infra.AuthConfig{Stub: true},
 			wantErr: false,
 		},
 		{
 			name: "valid non-stub config",
 			cfg: infra.AuthConfig{
-				Auth0: infra.Auth0Config{
-					Domain:   "example.us.auth0.com",
+				OIDC: infra.OIDCConfig{
+					Issuer:   "https://idp.example.com/",
 					Audience: "https://api.dev.example.com",
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing domain when stub=false",
+			name: "missing issuer when stub=false",
 			cfg: infra.AuthConfig{
-				Auth0: infra.Auth0Config{Audience: "https://api.dev.example.com"},
+				OIDC: infra.OIDCConfig{Audience: "https://api.dev.example.com"},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing audience when stub=false",
 			cfg: infra.AuthConfig{
-				Auth0: infra.Auth0Config{Domain: "example.us.auth0.com"},
+				OIDC: infra.OIDCConfig{Issuer: "https://idp.example.com/"},
 			},
 			wantErr: true,
 		},
@@ -495,8 +495,8 @@ func TestAuthConfig_Validate(t *testing.T) {
 		{
 			name: "service_stub rejected when stub=false",
 			cfg: infra.AuthConfig{
-				Auth0: infra.Auth0Config{
-					Domain:   "example.us.auth0.com",
+				OIDC: infra.OIDCConfig{
+					Issuer:   "https://idp.example.com/",
 					Audience: "https://api.dev.example.com",
 				},
 				ServiceStub: true,
@@ -542,11 +542,11 @@ func TestDefaultAuthConfig_ServiceStubEnabled(t *testing.T) {
 }
 
 // TestAuthConfig_DefaultAuthConfig tests that DefaultAuthConfig returns stub=true
-// as the safe local-dev default before Auth0 credentials are configured.
+// as the safe local-dev default before an identity provider is configured.
 //
 // Why this test is important:
-//   - The default must enable stub mode so local dev works out-of-the-box without Auth0
-//   - If the default were stub=false, every developer would need Auth0 credentials just to run
+//   - The default must enable stub mode so local dev works out-of-the-box without an identity provider
+//   - If the default were stub=false, every developer would need provider credentials just to run
 //
 // What it tests:
 //   - DefaultAuthConfig().Stub is true
@@ -639,19 +639,21 @@ func TestObservabilityConfig_Validate(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-// TestS3Config_Validate tests that the default S3Config passes validation.
+// TestS3Config_Validate tests that S3Config validation requires the consumer's bucket.
 //
 // Why this test is important:
-//   - S3Config is used for document upload and retrieval; invalid config causes
-//     every document operation to fail with opaque storage errors at runtime
+//   - Invalid storage config makes every object operation fail with opaque storage
+//     errors at runtime
 //   - Startup validation surfaces missing bucket or endpoint before any request fails
 //
 // What it tests:
-//   - DefaultS3Config().Validate() returns nil
+//   - The neutral default (no bucket) fails validation; with a bucket set it passes
 func TestS3Config_Validate(t *testing.T) {
 	t.Parallel()
 
 	cfg := infra.DefaultS3Config()
+	require.Error(t, cfg.Validate(), "the consumer must name its bucket")
+	cfg.Bucket = "objects"
 	require.NoError(t, cfg.Validate())
 }
 

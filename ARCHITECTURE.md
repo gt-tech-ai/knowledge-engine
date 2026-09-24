@@ -55,7 +55,7 @@ Protocols do the same (`StorageClient` composes `ManagedResource`).
 
 An out-of-core interface that cannot embed one carries a doc-comment tag saying why:
 
-- `// SDK seam` — mirrors a third-party SDK surface (AWS S3/SQS/Secrets Manager, go-auth0,
+- `// SDK seam` — mirrors a third-party SDK surface (AWS S3/SQS/Secrets Manager,
   `grpc.ClientConnInterface`) so the adapter can be driven by a generated mock.
 - `// sealed union` — a closed implementer set standing in for a sum type (`core/types.Filter`).
 - `// interface-composition exemption — <reason>` — a mechanism primitive or narrow consumer-side

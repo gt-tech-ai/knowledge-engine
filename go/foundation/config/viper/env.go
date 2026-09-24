@@ -5,17 +5,13 @@ import (
 	"strings"
 )
 
-// envSelectors are the environment variables consulted, in order, to determine
-// which {env}.yaml overlay to load. SEARCH_ENV is the canonical selector;
-// APP_ENV and ENVIRONMENT are the names container orchestration (the service
-// Helm charts and the environment-config ConfigMap) already set, so a
-// deployment that declares its environment through any of them selects the
-// matching overlay rather than silently falling back to base.yaml.
-var envSelectors = []string{"SEARCH_ENV", "APP_ENV", "ENVIRONMENT"}
+// envSelectors are the environment variables ResolveEnv consults, in order, to
+// determine which {env}.yaml overlay to load: APP_ENV, then ENVIRONMENT. A consumer
+// with its own selector (e.g. MYAPP_ENV) calls ResolveEnvFrom instead.
+var envSelectors = []string{"APP_ENV", "ENVIRONMENT"}
 
-// ResolveEnv returns the deployment environment name for overlay selection.
-// It prefers SEARCH_ENV and falls back to APP_ENV then ENVIRONMENT; see
-// ResolveEnvFrom.
+// ResolveEnv returns the deployment environment name for overlay selection from
+// APP_ENV, falling back to ENVIRONMENT; see ResolveEnvFrom.
 func ResolveEnv() string {
 	return ResolveEnvFrom(envSelectors...)
 }

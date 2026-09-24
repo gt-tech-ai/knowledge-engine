@@ -49,13 +49,13 @@ import (
 //
 // What it tests:
 //   - BaseDir defaults to "."
-//   - Prefix defaults to "SEARCH"
+//   - Prefix defaults to "" (the consumer sets its own)
 func TestViperDefaultConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := viperloader.DefaultConfig()
 	assert.Equal(t, ".", cfg.BaseDir)
-	assert.Equal(t, "SEARCH", cfg.Prefix)
+	assert.Empty(t, cfg.Prefix)
 }
 
 // TestViperLoader_Viper tests that Viper() exposes the underlying *viper.Viper
@@ -76,7 +76,7 @@ func TestViperLoader_Viper(t *testing.T) {
 app:
   name: viper-test
 `)
-	cfg := viperloader.Config{BaseDir: dir, Prefix: "SEARCH"}
+	cfg := viperloader.Config{BaseDir: dir, Prefix: "MYAPP"}
 	loader := viperloader.New(cfg)
 	require.NoError(t, loader.Load(), "Load")
 
@@ -111,7 +111,7 @@ db:
   password: s3cr3t
 `)
 
-	cfg := viperloader.Config{BaseDir: dir, Prefix: "SEARCH"}
+	cfg := viperloader.Config{BaseDir: dir, Prefix: "MYAPP"}
 	loader := viperloader.New(cfg)
 	require.NoError(t, loader.Load(), "Load")
 
@@ -142,7 +142,7 @@ func TestViperLoader_LoadInvalidYAML(t *testing.T) {
 not: [valid: yaml
 `)
 
-	cfg := viperloader.Config{BaseDir: dir, Prefix: "SEARCH"}
+	cfg := viperloader.Config{BaseDir: dir, Prefix: "MYAPP"}
 	loader := viperloader.New(cfg)
 	require.Error(t, loader.Load(), "expected error for invalid YAML")
 }
@@ -946,19 +946,19 @@ func TestRetryBudget_ConsumeRetry_Idempotent(t *testing.T) {
 // Config: viper.DefaultConfig via env var
 // ---------------------------------------------------------------------------
 
-// TestViperDefaultConfig_EnvOverride tests that DefaultConfig reads the
-// SEARCH_ENV environment variable.
+// TestViperDefaultConfig_EnvOverride tests that DefaultConfig selects the overlay
+// from the APP_ENV environment variable.
 //
 // Why this test is important:
-//   - Environment-specific config layering depends on the SEARCH_ENV variable;
+//   - Environment-specific config layering depends on the selector variable;
 //     if DefaultConfig ignores it, services always load the base config
-//   - Container orchestrators set SEARCH_ENV to select staging/prod overlays
+//   - Container orchestrators set APP_ENV to select staging/prod overlays
 //
 // What it tests:
-//   - Setting SEARCH_ENV=staging causes DefaultConfig().Env to be "staging"
+//   - Setting APP_ENV=staging causes DefaultConfig().Env to be "staging"
 func TestViperDefaultConfig_EnvOverride(t *testing.T) {
 	// t.Setenv is not compatible with t.Parallel()
-	t.Setenv("SEARCH_ENV", "staging")
+	t.Setenv("APP_ENV", "staging")
 
 	cfg := viperloader.DefaultConfig()
 	assert.Equal(t, "staging", cfg.Env)
@@ -1002,7 +1002,7 @@ db:
   password: staging-secret
 `)
 
-	cfg := viperloader.Config{BaseDir: dir, Env: "staging", Prefix: "SEARCH"}
+	cfg := viperloader.Config{BaseDir: dir, Env: "staging", Prefix: "MYAPP"}
 	loader := viperloader.New(cfg)
 	require.NoError(t, loader.Load(), "Load")
 

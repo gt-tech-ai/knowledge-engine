@@ -1,8 +1,8 @@
-// Package workers is the shared config surface for the worker tier
-// it generalizes the document-events WorkerConfig — the maturity
-// reference with the sweep-timing cross-field invariant — so every worker inherits
-// the typed-field + Validate shape (gate/jobs/services/clients tunables). Pure
-// data; the worker's composition root converts it into its runtime knobs.
+// Package workers is the shared config surface for background workers: the common
+// tunables (name, telemetry, relay and sweep cadences, batching) plus the
+// sweep-timing cross-field invariant, so every worker inherits the typed-field +
+// Validate shape. Pure data; the worker's composition root converts it into its
+// runtime knobs.
 package workers
 
 import (
@@ -13,7 +13,7 @@ import (
 )
 
 // Config holds the shared worker tunables. Sweep-timing fields default to zero
-// for workers that run no sweeps; the sweep worker (document-events) sets them and
+// for workers that run no sweeps; a sweeping worker sets them and
 // Validate enforces the cross-field invariant against the multipart presign expiry.
 type Config struct {
 	// ServiceName is the worker's name for telemetry + structured logging.
@@ -58,14 +58,13 @@ type Config struct {
 	FanOutWorkers int `mapstructure:"fan_out_workers"`
 }
 
-// DefaultConfig returns the shared worker tunables with the same common-knob values
-// the document-events worker ships today (its DefaultWorkerConfig common subset), so
-// composing this tier over an empty overlay is behavior-preserving. A worker seeds this,
-// overlays its `workers` config key, and maps the result onto its runtime config; the
-// field-for-field parity is guarded by the worker's default-parity test.
+// DefaultConfig returns neutral shared worker tunables: no service name or port (the
+// worker sets its own) and conservative cadences and sweep timings. A worker seeds this
+// (or its own product defaults), overlays its `workers` config key, and maps the result
+// onto its runtime config.
 func DefaultConfig() Config {
 	return Config{
-		ServiceName:       "document-events",
+		ServiceName:       "",
 		Env:               "dev",
 		OTelEndpoint:      "localhost:4317",
 		RelayInterval:     10 * time.Second,
@@ -75,7 +74,7 @@ func DefaultConfig() Config {
 		RetentionInterval: 1 * time.Hour,
 		RetentionTTL:      7 * 24 * time.Hour, // keep a week of sent rows for audit/debug
 		OrphanGrace:       2 * time.Hour,      // > the 60m multipart part-URL expiry
-		Port:              8085,
+		Port:              0,
 		BatchSize:         100,
 		FanOutWorkers:     8,
 	}

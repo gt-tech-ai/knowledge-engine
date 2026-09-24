@@ -113,41 +113,31 @@ func TestWorkersConfig_ValidatesSweepTimings(t *testing.T) {
 	require.NoError(t, bad.Validate(0))
 }
 
-// TestWorkersDefaults_MirrorDocumentEventsConfig tests that workers.DefaultConfig()
-// carries the same common-knob values the document-events worker ships today.
+// TestWorkersDefaults_AreNeutralAndValid tests the shared workers tier's defaults.
 //
 // Why this test is important:
-//   - Every worker knob is config-tier-overridable by composing the shared
-//     workers tier over these defaults. If workers.DefaultConfig() drifts from the
-//     worker's own DefaultWorkerConfig() common subset, an empty overlay would silently
-//     change the worker's behavior — the regression a field-for-field parity check guards
-//
-// against. This pins the shared-tier defaults at the source (ARCHITECTURE.md#configuration).
+//   - Every worker composes its overlay over these defaults; a default that named one
+//     worker (its service name or port) would leak into every other, and defaults that
+//     broke the sweep-timing invariant would reject an empty overlay.
 //
 // What it tests:
-//   - Every common field of workers.DefaultConfig() equals today's document-events default
-//     (port 8085, batch 100, fan-out 8, the relay/cleanup/reaper/retention cadences + TTLs,
-//     the 2h orphan grace, service name, dev env, the OTLP endpoint), and the defaults
-//     validate against the 60m multipart presign expiry.
-func TestWorkersDefaults_MirrorDocumentEventsConfig(t *testing.T) {
+//   - No service name or port is set (the worker sets its own); the cadences, TTLs and
+//     batching carry conservative values; and the defaults validate against a 60m
+//     multipart presign expiry.
+func TestWorkersDefaults_AreNeutralAndValid(t *testing.T) {
 	t.Parallel()
 
 	c := workers.DefaultConfig()
-	assert.Equal(t, "document-events", c.ServiceName)
-	assert.Equal(t, "dev", c.Env)
+	assert.Empty(t, c.ServiceName)
+	assert.Zero(t, c.Port)
 	assert.Equal(t, "localhost:4317", c.OTelEndpoint)
 	assert.Equal(t, 10*time.Second, c.RelayInterval)
-	assert.Equal(t, 24*time.Hour, c.CleanupInterval)
-	assert.Equal(t, 5*time.Minute, c.ReaperInterval)
 	assert.Equal(t, 90*time.Minute, c.ReaperTTL)
-	assert.Equal(t, 1*time.Hour, c.RetentionInterval)
-	assert.Equal(t, 7*24*time.Hour, c.RetentionTTL)
 	assert.Equal(t, 2*time.Hour, c.OrphanGrace)
-	assert.Equal(t, 8085, c.Port)
 	assert.Equal(t, 100, c.BatchSize)
 	assert.Equal(t, 8, c.FanOutWorkers)
 	require.NoError(t, c.Validate(60*time.Minute),
-		"the shipped defaults must satisfy the sweep-timing invariant")
+		"the defaults must satisfy the sweep-timing invariant")
 }
 
 // TestWorkersConfig_OverlayIsParsed tests that a `workers` overlay is decoded onto the

@@ -2,7 +2,8 @@ package infra
 
 // SQSConfig holds SQS-compatible messaging configuration.
 type SQSConfig struct {
-	// Queues maps logical queue names to their SQS queue names (e.g. "document_upload" -> "document-upload").
+	// Queues maps logical queue names to their SQS queue names (e.g. "orders" -> "orders-v1");
+	// empty by default — the consumer names its queues.
 	Queues map[string]string `mapstructure:"queues"`
 
 	// Endpoint is the SQS-compatible API endpoint URL (e.g. "http://localhost:9324" for ElasticMQ).
@@ -23,11 +24,7 @@ type SQSConfig struct {
 // DefaultSQSConfig returns an SQSConfig with defaults for local ElasticMQ.
 func DefaultSQSConfig() SQSConfig {
 	return SQSConfig{
-		Queues: map[string]string{
-			"document_upload": "document-upload",
-			"document_status": "document-status",
-			"notification":    "notification",
-		},
+		Queues:          map[string]string{},
 		Endpoint:        "http://localhost:9324",
 		Region:          "us-east-1",
 		AccessKeyID:     "local",

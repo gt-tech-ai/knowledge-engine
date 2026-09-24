@@ -18,7 +18,7 @@ type Config struct {
 // viper.Config, adapted for the parent config package.
 type ViperConfig struct {
 	// Schema is the consumer's root config struct whose leaf fields get derived
-	// env bindings; nil uses the built-in schema.AppConfig.
+	// env bindings; nil derives none.
 	Schema any
 
 	// ExtraEnv binds config keys outside Schema to env var names (key → names).
@@ -30,7 +30,8 @@ type ViperConfig struct {
 	// Env is the environment name (e.g., "dev", "staging", "prod") for overlay selection.
 	Env string
 
-	// Prefix is the environment variable prefix for automatic binding (default: "SEARCH").
+	// Prefix is the environment variable prefix for automatic binding; empty means
+	// unprefixed names.
 	Prefix string
 }
 
@@ -41,7 +42,6 @@ func DefaultConfig() Config {
 		Viper: ViperConfig{
 			BaseDir: ".",
 			Env:     viperloader.ResolveEnv(),
-			Prefix:  "SEARCH",
 		},
 	}
 }
@@ -63,7 +63,7 @@ func WithEnvironment(env string) options.Option[Config] {
 	return func(c *Config) { c.Viper.Env = env }
 }
 
-// WithEnvPrefix sets the prefix for environment variable binding (default: "SEARCH").
+// WithEnvPrefix sets the prefix for environment variable binding (default: none).
 func WithEnvPrefix(prefix string) options.Option[Config] {
 	return func(c *Config) { c.Viper.Prefix = prefix }
 }
