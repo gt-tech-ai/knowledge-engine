@@ -4,6 +4,8 @@ from typing import Any
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
 
 from techai_webutils.clients.retrieval.bedrock.engine import _to_result
@@ -669,3 +671,149 @@ class TestRetrievalSeams:
         sent = client.retrieve.call_args.kwargs["retrievalConfiguration"]["vectorSearchConfiguration"]
         assert sent["filter"] == {"equals": {"key": "k", "value": "v"}}
         assert [r.document_id for r in results] == ["d1"]
+
+    @pytest.mark.asyncio
+    async def test_bedrock_passage_without_workspace_metadata_is_dropped(self) -> None:
+        """A Bedrock passage that carries no workspace_id is dropped by the workspace post-filter.
+
+        **Why this test is important:**
+          - The post-filter is the defense-in-depth check behind the KB's own filter; if the engine
+            filled a missing workspace_id in from the request, every unlabelled passage would pass it
+            and the check would never fail closed.
+
+        **What it tests:**
+          - Through the factory's default policies, a passage with no workspace_id metadata is dropped,
+            while an otherwise identical passage labelled with the request's workspace is kept.
+        """
+        engine = new_retrieval_engine_from_config(
+            RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb-1", min_score=0.0)
+        )
+        client = AsyncMock()
+        client.retrieve.return_value = {
+            "retrievalResults": [
+                {"content": {"text": "a"}, "score": 0.9, "metadata": {"classification": "public"}},
+                {
+                    "content": {"text": "b"},
+                    "score": 0.9,
+                    "metadata": {"classification": "public", "workspace_id": "ws-1", "document_id": "d2"},
+                },
+            ]
+        }
+        engine._inner._client = client  # type: ignore[attr-defined]  # noqa: SLF001
+
+        results = await engine.retrieve("q", "ws-1")
+
+        assert [r.document_id for r in results] == ["d2"]
+
+
+class TestBedrockRetrieveContract:
+    """The Bedrock KB `Retrieve` response → RetrievalResult contract, on a realistic payload."""
+
+    @staticmethod
+    def _retrieve_payload(metadata: dict[str, object]) -> dict[str, object]:
+        """A `Retrieve` response shaped like Bedrock's: text content, S3 location, sidecar metadata."""
+        return {
+            "retrievalResults": [
+                {
+                    "content": {"text": "Quarterly revenue grew 12%.", "type": "TEXT"},
+                    "location": {
+                        "type": "S3",
+                        "s3Location": {"uri": f"s3://docs-bucket/{metadata.get('s3_key', '')}"},
+                    },
+                    "score": 0.71,
+                    "metadata": {
+                        "x-amz-bedrock-kb-source-uri": f"s3://docs-bucket/{metadata.get('s3_key', '')}",
+                        "x-amz-bedrock-kb-chunk-id": "1%3A0%3AabcDEF",
+                        "x-amz-bedrock-kb-data-source-id": "DS123",
+                        **metadata,
+                    },
+                }
+            ],
+            "ResponseMetadata": {"HTTPStatusCode": 200},
+        }
+
+    async def _retrieve(self, metadata: dict[str, object]) -> RetrievalResult:
+        """Run the Bedrock engine over one Retrieve payload (mocked client) and return its only result."""
+        from techai_webutils.clients.retrieval.bedrock.engine import BedrockRetrievalEngine
+
+        engine = BedrockRetrievalEngine(region="us-east-1", knowledge_base_id="kb-1")
+        client = AsyncMock()
+        client.retrieve.return_value = self._retrieve_payload(metadata)
+        engine._client = client  # noqa: SLF001 - inject the mocked bedrock-agent-runtime client
+        [result] = await engine.retrieve("q", "ws-1")
+        return result
+
+    @pytest.mark.asyncio
+    async def test_explicit_sidecar_keys_win(self) -> None:
+        """A sidecar's explicit document_id and document_name are what the citation carries.
+
+        **Why this test is important:**
+          - The sidecar is the authoritative source of a chunk's document identity; deriving it from
+            the object key is only the fallback for chunks indexed before the sidecar carried it.
+
+        **What it tests:**
+          - With document_id/document_name in the metadata, the result uses them verbatim (even though
+            the key would derive a different id), plus the text, score, page and full metadata.
+        """
+        result = await self._retrieve(
+            {
+                "workspace_id": "ws-1",
+                "s3_key": "org_x/ws-1/doc-from-key/report.pdf",
+                "document_id": "doc-42",
+                "document_name": "Q3 Report",
+                "classification": "internal",
+                "page_number": "7",
+            }
+        )
+        assert result.document_id == "doc-42"
+        assert result.document_name == "Q3 Report"
+        assert result.chunk_content == "Quarterly revenue grew 12%."
+        assert result.score == pytest.approx(0.71)
+        assert result.page_number == 7
+        assert result.metadata["classification"] == "internal"
+
+    @pytest.mark.asyncio
+    async def test_legacy_sidecar_derives_the_id_from_the_key_never_the_org(self) -> None:
+        """Without explicit keys, the id comes from the per-org key and the name stays empty.
+
+        **Why this test is important:**
+          - Chunks indexed before the sidecar carried document_id must still cite the right document;
+            the org segment of the key must never be mistaken for it.
+
+        **What it tests:**
+          - `{org}/{workspace}/{document}/{file}` yields the document segment; document_name is "".
+        """
+        result = await self._retrieve({"workspace_id": "ws-1", "s3_key": "org_x/ws-1/doc-7/a/b.pdf"})
+        assert result.document_id == "doc-7"
+        assert result.document_name == ""
+
+
+_SEGMENT = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_.", min_size=1, max_size=12)
+
+
+@settings(max_examples=200)
+@given(
+    org=_SEGMENT.map(lambda s: f"org_{s}"),
+    workspace=st.uuids().map(str),
+    document=st.uuids().map(str),
+    filename=st.lists(_SEGMENT, min_size=1, max_size=3).map("/".join),
+    prefixed=st.booleans(),
+)
+def test_document_id_from_key_is_the_segment_after_the_workspace(
+    org: str, workspace: str, document: str, filename: str, prefixed: bool
+) -> None:
+    """For any key with the workspace segment, the id is the segment after it — never the prefix.
+
+    **Why this test is important:**
+      - Key layouts vary (legacy `{workspace}/…`, per-org `{org}/{workspace}/…`, nested filenames);
+        a resolver that guessed the first segment returned the org for every per-org key.
+
+    **What it tests:**
+      - `[{org}/]{workspace}/{document}/{filename…}` resolves to `document` for both layouts and any
+        nested filename, and a key without the workspace resolves to "".
+    """
+    from techai_webutils.clients.retrieval.bedrock.engine import document_id_from_key
+
+    key = f"{org}/{workspace}/{document}/{filename}" if prefixed else f"{workspace}/{document}/{filename}"
+    assert document_id_from_key({"s3_key": key}, workspace) == document
+    assert document_id_from_key({"s3_key": f"{org}/{document}/{filename}"}, workspace) == ""

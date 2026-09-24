@@ -226,10 +226,14 @@ def _to_result(
     workspace_id: str,
     resolve_document_id: DocumentIdResolver = document_id_from_key,
 ) -> RetrievalResult:
-    """Map one Bedrock retrievalResult to a RetrievalResult."""
+    """Map one Bedrock retrievalResult to a RetrievalResult.
+
+    The chunk metadata is carried as-is: a missing ``workspace_id`` stays missing, so the
+    ``FilteringRetrievalEngine`` workspace check drops the passage (fail closed) instead of
+    trusting the request's workspace for an unlabelled chunk.
+    """
     metadata_raw = item.get("metadata", {})
     metadata = {str(k): str(v) for k, v in metadata_raw.items()} if isinstance(metadata_raw, dict) else {}
-    metadata.setdefault("workspace_id", workspace_id)
     content = item.get("content", {})
     text = content.get("text", "") if isinstance(content, dict) else ""
     page = metadata.get("page_number")

@@ -114,6 +114,7 @@ dev = [
     "langdetect>=1.0.9",
     "testcontainers[postgres,redis]>=4.14.2",
     "ty>=0.0.38",
+    "hypothesis>=6.168.1",
 ]
 
 [tool.pytest.ini_options]
