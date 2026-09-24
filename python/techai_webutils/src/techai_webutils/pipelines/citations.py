@@ -13,11 +13,21 @@ from typing import TYPE_CHECKING
 from techai_webutils.core.interfaces.retrieval import Citation, CitationExtractor
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
 
 class PassageCitationExtractor(CitationExtractor):
     """Maps each retrieved passage to a Citation, one-to-one and in retrieval order."""
+
+    def __init__(self, attribute_keys: Sequence[str] = ()) -> None:
+        """Copy the passage metadata ``attribute_keys`` onto each citation's ``attributes``.
+
+        The consumer names the keys its citations need (badges, links, icons); keys a passage lacks
+        are omitted. No keys (the default) leaves ``attributes`` empty.
+        """
+        self._attribute_keys = tuple(attribute_keys)
 
     async def extract(self, answer: str, sources: list[RetrievalResult]) -> list[Citation]:  # noqa: ARG002
         """Return one Citation per source passage, in retrieval order.
@@ -40,6 +50,7 @@ class PassageCitationExtractor(CitationExtractor):
                 classification=source.metadata.get("classification", ""),
                 s3_key=source.metadata.get("s3_key", ""),
                 format=source.metadata.get("format", ""),
+                attributes={k: source.metadata[k] for k in self._attribute_keys if k in source.metadata},
             )
             for source in sources
         ]

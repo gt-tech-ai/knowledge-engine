@@ -27,6 +27,18 @@ All notable changes to this project are recorded here. The format follows
     `SessionVarStamper(name)` — stamp a consumer-resolved tenant with consumer-chosen stampers.
   - `ServerBuilder.WithInterceptors` — caller-supplied interceptors run after auth, identity and
     tenant, before validation.
+- Python config (`techai_webutils.foundation.config`): `initialize_config(env_prefix=...,
+  env_selectors=...)` exports the YAML under the consumer's prefix and selects the overlay from the
+  consumer's env vars; `apply_yaml_defaults(config, prefix)`.
+- Python retrieval (`techai_webutils.clients.retrieval`):
+  - `PassagePolicy` with `MinScore`, `MetadataEquals`, `OrdinalCeiling` and `default_policies`;
+    `FilteringRetrievalEngine(..., policies=...)`.
+  - Bedrock: `filter_builder` and `document_id_resolver` (defaults `workspace_clearance_filter`,
+    `document_id_from_key`).
+  - `new_retrieval_engine_from_config(config, *, policies, filter_builder, document_id_resolver)`.
+- Python citations: `Citation.attributes` and `PassageCitationExtractor(attribute_keys=...)`.
+- Python gRPC: `HeaderClaimMapping`, `AuthServerInterceptor(headers=...)` and
+  `ServerInterceptorBuilder.with_auth(headers=...)`.
 
 ### Changed
 
@@ -42,3 +54,7 @@ All notable changes to this project are recorded here. The format follows
   env vars; the configured prefix alone names them.
 - Errors: `AppError.StackTrace()` starts at the code that created the error. It matched this
   package's frames by a file path that no longer exists, so every trace began inside `New`/`Wrap`.
+- Python Bedrock retrieval: a passage's document id is the key segment after the workspace segment
+  wherever it sits, so prefixed key layouts (`{prefix}/{workspace}/{document}/{file}`) no longer
+  return the prefix as the document id; a key without the workspace yields no id instead of a guess.
+- Python gRPC auth: the claim docstrings name the metadata keys actually read (`x-user-id`, …).

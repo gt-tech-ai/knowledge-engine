@@ -307,3 +307,33 @@ def test_initialize_config_missing_base_yaml_is_graceful(
     with TemporaryDirectory() as empty:
         initialize_config(empty)  # no base.yaml present — must not raise
     reset_config()
+
+
+def test_initialize_config_uses_consumer_prefix_and_env_selector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """initialize_config exports under the consumer's prefix and picks the overlay from its env vars.
+
+    **Why this test is important:**
+      - The env-var prefix and the variable that selects the overlay are a consumer's conventions; a
+        library that hard-codes its own names exports config the consumer's settings never read.
+
+    **What it tests:**
+      - With env_prefix="MYAPP" and env_selectors=("MYAPP_ENV",), base + the MYAPP_ENV overlay export
+        as MYAPP_* (overlay wins) and nothing is exported under SEARCH_*.
+    """
+    from techai_webutils.foundation.config.bridge import initialize_config, reset_config
+
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("MYAPP_ENV", "staging")
+    with TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / "base.yaml").write_text("widget:\n  size: 3\n  color: red\n")
+        (Path(tmpdir) / "staging.yaml").write_text("widget:\n  size: 7\n")
+        try:
+            initialize_config(tmpdir, env_prefix="MYAPP", env_selectors=("MYAPP_ENV",))
+
+            assert os.environ.get("MYAPP_WIDGET_SIZE") == "7"
+            assert os.environ.get("MYAPP_WIDGET_COLOR") == "red"
+            assert "SEARCH_WIDGET_SIZE" not in os.environ
+        finally:
+            for key in ("MYAPP_WIDGET_SIZE", "MYAPP_WIDGET_COLOR"):
+                os.environ.pop(key, None)
+            reset_config()

@@ -16,6 +16,10 @@ from techai_webutils.clients.retrieval.filtering import _DEFAULT_MIN_SCORE, Filt
 from techai_webutils.clients.retrieval.stub import StubRetrievalEngine
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from techai_webutils.clients.retrieval.bedrock.engine import DocumentIdResolver, FilterBuilder
+    from techai_webutils.clients.retrieval.filtering import PassagePolicy
     from techai_webutils.core.interfaces.retrieval import RetrievalEngine
 
 # Bedrock similarity scores run materially lower than the local vector (Qdrant) path: a strong
@@ -75,8 +79,19 @@ class RetrievalConfig:
     """Vector dimensionality of ``embedding_model`` (must match the Qdrant collection)."""
 
 
-def new_retrieval_engine_from_config(config: RetrievalConfig) -> RetrievalEngine:
-    """Build the retrieval engine selected by ``config.kind``, wrapped in the filtering decorator."""
+def new_retrieval_engine_from_config(
+    config: RetrievalConfig,
+    *,
+    policies: Sequence[PassagePolicy] | None = None,
+    filter_builder: FilterBuilder | None = None,
+    document_id_resolver: DocumentIdResolver | None = None,
+) -> RetrievalEngine:
+    """Build the retrieval engine selected by ``config.kind``, wrapped in the filtering decorator.
+
+    The consumer's seams (code, not config data) ride alongside: ``policies`` replace the filtering
+    decorator's default rules; ``filter_builder`` and ``document_id_resolver`` reach the Bedrock
+    engine (ignored by the other kinds). ``None`` keeps each default.
+    """
     inner: RetrievalEngine
     if config.kind is RetrievalKind.STUB:
         inner = StubRetrievalEngine()
@@ -92,13 +107,15 @@ def new_retrieval_engine_from_config(config: RetrievalConfig) -> RetrievalEngine
             # The reranker model is passed only when the kind selects it, so kind=none disables reranking
             # regardless of a stray model id.
             reranking_model=(config.reranking_model if config.reranking_kind == "bedrock_rerank" else ""),
+            filter_builder=filter_builder,
+            document_id_resolver=document_id_resolver,
         )
     elif config.kind is RetrievalKind.QDRANT:
         inner = _build_vector_engine(config)
     else:
         msg = f"unknown retrieval kind: {config.kind!r}"
         raise ValueError(msg)
-    return FilteringRetrievalEngine(inner, min_score=_resolve_min_score(config))
+    return FilteringRetrievalEngine(inner, min_score=_resolve_min_score(config), policies=policies)
 
 
 def _resolve_min_score(config: RetrievalConfig) -> float:

@@ -262,3 +262,27 @@ def test_base_search_settings_has_correct_model_config() -> None:
     assert BaseSearchSettings.model_config["env_prefix"] == "SEARCH_"
     assert BaseSearchSettings.model_config["frozen"] is True
     assert BaseSearchSettings.model_config["extra"] == "ignore"
+
+
+def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A consumer's settings class composes the mixins under its own env prefix.
+
+    **Why this test is important:**
+      - The mixins' default prefix is a library default, not the consumer's convention; a consumer
+        must be able to read its own variables without renaming its deployment's env vars.
+
+    **What it tests:**
+      - A DatabaseSettings subclass with env_prefix="MYAPP_" reads MYAPP_DATABASE_HOST and ignores
+        SEARCH_DATABASE_HOST.
+    """
+    from pydantic_settings import SettingsConfigDict
+
+    from techai_webutils.foundation.config.settings import DatabaseSettings
+
+    class MyAppSettings(DatabaseSettings):
+        model_config = SettingsConfigDict(env_prefix="MYAPP_", frozen=True, extra="ignore")
+
+    monkeypatch.setenv("MYAPP_DATABASE_HOST", "db.example")
+    monkeypatch.setenv("SEARCH_DATABASE_HOST", "wrong")
+
+    assert MyAppSettings().database_host == "db.example"

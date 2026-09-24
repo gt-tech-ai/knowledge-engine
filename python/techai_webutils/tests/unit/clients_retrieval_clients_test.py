@@ -522,3 +522,150 @@ class TestBedrockRetrievalEngineRequest:
         in_clause = next(c for c in clauses if "in" in c)
         assert in_clause["in"]["key"] == "classification"
         assert set(in_clause["in"]["value"]) == {"public", "internal"}
+
+
+class TestRetrievalSeams:
+    """Consumer-supplied passage policies, Bedrock filter and document-id resolution."""
+
+    @staticmethod
+    def _tenant_passage(doc: str, tenant: str, score: float = 0.9) -> RetrievalResult:
+        """A passage labelled only with a consumer-defined ``tenant`` key (no classification)."""
+        return RetrievalResult(
+            document_id=doc,
+            document_name=doc,
+            chunk_content="chunk",
+            score=score,
+            page_number=None,
+            metadata={"tenant": tenant},
+        )
+
+    def test_to_result_reads_document_id_after_the_workspace_segment(self) -> None:
+        """The default document id is the key segment after the workspace, wherever the workspace sits.
+
+        **Why this test is important:**
+          - A consumer that prefixes its keys (``{org}/{workspace}/{doc}/{file}``) got the prefix back as
+            the document id, so every citation pointed at the wrong document (seen on a real deployment).
+
+        **What it tests:**
+          - ``org_x/ws-1/doc-42/report.txt`` resolves to ``doc-42``.
+        """
+        item: dict[str, object] = {
+            "content": {"text": "chunk"},
+            "score": 0.55,
+            "metadata": {"workspace_id": "ws-1", "s3_key": "org_x/ws-1/doc-42/report.txt"},
+        }
+        assert _to_result(item, "ws-1").document_id == "doc-42"
+
+    @pytest.mark.asyncio
+    async def test_custom_policies_replace_the_default_rules(self) -> None:
+        """Consumer policies decide which passages survive, instead of the built-in rules.
+
+        **Why this test is important:**
+          - Which metadata isolates tenants and what counts as sensitive are consumer decisions; with
+            fixed rules a consumer whose passages carry other labels loses every passage.
+
+        **What it tests:**
+          - With MinScore + MetadataEquals("tenant"), unclassified passages of the requested tenant are
+            kept, another tenant's passage and a low-score passage are dropped.
+        """
+        from techai_webutils.clients.retrieval.filtering import MetadataEquals, MinScore
+
+        inner = create_autospec(RetrievalEngine, instance=True)
+        inner.retrieve.return_value = [
+            self._tenant_passage("a", "t1"),
+            self._tenant_passage("b", "t2"),
+            self._tenant_passage("c", "t1", score=0.05),
+        ]
+        engine = FilteringRetrievalEngine(inner, policies=[MinScore(0.1), MetadataEquals("tenant")])
+
+        results = await engine.retrieve("q", "ws-1", filters={"tenant": "t1"})
+
+        assert [r.document_id for r in results] == ["a"]
+
+    def test_ordinal_ceiling_fails_closed_both_ways(self) -> None:
+        """OrdinalCeiling admits a passage at or below the caller's level and fails closed on unknowns.
+
+        **Why this test is important:**
+          - An unknown passage label must be denied to everyone and an unknown caller level must see
+            only the lowest tier; either failing open leaks restricted content.
+
+        **What it tests:**
+          - "mid" is admitted for callers at "mid"/"high" and denied at "low".
+          - An unknown passage label is denied even at "high"; an unknown caller level acts as "low".
+        """
+        from techai_webutils.clients.retrieval.filtering import OrdinalCeiling
+
+        policy = OrdinalCeiling("level", "max_level", ("low", "mid", "high"))
+
+        def admits(label: str, caller: str) -> bool:
+            passage = RetrievalResult("d", "d", "c", 0.9, None, {"level": label})
+            return policy.admits(passage, {"max_level": caller})
+
+        assert admits("mid", "mid")
+        assert admits("mid", "high")
+        assert not admits("mid", "low")
+        assert not admits("unknown", "high")
+        assert admits("low", "bogus")
+        assert not admits("mid", "bogus")
+
+    @pytest.mark.asyncio
+    async def test_bedrock_uses_injected_filter_and_document_id_resolver(self) -> None:
+        """The Bedrock engine sends the consumer's KB filter and resolves ids the consumer's way.
+
+        **Why this test is important:**
+          - KB metadata keys and object-key layouts belong to the consumer; hard-wiring them in the
+            engine is what produced wrong citation ids.
+
+        **What it tests:**
+          - The Retrieve request carries the injected filter; results take the injected document id.
+        """
+        from techai_webutils.clients.retrieval.bedrock.engine import BedrockRetrievalEngine
+
+        engine = BedrockRetrievalEngine(
+            region="us-east-1",
+            knowledge_base_id="kb-1",
+            filter_builder=lambda _ws, f: {"equals": {"key": "tenant", "value": f["tenant"]}},
+            document_id_resolver=lambda metadata, _ws: metadata["doc"],
+        )
+        client = AsyncMock()
+        client.retrieve.return_value = {
+            "retrievalResults": [{"content": {"text": "c"}, "score": 0.9, "metadata": {"doc": "d9"}}]
+        }
+        engine._client = client  # noqa: SLF001 - inject the mocked bedrock-agent-runtime client
+
+        results = await engine.retrieve("q", "ws-1", filters={"tenant": "t1"})
+
+        sent = client.retrieve.call_args.kwargs["retrievalConfiguration"]["vectorSearchConfiguration"]
+        assert sent["filter"] == {"equals": {"key": "tenant", "value": "t1"}}
+        assert [r.document_id for r in results] == ["d9"]
+
+    @pytest.mark.asyncio
+    async def test_factory_threads_consumer_seams(self) -> None:
+        """The factory hands the consumer's policies, KB filter and id resolver to the engine it builds.
+
+        **Why this test is important:**
+          - Consumers build engines through the factory; a seam the factory drops is unusable.
+
+        **What it tests:**
+          - A factory-built Bedrock engine sends the injected filter, resolves ids with the injected
+            resolver, and filters with the injected policies (an unlabelled passage survives MinScore(0)).
+        """
+        from techai_webutils.clients.retrieval.filtering import MinScore
+
+        engine = new_retrieval_engine_from_config(
+            RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb-1"),
+            policies=[MinScore(0.0)],
+            filter_builder=lambda _ws, _f: {"equals": {"key": "k", "value": "v"}},
+            document_id_resolver=lambda metadata, _ws: metadata["doc"],
+        )
+        client = AsyncMock()
+        client.retrieve.return_value = {
+            "retrievalResults": [{"content": {"text": "c"}, "score": 0.1, "metadata": {"doc": "d1"}}]
+        }
+        engine._inner._client = client  # type: ignore[attr-defined]  # noqa: SLF001
+
+        results = await engine.retrieve("q", "ws-1")
+
+        sent = client.retrieve.call_args.kwargs["retrievalConfiguration"]["vectorSearchConfiguration"]
+        assert sent["filter"] == {"equals": {"key": "k", "value": "v"}}
+        assert [r.document_id for r in results] == ["d1"]

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from techai_webutils.core.interfaces.lifecycle import ManagedResource
 
@@ -47,6 +47,8 @@ class Citation:
     """The source object's storage key, so a citation can link back to the document."""
     format: str = ""
     """The source document's format (pdf/docx/...), for a format icon on the citation."""
+    attributes: dict[str, str] = field(default_factory=dict)
+    """Consumer-chosen passage metadata carried with the citation (see ``PassageCitationExtractor``)."""
 
 
 @dataclass

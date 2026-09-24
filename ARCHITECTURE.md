@@ -130,7 +130,9 @@ Config selects; the composition root injects. Go `foundation/config` (Viper) lay
 overlay from the consumer's chosen env vars. The consumer owns its conventions: the env prefix,
 its root config struct (`WithSchema` — every leaf field binds `<PREFIX>_<PATH>` plus its
 `envalias` names) and extra bindings for keys outside that struct (`WithExtraEnv`). Python
-`foundation/config` loads the same hierarchy into pydantic-settings classes.
+`foundation/config` loads the same hierarchy into pydantic-settings classes:
+`initialize_config(env_prefix=..., env_selectors=...)` exports the YAML under the consumer's
+prefix, and the consumer's settings class sets the matching `env_prefix`.
 
 Business logic never reads the environment. In `go/`, env reads are confined to the config loader,
 the `env` secrets backend, subprocess plumbing in `foundation/system`, `helpers.OrDefault`, and one

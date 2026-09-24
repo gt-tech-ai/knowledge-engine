@@ -52,6 +52,37 @@ class TestServerInterceptorBuilder:
         assert len(interceptors) == 1
         assert isinstance(interceptors[0], AuthServerInterceptor)
 
+    @pytest.mark.asyncio
+    async def test_with_auth_uses_the_consumers_header_mapping(self) -> None:
+        """with_auth(headers=...) builds an auth interceptor that reads the consumer's metadata keys.
+
+        **Why this test is important:**
+          - Services build their interceptor stack through this builder; a header mapping it drops
+            would leave every builder-built server on the default header contract.
+
+        **What it tests:**
+          - The built interceptor extracts the user id from the custom ``x-sub`` key.
+        """
+        from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+            HeaderClaimMapping,
+            _auth_claims_var,
+            get_auth_claims,
+        )
+
+        [interceptor] = (
+            ServerInterceptorBuilder().with_auth(headers=HeaderClaimMapping(user_id="x-sub")).build()
+        )
+        token = _auth_claims_var.set(None)
+        try:
+            await interceptor.intercept_service(
+                AsyncMock(return_value="handler"), MagicMock(invocation_metadata=[("x-sub", "u-1")])
+            )
+            claims = get_auth_claims()
+            assert claims is not None
+            assert claims.user_id == "u-1"
+        finally:
+            _auth_claims_var.reset(token)
+
     def test_with_logging(self) -> None:
         """Test that with_logging adds a logging interceptor bound to the given logger.
 

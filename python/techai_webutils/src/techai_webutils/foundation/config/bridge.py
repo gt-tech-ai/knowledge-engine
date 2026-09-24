@@ -2,8 +2,10 @@
 
 This module bridges the gap between YAML configuration files and Pydantic Settings.
 It loads the merged YAML configuration (``base.yaml`` + ``{env}.yaml`` overlay +
-``secrets.yaml``) and exports every scalar leaf as a ``SEARCH_*`` environment variable,
-allowing Pydantic Settings to consume them via its ``env_prefix="SEARCH_"`` behavior.
+``secrets.yaml``) and exports every scalar leaf as a ``<prefix>_*`` environment variable,
+allowing Pydantic Settings to consume them via its ``env_prefix`` behavior. The prefix
+(default ``SEARCH``) and the env vars that select the overlay are the caller's
+(``initialize_config(env_prefix=..., env_selectors=...)``).
 
 Why this design:
   - Pydantic Settings reads from environment variables by default.
@@ -70,43 +72,60 @@ def _flatten_config(config: dict[str, Any], prefix: str = "SEARCH") -> list[tupl
     return items
 
 
-def apply_yaml_defaults(config: dict[str, Any]) -> None:
-    """Export merged YAML values as ``SEARCH_*`` environment variables.
+_DEFAULT_ENV_SELECTORS = ("SEARCH_ENV", "APP_ENV")
+"""Env vars consulted, in order, to select the ``{env}.yaml`` overlay when a caller names none."""
 
-    Every scalar leaf of the config tree becomes a ``SEARCH_<UPPER_SNAKE>`` env var, but
+
+def apply_yaml_defaults(config: dict[str, Any], prefix: str = "SEARCH") -> None:
+    """Export merged YAML values as ``<prefix>_*`` environment variables.
+
+    Every scalar leaf of the config tree becomes a ``<prefix>_<UPPER_SNAKE>`` env var, but
     only when that var is NOT already set — so real environment variables (e.g. secrets
     injected by the deployment) take precedence over YAML values (12-factor principle).
 
     Args:
         config: Merged configuration dictionary loaded from YAML.
+        prefix: Env-var prefix, matching the consumer's settings ``env_prefix`` (default ``SEARCH``).
 
     """
-    for env_var, value in _flatten_config(config):
+    for env_var, value in _flatten_config(config, prefix):
         # Skip if env var already set (env vars take precedence over YAML)
         if env_var in os.environ:
             continue
         os.environ[env_var] = value
 
 
-def _resolve_environment() -> str:
+def _resolve_environment(selectors: tuple[str, ...]) -> str:
     """Resolve the overlay environment name for ``{env}.yaml`` selection.
 
-    Prefers ``SEARCH_ENV`` (the Go convention), then ``APP_ENV`` (set by the K8s
-    deployments), defaulting to ``dev`` so local runs load ``base.yaml`` + ``dev.yaml``.
+    Returns the first non-empty value among ``selectors`` (by default ``SEARCH_ENV``, then
+    ``APP_ENV``), defaulting to ``dev`` so local runs load ``base.yaml`` + ``dev.yaml``.
     """
-    return os.environ.get("SEARCH_ENV") or os.environ.get("APP_ENV") or "dev"
+    for name in selectors:
+        if value := os.environ.get(name):
+            return value
+    return "dev"
 
 
-def initialize_config(config_dir: str | Path = ".") -> None:
+def initialize_config(
+    config_dir: str | Path = ".",
+    *,
+    env_prefix: str = "SEARCH",
+    env_selectors: tuple[str, ...] = _DEFAULT_ENV_SELECTORS,
+) -> None:
     """Initialize configuration by loading the merged YAML and setting env variables.
 
-    Loads ``base.yaml`` + the ``{env}.yaml`` overlay (selected by ``SEARCH_ENV``/``APP_ENV``)
-    + ``secrets.yaml``, then exports every scalar leaf as a ``SEARCH_*`` env var (without
-    overriding vars already set). This is idempotent — the first call loads YAML and sets
-    env vars; subsequent calls are no-ops.
+    Loads ``base.yaml`` + the ``{env}.yaml`` overlay (selected by the first set variable in
+    ``env_selectors``) + ``secrets.yaml``, then exports every scalar leaf as an
+    ``<env_prefix>_*`` env var (without overriding vars already set). This is idempotent — the
+    first call loads YAML and sets env vars; subsequent calls are no-ops.
 
     Args:
         config_dir: Directory containing base.yaml (default: current directory).
+        env_prefix: Env-var prefix for the exported values; match the settings classes'
+            ``env_prefix`` (default ``SEARCH``).
+        env_selectors: Env vars consulted, in order, to select the overlay (default
+            ``SEARCH_ENV``, then ``APP_ENV``; ``dev`` when none is set).
 
     """
     # Idempotency + thread-safety: a fast-path read, then a double-check under the lock, so concurrent
@@ -117,11 +136,11 @@ def initialize_config(config_dir: str | Path = ".") -> None:
     with _init_lock:
         if _initialized:
             return
-        _load_and_apply_config(config_dir)
+        _load_and_apply_config(config_dir, env_prefix, env_selectors)
 
 
-def _load_and_apply_config(config_dir: str | Path) -> None:
-    """Load the merged YAML + export ``SEARCH_*`` env defaults, then set the initialized sentinel.
+def _load_and_apply_config(config_dir: str | Path, env_prefix: str, env_selectors: tuple[str, ...]) -> None:
+    """Load the merged YAML + export ``<env_prefix>_*`` env defaults, then set the initialized sentinel.
 
     Runs under ``_init_lock`` (called only from ``initialize_config``); every early return still marks
     the config initialized so a missing/broken config is not retried on every call.
@@ -149,7 +168,7 @@ def _load_and_apply_config(config_dir: str | Path) -> None:
         return
 
     # Load and deep-merge base.yaml + {env}.yaml + secrets.yaml (env vars still win below).
-    environment = _resolve_environment()
+    environment = _resolve_environment(env_selectors)
     try:
         config = load_config(str(config_dir), environment=environment)
     except Exception:
@@ -158,7 +177,7 @@ def _load_and_apply_config(config_dir: str | Path) -> None:
         return
 
     # Apply YAML values to env vars (respecting existing env vars)
-    apply_yaml_defaults(config)
+    apply_yaml_defaults(config, env_prefix)
 
     _initialized = True
 

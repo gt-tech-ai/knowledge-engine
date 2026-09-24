@@ -2,7 +2,9 @@
 
 This module provides mixin classes that can be composed to build service-specific
 Settings classes. Each mixin provides fields for a specific component (database,
-redis, server, etc.) and reads from environment variables with the SEARCH_ prefix.
+redis, server, etc.) and reads from environment variables with the SEARCH_ prefix by
+default; a consumer's settings class sets its own ``model_config`` ``env_prefix`` to read
+under its own prefix (pair it with ``initialize_config(env_prefix=...)``).
 
 Why mixins:
   - Composable: Services can mix-and-match only the components they need

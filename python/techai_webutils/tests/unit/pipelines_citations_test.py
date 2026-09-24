@@ -107,3 +107,30 @@ class TestPassageCitationExtractor:
         citations = await PassageCitationExtractor().extract("a", sources)
         assert len(citations) == 3
         assert [c.document_id for c in citations] == ["doc-1", "doc-1", "doc-2"]
+
+    @pytest.mark.asyncio
+    async def test_copies_the_consumers_attribute_keys(self) -> None:
+        """Citations carry the passage metadata keys the consumer asks for, as ``attributes``.
+
+        **Why this test is important:**
+          - What a citation shows (badges, links, icons) is the consumer's product decision; fixed
+            citation fields force one product's UI on every consumer.
+
+        **What it tests:**
+          - With attribute_keys=("color", "owner"), a citation's attributes hold the present keys only.
+          - With no attribute_keys, attributes stay empty.
+        """
+        source = RetrievalResult(
+            document_id="d",
+            document_name="d",
+            chunk_content="c",
+            score=0.9,
+            page_number=None,
+            metadata={"color": "blue", "size": "L"},
+        )
+
+        [cited] = await PassageCitationExtractor(attribute_keys=("color", "owner")).extract("", [source])
+        [plain] = await PassageCitationExtractor().extract("", [source])
+
+        assert cited.attributes == {"color": "blue"}
+        assert plain.attributes == {}

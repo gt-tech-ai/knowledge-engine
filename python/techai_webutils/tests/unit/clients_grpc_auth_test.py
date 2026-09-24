@@ -262,3 +262,40 @@ class TestAuthServerInterceptor:
             continuation.assert_called_once_with(details)
         finally:
             _auth_claims_var.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_reads_claims_from_the_consumers_header_mapping(self) -> None:
+        """A consumer's header mapping decides which metadata keys become claims.
+
+        **Why this test is important:**
+          - Gateways name identity headers differently; a fixed mapping ties the library to one
+            deployment's header contract.
+
+        **What it tests:**
+          - With a custom HeaderClaimMapping, claims come from the custom keys.
+          - The default ``x-user-id`` key is ignored under the custom mapping.
+        """
+        from techai_webutils.clients.rpc.grpc.interceptors.auth import HeaderClaimMapping
+
+        mapping = HeaderClaimMapping(
+            user_id="x-sub", org_id="x-tenant", clearance_level="x-level", roles="x-groups"
+        )
+        interceptor = AuthServerInterceptor(headers=mapping)
+        continuation = AsyncMock(return_value="handler")
+        token = _auth_claims_var.set(None)
+        try:
+            await interceptor.intercept_service(
+                continuation,
+                self._details(
+                    [("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-level", "l2"), ("x-groups", "a,b")]
+                ),
+            )
+            assert get_auth_claims() == AuthClaims(
+                user_id="u-1", org_id="t-1", clearance_level="l2", roles=frozenset({"a", "b"})
+            )
+
+            _auth_claims_var.set(None)
+            await interceptor.intercept_service(continuation, self._details([("x-user-id", "u-1")]))
+            assert get_auth_claims() is None
+        finally:
+            _auth_claims_var.reset(token)

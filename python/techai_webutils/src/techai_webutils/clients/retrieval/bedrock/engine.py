@@ -1,13 +1,16 @@
 """Bedrock Knowledge Base retrieval engine (bedrock-agent-runtime Retrieve).
 
-Thin aiobotocore wrapper used in stage/prod (dev uses the stub). Builds the workspace_id
-metadata filter and maps Bedrock retrieval results to ``RetrievalResult``; classification is
-re-validated server-side by ``FilteringRetrievalEngine`` (defense-in-depth). Carved out of
+Thin aiobotocore wrapper used in stage/prod (dev uses the stub). Builds the KB metadata filter
+(``workspace_clearance_filter`` unless the consumer injects its own) and maps Bedrock retrieval
+results to ``RetrievalResult``, resolving each document id with ``document_id_from_key`` unless the
+consumer injects a resolver; passages are re-validated server-side by ``FilteringRetrievalEngine``
+(defense-in-depth). Carved out of
 unit coverage; exercised against real Bedrock in staging.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
@@ -18,6 +21,12 @@ from techai_webutils.clients.retrieval.filtering import (
 )
 from techai_webutils.core.errors import InternalError
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
+
+FilterBuilder = Callable[[str, Mapping[str, str]], dict[str, object]]
+"""Builds the KB metadata filter from ``(workspace_id, filters)``."""
+
+DocumentIdResolver = Callable[[Mapping[str, str], str], str]
+"""Resolves a passage's document id from ``(chunk metadata, workspace_id)``."""
 
 
 class _BedrockAgentRuntimeClient(Protocol):
@@ -54,19 +63,26 @@ class BedrockRetrievalEngine(RetrievalEngine):
         endpoint: str | None = None,
         search_type: str = "semantic",
         reranking_model: str = "",
+        filter_builder: FilterBuilder | None = None,
+        document_id_resolver: DocumentIdResolver | None = None,
     ) -> None:
         """Store the region, KB id, endpoint, and search strategy; the client opens lazily on first use.
 
         ``search_type`` selects semantic (vector-only) vs "hybrid" (vector+keyword, Retrieve's
         overrideSearchType); ``reranking_model`` is a Cohere reranker model id (e.g.
         ``cohere.rerank-v3-5:0``) whose presence enables Retrieve's rerankingConfiguration — both are
-        config-selected. Empty ``reranking_model`` = no reranking.
+        config-selected. Empty ``reranking_model`` = no reranking. ``filter_builder`` builds the KB
+        metadata filter (default ``workspace_clearance_filter``) and ``document_id_resolver`` resolves
+        each passage's document id (default ``document_id_from_key``), so a consumer's metadata keys
+        and object-key layout are its own.
         """
         self._region = region
         self._kb_id = knowledge_base_id
         self._endpoint = endpoint
         self._search_type = search_type
         self._reranking_model = reranking_model
+        self._build_filter = filter_builder or workspace_clearance_filter
+        self._resolve_document_id = document_id_resolver or document_id_from_key
         self._session = aiobotocore.session.get_session()
         # The client's async context manager + the entered client (typed ``Any`` — aiobotocore is unstubbed).
         self._client_cm: Any = None
@@ -125,7 +141,7 @@ class BedrockRetrievalEngine(RetrievalEngine):
         client = await self._runtime_client()
         vector_config: dict[str, object] = {
             "numberOfResults": top_k,
-            "filter": self._metadata_filter(workspace_id, filters),
+            "filter": self._build_filter(workspace_id, filters or {}),
         }
         if self._search_type == "hybrid":
             vector_config["overrideSearchType"] = "HYBRID"
@@ -146,28 +162,29 @@ class BedrockRetrievalEngine(RetrievalEngine):
             retrievalConfiguration={"vectorSearchConfiguration": vector_config},
         )
         results = cast("list[dict[str, object]]", response.get("retrievalResults", []))
-        return [_to_result(item, workspace_id) for item in results]
+        return [_to_result(item, workspace_id, self._resolve_document_id) for item in results]
 
-    def _metadata_filter(self, workspace_id: str, filters: dict[str, str] | None) -> dict[str, object]:
-        """Build the KB metadata filter: workspace isolation + the clearance push-down.
 
-        Combines the workspace_id equality with an ``in`` clause over the classifications at/below the
-        caller's clearance (``filters[CLEARANCE_FILTER_KEY]``) via ``andAll``, so the KB returns only
-        eligible passages before they consume the result budget — the ``FilteringRetrievalEngine``
-        decorator re-validates as defense-in-depth. With no clearance in ``filters`` only the workspace
-        clause applies (the decorator still enforces the default). The allowed-classification set comes
-        from the SAME table the decorator uses, so the pre-filter and the decorator cannot drift.
-        """
-        workspace_clause: dict[str, object] = {"equals": {"key": "workspace_id", "value": workspace_id}}
-        clearance = (filters or {}).get(CLEARANCE_FILTER_KEY)
-        if not clearance:
-            return workspace_clause
-        return {
-            "andAll": [
-                workspace_clause,
-                {"in": {"key": "classification", "value": allowed_classifications_for(clearance)}},
-            ]
-        }
+def workspace_clearance_filter(workspace_id: str, filters: Mapping[str, str]) -> dict[str, object]:
+    """Build the default KB metadata filter: workspace isolation + the clearance push-down.
+
+    Combines the workspace_id equality with an ``in`` clause over the classifications at/below the
+    caller's clearance (``filters[CLEARANCE_FILTER_KEY]``) via ``andAll``, so the KB returns only
+    eligible passages before they consume the result budget — the ``FilteringRetrievalEngine``
+    decorator re-validates as defense-in-depth. With no clearance in ``filters`` only the workspace
+    clause applies (the decorator still enforces the default). The allowed-classification set comes
+    from the SAME table the decorator uses, so the pre-filter and the decorator cannot drift.
+    """
+    workspace_clause: dict[str, object] = {"equals": {"key": "workspace_id", "value": workspace_id}}
+    clearance = filters.get(CLEARANCE_FILTER_KEY)
+    if not clearance:
+        return workspace_clause
+    return {
+        "andAll": [
+            workspace_clause,
+            {"in": {"key": "classification", "value": allowed_classifications_for(clearance)}},
+        ]
+    }
 
 
 def _to_float(value: object) -> float:
@@ -176,26 +193,39 @@ def _to_float(value: object) -> float:
 
 
 _MIN_KEY_SEGMENTS_AFTER_WORKSPACE = 2
-"""Minimum path segments (``<document_id>/<filename>``) a valid key has after the workspace prefix."""
+"""Minimum path segments (``<document_id>/<filename>``) a valid key has after the workspace segment."""
 
 
-def _document_id_from_s3_key(s3_key: str, workspace_id: str) -> str:
-    """Derive the document id from the S3 key layout ``{workspace_id}/{document_id}/{filename}``.
+def document_id_from_key(metadata: Mapping[str, str], workspace_id: str) -> str:
+    """Resolve a passage's document id: an explicit ``document_id``, else the one in its ``s3_key``.
 
-    The Bedrock KB chunk metadata carries ``s3_key`` (and ``workspace_id``) but never a bare
+    The Bedrock KB chunk metadata carries ``s3_key`` (and ``workspace_id``) but usually no bare
     ``document_id``, so a passage/citation would otherwise return with an empty ``document_id`` and lose
-    all provenance (a citation could not be traced back to its document). The id is the path segment
-    immediately after the workspace id. Returns "" when the key does not match the expected layout.
+    all provenance. The id is the key segment immediately after the workspace segment, wherever that
+    segment sits, so ``{workspace}/{doc}/{file}`` and prefixed layouts such as
+    ``{org}/{workspace}/{doc}/{file}`` both resolve. With no workspace the first segment is the id.
+    Returns "" when the key does not match (no guessing).
     """
-    remainder = s3_key.removeprefix(f"{workspace_id}/") if workspace_id else s3_key
-    segments = remainder.split("/")
-    # Expect at least ``<document_id>/<filename>``; a bare key (no doc segment) yields no id.
-    if len(segments) >= _MIN_KEY_SEGMENTS_AFTER_WORKSPACE and segments[0]:
-        return segments[0]
+    if explicit := metadata.get("document_id"):
+        return explicit
+    segments = metadata.get("s3_key", "").split("/")
+    if not workspace_id:
+        start = 0
+    elif workspace_id in segments:
+        start = segments.index(workspace_id) + 1
+    else:
+        return ""
+    # Expect at least ``<document_id>/<filename>`` after the workspace; a bare key yields no id.
+    if len(segments) - start >= _MIN_KEY_SEGMENTS_AFTER_WORKSPACE and segments[start]:
+        return segments[start]
     return ""
 
 
-def _to_result(item: dict[str, object], workspace_id: str) -> RetrievalResult:
+def _to_result(
+    item: dict[str, object],
+    workspace_id: str,
+    resolve_document_id: DocumentIdResolver = document_id_from_key,
+) -> RetrievalResult:
     """Map one Bedrock retrievalResult to a RetrievalResult."""
     metadata_raw = item.get("metadata", {})
     metadata = {str(k): str(v) for k, v in metadata_raw.items()} if isinstance(metadata_raw, dict) else {}
@@ -203,11 +233,7 @@ def _to_result(item: dict[str, object], workspace_id: str) -> RetrievalResult:
     content = item.get("content", {})
     text = content.get("text", "") if isinstance(content, dict) else ""
     page = metadata.get("page_number")
-    # Bedrock metadata has no ``document_id`` key; derive it from ``s3_key`` so passages/citations carry
-    # provenance. Prefer an explicit ``document_id`` if a future sidecar adds one.
-    document_id = metadata.get("document_id") or _document_id_from_s3_key(
-        metadata.get("s3_key", ""), workspace_id
-    )
+    document_id = resolve_document_id(metadata, workspace_id)
     return RetrievalResult(
         document_id=document_id,
         document_name=metadata.get("document_name", ""),

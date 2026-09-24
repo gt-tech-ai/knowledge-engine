@@ -2,9 +2,9 @@
 
 Mirrors Go's ``go/clients/transport/connect/interceptors/auth.go``.
 
-Kong (or another gateway) sets headers after identity-service JWT validation.
-This interceptor extracts those headers from gRPC metadata and makes them
-available downstream via ``contextvars``.
+A gateway sets identity headers after validating the caller's token. This
+interceptor extracts those headers from gRPC metadata — under the names in its
+``HeaderClaimMapping`` — and makes them available downstream via ``contextvars``.
 """
 
 from __future__ import annotations
@@ -27,13 +27,27 @@ class AuthClaims:
     """
 
     user_id: str = ""
-    """The authenticated user's subject id (from the ``X-User-Sub`` claim)."""
+    """The authenticated user's subject id (default metadata key ``x-user-id``)."""
     org_id: str = ""
-    """The caller's organization/tenant id (from the ``X-Org-ID`` claim)."""
+    """The caller's organization/tenant id (default metadata key ``x-org-id``)."""
     clearance_level: str = ""
-    """The caller's clearance level, gating which document classifications they may see."""
+    """The caller's clearance level (default metadata key ``x-clearance-level``)."""
     roles: frozenset[str] = field(default_factory=frozenset)
-    """The caller's authorization roles (from the ``X-Roles`` claim)."""
+    """The caller's authorization roles (default metadata key ``x-roles``, comma-separated)."""
+
+
+@dataclass(frozen=True, slots=True)
+class HeaderClaimMapping:
+    """The gRPC metadata keys (lowercase) each claim is read from, so a consumer matches its gateway."""
+
+    user_id: str = "x-user-id"
+    """Key carrying the subject id; its absence means the request is unauthenticated."""
+    org_id: str = "x-org-id"
+    """Key carrying the organization/tenant id."""
+    clearance_level: str = "x-clearance-level"
+    """Key carrying the clearance level."""
+    roles: str = "x-roles"
+    """Key carrying the comma-separated roles."""
 
 
 _auth_claims_var: contextvars.ContextVar[AuthClaims | None] = contextvars.ContextVar(
@@ -62,10 +76,14 @@ def _split_roles(raw: str) -> frozenset[str]:
 class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
     """Async server interceptor that extracts auth claims from gRPC metadata.
 
-    Only processes authenticated requests (when ``x-user-id`` is present).
-    Does NOT validate tokens — that's delegated to Kong + identity service (or, for internal
+    Only processes authenticated requests (when the mapping's ``user_id`` key is present).
+    Does NOT validate tokens — that's delegated to the gateway (or, for internal
     service-to-service calls, the service-auth interceptor).
     """
+
+    def __init__(self, headers: HeaderClaimMapping | None = None) -> None:
+        """Read claims from the metadata keys in ``headers`` (default ``HeaderClaimMapping()``)."""
+        self._headers = headers or HeaderClaimMapping()
 
     async def intercept_service(  # type: ignore[override]
         self,
@@ -76,14 +94,15 @@ class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
         # The gRPC Python API for server interceptors passes metadata via
         # handler_call_details.invocation_metadata
         metadata = dict(handler_call_details.invocation_metadata or [])
-        user_id = str(metadata.get("x-user-id", ""))
+        keys = self._headers
+        user_id = str(metadata.get(keys.user_id, ""))
 
         if user_id:
             claims = AuthClaims(
                 user_id=user_id,
-                org_id=str(metadata.get("x-org-id", "")),
-                clearance_level=str(metadata.get("x-clearance-level", "")),
-                roles=_split_roles(str(metadata.get("x-roles", ""))),
+                org_id=str(metadata.get(keys.org_id, "")),
+                clearance_level=str(metadata.get(keys.clearance_level, "")),
+                roles=_split_roles(str(metadata.get(keys.roles, ""))),
             )
             set_auth_claims(claims)
 

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, cast
 import grpc
 from google.protobuf.message import Message
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
 from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import TracingServerInterceptor
 from techai_webutils.foundation.logger import get_logger
 
@@ -56,6 +56,7 @@ class ServerInterceptorBuilder:
     def __init__(self) -> None:
         """Start with every interceptor disabled; ``with_*`` methods opt each in."""
         self._auth: bool = False
+        self._auth_headers: HeaderClaimMapping | None = None
         self._service_token: str = ""
         self._logger: Logger | None = None
         self._histogram: MetricHistogram | None = None
@@ -121,9 +122,13 @@ class ServerInterceptorBuilder:
         self._service_token = expected_token
         return self
 
-    def with_auth(self) -> ServerInterceptorBuilder:
-        """Add auth claims extraction interceptor."""
+    def with_auth(self, headers: HeaderClaimMapping | None = None) -> ServerInterceptorBuilder:
+        """Add auth claims extraction interceptor, reading the metadata keys in ``headers``.
+
+        ``None`` uses the default ``HeaderClaimMapping``.
+        """
         self._auth = True
+        self._auth_headers = headers
         return self
 
     def with_validation(self) -> ServerInterceptorBuilder:
@@ -165,7 +170,7 @@ class ServerInterceptorBuilder:
             interceptors.append(_ServiceAuthServerInterceptor(self._service_token))
 
         if self._auth:
-            interceptors.append(AuthServerInterceptor())
+            interceptors.append(AuthServerInterceptor(self._auth_headers))
 
         # Validation is INNERMOST (appended last → closest to the handler): it validates the exact
         # request the authenticated handler receives, after auth has run.
