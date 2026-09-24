@@ -1,7 +1,7 @@
-"""Env-aware single-writer lock factory (the foundation/logger ``NewFromConfig`` pattern).
+"""Config-selected single-writer lock factory (the foundation/logger ``NewFromConfig`` pattern).
 
-Selects the in-process ``InMemoryLock`` (dev / replica=1) or the cross-pod ``PostgresAdvisoryLock``
-(stage/prod) from config (``LockConfig.kind``). Unknown kinds fail loudly. The Postgres backend and
+Selects the in-process ``InMemoryLock`` (single replica) or the cross-pod ``PostgresAdvisoryLock``
+from config (``LockConfig.kind``). Unknown kinds fail loudly. The Postgres backend and
 its ``asyncpg`` dependency are imported lazily so the dev/memory path never loads asyncpg.
 """
 
@@ -29,7 +29,7 @@ class LockKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class LockConfig:
-    """Single-writer lock configuration resolved from ``ingestion.lock.*`` + the DB + KB settings."""
+    """Single-writer lock configuration: the backend, its connection, and the lock's identity."""
 
     kind: LockKind = LockKind.MEMORY
     """Selects the backend (``memory`` in dev / replica=1, ``postgres`` in stage/prod)."""
@@ -45,10 +45,10 @@ class LockConfig:
     """Postgres database name (callers project it from DatabaseSettings)."""
     sslmode: str = "disable"
     """libpq sslmode for the lock connection (``disable`` in dev; ``require``/``verify-*`` on RDS)."""
-    knowledge_base_id: str = ""
-    """Bedrock Knowledge Base id — half of the advisory-lock key."""
-    data_source_id: str = ""
-    """Bedrock data source id — the other half of the advisory-lock key."""
+    key: str = ""
+    """What the lock guards (e.g. one resource id); hashed into the advisory-lock key."""
+    namespace: int = 0
+    """Signed-int32 namespace for the advisory lock, separating this lock class from others."""
 
 
 def _postgres_dsn(config: LockConfig) -> str:
@@ -73,8 +73,8 @@ def new_lock_from_config(config: LockConfig) -> ManagedLock:
 
         return PostgresAdvisoryLock(
             dsn=_postgres_dsn(config),
-            knowledge_base_id=config.knowledge_base_id,
-            data_source_id=config.data_source_id,
+            key=config.key,
+            namespace=config.namespace,
         )
     msg = f"unknown lock kind: {config.kind!r}"
     raise ValueError(msg)

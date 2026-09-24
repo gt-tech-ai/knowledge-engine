@@ -1,6 +1,7 @@
 """Knowledge base interface for managing document collections."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from techai_webutils.core.interfaces.lifecycle import ManagedResource
@@ -12,10 +13,8 @@ class KBDocument:
 
     id: str
     """Unique identifier of the document within the knowledge base."""
-    workspace_id: str
-    """The workspace that owns this document (the tenant isolation scope)."""
     file_name: str
-    """The original uploaded filename, shown to users and in citations."""
+    """The source file name, shown to users and in citations."""
     content_type: str
     """MIME type of the source file, used to select the parser."""
     status: str  # "pending", "processing", "ready", "error"
@@ -45,39 +44,35 @@ class KBSyncResult:
 class KnowledgeBase(ManagedResource, ABC):
     """Abstract knowledge base for managing document embeddings and retrieval.
 
-    Phase 1: Document indexing and status tracking.
-    Phase 2+: Incremental updates, versioning, cross-workspace search.
+    Document ids are unique across the knowledge base; any scope (tenant, sensitivity label) rides
+    in the ``attributes`` a consumer stamps onto each chunk.
     """
 
     @abstractmethod
     async def index_document(
         self,
-        workspace_id: str,
         document_id: str,
         chunks: list[str],
-        classification: str = "public",
+        *,
+        attributes: Mapping[str, str] | None = None,
         document_name: str = "",
     ) -> None:
         """Index a document's chunks into the knowledge base.
 
-        ``classification`` is stamped onto each stored chunk so the clearance/security filter can admit
-        or deny it per the querying user's clearance; it defaults to ``public`` (the lowest bar) for
-        callers that have no per-document classification.
-
-        ``document_name`` is the human-readable source name (the uploaded filename) stamped onto each
-        chunk so a retrieval citation can display it instead of the opaque ``document_id``; it defaults
-        to empty, and an implementation falls back to the ``document_id`` so a caller with no name keeps
-        the prior behaviour.
+        ``attributes`` are stamped onto every stored chunk as metadata (e.g. the consumer's tenant scope
+        and sensitivity label), so retrieval can push them down and ``FilteringRetrievalEngine`` policies
+        can re-validate them. ``document_name`` is the human-readable source name stamped onto each chunk
+        for citation display; an implementation falls back to the ``document_id`` when it is empty.
         """
 
     @abstractmethod
-    async def remove_document(self, workspace_id: str, document_id: str) -> None:
+    async def remove_document(self, document_id: str) -> None:
         """Remove a document and its chunks from the knowledge base."""
 
     @abstractmethod
-    async def get_document_status(self, workspace_id: str, document_id: str) -> KBDocument | None:
+    async def get_document_status(self, document_id: str) -> KBDocument | None:
         """Get the indexing status of a document."""
 
     @abstractmethod
-    async def sync(self, workspace_id: str) -> KBSyncResult:
+    async def sync(self) -> KBSyncResult:
         """Synchronize the knowledge base with the latest document states."""

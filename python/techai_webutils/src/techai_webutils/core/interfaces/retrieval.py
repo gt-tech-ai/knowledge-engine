@@ -22,12 +22,12 @@ class RetrievalResult:
     page_number: int | None
     """Source page the passage appears on (``None`` for non-paginated content)."""
     metadata: dict[str, str]
-    """Metadata carried with the chunk (source, classification, and similar)."""
+    """Metadata carried with the chunk (the backend's and the consumer's own keys)."""
 
 
 @dataclass(slots=True)
 class Citation:
-    """A citation referencing a source document (with trust + provenance for frontend display)."""
+    """A citation referencing a source document."""
 
     document_id: str
     """Identifier of the cited source document."""
@@ -39,14 +39,6 @@ class Citation:
     """Source page the cited passage appears on (``None`` when not paginated/unknown)."""
     confidence: float
     """The extractor's confidence that this citation supports the answer (higher is stronger)."""
-    trust_level: str = ""
-    """The source document's trust badge value (high/medium/low); ``""`` when unknown."""
-    classification: str = ""
-    """The source document's sensitivity (public/internal/confidential/restricted)."""
-    s3_key: str = ""
-    """The source object's storage key, so a citation can link back to the document."""
-    format: str = ""
-    """The source document's format (pdf/docx/...), for a format icon on the citation."""
     attributes: dict[str, str] = field(default_factory=dict)
     """Consumer-chosen passage metadata carried with the citation (see ``PassageCitationExtractor``)."""
 
@@ -80,26 +72,24 @@ class HistoryTurn:
 
 
 class RetrievalEngine(ManagedResource, ABC):
-    """Abstract retrieval engine for searching documents.
-
-    Phase 1: Vector similarity search with filtering.
-    Phase 2+: Hybrid retrieval (vector + keyword), re-ranking, cross-encoder.
-    """
+    """Abstract retrieval engine for searching documents."""
 
     @abstractmethod
     async def retrieve(
         self,
         query: str,
-        workspace_id: str,
+        *,
         top_k: int = 10,
         filters: dict[str, str] | None = None,
-        knowledge_base_id: str | None = None,
+        index_id: str | None = None,
     ) -> list[RetrievalResult]:
         """Retrieve relevant document chunks for a query.
 
-        ``knowledge_base_id`` selects the KB to query per call (per-org routing);
-        ``None`` uses the engine's construction-time KB (the shared topology). An engine constructed
-        with no default KB and called with ``None`` must fail loudly, not silently fall back.
+        ``filters`` is the caller's request scope (e.g. a tenant or clearance level); a backend may
+        push some of it down, and ``FilteringRetrievalEngine`` policies re-validate against it.
+        ``index_id`` selects the index to query per call (e.g. a knowledge base per tenant); ``None``
+        uses the engine's construction-time index. An engine constructed with no default index and
+        called with ``None`` must fail loudly, not silently fall back.
         """
 
 

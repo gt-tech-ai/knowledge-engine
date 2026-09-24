@@ -21,7 +21,7 @@ class SingleWriterRunner[T]:
 
     The generic lock decorator: ``acquire → run → release``, returning the operation's result or
     ``None`` when the lock is lost this round. Decoupled from the operation (a thunk) so the same
-    guard serves KB sync or any other single-writer job.
+    guard serves any single-writer job.
     """
 
     def __init__(self, run: Callable[[], Awaitable[T]], lock: DistributedLock) -> None:

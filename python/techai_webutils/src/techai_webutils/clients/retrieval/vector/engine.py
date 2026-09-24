@@ -1,9 +1,9 @@
 """Vector-backed RetrievalEngine (local dev): embed the query, then similarity-search a VectorStore.
 
-Composes an ``EmbeddingProvider`` (Ollama) + a ``VectorStore`` (Qdrant). Only ``workspace_id`` is
-pushed to the store as a payload filter — request filters like ``clearance_level`` are enforced by the
-``FilteringRetrievalEngine`` decorator, not the store (they are not payload fields). Each hit is mapped
-into a ``RetrievalResult`` preserving every metadata key so the decorator's workspace check passes.
+Composes an ``EmbeddingProvider`` (Ollama) + a ``VectorStore`` (Qdrant). Only the request filters
+named in ``filter_keys`` (payload fields, e.g. a tenant scope) are pushed to the store; every other
+filter is enforced by the ``FilteringRetrievalEngine`` decorator. Each hit is mapped into a
+``RetrievalResult`` preserving every metadata key, so the decorator's policies see them.
 """
 
 from __future__ import annotations
@@ -15,35 +15,49 @@ from techai_webutils.core.interfaces.retrieval import RetrievalEngine, Retrieval
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from techai_webutils.core.interfaces.embedding import EmbeddingProvider
     from techai_webutils.core.interfaces.vector_store import VectorSearchResult, VectorStore
 
 
 class VectorRetrievalEngine(NoOpAsyncResource, RetrievalEngine):
-    """RetrievalEngine over an EmbeddingProvider + VectorStore (embed → workspace-filtered search)."""
+    """RetrievalEngine over an EmbeddingProvider + VectorStore (embed → payload-filtered search)."""
 
-    def __init__(self, embedder: EmbeddingProvider, store: VectorStore, collection: str) -> None:
-        """Compose the embedder + store; fail loudly if their vector dimensions disagree."""
+    def __init__(
+        self,
+        embedder: EmbeddingProvider,
+        store: VectorStore,
+        collection: str,
+        *,
+        filter_keys: Sequence[str] = (),
+    ) -> None:
+        """Compose the embedder + store; fail loudly if their vector dimensions disagree.
+
+        ``filter_keys`` names the request filters pushed down to the store as payload filters.
+        """
         require_matching_dimension(embedder, store, collection)
         self._embedder = embedder
         self._store = store
         self._collection = collection
+        self._filter_keys = tuple(filter_keys)
 
     async def retrieve(
         self,
         query: str,
-        workspace_id: str,
+        *,
         top_k: int = 10,
-        filters: dict[str, str] | None = None,  # noqa: ARG002 — clearance is enforced by the decorator
-        knowledge_base_id: str | None = None,  # noqa: ARG002 — local vector store has no per-org KB routing
+        filters: dict[str, str] | None = None,
+        index_id: str | None = None,  # noqa: ARG002 — one collection; no per-call index routing
     ) -> list[RetrievalResult]:
-        """Embed the query, similarity-search within the workspace, and map hits to RetrievalResults."""
+        """Embed the query, search with the pushed-down filters, and map hits to RetrievalResults."""
+        request = filters or {}
         embedding = await self._embedder.embed(query)
         hits = await self._store.search(
             self._collection,
             embedding.embedding,
             top_k=top_k,
-            filters={"workspace_id": workspace_id},
+            filters={k: request[k] for k in self._filter_keys if k in request},
         )
         return [_to_retrieval_result(hit) for hit in hits]
 

@@ -1,7 +1,7 @@
 """Single-writer distributed-lock port.
 
-Bedrock allows at most one concurrent ingestion job per KB, so only one worker may drive a sync
-at a time. ``acquire()`` returns whether the caller won the lock; only the winner calls
+When a resource tolerates only one writer at a time (e.g. a backend that allows one running job per
+index), only one worker may drive it. ``acquire()`` returns whether the caller won the lock; only the winner calls
 ``release()`` (a loser must never free the holder's lock). Implementations live in ``clients/lock/``
 (``InMemoryLock`` for single-process / local; ``PostgresAdvisoryLock`` for cross-pod stage/prod; a
 Redis backend is a sibling of the same abstraction).

@@ -1,4 +1,4 @@
-"""Tests for the vector-backed dev RetrievalEngine + the qdrant factory branch (mocked deps)."""
+"""Tests for the vector-backed RetrievalEngine + the qdrant factory branch (mocked deps)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from techai_webutils.clients.retrieval.builder import (
     RetrievalKind,
     new_retrieval_engine_from_config,
 )
-from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine
+from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine, MetadataEquals, MinScore
 from techai_webutils.clients.retrieval.vector import VectorRetrievalEngine
 from techai_webutils.core.interfaces.embedding import EmbeddingProvider, EmbeddingResult
 from techai_webutils.core.interfaces.vector_store import VectorSearchResult, VectorStore
@@ -36,60 +36,61 @@ def _store(hits: list[VectorSearchResult], dimension: int = 3) -> VectorStore:
 
 
 def _hit() -> VectorSearchResult:
-    """A search hit carrying the full metadata schema (workspace + document_name + page + classification)."""
+    """A search hit carrying a scope key, a document name and a page."""
     return VectorSearchResult(
         document_id="doc-1",
         chunk_id="doc-1:0",
         content="the retrieved chunk",
         score=0.88,
         metadata={
-            "workspace_id": "ws-1",
+            "tenant": "t1",
             "document_name": "Annual Report",
             "page_number": "7",
-            "classification": "public",
         },
     )
 
 
 class TestVectorRetrievalEngine:
     @pytest.mark.asyncio
-    async def test_retrieve_embeds_then_workspace_filtered_search(self) -> None:
-        """retrieve() embeds the query then searches with a workspace_id payload filter (not clearance).
+    async def test_retrieve_pushes_down_only_the_named_filters(self) -> None:
+        """retrieve() embeds the query, then searches with only the filters named in filter_keys.
 
         Why this test is important:
-          - clearance_level is a request filter enforced by FilteringRetrievalEngine, NOT a Qdrant payload
-            field; pushing it into the store filter would match zero points and break all dev retrieval.
+          - A request filter that is not a stored payload field (e.g. a caller level) matches no points
+            when pushed down, so pushing every filter would return nothing; only payload keys go down.
 
         What it tests:
-          - embed is called with the query; store.search is called with the query embedding + top_k and a
-            filter of exactly {"workspace_id": ...}.
+          - embed is called with the query; store.search gets the top_k and exactly {"tenant": ...} for a
+            request carrying tenant + max_level with filter_keys=("tenant",).
         """
         embedder, store = _embedder(), _store([_hit()])
-        engine = VectorRetrievalEngine(embedder, store, collection="documents")
+        engine = VectorRetrievalEngine(embedder, store, collection="documents", filter_keys=("tenant",))
 
-        await engine.retrieve("annual revenue", "ws-1", top_k=5, filters={"clearance_level": "public"})
+        await engine.retrieve("annual revenue", top_k=5, filters={"tenant": "t1", "max_level": "high"})
 
         embedder.embed.assert_awaited_once_with("annual revenue")
         store.search.assert_awaited_once()
-        assert store.search.call_args.kwargs["filters"] == {"workspace_id": "ws-1"}
+        assert store.search.call_args.kwargs["filters"] == {"tenant": "t1"}
         assert store.search.call_args.kwargs["top_k"] == 5
 
     @pytest.mark.asyncio
     async def test_retrieve_maps_all_metadata_and_survives_filter(self) -> None:
-        """The mapped passage keeps workspace_id/document_name/page_number and survives the security filter.
+        """The mapped passage keeps its metadata, name and page, and survives a scope policy.
 
         Why this test is important:
-          - FilteringRetrievalEngine drops any passage whose metadata['workspace_id'] != request; if the
-            vector engine dropped that key, every real passage would vanish behind the decorator.
+          - A MetadataEquals scope policy drops any passage whose scope key does not match the request; if
+            the vector engine dropped that key, every real passage would vanish behind the decorator.
 
         What it tests:
-          - RetrievalResult carries workspace_id in metadata, document_name + int page_number populated, and
-            the passage survives FilteringRetrievalEngine at default (public) clearance.
+          - The RetrievalResult carries the tenant key, document_name and an int page_number, and survives
+            MinScore(0.5) + MetadataEquals("tenant").
         """
         embedder, store = _embedder(), _store([_hit()])
-        engine = FilteringRetrievalEngine(VectorRetrievalEngine(embedder, store, "documents"), min_score=0.5)
+        engine = FilteringRetrievalEngine(
+            VectorRetrievalEngine(embedder, store, "documents"), [MinScore(0.5), MetadataEquals("tenant")]
+        )
 
-        results = await engine.retrieve("q", "ws-1", top_k=5, filters={"clearance_level": "public"})
+        results = await engine.retrieve("q", top_k=5, filters={"tenant": "t1"})
 
         assert len(results) == 1
         r = results[0]
@@ -97,7 +98,7 @@ class TestVectorRetrievalEngine:
         assert r.document_name == "Annual Report"
         assert r.page_number == 7
         assert r.chunk_content == "the retrieved chunk"
-        assert r.metadata["workspace_id"] == "ws-1"
+        assert r.metadata["tenant"] == "t1"
 
     def test_dimension_mismatch_fails_loudly(self) -> None:
         """A drifted embedder/store dimension raises at construction (single source of truth)."""
@@ -117,5 +118,6 @@ class TestQdrantFactoryBranch:
                 embedding_model="nomic-embed-text",
                 embedding_dimension=768,
             ),
+            policies=[],
         )
         assert isinstance(engine, FilteringRetrievalEngine)

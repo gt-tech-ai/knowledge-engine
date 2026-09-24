@@ -1,15 +1,17 @@
 """Server-side re-validating retrieval decorator (defense-in-depth).
 
-Wraps any ``RetrievalEngine`` and drops passages that fail its ``PassagePolicy`` rules — regardless
-of the vector store's own metadata filter — so a mislabeled or out-of-scope passage cannot leak. A
-consumer supplies its own policies (``MinScore``, ``MetadataEquals``, ``OrdinalCeiling`` or its own);
-without them the default rules apply:
+Wraps any ``RetrievalEngine`` and drops passages that fail any of the consumer's ``PassagePolicy``
+rules — regardless of the backend's own filtering — so a mislabeled or out-of-scope passage cannot
+leak. Built-in rules:
 
-- **workspace isolation**: the passage's ``workspace_id`` must equal the request's.
-- **classification vs clearance**: the passage's classification must be <= the caller's
-  clearance (from ``filters['clearance_level']``); unknown/absent classification is treated as
-  the most restricted (fail closed).
-- **relevance threshold**: passages below ``min_score`` are excluded.
+- ``MinScore``: a relevance floor.
+- ``MetadataEquals``: a passage metadata key must equal a request filter (e.g. a tenant or workspace
+  scope); a request without the filter admits nothing (fail closed).
+- ``OrdinalCeiling``: a passage label must rank at or below the caller's level on a consumer-supplied
+  ladder (e.g. document classification vs caller clearance); unknown labels fail closed.
+
+The decorator has no default rules: which scope a passage must match is the consumer's decision,
+made explicitly.
 """
 
 from __future__ import annotations
@@ -28,23 +30,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_CLASSIFICATION_RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
-"""Ordered classification sensitivity ranks; a caller sees documents at or below their clearance."""
-_DEFAULT_MIN_SCORE = 0.5
-"""Default relevance-score floor below which passages are excluded."""
-
-CLEARANCE_FILTER_KEY = "clearance_level"
-"""Retrieval-request filter key carrying the caller's clearance (shared with the query workflow producer)."""
-
 
 class PassagePolicy(Protocol):
     """A rule every retrieved passage must pass to reach the caller."""
 
     def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
-        """Return True iff ``passage`` may be returned for ``request``.
-
-        ``request`` is the call's filters plus its ``workspace_id``.
-        """
+        """Return True iff ``passage`` may be returned for ``request`` (the call's filters)."""
         ...
 
 
@@ -106,79 +97,37 @@ class OrdinalCeiling:
         return passage_rank <= self._order.get(request.get(self.request_key, ""), 0)
 
 
-def default_policies(min_score: float = _DEFAULT_MIN_SCORE) -> list[PassagePolicy]:
-    """Return the default rules: the score floor, workspace isolation, classification vs clearance."""
-    return [
-        MinScore(min_score),
-        MetadataEquals("workspace_id"),
-        OrdinalCeiling("classification", CLEARANCE_FILTER_KEY, tuple(_CLASSIFICATION_RANK)),
-    ]
-
-
-def _clearance_rank(clearance: str) -> int:
-    """Return the caller's clearance rank; unknown/blank clearance is least-privileged (public — fail closed).
-
-    Note the deliberate asymmetry with the passage side (``OrdinalCeiling``): an unknown *document
-    classification* must be the MOST restricted (denied to everyone), but an unknown *caller clearance*
-    must be the LEAST privileged (sees only public). Both directions fail closed. Using the
-    most-restricted default for the clearance ceiling would instead fail OPEN — a bad/unrecognized
-    clearance value would clear everything.
-    """
-    return _CLASSIFICATION_RANK.get(clearance, 0)
-
-
-def allowed_classifications_for(clearance: str) -> list[str]:
-    """Return the classification labels at/below ``clearance`` — the KB ``in``-filter value list.
-
-    Mirrors the default ``OrdinalCeiling`` ranking EXACTLY (a document is admissible iff its
-    classification rank is <= the caller's clearance rank), so the KB pre-filter returns the SAME
-    eligible set the ``FilteringRetrievalEngine`` decorator would keep — the two cannot drift because they share this
-    one table (as they already share ``CLEARANCE_FILTER_KEY``). The decorator stays as
-    defense-in-depth (it also fail-closes on an unlabeled document the KB filter can't express).
-    """
-    ceiling = _clearance_rank(clearance)
-    return [label for label, rank in _CLASSIFICATION_RANK.items() if rank <= ceiling]
-
-
 class FilteringRetrievalEngine(DelegatingAsyncResource[RetrievalEngine], RetrievalEngine):
     """RetrievalEngine decorator that keeps only the passages every policy admits."""
 
-    def __init__(
-        self,
-        inner: RetrievalEngine,
-        *,
-        min_score: float = _DEFAULT_MIN_SCORE,
-        policies: Sequence[PassagePolicy] | None = None,
-    ) -> None:
-        """Wrap ``inner`` with ``policies``; ``None`` uses ``default_policies(min_score)``."""
+    def __init__(self, inner: RetrievalEngine, policies: Sequence[PassagePolicy]) -> None:
+        """Wrap ``inner`` with ``policies`` (all must admit a passage; an empty list admits all)."""
         self._inner = inner
-        self._min_score = min_score
-        self._policies = list(policies) if policies is not None else default_policies(min_score)
+        self._policies = list(policies)
 
     async def retrieve(
         self,
         query: str,
-        workspace_id: str,
+        *,
         top_k: int = 10,
         filters: dict[str, str] | None = None,
-        knowledge_base_id: str | None = None,
+        index_id: str | None = None,
     ) -> list[RetrievalResult]:
-        """Retrieve from the inner engine, then re-validate every passage server-side.
+        """Retrieve from the inner engine, then re-validate every passage against the policies.
 
-        ``knowledge_base_id`` (per-index routing) is forwarded to the inner engine unchanged; the
-        policies see the call's filters plus its ``workspace_id``, whichever index was queried.
+        ``index_id`` is forwarded to the inner engine unchanged; the policies see the call's filters,
+        whichever index was queried.
         """
-        results = await self._inner.retrieve(query, workspace_id, top_k, filters, knowledge_base_id)
-        request = {**(filters or {}), "workspace_id": workspace_id}
+        results = await self._inner.retrieve(query, top_k=top_k, filters=filters, index_id=index_id)
+        request = dict(filters or {})
         kept = [r for r in results if all(p.admits(r, request) for p in self._policies)]
         # Observability: a 0-result response is otherwise indistinguishable from an error. Logging the
-        # retrieved-vs-kept counts + floor makes "nothing retrieved" vs "all filtered out" diagnosable.
+        # retrieved-vs-kept counts makes "nothing retrieved" vs "all filtered out" diagnosable.
         logger.info(
             "retrieval passages filtered",
-            workspace_id=workspace_id,
+            index_id=index_id,
             retrieved=len(results),
             kept=len(kept),
             dropped=len(results) - len(kept),
-            min_score=self._min_score,
         )
         return kept

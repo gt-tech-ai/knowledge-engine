@@ -37,42 +37,6 @@ class TestPassageCitationExtractor:
         assert citations[0].confidence == 0.92
 
     @pytest.mark.asyncio
-    async def test_carries_trust_classification_s3key_format(self) -> None:
-        """Test that the extractor copies trust_level/classification/s3_key/format from source metadata.
-
-        **Why this test is important:**
-          - A citation's trust badge, clearance display, and back-link to the source object all depend
-            on these fields; if the extractor drops them, the retrieval gRPC surfaces empty
-            values and the frontend can't render trust/provenance.
-
-        **What it tests:**
-          - A source whose metadata carries the four keys yields a Citation with them set; absent keys
-            default to the empty string.
-        """
-        source = RetrievalResult(
-            document_id="doc-1",
-            document_name="Report",
-            chunk_content="chunk",
-            score=0.9,
-            page_number=2,
-            metadata={
-                "trust_level": "high",
-                "classification": "internal",
-                "s3_key": "ws-1/doc-1.pdf",
-                "format": "pdf",
-            },
-        )
-        [citation] = await PassageCitationExtractor().extract("a", [source])
-        assert citation.trust_level == "high"
-        assert citation.classification == "internal"
-        assert citation.s3_key == "ws-1/doc-1.pdf"
-        assert citation.format == "pdf"
-        # An absent-metadata source defaults the new fields cleanly (best-effort provenance).
-        [bare] = await PassageCitationExtractor().extract("a", [_source("doc-2", None)])
-        assert bare.trust_level == ""
-        assert bare.s3_key == ""
-
-    @pytest.mark.asyncio
     async def test_emits_one_citation_per_passage_in_order(self) -> None:
         """Test that every passage yields its own citation, positionally aligned with the prompt.
 

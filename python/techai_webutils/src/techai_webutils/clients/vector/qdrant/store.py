@@ -106,7 +106,7 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
         top_k: int = 10,
         filters: dict[str, str] | None = None,
     ) -> list[VectorSearchResult]:
-        """Vector-search ``collection``; ``filters`` become an exact-match payload filter (e.g. workspace_id)."""
+        """Vector-search ``collection``; ``filters`` become an exact-match payload filter (e.g. a tenant key)."""
         query_filter = None
         if filters:
             query_filter = models.Filter(

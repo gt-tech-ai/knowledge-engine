@@ -4,8 +4,8 @@
 onto session-scoped ``pg_try_advisory_lock`` / ``pg_advisory_unlock``. The session is opened lazily on
 first ``acquire`` (so a Postgres blip at pod boot cannot down the Postgres-independent SQS consumer)
 and held for the pod's life; if the pod dies the session drops and Postgres releases the lock
-automatically (no TTL). The key is a two-int ``(classid, objid)`` — a fixed namespace const for
-"ingestion KB sync" plus a signed-int32-folded crc32 of ``{kb_id}:{data_source_id}``.
+automatically (no TTL). The lock is a two-int ``(classid, objid)`` — the caller's ``namespace`` plus a
+signed-int32-folded crc32 of the caller's ``key``.
 
 Cross-cutting concerns (logging, tracing, retry, circuit breaking) are layered by the generic
 ``clients/decorators`` proxies at the composition root; this class stays focused on the Postgres
@@ -39,20 +39,14 @@ _CONNECTION_ERRORS = (
 )
 """asyncpg error types treated as transient (mapped to UnavailableError for retry/circuit-breaker)."""
 
-# Fixed namespace for the "ingestion KB sync" advisory-lock class. The two-int
-# pg_try_advisory_lock(classid, objid) form namespaces the lock so a KB-key hash collision with an
-# unrelated advisory lock cannot falsely serialize. "KBSY" as a positive signed int32 constant.
-_CLASSID_INGESTION_KB_SYNC = 0x4B425359  # 1_262_698_841 — within [0, 2^31-1]
-"""Fixed classid namespacing the "ingestion KB sync" two-int advisory lock (guards against hash collisions)."""
-
 # Connection-level server settings for the lock session:
 #   - application_name tags the session so it is identifiable in pg_stat_activity.
 #   - Server-side TCP keepalives stop a middlebox (NAT / ELB / RDS proxy) from silently reaping the
 #     long, idle session mid-poll — which would look like a crash and auto-release the lock.
 #     Budget: probe after 60s idle (> the 30s tick, < typical middlebox timeouts), then 4 probes 15s
-#     apart, so a dead peer is detected within ~120s — well inside the minutes-long Bedrock poll.
+#     apart, so a dead peer is detected within ~120s.
 _SERVER_SETTINGS = {
-    "application_name": "app-kb-lock",
+    "application_name": "advisory-lock",
     "tcp_keepalives_idle": "60",
     "tcp_keepalives_interval": "15",
     "tcp_keepalives_count": "4",
@@ -71,21 +65,29 @@ def _to_signed_int32(value: int) -> int:
 
 
 class PostgresAdvisoryLock:
-    """Session-scoped Postgres advisory ``DistributedLock`` for the ingestion KB-sync single writer.
+    """Session-scoped Postgres advisory ``DistributedLock`` for a keyed single writer.
 
-    One instance per pod owns one pinned session and locks on a two-int ``(classid, objid)`` key — a
-    fixed namespace const + a signed-int32 hash of the KB. It is NOT reentrant: ``SingleWriterRunner``
-    acquires once, runs, and releases, so a second ``acquire`` on a still-held session is not expected.
+    One instance per pod owns one pinned session and locks on a two-int ``(classid, objid)`` — the
+    caller's ``namespace`` + a signed-int32 hash of its ``key``. The namespace keeps a key-hash
+    collision with an unrelated advisory lock from falsely serializing. It is NOT reentrant:
+    ``SingleWriterRunner`` acquires once, runs, and releases, so a second ``acquire`` on a still-held
+    session is not expected.
     """
 
-    def __init__(self, *, dsn: str, knowledge_base_id: str, data_source_id: str) -> None:
-        """Bind the connection DSN and derive the (classid, objid) advisory-lock key for the KB."""
-        if not knowledge_base_id or not data_source_id:
-            msg = "PostgresAdvisoryLock requires a non-empty knowledge_base_id and data_source_id"
+    def __init__(self, *, dsn: str, key: str, namespace: int) -> None:
+        """Bind the connection DSN and derive the (namespace, hash(key)) advisory-lock key.
+
+        ``namespace`` must fit a signed int32 (Postgres ``pg_try_advisory_lock(int, int)``).
+        """
+        if not key:
+            msg = "PostgresAdvisoryLock requires a non-empty key"
+            raise ValueError(msg)
+        if not -(2**31) <= namespace < 2**31:
+            msg = f"PostgresAdvisoryLock namespace {namespace} does not fit a signed int32"
             raise ValueError(msg)
         self._dsn = dsn
-        self._classid = _CLASSID_INGESTION_KB_SYNC
-        self._objid = _to_signed_int32(zlib.crc32(f"{knowledge_base_id}:{data_source_id}".encode()))
+        self._classid = namespace
+        self._objid = _to_signed_int32(zlib.crc32(key.encode()))
         self._conn: asyncpg.Connection | None = None
 
     async def __aenter__(self) -> Self:
@@ -113,7 +115,7 @@ class PostgresAdvisoryLock:
         ``terminate()`` aborts the socket synchronously — unlike ``close()`` it needs no round-trip on a
         connection that is already broken. Dropping the session makes Postgres auto-release the lock at
         once, instead of leaving a zombie holder until the keepalive reap (which would otherwise stall
-        every replica's KB sync for that window).
+        every replica's guarded work for that window).
         """
         conn = self._conn
         self._conn = None
@@ -127,7 +129,7 @@ class PostgresAdvisoryLock:
         """Return the pinned session, opening (or reopening) it as needed.
 
         Lazily connects on first use, and reconnects when a previously-opened session has been closed
-        (idle-reaped or crashed) so a dead socket cannot wedge KB sync until a pod restart.
+        (idle-reaped or crashed) so a dead socket cannot wedge the guarded work until a pod restart.
         """
         conn = self._conn
         if conn is None or conn.is_closed():

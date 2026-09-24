@@ -1,10 +1,10 @@
 """Vector-backed KnowledgeBase (local dev chunk indexer): embed chunks → upsert into a VectorStore.
 
-This is the dev analogue of the Bedrock Knowledge Base: instead of handing documents to a managed
-service, it embeds each chunk (Ollama) and upserts it into a VectorStore (Qdrant), writing the
-retrieval metadata (``workspace_id``, ``document_id``, ``chunk_index``, and a ``public`` classification
-so the ``FilteringRetrievalEngine`` admits the passage). It composes the same ``VectorStore`` the
-retrieval engine reads, so an indexed document is immediately queryable end-to-end.
+The local analogue of a managed knowledge base: instead of handing documents to a managed service,
+it embeds each chunk (Ollama) and upserts it into a VectorStore (Qdrant), writing the retrieval
+metadata (the consumer's ``attributes``, plus ``document_name`` and ``chunk_index``). It composes the
+same ``VectorStore`` the retrieval engine reads, so an indexed document is immediately queryable
+end-to-end.
 """
 
 from __future__ import annotations
@@ -22,23 +22,18 @@ from techai_webutils.core.interfaces.vector_store import VectorEntry
 from techai_webutils.foundation.logger import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from techai_webutils.core.interfaces.embedding import EmbeddingProvider
     from techai_webutils.core.interfaces.vector_store import VectorStore
 
 logger = get_logger(__name__)
 
-# Fallback classification when the caller supplies none (e.g. the dev-index tool over synthetic
-# public-domain prose): treat the chunk as public so the security filter admits it at the lowest
-# clearance. The real ingestion path threads the document's actual classification through
-# index_document, so a confidential document is stored (and filtered) as confidential, not public.
-_DEV_CLASSIFICATION = "public"
-"""Fallback chunk classification when the caller supplies none (public — admitted at lowest clearance)."""
-
 # Embed + upsert one document a fixed-size sub-batch at a time, instead of embedding EVERY
 # chunk up front and doing one all-or-nothing upsert — on the CPU-Ollama path that single giant unit
 # exceeds the embed read timeout and the whole (thousands-of-chunk) document is lost and redriven from
 # zero forever. Sub-batches are processed SEQUENTIALLY, not concurrently: this KnowledgeBase is only the
-# local Ollama+Qdrant path (Bedrock uses a different implementation), and Ollama is a single CPU-bound
+# local Ollama+Qdrant path, and Ollama is a single CPU-bound
 # backend, so concurrent embed calls do not parallelize — they make each HTTP request wait behind the
 # others and blow past its read timeout. One in-flight embed gives each call the whole backend.
 _EMBED_SUB_BATCH = 96
@@ -57,10 +52,10 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
 
     async def index_document(
         self,
-        workspace_id: str,
         document_id: str,
         chunks: list[str],
-        classification: str = _DEV_CLASSIFICATION,
+        *,
+        attributes: Mapping[str, str] | None = None,
         document_name: str = "",
     ) -> None:
         """Embed + upsert one point per chunk, a sub-batch at a time, resuming past indexed sub-batches.
@@ -71,13 +66,12 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
         skipped (checkpoint resume), so an at-least-once redrive — or a mid-ingest worker restart —
         re-embeds only the sub-batches not yet fully present instead of redoing the expensive CPU
         embedding from zero. A partially-present sub-batch is re-embedded and re-upserted (idempotent),
-        so resume is exact. ``classification`` is stamped onto every chunk for the clearance filter;
-        an empty value falls back to public (the lowest bar). ``document_name`` (the uploaded filename)
-        is stamped onto every chunk for citation display, falling back to ``document_id`` when empty.
+        so resume is exact. ``attributes`` are stamped onto every chunk; ``document_name`` is stamped
+        for citation display, falling back to ``document_id`` when empty.
         """
         if not chunks:
             return
-        classification = classification or _DEV_CLASSIFICATION
+        base_metadata = dict(attributes or {})
         sub_batches = [chunks[i : i + _EMBED_SUB_BATCH] for i in range(0, len(chunks), _EMBED_SUB_BATCH)]
         total = len(sub_batches)
         logger.info("vector index: start", document_id=document_id, chunks=len(chunks), sub_batches=total)
@@ -103,13 +97,11 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
                     content=batch[offset],
                     embedding=embeddings[offset].embedding,
                     metadata={
-                        "workspace_id": workspace_id,
-                        # Prefer the uploaded filename so a retrieval citation displays it; fall back to
-                        # the (readable) document_id when a caller passes no name — e.g. the dev-index
-                        # tool, whose document_id already is the filename.
+                        **base_metadata,
+                        # Prefer the source name so a retrieval citation displays it; fall back to the
+                        # document_id when a caller passes no name.
                         "document_name": document_name or document_id,
                         "chunk_index": str(base + offset),
-                        "classification": classification,
                     },
                 )
                 for offset in range(len(batch))
@@ -119,25 +111,24 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
             logger.info("vector index: sub-batch upserted", document_id=document_id, done=number, total=total)
         logger.info("vector index: done", document_id=document_id, points=len(chunks), skipped=skipped)
 
-    async def remove_document(self, workspace_id: str, document_id: str) -> None:  # noqa: ARG002
-        """Remove every chunk of the document from the store (document ids are unique in dev)."""
+    async def remove_document(self, document_id: str) -> None:
+        """Remove every chunk of the document from the store."""
         await self._store.delete_by_document(self._collection, document_id)
 
-    async def get_document_status(self, workspace_id: str, document_id: str) -> KBDocument | None:
+    async def get_document_status(self, document_id: str) -> KBDocument | None:
         """Report ``ready`` + the chunk count if the document has points, else ``None`` (not indexed)."""
         count = await self._store.count_by_document(self._collection, document_id)
         if count == 0:
             return None
         return KBDocument(
             id=document_id,
-            workspace_id=workspace_id,
             file_name=document_id,
             content_type="text/plain",
             status="ready",
             chunk_count=count,
         )
 
-    async def sync(self, workspace_id: str) -> KBSyncResult:  # noqa: ARG002
+    async def sync(self) -> KBSyncResult:
         """No-op sync: upserts are synchronous in the vector store, so there is nothing to reconcile."""
         return KBSyncResult(
             documents_added=0,

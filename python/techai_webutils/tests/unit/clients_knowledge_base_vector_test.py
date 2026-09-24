@@ -47,20 +47,22 @@ def _store(count: int = 0, dimension: int = 3, present: set[str] | None = None) 
 class TestVectorKnowledgeBase:
     @pytest.mark.asyncio
     async def test_index_document_embeds_and_upserts_with_metadata_schema(self) -> None:
-        """index_document embeds each chunk and upserts points carrying the metadata schema.
+        """index_document embeds each chunk and upserts points carrying the consumer's attributes.
 
         Why this test is important:
-          - The retrieval path filters on workspace_id + classification; if index_document omits them the
-            passages are indexed but every query drops them behind FilteringRetrievalEngine.
+          - Retrieval pushes down and re-validates the consumer's scope keys; if index_document dropped
+            the attributes, the passages would be indexed but every query would filter them out.
 
         What it tests:
-          - embed_batch is called with the chunks; upsert writes one VectorEntry per chunk with
-            workspace_id, document_id, chunk_index, and a public classification.
+          - embed_batch is called with the chunks; upsert writes one VectorEntry per chunk with the
+            given attributes (tenant, level), the document_id and the chunk_index.
         """
         embedder, store = _embedder(), _store()
         kb = VectorKnowledgeBase(embedder, store, collection="documents")
 
-        await kb.index_document("ws-1", "doc-1", ["first chunk", "second chunk"])
+        await kb.index_document(
+            "doc-1", ["first chunk", "second chunk"], attributes={"tenant": "t1", "level": "mid"}
+        )
 
         embedder.embed_batch.assert_awaited_once_with(["first chunk", "second chunk"])
         store.upsert.assert_awaited_once()
@@ -69,9 +71,9 @@ class TestVectorKnowledgeBase:
         assert entries[0].id == "doc-1:0"
         assert entries[0].document_id == "doc-1"
         assert entries[0].content == "first chunk"
-        assert entries[0].metadata["workspace_id"] == "ws-1"
+        assert entries[0].metadata["tenant"] == "t1"
+        assert entries[0].metadata["level"] == "mid"
         assert entries[0].metadata["chunk_index"] == "0"
-        assert entries[0].metadata["classification"] == "public"
         # No document_name passed → falls back to the document_id.
         assert entries[0].metadata["document_name"] == "doc-1"
 
@@ -91,7 +93,7 @@ class TestVectorKnowledgeBase:
         embedder, store = _embedder(), _store()
         kb = VectorKnowledgeBase(embedder, store, "documents")
 
-        await kb.index_document("ws-1", "doc-1", ["a chunk"], document_name="moby-dick.txt")
+        await kb.index_document("doc-1", ["a chunk"], document_name="moby-dick.txt")
 
         entries = store.upsert.call_args.args[1]
         assert entries[0].metadata["document_name"] == "moby-dick.txt"
@@ -112,7 +114,7 @@ class TestVectorKnowledgeBase:
         embedder, store = _embedder(), _store()
         kb = VectorKnowledgeBase(embedder, store, "documents")
 
-        await kb.index_document("ws-1", "doc-1", ["a chunk"], document_name="")
+        await kb.index_document("doc-1", ["a chunk"], document_name="")
 
         entries = store.upsert.call_args.args[1]
         assert entries[0].metadata["document_name"] == "doc-1"
@@ -122,7 +124,7 @@ class TestVectorKnowledgeBase:
         """Indexing zero chunks embeds nothing and upserts nothing."""
         embedder, store = _embedder(), _store()
         kb = VectorKnowledgeBase(embedder, store, "documents")
-        await kb.index_document("ws-1", "doc-1", [])
+        await kb.index_document("doc-1", [])
         embedder.embed_batch.assert_not_awaited()
         store.upsert.assert_not_awaited()
 
@@ -144,7 +146,7 @@ class TestVectorKnowledgeBase:
         kb = VectorKnowledgeBase(embedder, store, "documents")
         chunks = [f"chunk-{i}" for i in range(150)]
 
-        await kb.index_document("ws-1", "doc-1", chunks)
+        await kb.index_document("doc-1", chunks)
 
         assert embedder.embed_batch.await_count == 2
         assert store.upsert.await_count == 2
@@ -170,7 +172,7 @@ class TestVectorKnowledgeBase:
         kb = VectorKnowledgeBase(embedder, store, "documents")
         chunks = [f"chunk-{i}" for i in range(150)]
 
-        await kb.index_document("ws-1", "doc-1", chunks)
+        await kb.index_document("doc-1", chunks)
 
         embedder.embed_batch.assert_awaited_once_with(chunks[96:])
         store.upsert.assert_awaited_once()
@@ -190,20 +192,20 @@ class TestVectorKnowledgeBase:
         """
         embedder = _embedder()
         ready = VectorKnowledgeBase(embedder, _store(count=5), "documents")
-        doc = await ready.get_document_status("ws-1", "doc-1")
+        doc = await ready.get_document_status("doc-1")
         assert doc is not None
         assert doc.status == "ready"
         assert doc.chunk_count == 5
 
         missing = VectorKnowledgeBase(embedder, _store(count=0), "documents")
-        assert await missing.get_document_status("ws-1", "absent") is None
+        assert await missing.get_document_status("absent") is None
 
     @pytest.mark.asyncio
     async def test_remove_document_deletes_by_document(self) -> None:
         """remove_document deletes every chunk of the document from the store."""
         store = _store()
         kb = VectorKnowledgeBase(_embedder(), store, "documents")
-        await kb.remove_document("ws-1", "doc-1")
+        await kb.remove_document("doc-1")
         store.delete_by_document.assert_awaited_once_with("documents", "doc-1")
 
     def test_dimension_mismatch_fails_loudly(self) -> None:

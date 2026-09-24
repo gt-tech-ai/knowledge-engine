@@ -44,12 +44,6 @@ class PassageCitationExtractor(CitationExtractor):
                 chunk=source.chunk_content,
                 page_number=source.page_number,
                 confidence=source.score,
-                # Trust + provenance ride in the passage metadata (Bedrock sidecar / vector payload);
-                # copy them through for the frontend trust badge, clearance display, and source link.
-                trust_level=source.metadata.get("trust_level", ""),
-                classification=source.metadata.get("classification", ""),
-                s3_key=source.metadata.get("s3_key", ""),
-                format=source.metadata.get("format", ""),
                 attributes={k: source.metadata[k] for k in self._attribute_keys if k in source.metadata},
             )
             for source in sources

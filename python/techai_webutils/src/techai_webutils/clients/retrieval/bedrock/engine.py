@@ -1,11 +1,10 @@
 """Bedrock Knowledge Base retrieval engine (bedrock-agent-runtime Retrieve).
 
-Thin aiobotocore wrapper used in stage/prod (dev uses the stub). Builds the KB metadata filter
-(``workspace_clearance_filter`` unless the consumer injects its own) and maps Bedrock retrieval
-results to ``RetrievalResult``, resolving each document id with ``document_id_from_key`` unless the
-consumer injects a resolver; passages are re-validated server-side by ``FilteringRetrievalEngine``
-(defense-in-depth). Carved out of
-unit coverage; exercised against real Bedrock in staging.
+Thin aiobotocore wrapper. The consumer may inject a ``filter_builder`` (the KB metadata filter pushed
+down with each query; none by default) and a ``document_id_resolver`` (how a passage's document id is
+derived from its chunk metadata; the ``document_id`` key by default). Passages are re-validated
+server-side by ``FilteringRetrievalEngine`` (defense-in-depth). Carved out of unit coverage;
+exercised against a real Knowledge Base.
 """
 
 from __future__ import annotations
@@ -15,18 +14,14 @@ from typing import Any, Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
 
-from techai_webutils.clients.retrieval.filtering import (
-    CLEARANCE_FILTER_KEY,
-    allowed_classifications_for,
-)
 from techai_webutils.core.errors import InternalError
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
 
-FilterBuilder = Callable[[str, Mapping[str, str]], dict[str, object]]
-"""Builds the KB metadata filter from ``(workspace_id, filters)``."""
+FilterBuilder = Callable[[Mapping[str, str]], dict[str, object] | None]
+"""Builds the KB metadata filter from the request filters; ``None`` pushes no filter down."""
 
-DocumentIdResolver = Callable[[Mapping[str, str], str], str]
-"""Resolves a passage's document id from ``(chunk metadata, workspace_id)``."""
+DocumentIdResolver = Callable[[Mapping[str, str], Mapping[str, str]], str]
+"""Resolves a passage's document id from ``(chunk metadata, request filters)``; ``""`` when unknown."""
 
 
 class _BedrockAgentRuntimeClient(Protocol):
@@ -72,17 +67,17 @@ class BedrockRetrievalEngine(RetrievalEngine):
         overrideSearchType); ``reranking_model`` is a Cohere reranker model id (e.g.
         ``cohere.rerank-v3-5:0``) whose presence enables Retrieve's rerankingConfiguration — both are
         config-selected. Empty ``reranking_model`` = no reranking. ``filter_builder`` builds the KB
-        metadata filter (default ``workspace_clearance_filter``) and ``document_id_resolver`` resolves
-        each passage's document id (default ``document_id_from_key``), so a consumer's metadata keys
-        and object-key layout are its own.
+        metadata filter (default: none) and ``document_id_resolver`` resolves each passage's document
+        id (default: the chunk's ``document_id`` metadata), so a consumer's metadata keys and
+        object-key layout are its own.
         """
         self._region = region
         self._kb_id = knowledge_base_id
         self._endpoint = endpoint
         self._search_type = search_type
         self._reranking_model = reranking_model
-        self._build_filter = filter_builder or workspace_clearance_filter
-        self._resolve_document_id = document_id_resolver or document_id_from_key
+        self._build_filter = filter_builder
+        self._resolve_document_id = document_id_resolver or metadata_document_id
         self._session = aiobotocore.session.get_session()
         # The client's async context manager + the entered client (typed ``Any`` — aiobotocore is unstubbed).
         self._client_cm: Any = None
@@ -117,32 +112,31 @@ class BedrockRetrievalEngine(RetrievalEngine):
     async def retrieve(
         self,
         query: str,
-        workspace_id: str,
+        *,
         top_k: int = 10,
         filters: dict[str, str] | None = None,
-        knowledge_base_id: str | None = None,
+        index_id: str | None = None,
     ) -> list[RetrievalResult]:
-        """Retrieve workspace + clearance-scoped passages from the Bedrock Knowledge Base.
+        """Retrieve passages from the Bedrock Knowledge Base.
 
-        ``knowledge_base_id`` overrides the construction-time KB per call (per-org routing);
-        ``None`` falls back to the configured ``self._kb_id``. With neither, this raises an
-        ``InternalError`` rather than silently querying an unintended KB — under the per-org (``output``)
-        topology the engine is constructed with no default, so a missed upstream fail-closed check errors
-        here instead of leaking another tenant's KB (defense-in-depth).
+        ``index_id`` is the knowledge base id for this call (e.g. per-tenant routing); ``None`` falls
+        back to the construction-time KB. With neither, this raises an ``InternalError`` rather than
+        silently querying an unintended KB — an engine constructed with no default errors here if an
+        upstream routing check was missed, instead of leaking another tenant's KB (defense-in-depth).
 
         Builds the Retrieve request from the config-selected strategy: numberOfResults (the wide pool),
-        an andAll metadata filter (workspace isolation + the clearance push-down), overrideSearchType
-        for hybrid search, and a Cohere rerankingConfiguration when a reranker is configured.
+        the consumer's metadata filter when a ``filter_builder`` returns one, overrideSearchType for
+        hybrid search, and a Cohere rerankingConfiguration when a reranker is configured.
         """
-        kb_id = knowledge_base_id or self._kb_id
+        kb_id = index_id or self._kb_id
         if not kb_id:
             msg = "no knowledge base id: per-call id is empty and the engine has no configured default"
             raise InternalError(msg)
         client = await self._runtime_client()
-        vector_config: dict[str, object] = {
-            "numberOfResults": top_k,
-            "filter": self._build_filter(workspace_id, filters or {}),
-        }
+        request = filters or {}
+        vector_config: dict[str, object] = {"numberOfResults": top_k}
+        if self._build_filter is not None and (kb_filter := self._build_filter(request)) is not None:
+            vector_config["filter"] = kb_filter
         if self._search_type == "hybrid":
             vector_config["overrideSearchType"] = "HYBRID"
         if self._reranking_model:
@@ -162,29 +156,7 @@ class BedrockRetrievalEngine(RetrievalEngine):
             retrievalConfiguration={"vectorSearchConfiguration": vector_config},
         )
         results = cast("list[dict[str, object]]", response.get("retrievalResults", []))
-        return [_to_result(item, workspace_id, self._resolve_document_id) for item in results]
-
-
-def workspace_clearance_filter(workspace_id: str, filters: Mapping[str, str]) -> dict[str, object]:
-    """Build the default KB metadata filter: workspace isolation + the clearance push-down.
-
-    Combines the workspace_id equality with an ``in`` clause over the classifications at/below the
-    caller's clearance (``filters[CLEARANCE_FILTER_KEY]``) via ``andAll``, so the KB returns only
-    eligible passages before they consume the result budget — the ``FilteringRetrievalEngine``
-    decorator re-validates as defense-in-depth. With no clearance in ``filters`` only the workspace
-    clause applies (the decorator still enforces the default). The allowed-classification set comes
-    from the SAME table the decorator uses, so the pre-filter and the decorator cannot drift.
-    """
-    workspace_clause: dict[str, object] = {"equals": {"key": "workspace_id", "value": workspace_id}}
-    clearance = filters.get(CLEARANCE_FILTER_KEY)
-    if not clearance:
-        return workspace_clause
-    return {
-        "andAll": [
-            workspace_clause,
-            {"in": {"key": "classification", "value": allowed_classifications_for(clearance)}},
-        ]
-    }
+        return [_to_result(item, request, self._resolve_document_id) for item in results]
 
 
 def _to_float(value: object) -> float:
@@ -192,54 +164,28 @@ def _to_float(value: object) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
-_MIN_KEY_SEGMENTS_AFTER_WORKSPACE = 2
-"""Minimum path segments (``<document_id>/<filename>``) a valid key has after the workspace segment."""
-
-
-def document_id_from_key(metadata: Mapping[str, str], workspace_id: str) -> str:
-    """Resolve a passage's document id: an explicit ``document_id``, else the one in its ``s3_key``.
-
-    The Bedrock KB chunk metadata carries ``s3_key`` (and ``workspace_id``) but usually no bare
-    ``document_id``, so a passage/citation would otherwise return with an empty ``document_id`` and lose
-    all provenance. The id is the key segment immediately after the workspace segment, wherever that
-    segment sits, so ``{workspace}/{doc}/{file}`` and prefixed layouts such as
-    ``{org}/{workspace}/{doc}/{file}`` both resolve. With no workspace the first segment is the id.
-    Returns "" when the key does not match (no guessing).
-    """
-    if explicit := metadata.get("document_id"):
-        return explicit
-    segments = metadata.get("s3_key", "").split("/")
-    if not workspace_id:
-        start = 0
-    elif workspace_id in segments:
-        start = segments.index(workspace_id) + 1
-    else:
-        return ""
-    # Expect at least ``<document_id>/<filename>`` after the workspace; a bare key yields no id.
-    if len(segments) - start >= _MIN_KEY_SEGMENTS_AFTER_WORKSPACE and segments[start]:
-        return segments[start]
-    return ""
+def metadata_document_id(metadata: Mapping[str, str], filters: Mapping[str, str]) -> str:  # noqa: ARG001
+    """Return the chunk's ``document_id`` metadata, or ``""`` (the default resolver; no guessing)."""
+    return metadata.get("document_id", "")
 
 
 def _to_result(
     item: dict[str, object],
-    workspace_id: str,
-    resolve_document_id: DocumentIdResolver = document_id_from_key,
+    filters: Mapping[str, str],
+    resolve_document_id: DocumentIdResolver = metadata_document_id,
 ) -> RetrievalResult:
     """Map one Bedrock retrievalResult to a RetrievalResult.
 
-    The chunk metadata is carried as-is: a missing ``workspace_id`` stays missing, so the
-    ``FilteringRetrievalEngine`` workspace check drops the passage (fail closed) instead of
-    trusting the request's workspace for an unlabelled chunk.
+    The chunk metadata is carried as-is, so a passage missing a scope key stays missing it and a
+    ``MetadataEquals`` policy drops it (fail closed) instead of trusting the request for it.
     """
     metadata_raw = item.get("metadata", {})
     metadata = {str(k): str(v) for k, v in metadata_raw.items()} if isinstance(metadata_raw, dict) else {}
     content = item.get("content", {})
     text = content.get("text", "") if isinstance(content, dict) else ""
     page = metadata.get("page_number")
-    document_id = resolve_document_id(metadata, workspace_id)
     return RetrievalResult(
-        document_id=document_id,
+        document_id=resolve_document_id(metadata, filters),
         document_name=metadata.get("document_name", ""),
         chunk_content=str(text),
         score=_to_float(item.get("score", 0.0)),

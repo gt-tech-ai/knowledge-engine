@@ -70,8 +70,8 @@ class TestPostgresAdvisoryLock:
         with patch("asyncpg.connect", AsyncMock(return_value=conn)) as connect:
             lock = PostgresAdvisoryLock(
                 dsn="postgresql://u:p@h:5432/db?sslmode=require",
-                knowledge_base_id="kb",
-                data_source_id="ds",
+                key="kb:ds",
+                namespace=7,
             )
             async with lock as entered:
                 assert entered is lock
@@ -98,7 +98,7 @@ class TestPostgresAdvisoryLock:
         """
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 await lock.acquire()
                 await lock.release()
@@ -108,22 +108,22 @@ class TestPostgresAdvisoryLock:
 
     @pytest.mark.asyncio
     async def test_key_is_folded_into_signed_int32(self) -> None:
-        """Test the advisory-lock key is a deterministic (classid, objid) pair in signed int32 range.
+        """Test the advisory-lock key is (namespace, signed-int32 crc32 of the key).
 
         **Why this test is important:**
           - ``pg_try_advisory_lock(int4, int4)`` takes SIGNED 32-bit ints; ``zlib.crc32`` is UNSIGNED
-            32-bit, so ~half of all KB keys exceed int4 max and would raise ``DataError`` at bind time
-            (every acquire fails → sync silently never runs). ``kb-1:ds-1`` is such a high-bit key.
+            32-bit, so ~half of all keys exceed int4 max and would raise ``DataError`` at bind time
+            (every acquire fails → the guarded work silently never runs). ``kb-1:ds-1`` is such a
+            high-bit key. The namespace must pass through verbatim, or a consumer that keeps its lock
+            identity across a rollout would stop excluding its older pods.
 
         **What it tests:**
-          - For a key whose crc32 exceeds int32 max, the emitted objid is the signed-folded value and
-            lands in range; classid is also in range; the pair is deterministic for the same key.
+          - For a key whose crc32 exceeds int32 max, the emitted objid is the signed-folded value; the
+            classid is the given namespace.
         """
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(
-                dsn="postgresql://h/db", knowledge_base_id="kb-1", data_source_id="ds-1"
-            )
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb-1:ds-1", namespace=0x4B425359)
             async with lock:
                 await lock.acquire()
 
@@ -132,7 +132,22 @@ class TestPostgresAdvisoryLock:
         assert raw > INT32_MAX  # fixture actually exercises the overflow path
         assert objid == struct.unpack("i", struct.pack("I", raw))[0]
         assert INT32_MIN <= objid <= INT32_MAX
-        assert INT32_MIN <= classid <= INT32_MAX
+        assert classid == 0x4B425359
+
+    def test_rejects_an_empty_key_or_an_out_of_range_namespace(self) -> None:
+        """Test the lock refuses an empty key and a namespace outside signed int32.
+
+        **Why this test is important:**
+          - An empty key would make unrelated guards share one lock; an out-of-range namespace fails
+            every acquire at bind time. Both must fail at construction, not at the first tick.
+
+        **What it tests:**
+          - ``key=""`` and ``namespace=2**31`` each raise ``ValueError``.
+        """
+        with pytest.raises(ValueError, match="key"):
+            PostgresAdvisoryLock(dsn="postgresql://h/db", key="", namespace=1)
+        with pytest.raises(ValueError, match="namespace"):
+            PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=2**31)
 
     @pytest.mark.asyncio
     async def test_aexit_closes_the_session(self) -> None:
@@ -147,7 +162,7 @@ class TestPostgresAdvisoryLock:
         """
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 await lock.acquire()
 
@@ -166,7 +181,7 @@ class TestPostgresAdvisoryLock:
           - ``async with lock`` without calling ``acquire`` never calls ``asyncpg.connect``.
         """
         with patch("asyncpg.connect", AsyncMock(return_value=_mock_conn())) as connect:
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 pass
 
@@ -178,7 +193,7 @@ class TestPostgresAdvisoryLock:
 
         **Why this test is important:**
           - The pinned session can be reaped between 30s ticks (idle timeout / crash). Without a
-            reconnect the pod's KB sync wedges forever behind a dead socket while the loop keeps
+            reconnect the pod's guarded work wedges forever behind a dead socket while the loop keeps
             logging and continuing.
 
         **What it tests:**
@@ -188,7 +203,7 @@ class TestPostgresAdvisoryLock:
         dead, fresh = _mock_conn(), _mock_conn()
         dead.is_closed = MagicMock(return_value=True)  # reaped after the first round
         with patch("asyncpg.connect", AsyncMock(side_effect=[dead, fresh])) as connect:
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 await lock.acquire()  # opens `dead`
                 await lock.acquire()  # `dead` is closed → reconnect to `fresh`
@@ -212,7 +227,7 @@ class TestPostgresAdvisoryLock:
         conn = _mock_conn()
         conn.fetchval = AsyncMock(side_effect=asyncpg.InterfaceError("connection is closed"))
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 with pytest.raises(UnavailableError) as excinfo:
                     await lock.acquire()
@@ -235,7 +250,7 @@ class TestPostgresAdvisoryLock:
         conn = _mock_conn()
         conn.fetchval = AsyncMock(side_effect=[True, asyncpg.InterfaceError("connection is closed")])
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 assert await lock.acquire() is True
                 await lock.release()  # must not raise
@@ -247,7 +262,7 @@ class TestPostgresAdvisoryLock:
         **Why this test is important:**
           - If ``pg_try_advisory_lock`` took the lock server-side but the ack was lost, merely dropping
             the reference leaves a zombie session holding the lock until the keepalive reap — stalling
-            KB sync on every replica. Terminating the socket makes Postgres auto-release it at once.
+            the guarded work on every replica. Terminating the socket makes Postgres auto-release it at once.
 
         **What it tests:**
           - A connection error on acquire calls ``terminate()`` on the broken session and raises a
@@ -256,7 +271,7 @@ class TestPostgresAdvisoryLock:
         broken, fresh = _mock_conn(), _mock_conn()
         broken.fetchval = AsyncMock(side_effect=asyncpg.InterfaceError("connection reset"))
         with patch("asyncpg.connect", AsyncMock(side_effect=[broken, fresh])) as connect:
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 with pytest.raises(UnavailableError):
                     await lock.acquire()  # broken session → terminate + transient raise
@@ -282,7 +297,7 @@ class TestPostgresAdvisoryLock:
             patch("asyncpg.connect", AsyncMock(return_value=conn)),
             patch("techai_webutils.clients.lock.postgres.lock.logger") as mock_logger,
         ):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", knowledge_base_id="kb", data_source_id="ds")
+            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
                 await lock.acquire()
                 await lock.release()
@@ -317,16 +332,14 @@ class TestLockFromConfig:
         """
         from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
 
-        lock = new_lock_from_config(
-            LockConfig(kind=LockKind.POSTGRES, knowledge_base_id="kb", data_source_id="ds")
-        )
+        lock = new_lock_from_config(LockConfig(kind=LockKind.POSTGRES, key="kb:ds", namespace=7))
         assert isinstance(lock, PostgresAdvisoryLock)
 
     def test_unknown_kind_raises(self) -> None:
         """Test an unrecognised lock kind fails loudly (fail-fast on misconfiguration).
 
         **Why this test is important:**
-          - A typo'd ``ingestion.lock.kind`` must crash at wiring, not silently fall through to no lock
+          - A typo'd lock ``kind`` must crash at wiring, not silently fall through to no lock
             (which would drop the single-writer guarantee).
 
         **What it tests:**
@@ -364,8 +377,8 @@ class TestLockFromConfig:
                     password="p@ss/word",
                     database="knowledge_engine",
                     sslmode="require",
-                    knowledge_base_id="kb",
-                    data_source_id="ds",
+                    key="kb:ds",
+                    namespace=7,
                 )
             )
             async with lock:

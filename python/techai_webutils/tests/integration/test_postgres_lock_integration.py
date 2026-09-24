@@ -15,10 +15,10 @@ from techai_webutils.clients.lock.postgres import PostgresAdvisoryLock
 
 
 def _pair(dsn: str, key: str) -> tuple[PostgresAdvisoryLock, PostgresAdvisoryLock]:
-    """Build two locks over separate sessions that contend on the same KB key."""
+    """Build two locks over separate sessions that contend on the same key."""
     return (
-        PostgresAdvisoryLock(dsn=dsn, knowledge_base_id=key, data_source_id=key),
-        PostgresAdvisoryLock(dsn=dsn, knowledge_base_id=key, data_source_id=key),
+        PostgresAdvisoryLock(dsn=dsn, key=key, namespace=1),
+        PostgresAdvisoryLock(dsn=dsn, key=key, namespace=1),
     )
 
 
@@ -29,7 +29,7 @@ async def test_single_writer_runner_serializes_across_sessions(postgres_dsn: str
 
     **Why this test is important:**
       - This is the invariant the single-writer lock exists for: at replica>1, exactly one pod may drive the
-        Bedrock ingestion job. Two live sessions on one DB must not both acquire the same advisory lock.
+        guarded job. Two live sessions on one DB must not both acquire the same advisory lock.
 
     **What it tests:**
       - While session A holds the lock, a SingleWriterRunner over session B returns None without running
