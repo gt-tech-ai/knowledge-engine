@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
@@ -75,6 +76,24 @@ func TestWrapPreservesOriginStack(t *testing.T) {
 	require.True(t, errors.As(wrapped, &wrappedErr))
 	assert.Equal(t, originStack, wrappedErr.StackTrace(),
 		"wrapping an AppError should preserve the origin stack")
+}
+
+// TestStackTraceStartsAtCaller tests that an AppError's stack trace starts at the code
+// that created the error, not inside the errors package.
+//
+// Why this test is important:
+//   - The first frame of a trace is the one a reader looks at; if New/Wrap frames lead
+//     the trace, every error appears to originate in the errors package.
+//
+// What it tests:
+//   - The first frame of New(...).StackTrace() is this test function.
+func TestStackTraceStartsAtCaller(t *testing.T) {
+	t.Parallel()
+
+	stack := apperr.New(apperr.CodeInternal, "origin").StackTrace()
+	first, _, _ := strings.Cut(stack, "\n")
+	assert.True(t, strings.HasSuffix(first, ".TestStackTraceStartsAtCaller"),
+		"first frame = %q, want the calling test function", first)
 }
 
 // TestMarshalLogObjectWithCause tests that MarshalLogObject encodes the wrapped
