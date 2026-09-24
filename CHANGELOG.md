@@ -39,6 +39,20 @@ All notable changes to this project are recorded here. The format follows
 - Python citations: `Citation.attributes` and `PassageCitationExtractor(attribute_keys=...)`.
 - Python gRPC: `HeaderClaimMapping`, `AuthServerInterceptor(headers=...)` and
   `ServerInterceptorBuilder.with_auth(headers=...)`.
+- Connector (`go/core/interfaces`): `SourceConfig.ExternalID`, sent as the STS ExternalId on every
+  `iam_role` AssumeRole.
+- MinIO test fixture (`go/tests/fixtures/dbtest/minio`): exported `DefaultImage` and a `WithImage`
+  option on `NewTestMinIO`, so a consumer can repin the image without an engine release.
+
+### Security
+
+- **Breaking:** the S3 connector refuses `iam_role` auth without an `ExternalID`
+  (`CodeInvalidInput`). Without one, a tenant who registers another tenant's role ARN could have
+  the platform assume it for them (the confused-deputy problem).
+- **Breaking:** Python `ServerInterceptorBuilder.with_service_auth` raises `ValueError` on an empty
+  token instead of silently accepting every call; pass `allow_unauthenticated=True` for local dev.
+- Python Bedrock retrieval: a passage whose metadata has no `workspace_id` is no longer stamped
+  with the queried workspace, so the workspace post-filter drops it instead of passing it through.
 
 ### Changed
 
@@ -46,6 +60,8 @@ All notable changes to this project are recorded here. The format follows
   every rule's file glob pointed at a path that does not exist here, so no layer boundary was
   enforced.
 - `.gitleaks.toml`: a minimal generic configuration (default rules plus build/venv allowlists).
+- Integration tests (Go fixture and Python conftest) run MinIO from `cgr.dev/chainguard/minio`
+  pinned by digest; the previous `quay.io/minio/minio` image can no longer be pulled.
 - Comments, docstrings and docs no longer reference anything outside this repository.
 
 ### Fixed
@@ -58,3 +74,5 @@ All notable changes to this project are recorded here. The format follows
   wherever it sits, so prefixed key layouts (`{prefix}/{workspace}/{document}/{file}`) no longer
   return the prefix as the document id; a key without the workspace yields no id instead of a guess.
 - Python gRPC auth: the claim docstrings name the metadata keys actually read (`x-user-id`, …).
+- Config: `DatabaseConfig.DSN()` URL-escapes the user and password, so credentials containing
+  `@ : / ? # %` or brackets no longer split the connection URL.
