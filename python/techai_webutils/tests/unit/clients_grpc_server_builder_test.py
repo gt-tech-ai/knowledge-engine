@@ -461,20 +461,25 @@ class TestServiceAuthInterceptor:
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.UNAUTHENTICATED
 
-    def test_builder_wires_service_auth_only_when_token_set(self) -> None:
-        """Test that with_service_auth adds the interceptor iff a token is configured.
+    def test_builder_service_auth_fails_loud_without_a_token(self) -> None:
+        """Test that with_service_auth never silently drops the check.
 
         **Why this test is important:**
-          - The dev bypass is wiring-level too: no token → no interceptor; a token → it is present.
+          - An empty token used to omit the interceptor, so a missing secret in a deployed
+            environment left the service open to any caller; the bypass must be an explicit
+            dev-only choice, not a side effect of a blank setting.
 
         **What it tests:**
-          - with_service_auth("secret") includes a _ServiceAuthServerInterceptor; with_service_auth("")
-            does not.
+          - with_service_auth("secret") includes a _ServiceAuthServerInterceptor.
+          - with_service_auth("") raises ValueError at wiring time.
+          - with_service_auth("", allow_unauthenticated=True) builds without the interceptor.
         """
         with_token = ServerInterceptorBuilder().with_service_auth("secret").build()
         assert any(isinstance(i, _ServiceAuthServerInterceptor) for i in with_token)
-        without = ServerInterceptorBuilder().with_service_auth("").build()
-        assert not any(isinstance(i, _ServiceAuthServerInterceptor) for i in without)
+        with pytest.raises(ValueError, match="service token"):
+            ServerInterceptorBuilder().with_service_auth("")
+        bypass = ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).build()
+        assert not any(isinstance(i, _ServiceAuthServerInterceptor) for i in bypass)
 
 
 class TestServerInterceptorBuilderFullStack:

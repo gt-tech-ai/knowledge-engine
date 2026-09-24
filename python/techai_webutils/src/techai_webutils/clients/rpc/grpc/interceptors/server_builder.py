@@ -113,12 +113,18 @@ class ServerInterceptorBuilder:
         self._logger = logger
         return self
 
-    def with_service_auth(self, expected_token: str) -> ServerInterceptorBuilder:
+    def with_service_auth(
+        self, expected_token: str, *, allow_unauthenticated: bool = False
+    ) -> ServerInterceptorBuilder:
         """Add service-to-service token validation (rejects callers without a valid bearer token).
 
-        Dev-bypass: an empty ``expected_token`` disables the check (mirrors clients, which only send
-        the ``authorization`` header when a token is configured).
+        An empty ``expected_token`` raises ``ValueError``: a blank secret must never silently leave the
+        service open. A local-dev bypass is explicit — pass ``allow_unauthenticated=True`` (mirroring
+        the Go builder's ``stub`` flag) and an empty token builds without the check.
         """
+        if not expected_token and not allow_unauthenticated:
+            msg = "service auth requires a non-empty service token (pass allow_unauthenticated=True for local dev)"
+            raise ValueError(msg)
         self._service_token = expected_token
         return self
 
