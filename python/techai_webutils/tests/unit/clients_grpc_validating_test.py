@@ -15,7 +15,7 @@ import protovalidate
 import pytest
 from google.protobuf import empty_pb2
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
     _ValidatingServerInterceptor,
@@ -31,6 +31,10 @@ async def _wrap(handler_fn: AsyncMock) -> grpc.RpcMethodHandler:
     """Wrap a unary handler through the validate interceptor and return the rebuilt handler."""
     real = grpc.unary_unary_rpc_method_handler(handler_fn)
     return await _ValidatingServerInterceptor().intercept_service(AsyncMock(return_value=real), _details())
+
+
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+"""The gateway header contract these tests configure."""
 
 
 class TestValidatingServerInterceptor:
@@ -124,8 +128,8 @@ class TestValidatingServerInterceptor:
             auth (innermost, since the list is outermost-first) is the required contract.
 
         What it tests:
-          - ``.with_auth().with_validation().build()`` yields [auth, validate] in that order.
+          - ``.with_auth(_HEADERS).with_validation().build()`` yields [auth, validate] in that order.
         """
-        interceptors = ServerInterceptorBuilder().with_auth().with_validation().build()
+        interceptors = ServerInterceptorBuilder().with_auth(_HEADERS).with_validation().build()
         types = [type(i) for i in interceptors]
         assert types == [AuthServerInterceptor, _ValidatingServerInterceptor]

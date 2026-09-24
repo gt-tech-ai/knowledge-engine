@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
     _LoggingServerInterceptor,
@@ -17,6 +17,10 @@ from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
 )
 from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import TracingServerInterceptor
 from techai_webutils.clients.transport.grpc.server import GracefulServer, ServerConfig
+
+
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+"""The gateway header contract these tests configure."""
 
 
 class TestServerInterceptorBuilder:
@@ -48,7 +52,7 @@ class TestServerInterceptorBuilder:
           - build() returns exactly one interceptor
           - It is an AuthServerInterceptor instance
         """
-        interceptors = ServerInterceptorBuilder().with_auth().build()
+        interceptors = ServerInterceptorBuilder().with_auth(_HEADERS).build()
         assert len(interceptors) == 1
         assert isinstance(interceptors[0], AuthServerInterceptor)
 
@@ -70,7 +74,9 @@ class TestServerInterceptorBuilder:
         )
 
         [interceptor] = (
-            ServerInterceptorBuilder().with_auth(headers=HeaderClaimMapping(user_id="x-sub")).build()
+            ServerInterceptorBuilder()
+            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-roles"))
+            .build()
         )
         token = _auth_claims_var.set(None)
         try:
@@ -134,7 +140,7 @@ class TestServerInterceptorBuilder:
             ServerInterceptorBuilder()
             .with_recovery()
             .with_logging(logger)  # type: ignore[arg-type]
-            .with_auth()
+            .with_auth(_HEADERS)
             .build()
         )
         assert len(interceptors) == 3
@@ -513,7 +519,7 @@ class TestServerInterceptorBuilderFullStack:
             .with_tracing("svc")
             .with_logging(logger)  # type: ignore[arg-type]
             .with_service_auth("secret")
-            .with_auth()
+            .with_auth(_HEADERS)
             .build()
         )
         empty = ServerInterceptorBuilder().build()

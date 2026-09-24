@@ -27,26 +27,25 @@ class AuthClaims:
     """
 
     user_id: str = ""
-    """The authenticated user's subject id (default metadata key ``x-user-id``)."""
-    org_id: str = ""
-    """The caller's organization/tenant id (default metadata key ``x-org-id``)."""
-    clearance_level: str = ""
-    """The caller's clearance level (default metadata key ``x-clearance-level``)."""
+    """The authenticated caller's subject id."""
+    tenant_id: str = ""
+    """The tenant (organization) the caller authenticates under."""
     roles: frozenset[str] = field(default_factory=frozenset)
-    """The caller's authorization roles (default metadata key ``x-roles``, comma-separated)."""
+    """The caller's roles as the gateway forwards them (comma-separated in the metadata)."""
 
 
 @dataclass(frozen=True, slots=True)
 class HeaderClaimMapping:
-    """The gRPC metadata keys (lowercase) each claim is read from, so a consumer matches its gateway."""
+    """The gRPC metadata keys (lowercase) each claim is read from, so a consumer matches its gateway.
 
-    user_id: str = "x-user-id"
+    There are no defaults: header names are the consumer's gateway contract.
+    """
+
+    user_id: str
     """Key carrying the subject id; its absence means the request is unauthenticated."""
-    org_id: str = "x-org-id"
-    """Key carrying the organization/tenant id."""
-    clearance_level: str = "x-clearance-level"
-    """Key carrying the clearance level."""
-    roles: str = "x-roles"
+    tenant_id: str
+    """Key carrying the tenant (organization) id."""
+    roles: str
     """Key carrying the comma-separated roles."""
 
 
@@ -81,9 +80,9 @@ class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
     service-to-service calls, the service-auth interceptor).
     """
 
-    def __init__(self, headers: HeaderClaimMapping | None = None) -> None:
-        """Read claims from the metadata keys in ``headers`` (default ``HeaderClaimMapping()``)."""
-        self._headers = headers or HeaderClaimMapping()
+    def __init__(self, headers: HeaderClaimMapping) -> None:
+        """Read claims from the metadata keys in ``headers``."""
+        self._headers = headers
 
     async def intercept_service(  # type: ignore[override]
         self,
@@ -100,8 +99,7 @@ class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
         if user_id:
             claims = AuthClaims(
                 user_id=user_id,
-                org_id=str(metadata.get(keys.org_id, "")),
-                clearance_level=str(metadata.get(keys.clearance_level, "")),
+                tenant_id=str(metadata.get(keys.tenant_id, "")),
                 roles=_split_roles(str(metadata.get(keys.roles, ""))),
             )
             set_auth_claims(claims)

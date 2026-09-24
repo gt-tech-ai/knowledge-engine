@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+    HeaderClaimMapping,
     AuthClaims,
     AuthServerInterceptor,
     _auth_claims_var,
@@ -14,6 +15,10 @@ from techai_webutils.clients.rpc.grpc.interceptors.auth import (
     get_auth_claims,
     set_auth_claims,
 )
+
+
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+"""The gateway header contract these tests send."""
 
 
 class TestAuthClaims:
@@ -28,35 +33,33 @@ class TestAuthClaims:
           - Confirms the safe, deny-by-default starting point for every claims object
 
         **What it tests:**
-          - user_id, org_id, and clearance_level default to the empty string
+          - user_id and tenant_id default to the empty string
           - roles defaults to an empty frozenset (no privileges)
         """
         claims = AuthClaims()
         assert claims.user_id == ""
-        assert claims.org_id == ""
-        assert claims.clearance_level == ""
+        assert claims.tenant_id == ""
         assert claims.roles == frozenset()
 
     def test_constructed_values(self) -> None:
         """Test that explicitly supplied identity fields are retained verbatim.
 
         **Why this test is important:**
-          - Claims carry the authenticated user, org, clearance, and roles to business logic
+          - Claims carry the authenticated user, tenant, and roles to business logic
           - Any corruption or drop of these fields would mis-attribute or mis-authorize a request
           - Confirms the dataclass faithfully stores the gateway-provided identity
 
         **What it tests:**
-          - user_id, org_id, and clearance_level round-trip the constructor arguments
+          - user_id and tenant_id round-trip the constructor arguments
           - A role passed in is present in the resulting roles set
         """
         claims = AuthClaims(
             user_id="u-1",
-            org_id="o-1",
-            clearance_level="top-secret",
+            tenant_id="o-1",
             roles=frozenset({"admin", "member"}),
         )
         assert claims.user_id == "u-1"
-        assert claims.org_id == "o-1"
+        assert claims.tenant_id == "o-1"
         assert "admin" in claims.roles
 
     def test_frozen(self) -> None:
@@ -158,15 +161,15 @@ class TestContextVars:
           - Confirms the contextvar plumbing that the entire per-request auth model depends on
 
         **What it tests:**
-          - get_auth_claims() after set_auth_claims() returns the same user_id and org_id
+          - get_auth_claims() after set_auth_claims() returns the same user_id and tenant_id
         """
-        claims = AuthClaims(user_id="u-1", org_id="o-1")
+        claims = AuthClaims(user_id="u-1", tenant_id="o-1")
         token = set_auth_claims(claims)
         try:
             retrieved = get_auth_claims()
             assert retrieved is not None
             assert retrieved.user_id == "u-1"
-            assert retrieved.org_id == "o-1"
+            assert retrieved.tenant_id == "o-1"
         finally:
             from techai_webutils.clients.rpc.grpc.interceptors.auth import _auth_claims_var
 
@@ -211,28 +214,26 @@ class TestAuthServerInterceptor:
           - Getting the header-to-claim mapping wrong would mis-attribute or leak access
 
         **What it tests:**
-          - After interception, the context claims carry the user, org, clearance, and roles
+          - After interception, the context claims carry the user, tenant, and roles
           - The continuation is invoked with the original handler call details
         """
         details = self._details(
             [
                 ("x-user-id", "u-1"),
                 ("x-org-id", "o-1"),
-                ("x-clearance-level", "secret"),
                 ("x-roles", "admin,member"),
             ]
         )
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
-            result = await AuthServerInterceptor().intercept_service(continuation, details)
+            result = await AuthServerInterceptor(_HEADERS).intercept_service(continuation, details)
 
             claims = get_auth_claims()
             assert result == "handler"
             assert claims is not None
             assert claims.user_id == "u-1"
-            assert claims.org_id == "o-1"
-            assert claims.clearance_level == "secret"
+            assert claims.tenant_id == "o-1"
             assert claims.roles == frozenset({"admin", "member"})
             continuation.assert_called_once_with(details)
         finally:
@@ -255,7 +256,7 @@ class TestAuthServerInterceptor:
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
-            result = await AuthServerInterceptor().intercept_service(continuation, details)
+            result = await AuthServerInterceptor(_HEADERS).intercept_service(continuation, details)
 
             assert result == "handler"
             assert get_auth_claims() is None
@@ -273,25 +274,19 @@ class TestAuthServerInterceptor:
 
         **What it tests:**
           - With a custom HeaderClaimMapping, claims come from the custom keys.
-          - The default ``x-user-id`` key is ignored under the custom mapping.
+          - A key outside the mapping (``x-user-id``) is ignored.
         """
-        from techai_webutils.clients.rpc.grpc.interceptors.auth import HeaderClaimMapping
-
-        mapping = HeaderClaimMapping(
-            user_id="x-sub", org_id="x-tenant", clearance_level="x-level", roles="x-groups"
-        )
+        mapping = HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-groups")
         interceptor = AuthServerInterceptor(headers=mapping)
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
             await interceptor.intercept_service(
                 continuation,
-                self._details(
-                    [("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-level", "l2"), ("x-groups", "a,b")]
-                ),
+                self._details([("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]),
             )
             assert get_auth_claims() == AuthClaims(
-                user_id="u-1", org_id="t-1", clearance_level="l2", roles=frozenset({"a", "b"})
+                user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
             )
 
             _auth_claims_var.set(None)

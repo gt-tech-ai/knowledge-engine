@@ -38,7 +38,7 @@ def test_database_settings_defaults() -> None:
 
 
 def test_database_settings_reads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that DatabaseSettings reads and coerces SEARCH_DATABASE_* env vars.
+    """Test that DatabaseSettings reads and coerces DATABASE_* env vars.
 
     **Why this test is important:**
       - Env vars are how production/staging configure the database; this is the
@@ -47,14 +47,14 @@ def test_database_settings_reads_from_env(monkeypatch: pytest.MonkeyPatch) -> No
         here would hand a str to a driver expecting a number
 
     **What it tests:**
-      - SEARCH_DATABASE_HOST overrides the default host
-      - SEARCH_DATABASE_PORT is parsed from its string env value into an int
+      - DATABASE_HOST overrides the default host
+      - DATABASE_PORT is parsed from its string env value into an int
     """
     from techai_webutils.foundation.config.settings import DatabaseSettings
 
     # Arrange
-    monkeypatch.setenv("SEARCH_DATABASE_HOST", "prod-db.example.com")
-    monkeypatch.setenv("SEARCH_DATABASE_PORT", "5433")
+    monkeypatch.setenv("DATABASE_HOST", "prod-db.example.com")
+    monkeypatch.setenv("DATABASE_PORT", "5433")
 
     # Act
     settings = DatabaseSettings()
@@ -185,7 +185,7 @@ def test_mixin_composition_no_mro_errors() -> None:
 
     **Why this test is important:**
       - Every real service builds its config by inheriting several of these
-        mixins; if the shared BaseSearchSettings ancestor didn't make them
+        mixins; if the shared BaseAppSettings ancestor didn't make them
         MRO-compatible, that composition would raise at class-definition time
         and the service could not start
       - This is the structural guarantee that the mixin design is actually
@@ -214,21 +214,21 @@ def test_mixin_composition_with_env_vars(monkeypatch: pytest.MonkeyPatch) -> Non
     """Test that a composed mixin routes each component's env var to its own field.
 
     **Why this test is important:**
-      - Both mixins share the SEARCH_ prefix, so the per-field name prefixing
+      - Both mixins share one env prefix, so the per-field name prefixing
         (database_/redis_) is the only thing preventing one component's env var
         from bleeding into another's field
       - A collision would cross-wire config — e.g. the Redis host silently
         overriding the database host — a subtle, security-relevant misroute
 
     **What it tests:**
-      - SEARCH_DATABASE_HOST sets only database_host
-      - SEARCH_REDIS_HOST sets only redis_host (no cross-contamination)
+      - DATABASE_HOST sets only database_host
+      - REDIS_HOST sets only redis_host (no cross-contamination)
     """
     from techai_webutils.foundation.config.settings import DatabaseSettings, RedisSettings
 
     # Arrange
-    monkeypatch.setenv("SEARCH_DATABASE_HOST", "db-override")
-    monkeypatch.setenv("SEARCH_REDIS_HOST", "redis-override")
+    monkeypatch.setenv("DATABASE_HOST", "db-override")
+    monkeypatch.setenv("REDIS_HOST", "redis-override")
 
     # Act
     class MySettings(DatabaseSettings, RedisSettings):
@@ -242,26 +242,26 @@ def test_mixin_composition_with_env_vars(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_base_search_settings_has_correct_model_config() -> None:
-    """Test that BaseSearchSettings centralizes the env_prefix, frozen, and extra policy.
+    """Test that BaseAppSettings centralizes the env_prefix, frozen, and extra policy.
 
     **Why this test is important:**
       - This single shared model_config is what makes every mixin agree on the
-        SEARCH_ prefix, immutability, and unknown-key handling; defining it once
+        env prefix, immutability, and unknown-key handling; defining it once
         on the common ancestor is what keeps mixin composition MRO-safe and
         behaviorally consistent
       - Drift in any of these three settings would change config semantics for
         every service at once, so pinning them here is high-leverage
 
     **What it tests:**
-      - model_config sets env_prefix to "SEARCH_", frozen to True, and extra to
+      - model_config sets env_prefix to "" (unprefixed), frozen to True, and extra to
         "ignore"
     """
-    from techai_webutils.foundation.config.settings import BaseSearchSettings
+    from techai_webutils.foundation.config.settings import BaseAppSettings
 
     # Assert
-    assert BaseSearchSettings.model_config["env_prefix"] == "SEARCH_"
-    assert BaseSearchSettings.model_config["frozen"] is True
-    assert BaseSearchSettings.model_config["extra"] == "ignore"
+    assert BaseAppSettings.model_config["env_prefix"] == ""
+    assert BaseAppSettings.model_config["frozen"] is True
+    assert BaseAppSettings.model_config["extra"] == "ignore"
 
 
 def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -273,7 +273,7 @@ def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) 
 
     **What it tests:**
       - A DatabaseSettings subclass with env_prefix="MYAPP_" reads MYAPP_DATABASE_HOST and ignores
-        SEARCH_DATABASE_HOST.
+        the unprefixed DATABASE_HOST.
     """
     from pydantic_settings import SettingsConfigDict
 
@@ -283,6 +283,6 @@ def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) 
         model_config = SettingsConfigDict(env_prefix="MYAPP_", frozen=True, extra="ignore")
 
     monkeypatch.setenv("MYAPP_DATABASE_HOST", "db.example")
-    monkeypatch.setenv("SEARCH_DATABASE_HOST", "wrong")
+    monkeypatch.setenv("DATABASE_HOST", "wrong")
 
     assert MyAppSettings().database_host == "db.example"

@@ -3,7 +3,7 @@
 Merged home for the per-layer unit fixtures that previously lived in the
 now-collapsed ``tests/<layer>/conftest.py`` files:
 
-- ``clean_search_env_vars`` / ``mock_redis`` — from the former ``foundation/conftest.py``.
+- ``clean_prefixed_env_vars`` / ``mock_redis`` — from the former ``foundation/conftest.py``.
 - ``s3_config`` / ``sqs_config`` / ``mock_service`` — from the former ``clients/conftest.py``.
 
 The five fixture names are disjoint, so the merge introduces no collisions. The
@@ -22,16 +22,16 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def clean_search_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Clean all SEARCH_* environment variables before and after each test.
+def clean_prefixed_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clean all MYAPP_* environment variables (the tests' config prefix) around each test.
 
     This fixture runs automatically for all tests in this directory.
-    It ensures test isolation by removing any SEARCH_* env vars that
+    It ensures test isolation by removing any MYAPP_* env vars that
     might have been set by previous tests or the test environment.
     """
     # Clean before test
     for key in list(os.environ.keys()):
-        if key.startswith("SEARCH_"):
+        if key.startswith("MYAPP_"):
             monkeypatch.delenv(key, raising=False)
 
     # Reset config sentinel for clean state
@@ -46,7 +46,7 @@ def clean_search_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Clean after test
     for key in list(os.environ.keys()):
-        if key.startswith("SEARCH_"):
+        if key.startswith("MYAPP_"):
             monkeypatch.delenv(key, raising=False)
 
     # Reset config sentinel again

@@ -48,14 +48,13 @@ class ServerInterceptorBuilder:
             .with_recovery()
             .with_logging(logger)
             .with_service_auth(token)
-            .with_auth()
+            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-roles"))
             .build())
         server = grpc.aio.server(interceptors=interceptors)
     """
 
     def __init__(self) -> None:
         """Start with every interceptor disabled; ``with_*`` methods opt each in."""
-        self._auth: bool = False
         self._auth_headers: HeaderClaimMapping | None = None
         self._service_token: str = ""
         self._logger: Logger | None = None
@@ -128,12 +127,8 @@ class ServerInterceptorBuilder:
         self._service_token = expected_token
         return self
 
-    def with_auth(self, headers: HeaderClaimMapping | None = None) -> ServerInterceptorBuilder:
-        """Add auth claims extraction interceptor, reading the metadata keys in ``headers``.
-
-        ``None`` uses the default ``HeaderClaimMapping``.
-        """
-        self._auth = True
+    def with_auth(self, headers: HeaderClaimMapping) -> ServerInterceptorBuilder:
+        """Add the auth-claims extraction interceptor, reading the gateway metadata keys in ``headers``."""
         self._auth_headers = headers
         return self
 
@@ -175,7 +170,7 @@ class ServerInterceptorBuilder:
         if self._service_token:
             interceptors.append(_ServiceAuthServerInterceptor(self._service_token))
 
-        if self._auth:
+        if self._auth_headers is not None:
             interceptors.append(AuthServerInterceptor(self._auth_headers))
 
         # Validation is INNERMOST (appended last → closest to the handler): it validates the exact

@@ -2,16 +2,16 @@
 
 This module provides mixin classes that can be composed to build service-specific
 Settings classes. Each mixin provides fields for a specific component (database,
-redis, server, etc.) and reads from environment variables with the SEARCH_ prefix by
-default; a consumer's settings class sets its own ``model_config`` ``env_prefix`` to read
-under its own prefix (pair it with ``initialize_config(env_prefix=...)``).
+redis, server, etc.) and reads them from environment variables — unprefixed by default; a
+consumer's settings class sets its own ``model_config`` ``env_prefix`` (e.g. ``"MYAPP_"``) and
+passes the same prefix to ``initialize_config(env_prefix=...)``.
 
 Why mixins:
   - Composable: Services can mix-and-match only the components they need
   - DRY: Each component's config is defined once
   - Type-safe: Pydantic validates all fields at runtime
   - Immutable: frozen=True prevents accidental mutations
-  - MRO-safe: All mixins inherit from BaseSearchSettings to avoid conflicts
+  - MRO-safe: All mixins inherit from BaseAppSettings to avoid conflicts
 
 Usage:
     from techai_webutils.foundation.config.settings import DatabaseSettings, RedisSettings
@@ -20,37 +20,37 @@ Usage:
         # Service-specific fields can be added here
         pass
 
-    settings = MyServiceSettings()  # Reads from SEARCH_* env vars
+    settings = MyServiceSettings()  # Reads DATABASE_*, REDIS_* (or <prefix>DATABASE_*, ...)
 """
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class BaseSearchSettings(BaseSettings):
-    """Base class for all Tech AI Knowledge Engine settings.
+class BaseAppSettings(BaseSettings):
+    """Base class for all settings mixins.
 
     This defines the shared model_config that all mixins inherit. All mixins
     must inherit from this base class to avoid MRO conflicts when composed.
 
     Configuration:
-      - env_prefix: "SEARCH_" — all env vars must start with SEARCH_
+      - env_prefix: "" — unprefixed; a consumer's settings class sets its own prefix
       - frozen: True — settings instances are immutable after creation
       - extra: "ignore" — unknown env vars are ignored (no validation errors)
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="SEARCH_",
+        env_prefix="",
         frozen=True,
         extra="ignore",
     )
 
 
-class DatabaseSettings(BaseSearchSettings):
+class DatabaseSettings(BaseAppSettings):
     """Database configuration mixin.
 
     Fields are prefixed with 'database_' to avoid collision when multiple
-    mixins are composed. All read from SEARCH_DATABASE_* env vars.
+    mixins are composed. All read from <prefix>DATABASE_* env vars.
     """
 
     database_host: str = Field(default="localhost", description="PostgreSQL host.")
@@ -66,11 +66,11 @@ class DatabaseSettings(BaseSearchSettings):
     )
 
 
-class RedisSettings(BaseSearchSettings):
+class RedisSettings(BaseAppSettings):
     """Redis configuration mixin.
 
     Fields are prefixed with 'redis_' to avoid collision.
-    All read from SEARCH_REDIS_* env vars.
+    All read from <prefix>REDIS_* env vars.
     """
 
     redis_host: str = Field(default="localhost", description="Redis host.")
@@ -79,7 +79,7 @@ class RedisSettings(BaseSearchSettings):
     redis_db: int = Field(default=0, description="Redis logical database number.")
 
 
-class ServerSettings(BaseSearchSettings):
+class ServerSettings(BaseAppSettings):
     """Server configuration mixin.
 
     Fields are prefixed with 'server_'. Port fields have no defaults because
@@ -95,7 +95,7 @@ class ServerSettings(BaseSearchSettings):
     server_idle_timeout: str = Field(default="120s", description="HTTP idle timeout (duration string).")
 
 
-class LoggingSettings(BaseSearchSettings):
+class LoggingSettings(BaseAppSettings):
     """Logging configuration mixin.
 
     Fields are prefixed with 'logging_'.
@@ -106,7 +106,7 @@ class LoggingSettings(BaseSearchSettings):
     logging_redact_pii: bool = Field(default=True, description="Redact PII fields from logs.")
 
 
-class S3Settings(BaseSearchSettings):
+class S3Settings(BaseAppSettings):
     """S3 storage configuration mixin.
 
     Fields are prefixed with 'storage_s3_' to match YAML structure.
@@ -119,7 +119,7 @@ class S3Settings(BaseSearchSettings):
     storage_s3_secret_access_key: str = Field(default="minioadmin", description="S3 secret access key.")
 
 
-class SQSSettings(BaseSearchSettings):
+class SQSSettings(BaseAppSettings):
     """SQS messaging configuration mixin.
 
     Fields are prefixed with 'messaging_sqs_' to match YAML structure.
@@ -133,7 +133,7 @@ class SQSSettings(BaseSearchSettings):
     messaging_sqs_secret_access_key: str = Field(default="local", description="SQS secret access key.")
 
 
-class ObservabilitySettings(BaseSearchSettings):
+class ObservabilitySettings(BaseAppSettings):
     """Observability configuration mixin.
 
     Fields are prefixed with 'observability_'.

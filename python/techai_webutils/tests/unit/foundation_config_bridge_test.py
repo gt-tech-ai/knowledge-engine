@@ -15,7 +15,7 @@ import pytest
 
 
 def test_initialize_config_sets_env_vars_from_yaml(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that initialize_config() loads YAML and exports SEARCH_* env vars.
+    """Test that initialize_config() loads YAML and exports MYAPP_* env vars.
 
     **Why this test is important:**
       - This is the primary job of the bridge: it is the only path by which
@@ -24,8 +24,8 @@ def test_initialize_config_sets_env_vars_from_yaml(monkeypatch: pytest.MonkeyPat
         fall back to defaults instead of honoring base.yaml
 
     **What it tests:**
-      - YAML keys are flattened to SEARCH_* env vars (every scalar leaf)
-      - Dotted paths like database.host become SEARCH_DATABASE_HOST, with both
+      - YAML keys are flattened to MYAPP_* env vars (every scalar leaf)
+      - Dotted paths like database.host become MYAPP_DATABASE_HOST, with both
         host and port from the database and redis sections exported
     """
     from techai_webutils.foundation.config.bridge import initialize_config, reset_config
@@ -44,17 +44,17 @@ redis:
 
         # Clear any existing env vars
         for key in list(os.environ.keys()):
-            if key.startswith("SEARCH_"):
+            if key.startswith("MYAPP_"):
                 monkeypatch.delenv(key, raising=False)
 
         # Act
-        initialize_config(tmpdir)
+        initialize_config(tmpdir, env_prefix="MYAPP")
 
         # Assert
-        assert os.environ.get("SEARCH_DATABASE_HOST") == "test-db-host"
-        assert os.environ.get("SEARCH_DATABASE_PORT") == "5555"
-        assert os.environ.get("SEARCH_REDIS_HOST") == "test-redis-host"
-        assert os.environ.get("SEARCH_REDIS_PORT") == "6380"
+        assert os.environ.get("MYAPP_DATABASE_HOST") == "test-db-host"
+        assert os.environ.get("MYAPP_DATABASE_PORT") == "5555"
+        assert os.environ.get("MYAPP_REDIS_HOST") == "test-redis-host"
+        assert os.environ.get("MYAPP_REDIS_PORT") == "6380"
 
         # Cleanup
         reset_config()
@@ -71,7 +71,7 @@ def test_initialize_config_merges_environment_overlay(monkeypatch: pytest.Monkey
         runs against stub/localhost — the exact staging outage this fix addresses.
 
     **What it tests:**
-      - With SEARCH_ENV set, base.yaml + {env}.yaml deep-merge (overlay wins on conflict).
+      - With APP_ENV set, base.yaml + {env}.yaml deep-merge (overlay wins on conflict).
       - A base-only key survives; a deeply nested key never in the old map is exported.
     """
     from techai_webutils.foundation.config.bridge import initialize_config, reset_config
@@ -92,17 +92,17 @@ retrieval:
   kb:
     kind: bedrock
 """)
-        for key in [k for k in os.environ if k.startswith("SEARCH_")]:
+        for key in [k for k in os.environ if k.startswith("MYAPP_")]:
             monkeypatch.delenv(key, raising=False)
-        monkeypatch.setenv("SEARCH_ENV", "staging")
+        monkeypatch.setenv("APP_ENV", "staging")
 
-        initialize_config(tmpdir)
+        initialize_config(tmpdir, env_prefix="MYAPP")
 
         # Overlay wins on conflict...
-        assert os.environ.get("SEARCH_RETRIEVAL_LLM_KIND") == "bedrock"
-        assert os.environ.get("SEARCH_RETRIEVAL_KB_KIND") == "bedrock"
+        assert os.environ.get("MYAPP_RETRIEVAL_LLM_KIND") == "bedrock"
+        assert os.environ.get("MYAPP_RETRIEVAL_KB_KIND") == "bedrock"
         # ...base-only key survives the merge; nested key (never in the old map) is exported.
-        assert os.environ.get("SEARCH_RETRIEVAL_LLM_MODEL") == "base-model"
+        assert os.environ.get("MYAPP_RETRIEVAL_LLM_MODEL") == "base-model"
 
         reset_config()
 
@@ -117,7 +117,7 @@ def test_initialize_config_env_var_precedence(monkeypatch: pytest.MonkeyPatch) -
         silently ignored — a dangerous, hard-to-diagnose misconfiguration
 
     **What it tests:**
-      - A pre-set SEARCH_DATABASE_HOST keeps its value after initialize_config
+      - A pre-set MYAPP_DATABASE_HOST keeps its value after initialize_config
       - Keys absent from the environment (database.port) are still populated
         from YAML
     """
@@ -133,15 +133,15 @@ database:
 """)
 
         # Set env var BEFORE initialize_config
-        monkeypatch.setenv("SEARCH_DATABASE_HOST", "override-host")
+        monkeypatch.setenv("MYAPP_DATABASE_HOST", "override-host")
 
         # Act
-        initialize_config(tmpdir)
+        initialize_config(tmpdir, env_prefix="MYAPP")
 
         # Assert: Pre-set env var is NOT overwritten
-        assert os.environ.get("SEARCH_DATABASE_HOST") == "override-host"
+        assert os.environ.get("MYAPP_DATABASE_HOST") == "override-host"
         # Port from YAML is still set
-        assert os.environ.get("SEARCH_DATABASE_PORT") == "5432"
+        assert os.environ.get("MYAPP_DATABASE_PORT") == "5432"
 
         # Cleanup
         reset_config()
@@ -169,7 +169,7 @@ def test_initialize_config_missing_directory_graceful_fallback(
     nonexistent_dir = "/nonexistent/config/path"
 
     # Act: Should not raise
-    initialize_config(nonexistent_dir)
+    initialize_config(nonexistent_dir, env_prefix="MYAPP")
 
     # Assert: Warning logged, no exception
     assert "Config directory not found" in caplog.text or "does not exist" in caplog.text
@@ -202,14 +202,14 @@ database:
 """)
 
         # Act: Call twice
-        initialize_config(tmpdir)
-        first_value = os.environ.get("SEARCH_DATABASE_HOST")
+        initialize_config(tmpdir, env_prefix="MYAPP")
+        first_value = os.environ.get("MYAPP_DATABASE_HOST")
 
         # Modify env var between calls
-        monkeypatch.setenv("SEARCH_DATABASE_HOST", "modified")
+        monkeypatch.setenv("MYAPP_DATABASE_HOST", "modified")
 
-        initialize_config(tmpdir)  # Second call
-        second_value = os.environ.get("SEARCH_DATABASE_HOST")
+        initialize_config(tmpdir, env_prefix="MYAPP")  # Second call
+        second_value = os.environ.get("MYAPP_DATABASE_HOST")
 
         # Assert: Second call is a no-op, modified value preserved
         assert first_value == "first-host"
@@ -244,8 +244,8 @@ database:
 """)
 
         # Act
-        initialize_config(tmpdir)
-        first_value = os.environ.get("SEARCH_DATABASE_HOST")
+        initialize_config(tmpdir, env_prefix="MYAPP")
+        first_value = os.environ.get("MYAPP_DATABASE_HOST")
 
         # Clear sentinel
         reset_config()
@@ -257,11 +257,11 @@ database:
 """)
 
         # Clear env var to see if it gets set again
-        monkeypatch.delenv("SEARCH_DATABASE_HOST", raising=False)
+        monkeypatch.delenv("MYAPP_DATABASE_HOST", raising=False)
 
         # Re-initialize
-        initialize_config(tmpdir)
-        second_value = os.environ.get("SEARCH_DATABASE_HOST")
+        initialize_config(tmpdir, env_prefix="MYAPP")
+        second_value = os.environ.get("MYAPP_DATABASE_HOST")
 
         # Assert: Second initialization worked
         assert first_value == "first-run"
@@ -280,13 +280,13 @@ def test_apply_yaml_defaults_stringifies_bool(monkeypatch: pytest.MonkeyPatch) -
         parseable booleans.
 
     **What it tests:**
-      - apply_yaml_defaults({"flag": True}) exports SEARCH_FLAG="True".
+      - apply_yaml_defaults({"flag": True}, "MYAPP") exports MYAPP_FLAG="True".
     """
     from techai_webutils.foundation.config.bridge import apply_yaml_defaults
 
-    monkeypatch.delenv("SEARCH_FLAG", raising=False)
-    apply_yaml_defaults({"flag": True})
-    assert os.environ["SEARCH_FLAG"] == "True"
+    monkeypatch.delenv("MYAPP_FLAG", raising=False)
+    apply_yaml_defaults({"flag": True}, "MYAPP")
+    assert os.environ["MYAPP_FLAG"] == "True"
 
 
 def test_initialize_config_missing_base_yaml_is_graceful(
@@ -305,7 +305,7 @@ def test_initialize_config_missing_base_yaml_is_graceful(
 
     reset_config()
     with TemporaryDirectory() as empty:
-        initialize_config(empty)  # no base.yaml present — must not raise
+        initialize_config(empty, env_prefix="MYAPP")  # no base.yaml present — must not raise
     reset_config()
 
 
@@ -318,7 +318,7 @@ def test_initialize_config_uses_consumer_prefix_and_env_selector(monkeypatch: py
 
     **What it tests:**
       - With env_prefix="MYAPP" and env_selectors=("MYAPP_ENV",), base + the MYAPP_ENV overlay export
-        as MYAPP_* (overlay wins) and nothing is exported under SEARCH_*.
+        as MYAPP_* (overlay wins) and nothing is exported unprefixed.
     """
     from techai_webutils.foundation.config.bridge import initialize_config, reset_config
 
@@ -332,7 +332,7 @@ def test_initialize_config_uses_consumer_prefix_and_env_selector(monkeypatch: py
 
             assert os.environ.get("MYAPP_WIDGET_SIZE") == "7"
             assert os.environ.get("MYAPP_WIDGET_COLOR") == "red"
-            assert "SEARCH_WIDGET_SIZE" not in os.environ
+            assert "WIDGET_SIZE" not in os.environ
         finally:
             for key in ("MYAPP_WIDGET_SIZE", "MYAPP_WIDGET_COLOR"):
                 os.environ.pop(key, None)

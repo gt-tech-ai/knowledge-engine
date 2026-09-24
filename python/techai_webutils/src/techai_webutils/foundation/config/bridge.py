@@ -4,30 +4,29 @@ This module bridges the gap between YAML configuration files and Pydantic Settin
 It loads the merged YAML configuration (``base.yaml`` + ``{env}.yaml`` overlay +
 ``secrets.yaml``) and exports every scalar leaf as a ``<prefix>_*`` environment variable,
 allowing Pydantic Settings to consume them via its ``env_prefix`` behavior. The prefix
-(default ``SEARCH``) and the env vars that select the overlay are the caller's
+(default: none) and the env vars that select the overlay are the caller's
 (``initialize_config(env_prefix=..., env_selectors=...)``).
 
 Why this design:
   - Pydantic Settings reads from environment variables by default.
   - YAML provides the hierarchical, environment-layered config the Go services also use.
-  - Exporting the whole tree as ``SEARCH_*`` env defaults mirrors Viper's ``AutomaticEnv`` +
+  - Exporting the whole tree as ``<prefix>_*`` env defaults mirrors Viper's ``AutomaticEnv`` +
     ``SetEnvPrefix`` in Go: the YAML supplies defaults, real env vars still win.
   - Environment variables always take precedence (12-factor app principle).
   - Idempotency ensures safe multi-call scenarios (tests, multi-module imports).
 
-The env-var name for a YAML path is the dotted path upper-snake-cased with a ``SEARCH_``
-prefix (``retrieval.llm.kind`` -> ``SEARCH_RETRIEVAL_LLM_KIND``), matching the Pydantic
-field names exactly. This generic flattening replaced a hand-maintained dotted-path map
-whose omissions (e.g. ``retrieval.llm.*``) silently dropped whole config sections, so a
-service fell back to its stub/localhost defaults instead of honoring the overlay.
+The env-var name for a YAML path is the dotted path upper-snake-cased behind the prefix
+(``retrieval.llm.kind`` -> ``MYAPP_RETRIEVAL_LLM_KIND`` with prefix ``MYAPP``), matching the
+Pydantic field names exactly. Flattening the whole tree (rather than a hand-maintained path map)
+means a new config section is exported without an edit here.
 
 Usage:
     from techai_webutils.foundation.config.bridge import initialize_config
 
     # Early in application startup (before creating Settings instances)
-    initialize_config("/path/to/config")
+    initialize_config("/path/to/config", env_prefix="MYAPP")
 
-    # Now Pydantic Settings will read SEARCH_* env vars set from YAML
+    # Now Pydantic Settings (env_prefix="MYAPP_") reads the MYAPP_* env vars set from YAML
     settings = DatabaseSettings()
 """
 
@@ -47,19 +46,19 @@ _initialized = False
 _init_lock = threading.Lock()
 
 
-def _flatten_config(config: dict[str, Any], prefix: str = "SEARCH") -> list[tuple[str, str]]:
-    """Flatten a nested config dict into ``(SEARCH_<UPPER_SNAKE>, value)`` pairs.
+def _flatten_config(config: dict[str, Any], prefix: str = "") -> list[tuple[str, str]]:
+    """Flatten a nested config dict into ``(<PREFIX>_<UPPER_SNAKE>, value)`` pairs.
 
-    Nested dicts extend the prefix (``a.b.c`` -> ``SEARCH_A_B_C``), which matches the
-    Pydantic Settings field names (``env_prefix="SEARCH_"``). Scalar leaves (str/int/
+    Nested dicts extend the prefix (``a.b.c`` -> ``<PREFIX>_A_B_C``, or ``A_B_C`` with no prefix),
+    which matches the Pydantic Settings field names under the same ``env_prefix``. Scalar leaves (str/int/
     float/bool) are stringified; ``None`` and list/sequence leaves are skipped — they
     are not representable as a single env-var override through this bridge, and no
-    ``SEARCH_*`` settings field reads one. Returns a flat list (not a generator) so the
+    settings field reads one. Returns a flat list (not a generator) so the
     traversal is eager and easy to reason about at the call site.
     """
     items: list[tuple[str, str]] = []
     for key, value in config.items():
-        env_key = f"{prefix}_{key.upper()}"
+        env_key = f"{prefix}_{key.upper()}" if prefix else key.upper()
         if isinstance(value, dict):
             items.extend(_flatten_config(value, env_key))
         elif isinstance(value, bool):
@@ -72,11 +71,11 @@ def _flatten_config(config: dict[str, Any], prefix: str = "SEARCH") -> list[tupl
     return items
 
 
-_DEFAULT_ENV_SELECTORS = ("SEARCH_ENV", "APP_ENV")
+_DEFAULT_ENV_SELECTORS = ("APP_ENV", "ENVIRONMENT")
 """Env vars consulted, in order, to select the ``{env}.yaml`` overlay when a caller names none."""
 
 
-def apply_yaml_defaults(config: dict[str, Any], prefix: str = "SEARCH") -> None:
+def apply_yaml_defaults(config: dict[str, Any], prefix: str = "") -> None:
     """Export merged YAML values as ``<prefix>_*`` environment variables.
 
     Every scalar leaf of the config tree becomes a ``<prefix>_<UPPER_SNAKE>`` env var, but
@@ -85,7 +84,7 @@ def apply_yaml_defaults(config: dict[str, Any], prefix: str = "SEARCH") -> None:
 
     Args:
         config: Merged configuration dictionary loaded from YAML.
-        prefix: Env-var prefix, matching the consumer's settings ``env_prefix`` (default ``SEARCH``).
+        prefix: Env-var prefix, matching the consumer's settings ``env_prefix`` (default: none).
 
     """
     for env_var, value in _flatten_config(config, prefix):
@@ -98,8 +97,8 @@ def apply_yaml_defaults(config: dict[str, Any], prefix: str = "SEARCH") -> None:
 def _resolve_environment(selectors: tuple[str, ...]) -> str:
     """Resolve the overlay environment name for ``{env}.yaml`` selection.
 
-    Returns the first non-empty value among ``selectors`` (by default ``SEARCH_ENV``, then
-    ``APP_ENV``), defaulting to ``dev`` so local runs load ``base.yaml`` + ``dev.yaml``.
+    Returns the first non-empty value among ``selectors`` (by default ``APP_ENV``, then
+    ``ENVIRONMENT``), defaulting to ``dev`` so local runs load ``base.yaml`` + ``dev.yaml``.
     """
     for name in selectors:
         if value := os.environ.get(name):
@@ -110,7 +109,7 @@ def _resolve_environment(selectors: tuple[str, ...]) -> str:
 def initialize_config(
     config_dir: str | Path = ".",
     *,
-    env_prefix: str = "SEARCH",
+    env_prefix: str = "",
     env_selectors: tuple[str, ...] = _DEFAULT_ENV_SELECTORS,
 ) -> None:
     """Initialize configuration by loading the merged YAML and setting env variables.
@@ -123,9 +122,9 @@ def initialize_config(
     Args:
         config_dir: Directory containing base.yaml (default: current directory).
         env_prefix: Env-var prefix for the exported values; match the settings classes'
-            ``env_prefix`` (default ``SEARCH``).
+            ``env_prefix`` (default: none — unprefixed names).
         env_selectors: Env vars consulted, in order, to select the overlay (default
-            ``SEARCH_ENV``, then ``APP_ENV``; ``dev`` when none is set).
+            ``APP_ENV``, then ``ENVIRONMENT``; ``dev`` when none is set).
 
     """
     # Idempotency + thread-safety: a fast-path read, then a double-check under the lock, so concurrent

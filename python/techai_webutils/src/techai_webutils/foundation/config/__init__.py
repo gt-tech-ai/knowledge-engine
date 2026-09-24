@@ -8,7 +8,7 @@ from techai_webutils.foundation.config.bridge import (
 from techai_webutils.foundation.config.config_loader import YamlConfigLoader
 from techai_webutils.foundation.config.loader import load_config
 from techai_webutils.foundation.config.settings import (
-    BaseSearchSettings,
+    BaseAppSettings,
     DatabaseSettings,
     LoggingSettings,
     ObservabilitySettings,
@@ -19,7 +19,7 @@ from techai_webutils.foundation.config.settings import (
 )
 
 __all__ = [
-    "BaseSearchSettings",
+    "BaseAppSettings",
     "DatabaseSettings",
     "LoggingSettings",
     "ObservabilitySettings",
