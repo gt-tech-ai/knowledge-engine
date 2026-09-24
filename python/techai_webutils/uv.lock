@@ -2737,7 +2737,7 @@ wheels = [
 
 [[package]]
 name = "techai-webutils"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiobotocore" },

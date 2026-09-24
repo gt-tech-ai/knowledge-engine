@@ -105,7 +105,7 @@ Outermost → innermost:
 | Lock | `go/clients/lock/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry |
 | Replay buffer | `go/clients/replaybuffer/decorators` | Tracing → Metrics → Logging → Timeout |
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
-| Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → Identity → Tenant → caller-supplied (`WithInterceptors`) → Validate |
+| Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC server | `go/clients/rpc/grpc/interceptors` | Recovery → RateLimit → Bulkhead → Metrics → Tracing → Logging |
 | Repository | `go/repos/repository/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry → Caching |
@@ -158,11 +158,11 @@ helpers translate SDK errors (`foundation/resilience/grpc_boundary.py`).
 
 Most tiers ship an in-process, stub, or no-op backend, so wiring needs no cloud dependency:
 
-- **Go:** auth `stub`; lock `local`; messaging, replay buffer, storage `memory`; secrets
+- **Go:** lock `local`; messaging, replay buffer, storage `memory`; secrets
   `env`/`file`; tracer `noop`; metrics no-op when disabled; logger `stdlib`. Jobs' `NewFromConfig`
   currently returns a no-op River enqueuer.
 - **Python:** cache `local`/`null`; email `noop`; embedding, llm, retrieval, kb_ingestion, vector
-  `stub`; jobs, lock, messaging, storage `memory`; kb_registry `shared`; tracer, metrics `null`;
+  `stub`; jobs, lock, messaging, storage `memory`; tracer, metrics `null`;
   executor `asyncio`.
 
 Go cache (Redis), database (Postgres) and connector (S3) have no stub and are covered by

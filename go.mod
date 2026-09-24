@@ -2,6 +2,10 @@ module github.com/gt-tech-ai/knowledge-engine
 
 go 1.27.0
 
+// v0.1.x carried one consumer's product code and configuration; 0.2.0 is the first
+// product-agnostic release. Upgrade to v0.2.0 or later (see CHANGELOG.md).
+retract [v0.1.0-rc.1, v0.1.5]
+
 require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
