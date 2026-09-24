@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,6 +78,60 @@ func TestDatabaseConfig_DSN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, tt.cfg.DSN())
+		})
+	}
+}
+
+// TestDatabaseConfig_DSNEscapesCredentials tests that credentials containing URL-reserved
+// characters reach the Postgres driver unchanged.
+//
+// Why this test is important:
+//   - Generated database passwords routinely contain @, :, /, ?, #, %, [ or ]; embedded
+//     unescaped, they split the URL in the wrong place, so the driver connects with a
+//     truncated password or to the wrong host.
+//
+// What it tests:
+//   - For each reserved character (and all of them at once), the DSN parsed by
+//     pgx.ParseConfig — the driver's own parser — yields exactly the configured user,
+//     password, host, port and database.
+func TestDatabaseConfig_DSNEscapesCredentials(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		user     string
+		password string
+	}{
+		{name: "percent", user: "svc", password: "100%pass"},
+		{name: "question mark", user: "svc", password: "pa?ss"},
+		{name: "hash", user: "svc", password: "pa#ss"},
+		{name: "at sign", user: "svc@acct", password: "pa@ss"},
+		{name: "colon", user: "svc", password: "pa:ss"},
+		{name: "slash", user: "svc", password: "pa/ss"},
+		{name: "brackets", user: "svc", password: "pa[ss]"},
+		{name: "space", user: "svc", password: "pa ss "},
+		{name: "all at once", user: "svc@acct", password: "p@ss:w/rd?x#y%z[0] "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := infra.DatabaseConfig{
+				Host:     "db.example.com",
+				Port:     6432,
+				User:     tt.user,
+				Password: tt.password,
+				Database: "app",
+				SSLMode:  "disable",
+			}
+
+			parsed, err := pgx.ParseConfig(cfg.DSN())
+			require.NoError(t, err)
+			assert.Equal(t, tt.user, parsed.User)
+			assert.Equal(t, tt.password, parsed.Password)
+			assert.Equal(t, "db.example.com", parsed.Host)
+			assert.Equal(t, uint16(6432), parsed.Port)
+			assert.Equal(t, "app", parsed.Database)
 		})
 	}
 }
