@@ -73,6 +73,11 @@ type SourceConfig struct {
 	AuthMethod string
 	// IAMRoleARN is the role assumed for auth_method=iam_role.
 	IAMRoleARN string
+	// ExternalID is the STS ExternalId sent on every AssumeRole for auth_method=iam_role
+	// (required there). The role's trust policy requires it, which ties the role to the
+	// tenant that owns it: without it, a tenant who registers another tenant's role ARN
+	// could have the platform assume it for them (the confused-deputy problem).
+	ExternalID string
 	// AccessKeyID is the access key id for auth_method=access_key.
 	AccessKeyID string
 	// SecretAccessKey is the secret for auth_method=access_key (already-decrypted plaintext; never log it).

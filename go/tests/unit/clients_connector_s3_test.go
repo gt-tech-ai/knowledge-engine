@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,18 +20,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
-
-// stsStub is a no-op AssumeRole client; NewAssumeRoleProvider is lazy (never calls it at construction),
-// so a non-nil stub is all the iam_role strategy needs to build.
-type stsStub struct{}
-
-func (stsStub) AssumeRole(
-	context.Context,
-	*sts.AssumeRoleInput,
-	...func(*sts.Options),
-) (*sts.AssumeRoleOutput, error) {
-	return &sts.AssumeRoleOutput{}, nil
-}
 
 // stubBuilder returns an S3ClientBuilder that hands back sc and (optionally) captures the creds it was
 // given, so a test can assert the auth strategy actually produced a credentials provider.
@@ -59,6 +49,7 @@ func s3Cfg(method string) interfaces.SourceConfig {
 		AccessKeyID:     "AK",
 		SecretAccessKey: "SK",
 		IAMRoleARN:      "arn:aws:iam::1:role/r",
+		ExternalID:      "ext-1",
 	}
 }
 
@@ -240,7 +231,7 @@ func TestS3ConnectorSource_AuthSelection(t *testing.T) {
 		_, err := connectors3.NewSource(
 			ctx,
 			s3Cfg(method),
-			stsStub{},
+			mocks.NewMockAssumeRoleAPIClient(ctrl),
 			stubBuilder(sc, &captured),
 		)
 		require.NoError(t, err, method)
@@ -284,7 +275,7 @@ func TestConnectorSourceBuilder_Build(t *testing.T) {
 
 			b := connector.NewSourceBuilder(
 				stubBuilder(sc, nil),
-				stsStub{},
+				mocks.NewMockAssumeRoleAPIClient(ctrl),
 				connectordecorators.Deps{},
 			)
 			src, err := b.Build(ctx, s3Cfg("access_key"))
@@ -294,4 +285,52 @@ func TestConnectorSourceBuilder_Build(t *testing.T) {
 			require.Equal(t, 1, n)
 		},
 	)
+}
+
+// TestS3ConnectorSource_IAMRoleRequiresExternalID tests that the iam_role strategy always assumes the
+// connector's role with the connector's ExternalId, and refuses to build without one.
+//
+// Why this test is important:
+//   - Without an ExternalId, a tenant who registers another tenant's role ARN gets the platform to
+//     assume it for them (the confused-deputy problem); the ExternalId in the role's trust policy is
+//     what ties the role to the tenant that owns it.
+//
+// What it tests:
+//   - Retrieving the iam_role credentials calls STS AssumeRole with the connector's RoleArn and
+//     ExternalId.
+//   - An iam_role config without an ExternalId fails at NewSource with CodeInvalidInput, and STS is
+//     never called.
+func TestS3ConnectorSource_IAMRoleRequiresExternalID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	sc := mocks.NewMockStorageClient(ctrl)
+	stsClient := mocks.NewMockAssumeRoleAPIClient(ctrl)
+
+	stsClient.EXPECT().
+		AssumeRole(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context, in *sts.AssumeRoleInput, _ ...func(*sts.Options),
+		) (*sts.AssumeRoleOutput, error) {
+			require.Equal(t, "arn:aws:iam::1:role/r", aws.ToString(in.RoleArn))
+			require.Equal(t, "ext-1", aws.ToString(in.ExternalId))
+			return &sts.AssumeRoleOutput{Credentials: &ststypes.Credentials{
+				AccessKeyId:     aws.String("ASIA"),
+				SecretAccessKey: aws.String("secret"),
+				SessionToken:    aws.String("token"),
+				Expiration:      aws.Time(time.Now().Add(time.Hour)),
+			}}, nil
+		})
+
+	var captured aws.CredentialsProvider
+	_, err := connectors3.NewSource(ctx, s3Cfg("iam_role"), stsClient, stubBuilder(sc, &captured))
+	require.NoError(t, err)
+	creds, err := captured.Retrieve(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "ASIA", creds.AccessKeyID)
+
+	noExternalID := s3Cfg("iam_role")
+	noExternalID.ExternalID = ""
+	_, err = connectors3.NewSource(ctx, noExternalID, mocks.NewMockAssumeRoleAPIClient(ctrl), stubBuilder(sc, nil))
+	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput), "iam_role without an external id fails loud: %v", err)
 }

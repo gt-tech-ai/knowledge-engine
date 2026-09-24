@@ -26,10 +26,10 @@ const (
 
 // credentialsFromConfig selects the S3 credential strategy for method, failing loudly on an unknown
 // method (the foundation/logger NewFromConfig pattern): access_key presents the static key; iam_role
-// assumes the connector's role via STS (lazy — the provider retrieves on first use). The STS client is
-// used only by iam_role.
+// assumes the connector's role via STS with the connector's ExternalId (lazy — the provider retrieves
+// on first use), and refuses to build without an ExternalId. The STS client is used only by iam_role.
 func credentialsFromConfig(
-	method, iamRoleARN, accessKeyID, secretAccessKey string,
+	method, iamRoleARN, externalID, accessKeyID, secretAccessKey string,
 	stsClient stscreds.AssumeRoleAPIClient,
 ) (aws.CredentialsProvider, error) {
 	switch method {
@@ -40,7 +40,17 @@ func credentialsFromConfig(
 			"",
 		), nil
 	case authMethodIAMRole:
-		return stscreds.NewAssumeRoleProvider(stsClient, iamRoleARN), nil
+		if externalID == "" {
+			return nil, coreerr.New(
+				coreerr.CodeInvalidInput,
+				"connector s3 auth: iam_role requires an external id",
+			)
+		}
+		return stscreds.NewAssumeRoleProvider(
+			stsClient,
+			iamRoleARN,
+			func(o *stscreds.AssumeRoleOptions) { o.ExternalID = aws.String(externalID) },
+		), nil
 	default:
 		return nil, coreerr.New(
 			coreerr.CodeInvalidInput,

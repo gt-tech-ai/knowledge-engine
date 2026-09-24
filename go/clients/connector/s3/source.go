@@ -57,6 +57,7 @@ func NewSource(
 	creds, err := credentialsFromConfig(
 		cfg.AuthMethod,
 		cfg.IAMRoleARN,
+		cfg.ExternalID,
 		cfg.AccessKeyID,
 		cfg.SecretAccessKey,
 		stsClient,

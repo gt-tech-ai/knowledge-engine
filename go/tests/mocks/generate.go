@@ -1,7 +1,7 @@
 // Package mocks holds generated mocks (mockgen). Regenerate with:
 //   go generate ./go/tests/mocks/...
 //
-// The mock_*.go files are gitignored; CI regenerates them before running tests.
+// The mock_*.go files are committed; CI regenerates them and fails on any drift.
 //go:generate mockgen -destination=mock_auth.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AuthProvider
 //go:generate mockgen -destination=mock_auth0_seams.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/auth/auth0 OrgPager,MemberPager,OrgWriter,Inviter,MemberRoleLister,UserProvisioner
 //go:generate mockgen -destination=mock_bulkhead.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Bulkhead
@@ -45,5 +45,6 @@
 //go:generate mockgen -destination=mock_transaction.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Transaction,TransactionManager
 //go:generate mockgen -destination=mock_user_provider.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces UserProvider
 //go:generate mockgen -destination=mock_workflow.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Workflow
+//go:generate mockgen -destination=mock_sts_assume_role.go -package=mocks github.com/aws/aws-sdk-go-v2/credentials/stscreds AssumeRoleAPIClient
 
 package mocks
