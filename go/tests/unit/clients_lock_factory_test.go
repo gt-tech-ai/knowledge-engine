@@ -79,19 +79,6 @@ func TestLockFactory_Validation(t *testing.T) {
 	require.Error(t, err, "kind=redis with a nil client must error")
 }
 
-// TestConversationLockKey tests the conversation key convention.
-//
-// Why this test is important:
-//   - The caller and any operator inspecting Redis rely on the exact key shape
-//     ws:conv:{id}:lock; a drift here silently splits locks across key spaces.
-//
-// What it tests:
-//   - ConversationLockKey renders ws:conv:{id}:lock.
-func TestConversationLockKey(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "ws:conv:abc-123:lock", lock.ConversationLockKey("abc-123"))
-}
-
 // TestHold_AcquiresThenReleaseCancels tests the happy path: Hold acquires and
 // returns a live context, and release cancels it and frees the lock.
 //

@@ -9,8 +9,8 @@ import (
 
 // ServerBuilder composes server-side Connect interceptors in the canonical
 // order: recovery -> retry budget -> rate limit -> bulkhead -> metrics -> tracing
-// -> logging -> service auth -> auth -> identity -> tenant -> caller-supplied
-// (WithInterceptors) -> validate.
+// -> logging -> service auth -> auth -> caller-supplied (WithInterceptors: the
+// consumer's principal and tenant-scope interceptors) -> validate.
 type ServerBuilder struct {
 	// serviceValidator validates the caller's service-to-service bearer token (WithServiceAuth).
 	serviceValidator interfaces.ServiceTokenValidator
@@ -22,14 +22,11 @@ type ServerBuilder struct {
 	limiter interfaces.RateLimiter
 	// bulkhead enforces concurrency-based load shedding when set (WithBulkhead).
 	bulkhead interfaces.Bulkhead
-	// userContextResolver resolves the caller's identity for the identity interceptor (WithIdentity).
-	userContextResolver IdentityResolver
 	// logger enables structured request/response logging when set (WithLogging).
 	logger interfaces.Logger
-	// authHeaders names the gateway headers the auth interceptor reads; nil uses
-	// DefaultHeaderMap (WithAuthHeaders).
-	authHeaders *HeaderMap
-	// extra holds the caller-supplied interceptors, run after tenant and before
+	// authHeaders names the gateway headers the auth interceptor reads (WithAuth).
+	authHeaders HeaderMap
+	// extra holds the caller-supplied interceptors, run after auth and before
 	// validate (WithInterceptors).
 	extra []connect.Interceptor
 	// retryBudget caps per-request retries across the downstream chain; ≤0 disables it (WithRetryBudget).
@@ -48,8 +45,6 @@ type ServerBuilder struct {
 	validate bool
 	// auth enables the auth-header extraction interceptor (WithAuth).
 	auth bool
-	// tenant enables the tenant-propagation interceptor (WithTenant).
-	tenant bool
 }
 
 // NewServerBuilder creates a new ServerBuilder with no interceptors enabled.
@@ -97,34 +92,20 @@ func (b *ServerBuilder) WithLogging(logger interfaces.Logger) *ServerBuilder {
 	return b
 }
 
-// WithAuth enables the auth-header extraction interceptor.
-// stub must be true in local dev (auth.stub: true) so the interceptor synthesizes
-// dev claims when Kong is absent; false in staging/prod.
-func (b *ServerBuilder) WithAuth(stub bool) *ServerBuilder {
+// WithAuth enables the auth-header extraction interceptor, reading claims from the
+// gateway headers named in headers. stub must be true only in local dev, where the
+// interceptor synthesizes dev claims when no gateway is present.
+func (b *ServerBuilder) WithAuth(stub bool, headers HeaderMap) *ServerBuilder {
 	b.auth = true
 	b.authStub = stub
+	b.authHeaders = headers
 	return b
 }
 
-// WithAuthHeaders sets the gateway header names the auth interceptor reads claims
-// from (default: DefaultHeaderMap). It takes effect with WithAuth.
-func (b *ServerBuilder) WithAuthHeaders(headers HeaderMap) *ServerBuilder {
-	b.authHeaders = &headers
-	return b
-}
-
-// headerMap returns the header names set by WithAuthHeaders, or DefaultHeaderMap.
-func (b *ServerBuilder) headerMap() HeaderMap {
-	if b.authHeaders != nil {
-		return *b.authHeaders
-	}
-	return DefaultHeaderMap()
-}
-
-// WithInterceptors appends caller-supplied interceptors, run after auth, identity
-// and tenant (so they see the authenticated claims and any resolved principal) and
-// before validation — the slot for a consumer's own identity or tenant
-// interceptors.
+// WithInterceptors appends caller-supplied interceptors, run after auth (so they see
+// the authenticated claims) and before validation — the slot for the consumer's
+// principal (NewPrincipalInterceptor) and tenant-scope (NewTenantScopeInterceptor)
+// interceptors, in the order given.
 func (b *ServerBuilder) WithInterceptors(extra ...connect.Interceptor) *ServerBuilder {
 	b.extra = append(b.extra, extra...)
 	return b
@@ -145,29 +126,6 @@ func (b *ServerBuilder) WithServiceAuth(
 	b.serviceValidator = validator
 	b.serviceStub = stub
 	b.serviceAudit = audit
-	return b
-}
-
-// WithIdentity enables the identity enrichment interceptor, which resolves
-// the caller's internal org, teams, and accessible workspaces server-side and
-// merges them into AuthClaims. It runs after WithAuth.
-//
-// ⚠ It inherits WithAuth's stub flag (b.authStub): in stub mode the interceptor
-// injects StubInternalOrgID without calling the resolver. Enabling stub auth
-// (WithAuth(true)) therefore silently short-circuits real resolution for every
-// caller — keep the two consistent and never enable stub outside local dev.
-func (b *ServerBuilder) WithIdentity(resolver IdentityResolver) *ServerBuilder {
-	b.userContextResolver = resolver
-	return b
-}
-
-// WithTenant enables the tenant-propagation interceptor, which stamps the caller's
-// resolved organization onto the request context (the sql.WithVar GUC for Postgres
-// RLS and entctx.WithTenant for the Ent tenant interceptor/hook). It MUST run after
-// WithIdentity so the org is resolved. Enable it only on clients whose Ent client
-// registers tenant enforcement.
-func (b *ServerBuilder) WithTenant() *ServerBuilder {
-	b.tenant = true
 	return b
 }
 
@@ -192,8 +150,8 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 	var chain []connect.Interceptor
 
 	// Order: recovery → budget → rate limit → bulkhead → metrics → tracing →
-	// logging → service auth → auth → identity → tenant → caller-supplied → validate
-	// (identity MUST follow auth so claims are present; service auth authenticates
+	// logging → service auth → auth → caller-supplied → validate
+	// (caller-supplied interceptors follow auth so claims are present; service auth authenticates
 	// the CALLING SERVICE on internal mounts and runs before end-user auth; the budget
 	// spans the whole request and load shedding is early so it rejects before the
 	// request does any work).
@@ -230,16 +188,7 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 		)
 	}
 	if b.auth {
-		chain = append(chain, NewAuthInterceptorWithHeaders(b.authStub, b.headerMap()))
-	}
-	if b.userContextResolver != nil {
-		chain = append(
-			chain,
-			NewIdentityInterceptor(b.userContextResolver, b.authStub),
-		)
-	}
-	if b.tenant {
-		chain = append(chain, NewTenantInterceptor())
+		chain = append(chain, NewAuthInterceptor(b.authStub, b.authHeaders))
 	}
 	chain = append(chain, b.extra...)
 	if b.validate {

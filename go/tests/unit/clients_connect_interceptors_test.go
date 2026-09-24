@@ -22,6 +22,17 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// testHeaders is the gateway header contract the interceptor tests send, passed to
+// the auth interceptor explicitly (the library has no default header names).
+var testHeaders = interceptors.HeaderMap{
+	Sub:      "X-User-Sub",
+	Tenant:   "X-Org-ID",
+	Email:    "X-User-Email",
+	Name:     "X-User-Name",
+	NickName: "X-User-Nickname",
+	Roles:    "X-Roles",
+}
+
 // newTestRequest returns a minimal AnyRequest for testing.
 // Uses connect.NewRequest with a nil proto message.
 func newTestRequest() connect.AnyRequest {
@@ -765,7 +776,7 @@ func TestServerBuilder_FullComposition(t *testing.T) {
 		WithMetrics(metrics).
 		WithTracing(tracer).
 		WithLogging(logger).
-		WithAuth(false).
+		WithAuth(false, testHeaders).
 		WithValidation().
 		Build()
 
@@ -855,23 +866,23 @@ func TestClientBuilder_FullComposition(t *testing.T) {
 //   - Every handler depends on this contract to enforce tenant isolation
 //
 // What it tests:
-//   - Claims with Sub, OrgID, and InitialRoles survive a context round-trip
+//   - Claims with Sub, TenantID, and Roles survive a context round-trip
 //   - All fields are preserved exactly as set
 func TestWithAuthClaims_GetAuthClaims_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	claims := &interceptors.AuthClaims{
-		Sub:          "user-1",
-		OrgID:        "org-1",
-		InitialRoles: []string{"admin", "editor"},
+		Sub:      "user-1",
+		TenantID: "org-1",
+		Roles:    []string{"admin", "editor"},
 	}
 	ctx := interceptors.WithAuthClaims(context.Background(), claims)
 
 	got, ok := interceptors.GetAuthClaims(ctx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "user-1", got.Sub)
-	assert.Equal(t, "org-1", got.OrgID)
-	assert.Len(t, got.InitialRoles, 2)
+	assert.Equal(t, "org-1", got.TenantID)
+	assert.Len(t, got.Roles, 2)
 }
 
 // TestGetAuthClaims_Missing tests that GetAuthClaims returns false when no
@@ -913,7 +924,7 @@ func newTestRequestWithHeaders(headers map[string]string) connect.AnyRequest {
 func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -924,9 +935,9 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub:   "user-42",
-		interceptors.HeaderAuthOrgID: "org-99",
-		interceptors.HeaderAuthRoles: "admin,editor,viewer",
+		testHeaders.Sub:    "user-42",
+		testHeaders.Tenant: "org-99",
+		testHeaders.Roles:  "admin,editor,viewer",
 	})
 
 	resp, err := handler(context.Background(), req)
@@ -936,8 +947,8 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "user-42", claims.Sub)
-	assert.Equal(t, "org-99", claims.OrgID)
-	assert.Len(t, claims.InitialRoles, 3)
+	assert.Equal(t, "org-99", claims.TenantID)
+	assert.Len(t, claims.Roles, 3)
 }
 
 // TestAuthInterceptor_NoSub tests that the auth interceptor skips storing
@@ -954,7 +965,7 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 func TestAuthInterceptor_NoSub(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -984,7 +995,7 @@ func TestAuthInterceptor_NoSub(t *testing.T) {
 func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -995,7 +1006,7 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub: "user-1",
+		testHeaders.Sub: "user-1",
 	})
 
 	_, err := handler(context.Background(), req)
@@ -1004,7 +1015,7 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "user-1", claims.Sub)
-	assert.Nil(t, claims.InitialRoles)
+	assert.Nil(t, claims.Roles)
 }
 
 // TestAuthInterceptor_EmptyRoles tests that an empty X-Roles header results
@@ -1019,7 +1030,7 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -1030,8 +1041,8 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub:   "user-1",
-		interceptors.HeaderAuthRoles: "",
+		testHeaders.Sub:   "user-1",
+		testHeaders.Roles: "",
 	})
 
 	_, _ = handler(context.Background(), req)
@@ -1039,7 +1050,7 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims")
 	// Empty roles string should NOT set roles
-	assert.Nil(t, claims.InitialRoles)
+	assert.Nil(t, claims.Roles)
 }
 
 // TestAuthInterceptor_RolesWithTrailingComma tests that splitRoles discards
@@ -1055,7 +1066,7 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -1066,8 +1077,8 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub:   "user-1",
-		interceptors.HeaderAuthRoles: "admin,,editor,",
+		testHeaders.Sub:   "user-1",
+		testHeaders.Roles: "admin,,editor,",
 	})
 
 	_, _ = handler(context.Background(), req)
@@ -1075,7 +1086,7 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims")
 	// splitRoles should discard empty segments
-	assert.Len(t, claims.InitialRoles, 2)
+	assert.Len(t, claims.Roles, 2)
 }
 
 // TestAuthInterceptor_StubMode_SynthesizesDevClaims tests that stub mode
@@ -1087,12 +1098,12 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 //   - The synthesized fields must use canonical header names (not X-Sub-ID etc.)
 //
 // What it tests:
-//   - With stub=true and no headers, Sub/Email/Name/NickName/OrgID are non-empty
+//   - With stub=true and no headers, Sub/Email/Name/NickName/TenantID are non-empty
 //   - Claims are stored in context (ok=true)
 func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(true)
+	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -1115,7 +1126,7 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	assert.NotEmpty(t, claims.Sub, "expected non-empty Sub in stub claims")
 	assert.NotEmpty(t, claims.Email, "expected non-empty Email in stub claims")
 	assert.NotEmpty(t, claims.Name, "expected non-empty Name in stub claims")
-	assert.NotEmpty(t, claims.OrgID, "expected non-empty OrgID in stub claims")
+	assert.NotEmpty(t, claims.TenantID, "expected non-empty TenantID in stub claims")
 }
 
 // TestAuthInterceptor_StubMode_RealHeadersWin tests that when stub=true but
@@ -1129,12 +1140,12 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 //     masking authorization bugs
 //
 // What it tests:
-//   - Real X-User-Sub / X-Org-ID headers are preserved as the claim Sub/OrgID
+//   - Real X-User-Sub / X-Org-ID headers are preserved as the claim Sub/TenantID
 //     rather than being overwritten by synthesized stub values
 func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(true)
+	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
 	var capturedCtx context.Context
 
 	handler := interceptor.WrapUnary(
@@ -1145,8 +1156,8 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub:   "real-user-from-kong",
-		interceptors.HeaderAuthOrgID: "real-org-from-kong",
+		testHeaders.Sub:    "real-user-from-kong",
+		testHeaders.Tenant: "real-org-from-kong",
 	})
 
 	_, err := handler(context.Background(), req)
@@ -1155,7 +1166,7 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "real-user-from-kong", claims.Sub)
-	assert.Equal(t, "real-org-from-kong", claims.OrgID)
+	assert.Equal(t, "real-org-from-kong", claims.TenantID)
 }
 
 // ---------------------------------------------------------------------------
@@ -1738,7 +1749,7 @@ func TestServerBuilder_AuthOnly(t *testing.T) {
 	t.Parallel()
 
 	opts := interceptors.NewServerBuilder().
-		WithAuth(false).
+		WithAuth(false, testHeaders).
 		Build()
 
 	require.NotNil(t, opts, "expected non-nil options with auth")
@@ -1822,7 +1833,7 @@ func TestServerBuilder_FullChain_ExecuteRequest(t *testing.T) {
 		WithMetrics(metrics).
 		WithTracing(tracer).
 		WithLogging(logger).
-		WithAuth(false).
+		WithAuth(false, testHeaders).
 		WithValidation().
 		Build()
 
@@ -1905,17 +1916,17 @@ func TestGetAuthClaims_Roundtrip(t *testing.T) {
 	t.Parallel()
 
 	original := &interceptors.AuthClaims{
-		Sub:          "user-abc-123",
-		OrgID:        "org-xyz-789",
-		InitialRoles: []string{"admin", "editor"},
+		Sub:      "user-abc-123",
+		TenantID: "org-xyz-789",
+		Roles:    []string{"admin", "editor"},
 	}
 
 	ctx := interceptors.WithAuthClaims(context.Background(), original)
 	claims, ok := interceptors.GetAuthClaims(ctx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, original.Sub, claims.Sub)
-	assert.Equal(t, original.OrgID, claims.OrgID)
-	assert.Equal(t, []string{"admin", "editor"}, claims.InitialRoles)
+	assert.Equal(t, original.TenantID, claims.TenantID)
+	assert.Equal(t, []string{"admin", "editor"}, claims.Roles)
 }
 
 // TestGetAuthClaims_MissingReturnsNil tests that GetAuthClaims returns false
@@ -1951,7 +1962,7 @@ func TestGetAuthClaims_MissingReturnsNil(t *testing.T) {
 func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok := interceptors.GetAuthClaims(ctx)
@@ -1959,14 +1970,14 @@ func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 			if !ok {
 				return newTestResponse(), nil
 			}
-			assert.Len(t, claims.InitialRoles, 2)
+			assert.Len(t, claims.Roles, 2)
 			return newTestResponse(), nil
 		},
 	)
 
 	req := newTestRequest()
-	req.Header().Set(interceptors.HeaderAuthSub, "user-1")
-	req.Header().Set(interceptors.HeaderAuthRoles, "admin,,editor")
+	req.Header().Set(testHeaders.Sub, "user-1")
+	req.Header().Set(testHeaders.Roles, "admin,,editor")
 	_, _ = handler(context.Background(), req)
 }
 
@@ -1983,7 +1994,7 @@ func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 func TestAuthInterceptor_SingleRole(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok := interceptors.GetAuthClaims(ctx)
@@ -1991,14 +2002,14 @@ func TestAuthInterceptor_SingleRole(t *testing.T) {
 			if !ok {
 				return newTestResponse(), nil
 			}
-			assert.Equal(t, []string{"viewer"}, claims.InitialRoles)
+			assert.Equal(t, []string{"viewer"}, claims.Roles)
 			return newTestResponse(), nil
 		},
 	)
 
 	req := newTestRequest()
-	req.Header().Set(interceptors.HeaderAuthSub, "user-1")
-	req.Header().Set(interceptors.HeaderAuthRoles, "viewer")
+	req.Header().Set(testHeaders.Sub, "user-1")
+	req.Header().Set(testHeaders.Roles, "viewer")
 	_, _ = handler(context.Background(), req)
 }
 
@@ -2131,7 +2142,7 @@ func TestClientBuilder_MetricsAndTracing(t *testing.T) {
 func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
 	var capturedCtx context.Context
 	next := func(ctx context.Context, _ connect.StreamingHandlerConn) error {
 		capturedCtx = ctx
@@ -2142,8 +2153,8 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	// hands the conn straight to next), so a generated StreamingHandlerConn mock that
 	// returns the request headers is all this test needs.
 	header := http.Header{}
-	header.Set(interceptors.HeaderAuthSub, "stream-user")
-	header.Set(interceptors.HeaderAuthOrgID, "org-7")
+	header.Set(testHeaders.Sub, "stream-user")
+	header.Set(testHeaders.Tenant, "org-7")
 	conn := mocks.NewMockStreamingHandlerConn(gomock.NewController(t))
 	conn.EXPECT().RequestHeader().Return(header).AnyTimes()
 
@@ -2153,38 +2164,27 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "streaming handler should see auth claims")
 	assert.Equal(t, "stream-user", claims.Sub)
-	assert.Equal(t, "org-7", claims.OrgID)
+	assert.Equal(t, "org-7", claims.TenantID)
 }
 
-// TestServerBuilder_WithIdentityAndRetryBudget tests that the server interceptor
-// builder wires the identity-enrichment and per-request retry-budget interceptors
-// into the assembled chain.
+// TestServerBuilder_WithRetryBudget tests that the server interceptor builder wires the
+// per-request retry-budget interceptor into the assembled chain.
 //
 // Why this test is important:
-//   - WithIdentity and WithRetryBudget are how a service opts into server-side
-//     identity resolution and a shared retry cap; if Build dropped them the chain
-//     would silently omit authorization enrichment and retry-amplification control.
+//   - WithRetryBudget is how a service opts into a shared retry cap; if Build dropped it
+//     the chain would silently lose retry-amplification control.
 //
 // What it tests:
-//   - A builder configured with an identity resolver and a positive retry budget
-//     produces a non-empty set of handler options.
-func TestServerBuilder_WithIdentityAndRetryBudget(t *testing.T) {
+//   - An unconfigured builder produces no handler options; a positive retry budget adds
+//     one; a zero budget adds none.
+func TestServerBuilder_WithRetryBudget(t *testing.T) {
 	t.Parallel()
-	ctrl := gomock.NewController(t)
-	resolver := mocks.NewMockIdentityResolver(ctrl)
 
-	// Baseline: an unconfigured builder produces no handler options, so a non-empty
-	// result below can only come from the method under test — not an unrelated one.
 	assert.Empty(
 		t,
 		interceptors.NewServerBuilder().Build(),
 		"no interceptors configured → no options",
 	)
-
-	// Each method is isolated so the assertion actually pins that method's contribution:
-	// if WithIdentity (or WithRetryBudget) were made a no-op, its Build() would be empty.
-	assert.NotEmpty(t, interceptors.NewServerBuilder().WithIdentity(resolver).Build(),
-		"WithIdentity alone must add the identity-enrichment interceptor")
 	assert.NotEmpty(t, interceptors.NewServerBuilder().WithRetryBudget(3).Build(),
 		"WithRetryBudget alone must add the retry-budget interceptor")
 	assert.Empty(t, interceptors.NewServerBuilder().WithRetryBudget(0).Build(),

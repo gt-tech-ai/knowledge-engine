@@ -89,21 +89,3 @@ func (t *Timestamps) SoftDelete() {
 func (t *Timestamps) IsDeleted() bool {
 	return t.DeletedAt != nil
 }
-
-// TenantContext holds multi-tenant context for requests.
-type TenantContext struct {
-	// OrgID is the organization identifier for the current tenant.
-	OrgID ID `json:"org_id"`
-
-	// UserID is the authenticated user's identifier.
-	UserID ID `json:"user_id"`
-
-	// WorkspaceID is the workspace scope, if applicable.
-	WorkspaceID ID `json:"workspace_id,omitempty"`
-
-	// ClearanceLevel is the user's security clearance within the tenant.
-	ClearanceLevel string `json:"clearance_level"`
-
-	// Roles is the set of roles assigned to the user within the tenant.
-	Roles []string `json:"roles"`
-}

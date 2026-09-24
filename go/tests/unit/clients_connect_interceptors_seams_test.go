@@ -25,7 +25,7 @@ type principal struct {
 	Tenant string
 }
 
-// customHeaders is a gateway header contract that differs from the defaults.
+// customHeaders is a gateway header contract that differs from testHeaders.
 var customHeaders = interceptors.HeaderMap{
 	Sub:      "X-Sub",
 	Tenant:   "X-Tenant",
@@ -44,10 +44,10 @@ var customHeaders = interceptors.HeaderMap{
 //
 // What it tests:
 //   - With a custom HeaderMap, every claim is read from the custom headers.
-//   - The default header names are ignored under a custom map.
+//   - Headers outside the map are ignored.
 func TestAuthInterceptor_HeaderMap(t *testing.T) {
 	t.Parallel()
-	ic := interceptors.NewAuthInterceptorWithHeaders(false, customHeaders)
+	ic := interceptors.NewAuthInterceptor(false, customHeaders)
 
 	ctx, err := invokeUnaryWith(ic, newTestRequestWithHeaders(map[string]string{
 		"X-Sub": "u1", "X-Tenant": "t1", "X-Mail": "u1@example.com",
@@ -57,16 +57,16 @@ func TestAuthInterceptor_HeaderMap(t *testing.T) {
 	claims, ok := interceptors.GetAuthClaims(ctx)
 	require.True(t, ok, "claims must be read from the custom headers")
 	assert.Equal(t, interceptors.AuthClaims{
-		Sub: "u1", OrgID: "t1", Email: "u1@example.com", Name: "User One", NickName: "u1",
-		InitialRoles: []string{"a", "b"},
+		Sub: "u1", TenantID: "t1", Email: "u1@example.com", Name: "User One", NickName: "u1",
+		Roles: []string{"a", "b"},
 	}, *claims)
 
 	ctx, err = invokeUnaryWith(ic, newTestRequestWithHeaders(map[string]string{
-		interceptors.HeaderAuthSub: "u1",
+		testHeaders.Sub: "u1",
 	}))
 	require.NoError(t, err)
 	_, ok = interceptors.GetAuthClaims(ctx)
-	assert.False(t, ok, "the default header must be ignored under a custom map")
+	assert.False(t, ok, "a header outside the map must be ignored")
 }
 
 // TestPrincipalInterceptor_ResolvesConsumerPrincipal tests that the principal interceptor
@@ -85,12 +85,12 @@ func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 	calls := 0
 	resolve := func(_ context.Context, c *interceptors.AuthClaims) (principal, error) {
 		calls++
-		return principal{Sub: c.Sub, Tenant: c.OrgID}, nil
+		return principal{Sub: c.Sub, Tenant: c.TenantID}, nil
 	}
 	ic := interceptors.NewPrincipalInterceptor[principal](resolve, nil)
 
 	ctx := interceptors.WithAuthClaims(context.Background(),
-		&interceptors.AuthClaims{Sub: "u1", OrgID: "t1"})
+		&interceptors.AuthClaims{Sub: "u1", TenantID: "t1"})
 	got, err := invokeUnary(ic, ctx)
 	require.NoError(t, err)
 	p, ok := interceptors.PrincipalFrom[principal](got)
@@ -198,7 +198,7 @@ func TestTenantScopeInterceptor_StampsExtractedTenant(t *testing.T) {
 //
 // What it tests:
 //   - Over a real Connect round trip, a caller interceptor added with WithInterceptors sees
-//     the claims the auth interceptor parsed from the WithAuthHeaders contract.
+//     the claims the auth interceptor parsed from the consumer's header contract.
 func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 	t.Parallel()
 	var seen *interceptors.AuthClaims
@@ -209,8 +209,7 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 		}
 	})
 	opts := interceptors.NewServerBuilder().
-		WithAuthHeaders(customHeaders).
-		WithAuth(false).
+		WithAuth(false, customHeaders).
 		WithInterceptors(probe).
 		Build()
 
@@ -231,7 +230,21 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, seen, "the caller interceptor must run after auth")
 	assert.Equal(t, "u1", seen.Sub)
-	assert.Equal(t, "t1", seen.OrgID)
+	assert.Equal(t, "t1", seen.TenantID)
+}
+
+// invokeUnary runs ic's unary path against a pass-through handler and returns the context the
+// handler observed plus the error.
+func invokeUnary(
+	ic connect.Interceptor, ctx context.Context,
+) (context.Context, error) {
+	var captured context.Context
+	next := func(c context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
+		captured = c
+		return newTestResponse(), nil
+	}
+	_, err := ic.WrapUnary(next)(ctx, newTestRequest())
+	return captured, err
 }
 
 // invokeUnaryWith runs ic's unary path on req and returns the context the handler observed.

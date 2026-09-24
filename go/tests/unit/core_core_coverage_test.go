@@ -9,17 +9,14 @@
 package unit_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/events"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -429,179 +426,6 @@ func TestCoreMarshalLogObject_NoDetails(t *testing.T) {
 	logger.Error("test", apperr.ZapError(err))
 
 	require.Len(t, observed.All(), 1)
-}
-
-// ---------------------------------------------------------------------------
-// Events -- Metadata() on all event types
-// ---------------------------------------------------------------------------
-
-// TestDocumentUploadedEvent_Metadata tests that DocumentUploadedEvent correctly
-// exposes its metadata through the Event interface.
-//
-// Why this test is important:
-//   - Metadata() is used by event routers to dispatch and correlate events;
-//     a wrong EventID breaks distributed tracing and event attribution
-//
-// What it tests:
-//   - Metadata().EventID returns the configured event ID
-func TestDocumentUploadedEvent_Metadata(t *testing.T) {
-	t.Parallel()
-
-	e := &events.DocumentUploadedEvent{
-		EventMetadata: events.EventMetadata{
-			EventID:   "evt-1",
-			EventType: events.EventDocumentUploaded,
-			OrgID:     "org-1",
-		},
-	}
-	assert.Equal(t, "evt-1", e.Metadata().EventID)
-}
-
-// TestDocumentStatusChangedEvent_Metadata tests that
-// DocumentStatusChangedEvent correctly exposes its metadata through the Event
-// interface.
-//
-// Why this test is important:
-//   - Metadata routing relies on correct EventID propagation; a wrong ID
-//     breaks distributed tracing across the ingestion pipeline
-//
-// What it tests:
-//   - Metadata().EventID returns the configured event ID
-func TestDocumentStatusChangedEvent_Metadata(t *testing.T) {
-	t.Parallel()
-
-	e := &events.DocumentStatusChangedEvent{
-		EventMetadata: events.EventMetadata{
-			EventID:   "evt-2",
-			EventType: events.EventDocumentStatusChanged,
-			OrgID:     "org-1",
-		},
-	}
-	assert.Equal(t, "evt-2", e.Metadata().EventID)
-}
-
-// TestDocumentDeletedEvent_Metadata tests that DocumentDeletedEvent correctly
-// exposes its metadata through the Event interface.
-//
-// Why this test is important:
-//   - Delete events are routed to cleanup handlers via Metadata().EventType;
-//     a wrong EventID makes the event unroutable and drops the deletion
-//
-// What it tests:
-//   - Metadata().EventID returns the configured event ID
-func TestDocumentDeletedEvent_Metadata(t *testing.T) {
-	t.Parallel()
-
-	e := &events.DocumentDeletedEvent{
-		EventMetadata: events.EventMetadata{
-			EventID:   "evt-3",
-			EventType: events.EventDocumentDeleted,
-			OrgID:     "org-1",
-		},
-	}
-	assert.Equal(t, "evt-3", e.Metadata().EventID)
-}
-
-// TestTeamCreatedEvent_Metadata tests that TeamCreatedEvent correctly exposes
-// its metadata through the Event interface.
-//
-// Why this test is important:
-//   - Team events drive notification workflows; a wrong EventID breaks the
-//     event correlation chain between the API and the notification service
-//
-// What it tests:
-//   - Metadata().EventID returns the configured event ID
-func TestTeamCreatedEvent_Metadata(t *testing.T) {
-	t.Parallel()
-
-	e := &events.TeamCreatedEvent{
-		EventMetadata: events.EventMetadata{
-			EventID:   "evt-4",
-			EventType: events.EventTeamCreated,
-			OrgID:     "org-1",
-		},
-	}
-	assert.Equal(t, "evt-4", e.Metadata().EventID)
-}
-
-// ---------------------------------------------------------------------------
-// Events -- ParseEvent edge cases
-// ---------------------------------------------------------------------------
-
-// TestParseEvent_InvalidJSON tests that ParseEvent rejects invalid JSON input
-// gracefully.
-//
-// Why this test is important:
-//   - SQS messages may arrive with corrupted payloads; ParseEvent must return
-//     an error rather than returning a nil event and causing a nil-dereference
-//
-// What it tests:
-//   - ParseEvent with non-JSON bytes returns an error
-func TestParseEvent_InvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	_, err := events.ParseEvent([]byte("not json"))
-	require.Error(t, err)
-}
-
-// TestParseEvent_MissingEventType tests that ParseEvent rejects event payloads
-// that lack a required event_type field.
-//
-// Why this test is important:
-//   - A message without event_type cannot be routed to any handler; the error
-//     must surface so the message is moved to the DLQ rather than discarded
-//
-// What it tests:
-//   - ParseEvent with valid JSON but no event_type returns an error
-func TestParseEvent_MissingEventType(t *testing.T) {
-	t.Parallel()
-
-	data := `{"event_id":"e1","occurred_at":"2026-04-20T12:00:00Z","org_id":"o1"}`
-	_, err := events.ParseEvent([]byte(data))
-	require.Error(t, err)
-}
-
-// ---------------------------------------------------------------------------
-// Events -- event round-trip tests
-// ---------------------------------------------------------------------------
-
-// TestDocumentUploadedEventRoundTrip tests that a DocumentUploadedEvent
-// survives a JSON marshal/unmarshal round-trip via ParseEvent without data
-// loss.
-//
-// Why this test is important:
-//   - Round-trip fidelity is required for event replay; a field lost in
-//     marshal/unmarshal would cause data loss during replay scenarios
-//
-// What it tests:
-//   - Marshal then ParseEvent recovers the correct event type and metadata
-func TestDocumentUploadedEventRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	original := &events.DocumentUploadedEvent{
-		EventMetadata: events.EventMetadata{
-			EventID:    "evt-rt",
-			EventType:  events.EventDocumentUploaded,
-			OccurredAt: time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
-			OrgID:      "org-1",
-		},
-		DocumentID:  "doc-1",
-		WorkspaceID: "ws-1",
-		FileName:    "test.pdf",
-		ContentType: "application/pdf",
-		SizeBytes:   1024,
-		StorageKey:  "org-1/ws-1/doc-1/test.pdf",
-	}
-
-	data, err := json.Marshal(original)
-	require.NoError(t, err)
-
-	parsed, err := events.ParseEvent(data)
-	require.NoError(t, err)
-
-	upload, ok := parsed.(*events.DocumentUploadedEvent)
-	require.True(t, ok, "expected *DocumentUploadedEvent, got %T", parsed)
-	assert.Equal(t, "evt-rt", upload.Metadata().EventID)
 }
 
 // ---------------------------------------------------------------------------

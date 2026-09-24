@@ -8,11 +8,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
 // TestLoggingInterceptor_StatusCodeMapping tests that every Connect error code maps
@@ -87,7 +85,7 @@ func TestAuthInterceptor_StreamingClientIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	wrapped := interceptors.NewAuthInterceptor(false).WrapStreamingClient(
+	wrapped := interceptors.NewAuthInterceptor(false, testHeaders).WrapStreamingClient(
 		func(context.Context, connect.Spec) connect.StreamingClientConn {
 			called = true
 			return nil
@@ -97,30 +95,27 @@ func TestAuthInterceptor_StreamingClientIsNoOp(t *testing.T) {
 	assert.True(t, called, "the wrapped client func delegates to next unchanged")
 }
 
-// TestIdentityInterceptor_StreamingFailsClosed tests that the streaming handler
-// wrapper aborts the call when identity enrichment fails.
+// TestPrincipalInterceptor_StreamingFailsClosed tests that the streaming handler
+// wrapper aborts the call when principal resolution fails.
 //
 // Why this test is important:
 //   - A streaming call that proceeds without a resolved authorization context could
-//     serve data across tenant boundaries; the enrichment failure must fail closed,
+//     serve data across tenant boundaries; the resolution failure must fail closed,
 //     not fall through to the handler.
 //
 // What it tests:
-//   - A resolver error makes WrapStreamingHandler return the error and never invoke
-//     the wrapped handler.
-func TestIdentityInterceptor_StreamingFailsClosed(t *testing.T) {
+//   - A resolver error makes WrapStreamingHandler return the error with its Connect code
+//     and never invoke the wrapped handler.
+func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	resolver := mocks.NewMockIdentityResolver(gomock.NewController(t))
-	resolver.EXPECT().Resolve(gomock.Any(), "sub-1", "org-1").
-		Return(nil, connect.NewError(connect.CodeUnavailable, stderrors.New("identity down")))
-	claims := &interceptors.AuthClaims{
-		Sub:   "sub-1",
-		OrgID: "org-1",
-	} // non-synthetic → resolver runs
+	failing := func(context.Context, *interceptors.AuthClaims) (string, error) {
+		return "", connect.NewError(connect.CodeUnavailable, stderrors.New("identity down"))
+	}
+	claims := &interceptors.AuthClaims{Sub: "sub-1", TenantID: "tenant-1"} // non-synthetic
 
 	called := false
-	handler := interceptors.NewIdentityInterceptor(resolver, false).WrapStreamingHandler(
+	handler := interceptors.NewPrincipalInterceptor[string](failing, nil).WrapStreamingHandler(
 		func(context.Context, connect.StreamingHandlerConn) error {
 			called = true
 			return nil
@@ -129,40 +124,7 @@ func TestIdentityInterceptor_StreamingFailsClosed(t *testing.T) {
 	err := handler(interceptors.WithAuthClaims(context.Background(), claims), nil)
 	require.Error(t, err)
 	assert.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
-	assert.False(t, called, "the streaming handler must not run when enrichment fails")
-}
-
-// TestIdentityInterceptor_UnknownResolverErrorBecomesUnavailable tests that a
-// resolver error carrying no Connect code is failed closed as Unavailable (retryable)
-// rather than an opaque Unknown.
-//
-// Why this test is important:
-//   - A code-less identity outage must stay retryable (Unavailable), not surface as an
-//     Unknown/500 that logs the caller out; the interceptor defaults the code so a
-//     transient blip does not become a hard auth failure.
-//
-// What it tests:
-//   - A plain (non-Connect) resolver error maps to CodeUnavailable.
-func TestIdentityInterceptor_UnknownResolverErrorBecomesUnavailable(t *testing.T) {
-	t.Parallel()
-
-	resolver := mocks.NewMockIdentityResolver(gomock.NewController(t))
-	resolver.EXPECT().Resolve(gomock.Any(), "sub-1", "org-1").
-		Return(nil, stderrors.New("bare error with no connect code"))
-	claims := &interceptors.AuthClaims{Sub: "sub-1", OrgID: "org-1"}
-
-	handler := interceptors.NewIdentityInterceptor(resolver, false).WrapUnary(
-		func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
-			return nil, nil //nolint:nilnil // test stub: response value unused
-		},
-	)
-	_, err := handler(
-		interceptors.WithAuthClaims(context.Background(), claims),
-		newTestRequest(),
-	)
-	require.Error(t, err)
-	assert.Equal(t, connect.CodeUnavailable, connect.CodeOf(err),
-		"a code-less resolver error must default to Unavailable, not Unknown")
+	assert.False(t, called, "the streaming handler must not run when resolution fails")
 }
 
 // TestConnectTracingInterceptors_RecordErrorOnFailure tests that both the server and

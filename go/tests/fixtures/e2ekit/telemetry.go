@@ -1,7 +1,7 @@
 // Package e2ekit is the gen-free shared test-kit for endpoint E2E + telemetry suites. It holds the
 // telemetry assertions that prove a request's spans/metrics/logs landed in Tempo/Prometheus/Loki
-// (correlated by the trace id carried back in the `traceresponse` header) and the DB/API effect
-// helpers that seed and tear down per-run test data. It imports NO generated code, so both a CLI
+// (correlated by the trace id carried back in the `traceresponse` header) and PollUntil, the
+// primitive for asserting an async effect. It imports NO generated code, so both a CLI
 // endpoint harness and a service's `//go:build e2e` tests (which own the generated Connect clients)
 // can share it without dragging generated proto into a bootstrap CLI.
 package e2ekit

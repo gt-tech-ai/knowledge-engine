@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	auth0pkg "github.com/gt-tech-ai/knowledge-engine/go/clients/auth/auth0"
-	authstub "github.com/gt-tech-ai/knowledge-engine/go/clients/auth/stub"
 	redispkg "github.com/gt-tech-ai/knowledge-engine/go/clients/cache/redis"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/database"
 	dbpostgres "github.com/gt-tech-ai/knowledge-engine/go/clients/database/postgres"
@@ -133,7 +131,7 @@ func TestTransportTier_NewFromConfig(t *testing.T) {
 }
 
 // TestStatelessClients_LifecycleNoOps tests that the stateless SDK-backed clients
-// (SQS, S3, the auth stub) satisfy interfaces.Lifecycle with safe no-op Start/Stop,
+// (SQS, S3) satisfy interfaces.Lifecycle with safe no-op Start/Stop,
 // so a lifecycle.Manager can register them uniformly with the connection-oriented
 // clients.
 //
@@ -159,7 +157,6 @@ func TestStatelessClients_LifecycleNoOps(t *testing.T) {
 	lifecycles := map[string]interfaces.Lifecycle{
 		"sqs-publisher": pub,
 		"s3-storage":    mustLifecycle(t, s3Client),
-		"auth-stub":     authstub.New(),
 	}
 	for name, lc := range lifecycles {
 		t.Run(name, func(t *testing.T) {
@@ -261,24 +258,6 @@ func TestRiverEnqueuer_LifecycleNoOps(t *testing.T) {
 
 	client, err := riverpkg.NewClient(riverpkg.Config{})
 	require.NoError(t, err)
-	assert.NoError(t, client.Start(context.Background()))
-	assert.NoError(t, client.Stop(context.Background()))
-}
-
-// TestAuth0Backend_LifecycleNoOps tests that the Auth0 provider satisfies the
-// lifecycle contract with safe no-ops (its M2M token is fetched lazily, so there is
-// no persistent connection to open or close).
-//
-// Why this test is important:
-//   - The Auth0 client must register uniformly with a lifecycle.Manager alongside
-//     the connection-oriented clients.
-//
-// What it tests:
-//   - Start and Stop return nil.
-func TestAuth0Backend_LifecycleNoOps(t *testing.T) {
-	t.Parallel()
-
-	client := auth0pkg.NewWithSeams(nil, nil, nil, nil, nil, nil)
 	assert.NoError(t, client.Start(context.Background()))
 	assert.NoError(t, client.Stop(context.Background()))
 }

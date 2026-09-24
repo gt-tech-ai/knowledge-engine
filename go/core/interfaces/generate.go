@@ -4,11 +4,6 @@ package interfaces
 // Run: go generate ./go/core/interfaces
 // All generated mocks are written to go/tests/mocks/.
 
-// Auth
-//go:generate mockgen -destination=../../tests/mocks/mock_auth.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AuthProvider
-//go:generate mockgen -destination=../../tests/mocks/mock_org_provider.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces OrgProvider
-//go:generate mockgen -destination=../../tests/mocks/mock_user_provider.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces UserProvider
-
 // Storage
 //go:generate mockgen -destination=../../tests/mocks/mock_storage.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces StorageClient
 

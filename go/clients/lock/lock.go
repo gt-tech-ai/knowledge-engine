@@ -1,6 +1,6 @@
 // Package lock builds a config-selected core/interfaces.Locker — a
 // DistributedLock (keyed, token-fenced, best-effort) plus Hold, the managed
-// acquire-with-watchdog helper a single-active-query guard depends on.
+// acquire-with-watchdog helper a single-active-operation guard depends on.
 //
 // NewFromConfig chooses a backend from a Kind string — local (in-process, dev
 // / replica=1) or redis (cross-pod, staging/prod) — mirroring the
@@ -11,9 +11,8 @@
 //
 // Hold acquires a key and keeps its lease alive with a background watchdog;
 // the context it returns is cancelled the instant the lease is lost, so a
-// losing pod's in-flight query is stopped rather than left streaming under a
-// lock it no longer owns. See ConversationLockKey for the ws:conv:{id}:lock
-// convention.
+// losing pod's in-flight work is stopped rather than left running under a
+// lock it no longer owns. Key naming is the caller's.
 //
 // Cross-cutting concerns are composed by the decorators subpackage
 // (resilience: retry, circuit-breaker, timeout; observability: logging,
@@ -165,13 +164,6 @@ func NewFromConfig(
 		WithTracing(cfg.Tracer).
 		Build()
 	return NewLocker(decorated, cfg.RenewInterval), nil
-}
-
-// ConversationLockKey renders the Redis key that guards a conversation's
-// single active query: ws:conv:{conversationID}:lock. The caller passes
-// conversationID.
-func ConversationLockKey(conversationID string) string {
-	return "ws:conv:" + conversationID + ":lock"
 }
 
 // locker composes a DistributedLock backend with a renewal cadence to provide

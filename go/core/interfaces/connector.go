@@ -37,27 +37,10 @@ type ConnectorKind string
 // ConnectorKindS3 is the S3-compatible object-store connector (the first — and, for now, only — kind).
 const ConnectorKindS3 ConnectorKind = "s3"
 
-// AuthConfig is a connector's decrypted credentials — the plaintext form of the AES-GCM-sealed
-// auth_config_enc column. Exactly one shape is populated, matching the connector's AuthMethod: the IAM
-// role ARN (STS AssumeRole) or the static access key + secret. It is the SINGLE cross-service wire
-// contract: the API service marshals + encrypts it on write, and the connector-sync workers decrypt +
-// unmarshal into it — so the json tags live here once, replacing the API's domain struct and the
-// worker's private mirror (which previously drifted apart behind a "keep in lockstep" comment). It lives
-// in dependency-free core so both the API domain and the workers alias/import the one type without
-// pulling the AWS-typed connector clients. Never log it; the secret is write-only on read paths.
-type AuthConfig struct {
-	// IAMRoleARN is the role assumed for the iam_role method.
-	IAMRoleARN string `json:"iam_role_arn,omitempty"`
-	// AccessKeyID is the access key id for the access_key method.
-	AccessKeyID string `json:"access_key_id,omitempty"`
-	// SecretAccessKey is the secret for the access_key method (write-only; never returned on a read path).
-	SecretAccessKey string `json:"secret_access_key,omitempty"`
-}
-
 // SourceConfig is the primitive, domain-free, AWS-free description a SourceBuilder turns into a
-// ConnectorSource. The app maps its domain.Connector + decrypted credentials onto this at the
-// composition root, so pkg never imports app types. Its credential fields are already-decrypted
-// plaintext (the store owns encryption-at-rest); never log them.
+// ConnectorSource. The consumer maps its own connector record + decrypted credentials onto this at
+// its composition root, so this package never imports consumer types. Its credential fields are
+// already-decrypted plaintext (the consumer owns encryption-at-rest); never log them.
 type SourceConfig struct {
 	// Kind selects the connector backend.
 	Kind ConnectorKind
