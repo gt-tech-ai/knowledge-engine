@@ -16,58 +16,114 @@ import (
 // migration.
 const TenantSessionVar = "app.current_tenant"
 
-// tenantInterceptor propagates the caller's resolved organization (tenant) to the
-// persistence layer for BOTH unary and streaming RPCs. It stamps two context values
-// from the identity interceptor's UserPermissions.OrgID:
-//   - sql.WithVar(app.current_tenant, <org>) — Ent emits SET before each statement,
-//     which drives Postgres RLS (leak-safe on reads: Ent RESETs the base-pool conn);
-//   - coretenant.WithTenant(<org>) — read by the Ent tenant interceptor + hook for the
-//     app-layer, fail-closed scoping.
-//
-// It MUST run AFTER the identity interceptor (so OrgID is resolved) and before
-// request handling. A request with no resolved permissions (public/unauthenticated)
-// or no org passes through unstamped: the Ent tenant interceptor then fails closed
-// on any tenant-scoped access, and non-tenant access is unaffected.
-type tenantInterceptor struct{}
+// TenantExtractor returns the request's resolved tenant id, or false when none is
+// resolved (a public or unauthenticated request).
+type TenantExtractor func(ctx context.Context) (uuid.UUID, bool)
 
-// NewTenantInterceptor returns the tenant-propagation interceptor.
-func NewTenantInterceptor() connect.Interceptor {
-	return tenantInterceptor{}
+// TenantStamper returns ctx scoped to tenant for one persistence mechanism — e.g.
+// a Postgres session variable for Row-Level Security, or an ORM tenant scope.
+type TenantStamper func(ctx context.Context, tenant uuid.UUID) context.Context
+
+// StampTenantContext stamps the tenant with core/tenant.WithTenant, the context
+// value data-access layers read to scope operations and fail closed without one.
+func StampTenantContext(ctx context.Context, tenant uuid.UUID) context.Context {
+	return coretenant.WithTenant(ctx, tenant)
+}
+
+// SessionVarStamper returns a stamper that sets the Postgres session variable
+// (GUC) name to the tenant id through Ent's sql.WithVar: Ent emits SET before each
+// statement, which drives a Row-Level Security policy reading
+// current_setting(name, true) (leak-safe on reads: Ent RESETs the pooled conn).
+func SessionVarStamper(name string) TenantStamper {
+	return func(ctx context.Context, tenant uuid.UUID) context.Context {
+		return entsql.WithVar(ctx, name, tenant.String())
+	}
+}
+
+// tenantScopeInterceptor stamps the extracted tenant onto the request context with
+// each stamper, for BOTH unary and streaming RPCs.
+type tenantScopeInterceptor struct {
+	// extract resolves the request's tenant.
+	extract TenantExtractor
+	// stampers apply the tenant scope, in order.
+	stampers []TenantStamper
+}
+
+// NewTenantScopeInterceptor returns an interceptor that stamps the tenant resolved
+// by extract onto each request with every stamper. It must run after whatever
+// resolves the tenant (typically the principal interceptor). A request with no
+// resolved tenant passes through unstamped, so tenant-scoped data access downstream
+// fails closed while non-tenant access is unaffected.
+func NewTenantScopeInterceptor(
+	extract TenantExtractor,
+	stampers ...TenantStamper,
+) connect.Interceptor {
+	return tenantScopeInterceptor{extract: extract, stampers: stampers}
 }
 
 // WrapUnary stamps the tenant on the unary request context.
-func (tenantInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+func (i tenantScopeInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		return next(withTenant(ctx), req)
+		return next(i.stamp(ctx), req)
 	}
 }
 
 // WrapStreamingClient is a no-op — this is a server-side propagation interceptor.
-func (tenantInterceptor) WrapStreamingClient(
+func (i tenantScopeInterceptor) WrapStreamingClient(
 	next connect.StreamingClientFunc,
 ) connect.StreamingClientFunc {
 	return next
 }
 
 // WrapStreamingHandler stamps the tenant on the streaming request context, so a
-// server-streaming handler (e.g. QueryStream) carries the same tenant scope.
-func (tenantInterceptor) WrapStreamingHandler(
+// server-streaming handler carries the same tenant scope.
+func (i tenantScopeInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		return next(withTenant(ctx), conn)
+		return next(i.stamp(ctx), conn)
 	}
 }
 
-// withTenant returns a context stamped with the resolved org's tenant scope, or the
-// original context when no org is resolved (pass through — the Ent tenant
-// interceptor fails closed on tenant-scoped access downstream).
-func withTenant(ctx context.Context) context.Context {
-	perms, ok := GetUserPermissions(ctx)
+// stamp applies every stamper for the extracted tenant, or returns ctx unchanged
+// when none is resolved.
+func (i tenantScopeInterceptor) stamp(ctx context.Context) context.Context {
+	tenant, ok := i.extract(ctx)
 	if !ok {
 		return ctx
 	}
-	return WithTenantFromPerms(ctx, perms)
+	for _, s := range i.stampers {
+		ctx = s(ctx, tenant)
+	}
+	return ctx
+}
+
+// NewTenantInterceptor returns the tenant-propagation interceptor: a tenant-scope
+// interceptor that takes the tenant from the identity interceptor's
+// UserPermissions.OrgID and stamps two values:
+//   - the TenantSessionVar Postgres session variable (SessionVarStamper), which
+//     drives Row-Level Security;
+//   - the core/tenant context (StampTenantContext), read by the Ent tenant
+//     interceptor + hook for app-layer, fail-closed scoping.
+//
+// It MUST run AFTER the identity interceptor (so OrgID is resolved) and before
+// request handling. A request with no resolved permissions or no org passes through
+// unstamped.
+func NewTenantInterceptor() connect.Interceptor {
+	return NewTenantScopeInterceptor(permsTenant, permsStampers...)
+}
+
+// permsStampers are the two stamps NewTenantInterceptor and WithTenantFromPerms apply.
+var permsStampers = []TenantStamper{SessionVarStamper(TenantSessionVar), StampTenantContext}
+
+// permsTenant extracts the tenant from the context's UserPermissions: its OrgID, or
+// false when there are no permissions or no org.
+func permsTenant(ctx context.Context) (uuid.UUID, bool) {
+	perms, ok := GetUserPermissions(ctx)
+	if !ok || perms == nil || perms.OrgID == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return perms.OrgID, true
 }
 
 // WithTenantFromPerms stamps perms' org as the tenant scope on ctx — the RLS session var AND
@@ -80,6 +136,8 @@ func WithTenantFromPerms(ctx context.Context, perms *UserPermissions) context.Co
 	if perms == nil || perms.OrgID == uuid.Nil {
 		return ctx
 	}
-	ctx = entsql.WithVar(ctx, TenantSessionVar, perms.OrgID.String())
-	return coretenant.WithTenant(ctx, perms.OrgID)
+	for _, s := range permsStampers {
+		ctx = s(ctx, perms.OrgID)
+	}
+	return ctx
 }

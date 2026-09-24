@@ -20,22 +20,19 @@ var StubInternalOrgID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 // on an empty org). Under the dev shared-KB topology the value is not used for routing.
 const StubOrgExternalID = "org_stub_dev"
 
-// userPermsContextKey is the private context key under which UserPermissions are stored,
-// keeping the permissions slot collision-free across packages.
-type userPermsContextKey struct{}
-
-// WithUserPermissions stores resolved user permissions in the context.
+// WithUserPermissions stores resolved user permissions in the context (the
+// *UserPermissions principal; see WithPrincipal).
 func WithUserPermissions(
 	ctx context.Context,
 	userPerms *UserPermissions,
 ) context.Context {
-	return context.WithValue(ctx, userPermsContextKey{}, userPerms)
+	return WithPrincipal(ctx, userPerms)
 }
 
-// GetUserPermissions retrieves resolved user permissions from the context.
+// GetUserPermissions retrieves resolved user permissions from the context (the
+// *UserPermissions principal; see PrincipalFrom).
 func GetUserPermissions(ctx context.Context) (*UserPermissions, bool) {
-	claims, ok := ctx.Value(userPermsContextKey{}).(*UserPermissions)
-	return claims, ok
+	return PrincipalFrom[*UserPermissions](ctx)
 }
 
 // RequireUserPermissions retrieves the caller's resolved permissions from the context, returning a
@@ -176,111 +173,43 @@ type IdentityResolver interface {
 	) (*UserPermissions, error)
 }
 
-// identityInterceptor enriches the request's AuthClaims with the caller's
-// resolved internal org id, teams, and accessible workspaces, for BOTH
-// unary and streaming RPCs. It must run AFTER the auth interceptor so the claims
-// (Sub, OrgID) are present. Streaming coverage matters because a unary-only
-// enrichment would leave server-streaming handlers (e.g. QueryStream) with an empty
-// authorization context.
-type identityInterceptor struct {
-	// resolver resolves (sub, org) → the caller's internal context.
-	resolver IdentityResolver
-	// stub sets a deterministic stub context without calling the resolver (local dev).
-	stub bool
-}
-
-// NewIdentityInterceptor returns the identity enrichment interceptor.
+// NewIdentityInterceptor returns the identity enrichment interceptor: a principal
+// interceptor (NewPrincipalInterceptor) whose principal is *UserPermissions,
+// resolved from the caller's (sub, org external id) by resolver.
 //
 // Behavior (per RPC, unary or streaming):
 //   - no AuthClaims in context (unauthenticated/public request) → pass through
-//   - stub mode (auth.stub=true) → set a deterministic stub context, no resolver call
-//   - otherwise → resolve and enrich; a resolver error fails the request CLOSED
-//     (CodeUnauthenticated) rather than proceeding without an authorization context
+//   - stub mode (auth.stub=true) with synthetic (no-gateway) claims → a deterministic
+//     stub context, no resolver call. Real claims always resolve: forcing the stub
+//     org on a caller behind the gateway would break multi-tenant isolation.
+//   - otherwise → resolve and enrich; a resolver error fails the request CLOSED,
+//     keeping its code so a transient identity outage stays retryable instead of
+//     surfacing as a 401 that logs the caller out
+//
+// The caller's external sub is retained on the resolved perms (the raw AuthClaims
+// are cleared), so a handler can send it as the granter on a grant RPC.
 func NewIdentityInterceptor(
 	resolver IdentityResolver,
 	stub bool,
 ) connect.Interceptor {
-	return identityInterceptor{resolver: resolver, stub: stub}
-}
-
-// WrapUnary enriches the unary request's claims, failing closed on a resolver error.
-func (u identityInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		resolvedCtx, err := u.resolve(ctx)
+	resolve := func(ctx context.Context, claims *AuthClaims) (*UserPermissions, error) {
+		perms, err := resolver.Resolve(ctx, claims.Sub, claims.OrgID)
 		if err != nil {
 			return nil, err
 		}
-		return next(resolvedCtx, req)
+		perms.ExternalSub = claims.Sub
+		return perms, nil
 	}
-}
-
-// WrapStreamingClient is a no-op — this is a server-side enrichment interceptor.
-func (u identityInterceptor) WrapStreamingClient(
-	next connect.StreamingClientFunc,
-) connect.StreamingClientFunc {
-	return next
-}
-
-// WrapStreamingHandler enriches the streaming request's claims, failing closed on a
-// resolver error so a streaming call cannot proceed without an authorization context.
-func (u identityInterceptor) WrapStreamingHandler(
-	next connect.StreamingHandlerFunc,
-) connect.StreamingHandlerFunc {
-	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		resolvedCtx, err := u.resolve(ctx)
-		if err != nil {
-			return err
+	var stubPerms func(*AuthClaims) *UserPermissions
+	if stub {
+		stubPerms = func(claims *AuthClaims) *UserPermissions {
+			return &UserPermissions{
+				OrgID:         StubInternalOrgID,
+				OrgExternalID: StubOrgExternalID,
+				ExternalSub:   claims.Sub,
+				OrgRole:       "member",
+			}
 		}
-		return next(resolvedCtx, conn)
 	}
-}
-
-// resolve resolves the caller's permissions and returns a new context with permissions injected.
-// The raw AuthClaims are cleared if set, as to not leak unresolved claims to downstream handlers.
-func (u identityInterceptor) resolve(ctx context.Context) (context.Context, error) {
-	claims, ok := GetAuthClaims(ctx)
-	ctx = WithAuthClaims(
-		ctx,
-		nil,
-	) // Clear raw claims to avoid leaking unresolved claims downstream.
-	if !ok {
-		// Unauthenticated/public request: nothing to enrich.
-		return ctx, nil
-	}
-	// Stub-org injection applies ONLY to synthetic (no-gateway) claims. With stub
-	// enabled behind Kong, a real caller carries Kong-injected claims (Synthetic
-	// false) and must resolve their true org via the resolver — forcing the stub
-	// org here would break multi-tenant isolation. In local dev without Kong, the
-	// auth interceptor fabricates synthetic claims and this short-circuit gives them
-	// a deterministic org without the identity service being reachable.
-	if u.stub && claims.Synthetic {
-		perms := &UserPermissions{
-			OrgID:         StubInternalOrgID,
-			OrgExternalID: StubOrgExternalID,
-			ExternalSub:   claims.Sub,
-			OrgRole:       "member",
-		}
-		return WithUserPermissions(ctx, perms), nil
-	}
-
-	perms, err := u.resolver.Resolve(ctx, claims.Sub, claims.OrgID)
-	if err != nil {
-		// Fail closed, but preserve the resolver's error code so a transient identity
-		// outage (Unavailable/DeadlineExceeded, or an open circuit) stays retryable
-		// instead of surfacing to the caller as a 401 that logs them out; a genuine
-		// auth failure (unknown user) comes through as Unauthenticated.
-		code := connect.CodeOf(err)
-		if code == connect.CodeUnknown {
-			code = connect.CodeUnavailable
-		}
-		return ctx, connect.NewError(
-			code,
-			errors.Wrap(err, errors.CodeInternal, "resolve identity"),
-		)
-	}
-
-	// Retain the caller's external sub on the resolved perms (the raw AuthClaims are
-	// cleared above), so a handler can send it as the granter on a grant RPC.
-	perms.ExternalSub = claims.Sub
-	return WithUserPermissions(ctx, perms), nil
+	return NewPrincipalInterceptor(resolve, stubPerms)
 }

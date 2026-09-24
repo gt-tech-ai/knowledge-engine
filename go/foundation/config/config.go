@@ -72,9 +72,11 @@ func NewFromConfig(cfg Config) (interfaces.ConfigLoader, error) {
 	switch cfg.Kind {
 	case KindViper:
 		loader := viperloader.New(viperloader.Config{
-			BaseDir: cfg.Viper.BaseDir,
-			Env:     cfg.Viper.Env,
-			Prefix:  cfg.Viper.Prefix,
+			BaseDir:  cfg.Viper.BaseDir,
+			Env:      cfg.Viper.Env,
+			Prefix:   cfg.Viper.Prefix,
+			Schema:   cfg.Viper.Schema,
+			ExtraEnv: cfg.Viper.ExtraEnv,
 		})
 		if err := loader.Load(); err != nil {
 			return nil, err

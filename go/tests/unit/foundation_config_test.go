@@ -12,6 +12,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
+	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -926,6 +927,102 @@ messaging:
 
 // writeFile is a test helper that writes content to path, failing the test on
 // error.
+// TestConfig_CustomPrefixOwnsDerivedEnvBindings tests that a caller's env prefix, not a
+// built-in one, names the env vars derived from the schema.
+//
+// Why this test is important:
+//   - A consumer that sets its own prefix must control which env vars override its config;
+//     an env var under someone else's prefix silently changing a value is a config leak.
+//
+// What it tests:
+//   - With prefix MYAPP, MYAPP_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
+//   - With prefix MYAPP, SEARCH_STORAGE_S3_BUCKET does NOT override storage.s3.bucket.
+func TestConfig_CustomPrefixOwnsDerivedEnvBindings(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "base.yaml"), `
+storage:
+  s3:
+    public_endpoint: from-yaml
+    bucket: from-yaml
+`)
+	t.Setenv("MYAPP_STORAGE_S3_PUBLIC_ENDPOINT", "from-myapp-env")
+	t.Setenv("SEARCH_STORAGE_S3_BUCKET", "from-search-env")
+
+	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir), config.WithEnvPrefix("MYAPP"))
+	require.NoError(t, err, "New")
+
+	assert.Equal(t, "from-myapp-env", cfg.GetString("storage.s3.public_endpoint"),
+		"the caller's prefix must name the derived env var")
+	assert.Equal(t, "from-yaml", cfg.GetString("storage.s3.bucket"),
+		"an env var under a different prefix must not bind")
+}
+
+// consumerRoot is a consumer-owned config root, standing in for an application's own schema.
+type consumerRoot struct {
+	Widget struct {
+		Size int `mapstructure:"size" envalias:"WIDGET_SIZE"`
+	} `mapstructure:"widget"`
+}
+
+// TestConfig_ConsumerSchemaAndExtraEnv tests that a consumer can bring its own config root
+// and its own extra env bindings.
+//
+// Why this test is important:
+//   - A library loader must not force its own sections or env names on a consumer: the
+//     consumer's struct decides which env aliases exist, and keys outside any struct still
+//     need an env override.
+//
+// What it tests:
+//   - With WithSchema, the consumer's envalias (WIDGET_SIZE) binds and unmarshals.
+//   - With WithSchema, the default schema's aliases (S3_BUCKET) no longer bind.
+//   - WithExtraEnv binds a non-struct key (feature.flag) to FEATURE_FLAG.
+func TestConfig_ConsumerSchemaAndExtraEnv(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "base.yaml"), `
+storage:
+  s3:
+    bucket: from-yaml
+`)
+	t.Setenv("WIDGET_SIZE", "7")
+	t.Setenv("S3_BUCKET", "from-alias")
+	t.Setenv("FEATURE_FLAG", "on")
+
+	cfg, err := config.New(
+		config.KindViper,
+		config.WithBaseDir(dir),
+		config.WithEnvPrefix("MYAPP"),
+		config.WithSchema(&consumerRoot{}),
+		config.WithExtraEnv(map[string][]string{"feature.flag": {"FEATURE_FLAG"}}),
+	)
+	require.NoError(t, err, "New")
+
+	var root consumerRoot
+	require.NoError(t, cfg.Unmarshal(&root), "Unmarshal")
+	assert.Equal(t, 7, root.Widget.Size, "the consumer schema's envalias must bind")
+	assert.Equal(t, "from-yaml", cfg.GetString("storage.s3.bucket"),
+		"the default schema's aliases must not bind when a consumer schema is given")
+	assert.Equal(t, "on", cfg.GetString("feature.flag"), "ExtraEnv must bind the key")
+}
+
+// TestConfig_ResolveEnvFrom tests that a consumer picks the env vars that select the
+// config overlay.
+//
+// Why this test is important:
+//   - The overlay selector is a consumer convention; a library must not decide which
+//     variable names a deployment uses to declare its environment.
+//
+// What it tests:
+//   - The first non-empty selector wins, trimmed and lowercased.
+//   - No selector set resolves to "" (base config only).
+func TestConfig_ResolveEnvFrom(t *testing.T) {
+	t.Setenv("MYAPP_ENV", "")
+	t.Setenv("APP_ENV", " Staging ")
+	assert.Equal(t, "staging", viperloader.ResolveEnvFrom("MYAPP_ENV", "APP_ENV"))
+
+	t.Setenv("APP_ENV", "")
+	assert.Empty(t, viperloader.ResolveEnvFrom("MYAPP_ENV", "APP_ENV"))
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	err := os.WriteFile(path, []byte(content), 0o644)

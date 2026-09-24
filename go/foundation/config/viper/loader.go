@@ -21,6 +21,16 @@ var _ interfaces.ConfigLoader = (*Loader)(nil)
 
 // Config holds Viper-specific configuration for the Loader.
 type Config struct {
+	// Schema is the consumer's root config struct (or a pointer to one). Every leaf
+	// field is bound to <Prefix>_<PATH> plus its envalias names. Nil uses the
+	// built-in schema.AppConfig.
+	Schema any
+
+	// ExtraEnv binds config keys that are not fields of Schema to env var names
+	// (key → names, first set wins). A key listed here replaces any binding Schema
+	// derived for it.
+	ExtraEnv map[string][]string
+
 	// BaseDir is the directory containing base.yaml, {env}.yaml overlays, and secrets.yaml.
 	BaseDir string
 
@@ -45,6 +55,10 @@ func DefaultConfig() Config {
 type Loader struct {
 	// v is the underlying Viper instance holding the merged configuration.
 	v *viper.Viper
+	// schema is the root config struct whose leaf fields get derived env bindings.
+	schema any
+	// extraEnv holds the consumer's explicit key → env-var-names bindings.
+	extraEnv map[string][]string
 	// baseDir is the directory holding base.yaml, {env}.yaml, and secrets.yaml.
 	baseDir string
 	// env is the environment name selecting the {env}.yaml overlay.
@@ -56,11 +70,17 @@ type Loader struct {
 // New creates a new Viper-backed Loader from the given Config.
 // Call Load() to read the configuration hierarchy before using getter methods.
 func New(cfg Config) *Loader {
+	root := cfg.Schema
+	if root == nil {
+		root = &schema.AppConfig{}
+	}
 	return &Loader{
-		v:       viper.New(),
-		baseDir: cfg.BaseDir,
-		env:     cfg.Env,
-		prefix:  cfg.Prefix,
+		v:        viper.New(),
+		baseDir:  cfg.BaseDir,
+		env:      cfg.Env,
+		prefix:   cfg.Prefix,
+		schema:   root,
+		extraEnv: cfg.ExtraEnv,
 	}
 }
 
@@ -106,12 +126,15 @@ func (l *Loader) Load() error {
 	}
 
 	// Layer 4: Env bindings. The struct-backed config sections bind their
-	// SEARCH_<PATH> + legacy-alias env vars automatically, derived from the
-	// schema.AppConfig mapstructure/envalias tags. The
-	// non-struct keys (read via GetString, not unmarshaled into a schema struct)
-	// are bound explicitly below.
-	deriveEnvBindings(l.v, &schema.AppConfig{})
+	// <PREFIX>_<PATH> + alias env vars automatically, derived from the schema's
+	// mapstructure/envalias tags. The non-struct keys (read via GetString, not
+	// unmarshaled into a schema struct) are bound explicitly below; the consumer's
+	// ExtraEnv applies last.
+	deriveEnvBindings(l.v, l.schema, l.prefix)
 	l.bindNonSchemaEnv()
+	for key, names := range l.extraEnv {
+		_ = l.v.BindEnv(append([]string{key}, names...)...)
+	}
 
 	return nil
 }

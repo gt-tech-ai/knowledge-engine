@@ -17,6 +17,13 @@ type Config struct {
 // ViperConfig holds Viper-specific configuration. This is a subset of
 // viper.Config, adapted for the parent config package.
 type ViperConfig struct {
+	// Schema is the consumer's root config struct whose leaf fields get derived
+	// env bindings; nil uses the built-in schema.AppConfig.
+	Schema any
+
+	// ExtraEnv binds config keys outside Schema to env var names (key → names).
+	ExtraEnv map[string][]string
+
 	// BaseDir is the directory containing base.yaml, {env}.yaml overlays, and secrets.yaml.
 	BaseDir string
 
@@ -59,4 +66,14 @@ func WithEnvironment(env string) options.Option[Config] {
 // WithEnvPrefix sets the prefix for environment variable binding (default: "SEARCH").
 func WithEnvPrefix(prefix string) options.Option[Config] {
 	return func(c *Config) { c.Viper.Prefix = prefix }
+}
+
+// WithSchema sets the consumer's root config struct used to derive env bindings.
+func WithSchema(root any) options.Option[Config] {
+	return func(c *Config) { c.Viper.Schema = root }
+}
+
+// WithExtraEnv binds config keys outside the schema to env var names (key → names).
+func WithExtraEnv(bindings map[string][]string) options.Option[Config] {
+	return func(c *Config) { c.Viper.ExtraEnv = bindings }
 }

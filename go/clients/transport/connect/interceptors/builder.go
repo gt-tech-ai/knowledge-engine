@@ -8,8 +8,9 @@ import (
 )
 
 // ServerBuilder composes server-side Connect interceptors in the canonical
-// order: recovery -> rate limit -> metrics -> tracing -> logging -> service auth
-// -> auth -> identity -> validate.
+// order: recovery -> retry budget -> rate limit -> bulkhead -> metrics -> tracing
+// -> logging -> service auth -> auth -> identity -> tenant -> caller-supplied
+// (WithInterceptors) -> validate.
 type ServerBuilder struct {
 	// serviceValidator validates the caller's service-to-service bearer token (WithServiceAuth).
 	serviceValidator interfaces.ServiceTokenValidator
@@ -25,6 +26,12 @@ type ServerBuilder struct {
 	userContextResolver IdentityResolver
 	// logger enables structured request/response logging when set (WithLogging).
 	logger interfaces.Logger
+	// authHeaders names the gateway headers the auth interceptor reads; nil uses
+	// DefaultHeaderMap (WithAuthHeaders).
+	authHeaders *HeaderMap
+	// extra holds the caller-supplied interceptors, run after tenant and before
+	// validate (WithInterceptors).
+	extra []connect.Interceptor
 	// retryBudget caps per-request retries across the downstream chain; ≤0 disables it (WithRetryBudget).
 	retryBudget int32
 	// recovery enables the panic-recovery interceptor (WithRecovery).
@@ -99,6 +106,30 @@ func (b *ServerBuilder) WithAuth(stub bool) *ServerBuilder {
 	return b
 }
 
+// WithAuthHeaders sets the gateway header names the auth interceptor reads claims
+// from (default: DefaultHeaderMap). It takes effect with WithAuth.
+func (b *ServerBuilder) WithAuthHeaders(headers HeaderMap) *ServerBuilder {
+	b.authHeaders = &headers
+	return b
+}
+
+// headerMap returns the header names set by WithAuthHeaders, or DefaultHeaderMap.
+func (b *ServerBuilder) headerMap() HeaderMap {
+	if b.authHeaders != nil {
+		return *b.authHeaders
+	}
+	return DefaultHeaderMap()
+}
+
+// WithInterceptors appends caller-supplied interceptors, run after auth, identity
+// and tenant (so they see the authenticated claims and any resolved principal) and
+// before validation — the slot for a consumer's own identity or tenant
+// interceptors.
+func (b *ServerBuilder) WithInterceptors(extra ...connect.Interceptor) *ServerBuilder {
+	b.extra = append(b.extra, extra...)
+	return b
+}
+
 // WithServiceAuth enables the service-to-service authentication interceptor on the
 // internal (non-Kong) mount (Phase 1): it validates the caller's
 // `authorization: Bearer <token>` via the validator and attaches the caller identity,
@@ -161,10 +192,11 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 	var chain []connect.Interceptor
 
 	// Order: recovery → budget → rate limit → bulkhead → metrics → tracing →
-	// logging → service auth → auth → identity → validate (identity MUST follow auth so
-	// claims are present; service auth authenticates the CALLING SERVICE on internal
-	// mounts and runs before end-user auth; the budget spans the whole request and
-	// load shedding is early so it rejects before the request does any work).
+	// logging → service auth → auth → identity → tenant → caller-supplied → validate
+	// (identity MUST follow auth so claims are present; service auth authenticates
+	// the CALLING SERVICE on internal mounts and runs before end-user auth; the budget
+	// spans the whole request and load shedding is early so it rejects before the
+	// request does any work).
 	if b.recovery && b.logger != nil {
 		chain = append(chain, RecoveryInterceptor(b.logger))
 	}
@@ -198,7 +230,7 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 		)
 	}
 	if b.auth {
-		chain = append(chain, NewAuthInterceptor(b.authStub))
+		chain = append(chain, NewAuthInterceptorWithHeaders(b.authStub, b.headerMap()))
 	}
 	if b.userContextResolver != nil {
 		chain = append(
@@ -209,6 +241,7 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 	if b.tenant {
 		chain = append(chain, NewTenantInterceptor())
 	}
+	chain = append(chain, b.extra...)
 	if b.validate {
 		chain = append(chain, ValidateInterceptor())
 	}

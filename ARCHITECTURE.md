@@ -105,7 +105,7 @@ Outermost → innermost:
 | Lock | `go/clients/lock/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry |
 | Replay buffer | `go/clients/replaybuffer/decorators` | Tracing → Metrics → Logging → Timeout |
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
-| Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → Identity → Tenant → Validate |
+| Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → Identity → Tenant → caller-supplied (`WithInterceptors`) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC server | `go/clients/rpc/grpc/interceptors` | Recovery → RateLimit → Bulkhead → Metrics → Tracing → Logging |
 | Repository | `go/repos/repository/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry → Caching |
@@ -126,7 +126,10 @@ Repository order minus Caching. Tests pin the orders (`go/tests/unit/clients_wra
 
 Config selects; the composition root injects. Go `foundation/config` (Viper) layers `base.yaml` →
 `{env}.yaml` → `secrets.yaml` → env vars into typed structs (`foundation/config/schema/*`, each with
-`Default…Config()` and a coded-error `Validate()`); `viper.ResolveEnv` picks the overlay. Python
+`Default…Config()` and a coded-error `Validate()`); `viper.ResolveEnvFrom(selectors...)` picks the
+overlay from the consumer's chosen env vars. The consumer owns its conventions: the env prefix,
+its root config struct (`WithSchema` — every leaf field binds `<PREFIX>_<PATH>` plus its
+`envalias` names) and extra bindings for keys outside that struct (`WithExtraEnv`). Python
 `foundation/config` loads the same hierarchy into pydantic-settings classes.
 
 Business logic never reads the environment. In `go/`, env reads are confined to the config loader,

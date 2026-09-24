@@ -32,6 +32,37 @@ const (
 	HeaderAuthRoles = "X-Roles"
 )
 
+// HeaderMap names the gateway headers the auth interceptor reads claims from, so a
+// consumer matches whatever its gateway sets.
+type HeaderMap struct {
+	// Sub carries the authenticated caller's external subject id; its absence means
+	// the request is unauthenticated.
+	Sub string
+	// Tenant carries the tenant (organization) the caller authenticates under.
+	Tenant string
+	// Email carries the caller's email address.
+	Email string
+	// Name carries the caller's full name.
+	Name string
+	// NickName carries the caller's display name.
+	NickName string
+	// Roles carries the caller's comma-separated role list.
+	Roles string
+}
+
+// DefaultHeaderMap returns the header names NewAuthInterceptor reads (the
+// HeaderAuth* constants).
+func DefaultHeaderMap() HeaderMap {
+	return HeaderMap{
+		Sub:      HeaderAuthSub,
+		Tenant:   HeaderAuthOrgID,
+		Email:    HeaderAuthEmail,
+		Name:     HeaderAuthName,
+		NickName: HeaderAuthNickName,
+		Roles:    HeaderAuthRoles,
+	}
+}
+
 // authContextKey is the private context key under which AuthClaims are stored,
 // keeping the claims slot collision-free across packages.
 type authContextKey struct{}
@@ -113,6 +144,8 @@ func newStubDevClaims() *AuthClaims {
 // interceptor would leave server-streaming handlers (e.g. QueryStream)
 // unauthenticated.
 type authInterceptor struct {
+	// headers names the gateway headers claims are read from.
+	headers HeaderMap
 	// stub injects synthetic dev claims when Kong is absent (local dev only).
 	stub bool
 }
@@ -130,7 +163,13 @@ type authInterceptor struct {
 // When stub is false (staging/prod), a request with no X-User-Sub is left unauthenticated;
 // protected handlers must call GetAuthClaims and return codes.Unauthenticated.
 func NewAuthInterceptor(stub bool) connect.Interceptor {
-	return authInterceptor{stub: stub}
+	return NewAuthInterceptorWithHeaders(stub, DefaultHeaderMap())
+}
+
+// NewAuthInterceptorWithHeaders is NewAuthInterceptor reading claims from the
+// headers named in headers instead of the defaults.
+func NewAuthInterceptorWithHeaders(stub bool, headers HeaderMap) connect.Interceptor {
+	return authInterceptor{headers: headers, stub: stub}
 }
 
 // WrapUnary extracts identity headers from the unary request.
@@ -158,10 +197,10 @@ func (a authInterceptor) WrapStreamingHandler(
 }
 
 // withClaims parses the identity headers into AuthClaims and stores them on the
-// returned context. With no X-User-Sub it either injects stub dev claims (stub mode)
-// or leaves the context unauthenticated.
+// returned context. With no subject header it either injects stub dev claims (stub
+// mode) or leaves the context unauthenticated.
 func (a authInterceptor) withClaims(ctx context.Context, h http.Header) context.Context {
-	sub := h.Get(HeaderAuthSub)
+	sub := h.Get(a.headers.Sub)
 
 	if sub == "" && a.stub {
 		// Dev shortcut: Kong is absent, synthesize canonical dev claims.
@@ -173,12 +212,12 @@ func (a authInterceptor) withClaims(ctx context.Context, h http.Header) context.
 
 	claims := &AuthClaims{
 		Sub:      sub,
-		Email:    h.Get(HeaderAuthEmail),
-		Name:     h.Get(HeaderAuthName),
-		NickName: h.Get(HeaderAuthNickName),
-		OrgID:    h.Get(HeaderAuthOrgID),
+		Email:    h.Get(a.headers.Email),
+		Name:     h.Get(a.headers.Name),
+		NickName: h.Get(a.headers.NickName),
+		OrgID:    h.Get(a.headers.Tenant),
 	}
-	if roles := h.Get(HeaderAuthRoles); roles != "" {
+	if roles := h.Get(a.headers.Roles); roles != "" {
 		claims.InitialRoles = splitRoles(roles)
 	}
 	return WithAuthClaims(ctx, claims)

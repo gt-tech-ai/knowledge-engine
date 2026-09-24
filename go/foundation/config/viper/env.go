@@ -14,12 +14,19 @@ import (
 var envSelectors = []string{"SEARCH_ENV", "APP_ENV", "ENVIRONMENT"}
 
 // ResolveEnv returns the deployment environment name for overlay selection.
-// It prefers SEARCH_ENV and falls back to APP_ENV then ENVIRONMENT, returning
-// the first non-empty value lowercased (overlay files are dev/staging/prod).
-// It returns "" when none are set, which makes the loader skip the overlay and
-// use base.yaml alone (the local-development default).
+// It prefers SEARCH_ENV and falls back to APP_ENV then ENVIRONMENT; see
+// ResolveEnvFrom.
 func ResolveEnv() string {
-	for _, key := range envSelectors {
+	return ResolveEnvFrom(envSelectors...)
+}
+
+// ResolveEnvFrom returns the first non-empty value among the given environment
+// variables, trimmed and lowercased (overlay files are dev/staging/prod), so a
+// consumer chooses which variables declare its environment. It returns "" when
+// none are set, which makes the loader skip the overlay and use base.yaml alone
+// (the local-development default).
+func ResolveEnvFrom(selectors ...string) string {
+	for _, key := range selectors {
 		if v := strings.ToLower(strings.TrimSpace(os.Getenv(key))); v != "" {
 			return v
 		}
