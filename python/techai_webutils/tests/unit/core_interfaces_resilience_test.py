@@ -4,7 +4,6 @@ from techai_webutils.core.interfaces.bulkhead import Bulkhead
 from techai_webutils.core.interfaces.byte_cache import ByteCache
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
 from techai_webutils.core.interfaces.config_loader import ConfigLoader
-from techai_webutils.core.interfaces.connection import ClientConnection, ConnectionManager
 from techai_webutils.core.interfaces.crud_service import CrudService, ServiceHooks
 from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.core.interfaces.retrier import Retrier
@@ -141,42 +140,6 @@ class TestOtherABCs:
         """
         with pytest.raises(TypeError):
             CrudService()  # type: ignore[abstract]
-
-    def test_cannot_instantiate_connection_manager(self) -> None:
-        """Test that the ConnectionManager ABC cannot be instantiated without its methods.
-
-        **Why this test is important:**
-          - ConnectionManager owns WebSocket lifecycle and message routing for streaming query
-            results and notifications; an instantiable stub would accept register()/send() and
-            drop them, so clients would silently receive no live updates
-          - Forces every manager to implement real connection tracking and delivery
-
-        **What it tests:**
-          - Instantiating ConnectionManager directly raises TypeError because register/
-            unregister/send/broadcast/send_to_user/active_connections are abstract
-        """
-        with pytest.raises(TypeError):
-            ConnectionManager()  # type: ignore[abstract]
-
-
-class TestClientConnection:
-    def test_construction(self) -> None:
-        """Test that ClientConnection retains the identity used to route WebSocket messages.
-
-        **Why this test is important:**
-          - ClientConnection ties a live socket to its user/org/workspace; these fields are how
-            the manager routes broadcasts to the right workspace and direct sends to the right
-            user, so a dropped or swapped field would leak one tenant's stream to another
-          - It is the multi-tenant routing key for real-time delivery
-
-        **What it tests:**
-          - id, user_id, org_id, and workspace_id all round-trip exactly as constructed
-        """
-        conn = ClientConnection(id="c1", user_id="u1", org_id="o1", workspace_id="ws1")
-        assert conn.id == "c1"
-        assert conn.user_id == "u1"
-        assert conn.org_id == "o1"
-        assert conn.workspace_id == "ws1"
 
 
 class TestServiceHooks:

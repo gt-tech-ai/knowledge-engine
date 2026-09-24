@@ -134,19 +134,3 @@ class Timestamps:
     def is_deleted(self) -> bool:
         """Return True if the entity has been soft-deleted."""
         return self.deleted_at is not None
-
-
-@dataclass(frozen=True)
-class TenantContext:
-    """Multi-tenant context for requests."""
-
-    org_id: ID
-    """Identifier of the organization owning the request."""
-    user_id: ID
-    """Identifier of the acting user."""
-    workspace_id: ID = field(default_factory=lambda: ID(""))
-    """Identifier of the workspace in scope, empty when none."""
-    roles: tuple[str, ...] = ()
-    """Roles granted to the acting user."""
-    clearance_level: str = ""
-    """Data clearance level resolved for the acting user."""

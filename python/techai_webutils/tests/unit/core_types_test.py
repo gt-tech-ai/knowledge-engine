@@ -1,7 +1,7 @@
 """Unit tests for Python core domain types.
 
 Tests all shared types for correctness and Go parity: ID, Option, Page,
-PageRequest, SortOrder, SortField, Timestamps, and TenantContext.
+PageRequest, SortOrder, SortField, and Timestamps.
 """
 
 from datetime import UTC, datetime
@@ -13,7 +13,6 @@ from techai_webutils.core.domain_types.types import (
     PageRequest,
     SortField,
     SortOrder,
-    TenantContext,
     Timestamps,
     none,
     some,
@@ -460,84 +459,3 @@ class TestTimestamps:
         ts = Timestamps()
         assert ts.created_at >= before
         assert ts.updated_at >= before
-
-
-class TestTenantContext:
-    """Test suite for TenantContext."""
-
-    def test_required_fields(self) -> None:
-        """Test that org_id and user_id are mandatory and stored as given.
-
-        **Why this test is important:**
-          - org_id and user_id are the keys every multi-tenant authorization and data-scoping
-            decision keys off; they have no defaults precisely so a request can never proceed
-            without an identified tenant and actor
-          - Confirms the two security-critical identifiers round-trip unchanged into the context
-
-        **What it tests:**
-          - TenantContext(org_id=ID("org-1"), user_id=ID("user-1")) preserves both identifiers
-        """
-        ctx = TenantContext(org_id=ID("org-1"), user_id=ID("user-1"))
-        assert ctx.org_id == ID("org-1")
-        assert ctx.user_id == ID("user-1")
-
-    def test_optional_fields_default(self) -> None:
-        """Test that optional tenant fields default to safe, least-privilege empties.
-
-        **Why this test is important:**
-          - The optional fields must default to "no workspace, no roles, no clearance" so an
-            unspecified context grants the minimum, not accidental elevated access — a wrong
-            default here is a privilege-escalation hazard
-          - roles defaulting to an empty tuple (immutable) avoids the shared-mutable-default
-            trap where one context's roles could bleed into another
-
-        **What it tests:**
-          - Defaults are workspace_id ID(""), roles (), and clearance_level ""
-        """
-        ctx = TenantContext(org_id=ID("org-1"), user_id=ID("user-1"))
-        assert ctx.workspace_id == ID("")
-        assert ctx.roles == ()
-        assert ctx.clearance_level == ""
-
-    def test_full_context(self) -> None:
-        """Test that a fully populated TenantContext carries every authorization attribute.
-
-        **Why this test is important:**
-          - Workspace scoping, role-based access, and clearance-level gating all read from this
-            context together; if any field were dropped on construction, requests could be
-            scoped or authorized against incomplete tenant data
-          - Verifies the complete, realistic authorization payload — not just defaults — survives intact
-
-        **What it tests:**
-          - workspace_id, roles (contains "admin"), and clearance_level are all stored as supplied
-        """
-        ctx = TenantContext(
-            org_id=ID("org-1"),
-            user_id=ID("user-1"),
-            workspace_id=ID("ws-1"),
-            roles=("admin", "editor"),
-            clearance_level="confidential",
-        )
-        assert ctx.workspace_id == ID("ws-1")
-        assert "admin" in ctx.roles
-        assert ctx.clearance_level == "confidential"
-
-    def test_frozen(self) -> None:
-        """Test that a TenantContext cannot have its identity reassigned after construction.
-
-        **Why this test is important:**
-          - The context is the trusted source of "who/what tenant" for every authorization
-            check; freezing it means a request's tenant identity cannot be mutated mid-flight
-            by downstream code — a hard guard against tenant-confusion / cross-tenant access bugs
-          - Immutability also makes it safe to pass the context through async tasks and caches
-            without defensive copies
-
-        **What it tests:**
-          - Reassigning ctx.org_id raises AttributeError (frozen dataclass)
-        """
-        ctx = TenantContext(org_id=ID("org-1"), user_id=ID("user-1"))
-        try:
-            ctx.org_id = ID("org-2")  # type: ignore[misc]
-            raise AssertionError("Should have raised FrozenInstanceError")
-        except AttributeError:
-            pass

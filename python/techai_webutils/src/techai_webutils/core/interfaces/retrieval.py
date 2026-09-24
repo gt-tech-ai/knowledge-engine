@@ -170,15 +170,3 @@ class AnswerGenerator(ABC):
 
         ``history`` is non-citable context; passages remain the only citable source.
         """
-
-
-class TitleGenerator(ABC):
-    """Abstract conversation-title generator: (question, answer) -> a short title.
-
-    Retrieval-free — a plain LLM completion (no passages), used to auto-title a new conversation
-    from its first turn. The prompt is injected by the consumer, like the query rewriter.
-    """
-
-    @abstractmethod
-    async def generate_title(self, query: str, answer: str) -> str:
-        """Return a short conversation title for the (query, answer) exchange ("" if none)."""

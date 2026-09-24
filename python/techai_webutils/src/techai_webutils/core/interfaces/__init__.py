@@ -1,4 +1,4 @@
-"""Core interfaces for the Tech AI Knowledge Engine Python services.
+"""Core interfaces for the knowledge-engine Python library.
 
 Defines ABC-based abstract contracts for all Python service dependencies.
 Implementations live in the foundation or service layer; these interfaces enable
@@ -49,10 +49,7 @@ Resilience Interfaces:
 Infrastructure Interfaces:
     MessagePublisher: Publish messages to a broker.
     MessageConsumer: Consume messages from a queue.
-    EventPublisher: Publish domain events.
     StorageClient: Object storage operations.
-    AuthProvider: Authentication and authorization.
-    ConnectionManager: WebSocket connection lifecycle.
 
 Job Interfaces:
     Job: Background job definition.
@@ -60,26 +57,18 @@ Job Interfaces:
     JobEnqueuer: Submit jobs for async processing.
     JobScheduler: Schedule periodic jobs.
     WorkerRegistry: Register workers by kind.
-
-Query Interfaces:
-    QueryRouter: Route queries to engines.
-    QueryEngine: Execute queries against backends.
-    ResponseAssembler: Combine results into responses.
 """
 
 from techai_webutils.core.interfaces.adaptive_throttler import AdaptiveThrottler
-from techai_webutils.core.interfaces.auth import AuthIdentity, AuthProvider
 from techai_webutils.core.interfaces.bulkhead import Bulkhead
 from techai_webutils.core.interfaces.byte_cache import ByteCache
 from techai_webutils.core.interfaces.cache import Cache, CacheInvalidator
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
 from techai_webutils.core.interfaces.config_loader import ConfigLoader
-from techai_webutils.core.interfaces.connection import ClientConnection, ConnectionManager
 from techai_webutils.core.interfaces.crud_service import CrudService, ServiceHooks
 from techai_webutils.core.interfaces.dedup import Deduplicator
 from techai_webutils.core.interfaces.document import ChunkingStrategy, DocumentParser
 from techai_webutils.core.interfaces.embedding import EmbeddingProvider
-from techai_webutils.core.interfaces.event_publisher import EventPublisher
 from techai_webutils.core.interfaces.hedger import Hedger
 from techai_webutils.core.interfaces.jobs import (
     Job,
@@ -111,17 +100,6 @@ from techai_webutils.core.interfaces.metrics import (
     MetricsProvider,
 )
 from techai_webutils.core.interfaces.pipeline import AsyncPipeline, Pipeline
-from techai_webutils.core.interfaces.query import (
-    AssembledResponse,
-    Citation,
-    QueryEngine,
-    QueryPlan,
-    QueryRequest,
-    QueryResult,
-    QueryRouter,
-    ResponseAssembler,
-    ResultItem,
-)
 from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.core.interfaces.repository import Repository, Transaction, TransactionManager
 from techai_webutils.core.interfaces.retrier import Retrier
@@ -140,14 +118,9 @@ from techai_webutils.core.interfaces.workflow import AsyncWorkflow, Workflow
 
 __all__ = [
     "AdaptiveThrottler",
-    # Query
-    "AssembledResponse",
     # Service
     "AsyncPipeline",
     "AsyncWorkflow",
-    # Infrastructure
-    "AuthIdentity",
-    "AuthProvider",
     "BaseService",
     # Resilience
     "Bulkhead",
@@ -158,17 +131,13 @@ __all__ = [
     # AI/Retrieval
     "ChunkingStrategy",
     "CircuitBreakerInterface",
-    "Citation",
     "CitationExtractor",
     "Client",
-    "ClientConnection",
     "ConfigLoader",
-    "ConnectionManager",
     "CrudService",
     "Deduplicator",
     "DocumentParser",
     "EmbeddingProvider",
-    "EventPublisher",
     "HealthChecker",
     "Hedger",
     "IntentClassifier",
@@ -191,17 +160,10 @@ __all__ = [
     "MetricsProvider",
     "PeriodicJob",
     "Pipeline",
-    "QueryEngine",
-    "QueryPlan",
-    "QueryRequest",
-    "QueryResult",
     "QueryRewriter",
-    "QueryRouter",
     "RateLimiter",
     # Data Access
     "Repository",
-    "ResponseAssembler",
-    "ResultItem",
     "Retrier",
     "RetrievalEngine",
     "ServiceHooks",
