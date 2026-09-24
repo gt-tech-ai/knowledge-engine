@@ -13,7 +13,7 @@ import (
 )
 
 // TestMessagingMemory_PublishReceive tests that a message published to a topic reaches a subscriber
-// built from the SAME broker, and that a separate broker is isolated (D7).
+// built from the SAME broker, and that a separate broker is isolated.
 //
 // Why this test is important:
 //   - The memory backend only stands in for SQS if a publish reaches a subscriber on the same
@@ -68,7 +68,7 @@ func TestMessagingMemory_PublishReceive(t *testing.T) {
 }
 
 // TestMessaging_KindMemory_Selected tests that the messaging factory selects the in-memory backend
-// for KindMemory (the config-selects-impl contract, charter §2).
+// for KindMemory (the config-selects-impl contract, ARCHITECTURE.md#swappable-components).
 //
 // Why this test is important:
 //   - The memory backend is opted into by the tier Kind; if NewPublisher/NewSubscriber ignored

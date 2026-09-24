@@ -8,7 +8,7 @@ import "context"
 // Redis-backed profile — high-cardinality, short-held, best-effort; the sibling
 // of the Postgres advisory lock used for ingestion's long single-writer).
 //
-// It is the seam a single-active-query guard (Epic 6) depends on;
+// It is the seam a single-active-query guard depends on;
 // callers depend on this interface, never a concrete backend. Backends:
 // clients/lock/local (in-process, dev/single-replica) and clients/lock/redis
 // (cross-pod, staging/prod), selected by config via clients/lock.NewFromConfig.

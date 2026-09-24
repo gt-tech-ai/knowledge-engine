@@ -1,7 +1,7 @@
 """Background job infrastructure.
 
 Provides in-memory and database-backed implementations of the job interfaces
-defined in ``core/interfaces/jobs.py``. Mirrors Go's ``pkg/go/clients/jobs/``
+defined in ``core/interfaces/jobs.py``. Mirrors Go's ``go/clients/jobs/``
 package backed by River.
 
 Phase 1: In-memory implementations for local development and testing.

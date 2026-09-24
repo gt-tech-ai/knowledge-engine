@@ -5,7 +5,7 @@ Unit tests drive the executors through mocks/fakes of their seams; these prove t
 - ``RayExecutor`` + ``RealRayRuntime`` — a mapper is cloudpickled to a Ray worker, run there via
   ``asyncio.run``, and its StepResult returned (the stateless-task path).
 - ``PooledExecutor`` + ``real_ray_pool`` — a ``WorkerFactory`` is cloudpickled to a Ray actor that
-  builds its worker ONCE and reuses it across the items routed to it (the actor-pool path, audit #5).
+  builds its worker ONCE and reuses it across the items routed to it (the actor-pool path).
 
 Both fan work across the cluster with the same BatchResult contract as the asyncio path, and a
 worker-side exception surfaces as an isolated FAIL (real RayTaskError), not a batch abort.
@@ -22,10 +22,10 @@ pytest.importorskip("ray")
 # Opt-in gate: even with the ``ray`` extra installed, standing up a real local Ray
 # cluster (``ray.init``) can hang on some developer machines (macOS/Docker), so this
 # module is SKIPPED by default and runs only when ``RAY_INTEGRATION`` is set — e.g.
-# against the ``ray-head`` bulk-profile service (``search dev up`` bulk profile). CI
+# against a local ``ray-head`` service. CI
 # already skips it via the ``importorskip`` above (the ``ray`` extra is absent there),
 # so this changes nothing in CI; it only makes the default LOCAL run match CI instead
-# of hanging, keeping ``search preflight --level max`` runnable locally.
+# of hanging, keeping a full local preflight runnable.
 if not os.environ.get("RAY_INTEGRATION"):
     pytest.skip(
         "RAY_INTEGRATION not set — real-cluster Ray integration test skipped "
@@ -99,7 +99,7 @@ async def test_pooled_executor_runs_on_real_cluster() -> None:
       - The fake-worker unit tests can't prove that the ``WorkerFactory`` cloudpickles to a Ray actor,
         that the actor builds the worker once on its own event loop and reuses it, or that a real
         RayTaskError is isolated to one FAIL — only a real cluster does; this is the guarantee the S3
-        bulk job's actor-pool path (audit #5) relies on.
+        bulk job's actor-pool path relies on.
 
     **What it tests:**
       - Four items (two even, two odd) fanned over a 2-actor pool yield a BatchResult of two PASS +

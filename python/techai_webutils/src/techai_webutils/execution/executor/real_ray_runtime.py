@@ -56,7 +56,7 @@ class RealRayRuntime:
         self._address = address
         self._namespace = namespace
         self._started = False
-        # The mapper is put into the object store ONCE and reused across a batch's items (audit #21).
+        # The mapper is put into the object store ONCE and reused across a batch's items.
         # ``_cached_fn`` holds a STRONG reference so the identity check (``fn is _cached_fn``) can never
         # be fooled by ``id()`` reuse after a GC — a stale ref would run the wrong mapper.
         self._cached_fn: object | None = None
@@ -67,7 +67,7 @@ class RealRayRuntime:
 
         Call once at bulk-consumer startup. Cold-connect resilience (the head's per-connection client
         server can time out its gRPC channel) is supplied by the ``ResilientRayRuntime`` DECORATOR wrapped
-        around this runtime at ``executor_from_config`` — never inlined here (charter §6.3).
+        around this runtime at ``executor_from_config`` — never inlined here (ARCHITECTURE.md#decorators).
         """
         await self._ensure_started()
 
@@ -105,7 +105,7 @@ class RealRayRuntime:
         """Schedule ``fn(item)`` as a Ray task and await its StepResult."""
         await self._ensure_started()
         # Put the mapper into the object store ONCE and pass the shared ObjectRef to every task, instead
-        # of re-pickling the (identical) mapper per item (audit #21). fan_out drives the whole batch with
+        # of re-pickling the (identical) mapper per item. fan_out drives the whole batch with
         # one mapper, so an identity check puts it exactly once; Ray caches the object on each worker.
         if fn is not self._cached_fn:
             self._mapper_ref = ray.put(fn)

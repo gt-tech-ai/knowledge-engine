@@ -84,8 +84,8 @@ func TestMessaging_AllOptions(t *testing.T) {
 }
 
 // Real publisher Publish/PublishBatch behaviour (queue-name → URL resolution,
-// SendMessage, create-on-missing) is covered without a network by the white-box
-// fake-API tests in pkg/go/clients/messaging/sqs/publisher_internal_test.go, and
+// SendMessage, create-on-missing) is covered without a network by the mock-API
+// tests in go/tests/unit/clients_sqs_messaging_test.go, and
 // end-to-end against ElasticMQ by the integration suite. The former stub test
 // (which asserted Publish was a no-op returning nil) was removed when the real
 // SQS publisher replaced the stub.
@@ -116,8 +116,8 @@ func TestWatermillPublisher_InterfaceCompliance(t *testing.T) {
 }
 
 // Real subscriber receive→handle→delete behaviour (long-poll, ack/nack, backoff
-// retry, drain-on-close) is covered without a network by the white-box fake-API
-// tests in pkg/go/clients/messaging/sqs/subscriber_internal_test.go, and
+// retry, drain-on-close) is covered without a network by the mock-API
+// tests in go/tests/unit/clients_sqs_messaging_test.go, and
 // end-to-end against ElasticMQ by the integration suite. The former stub test
 // (which asserted Subscribe merely stored a handler) was removed when the real
 // long-poll subscriber replaced the stub — calling Subscribe now starts a live

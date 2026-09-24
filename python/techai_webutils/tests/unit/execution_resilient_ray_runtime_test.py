@@ -57,8 +57,8 @@ class TestResilientRayRuntime:
 
         **Why this test is important:**
           - When Ray really is unreachable the caller must get a *transient* error (so the batch is
-            redriven, not dead-lettered) with an error code, not a raw RuntimeError — the charter's
-            coded-error contract.
+            redriven, not dead-lettered) with an error code, not a raw RuntimeError — the coded-error
+            contract (ARCHITECTURE.md#error-codes).
 
         **What it tests:**
           - With the inner connect always failing, warm_up raises UnavailableError (code UNAVAILABLE,

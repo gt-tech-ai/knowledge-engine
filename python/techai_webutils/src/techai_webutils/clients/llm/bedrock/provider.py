@@ -62,7 +62,7 @@ def _converse_args(model: str, messages: list[LLMMessage], config: LLMConfig | N
     turns = [{"role": m.role, "content": [{"text": m.content}]} for m in messages if m.role != "system"]
     # Bedrock Converse rejects `temperature` and `topP` together for Claude models
     # ("`temperature` and `top_p` cannot both be specified for this model"), so the request carries
-    # only temperature — the decoding dial the retrieval path tunes for faithfulness (audit R4).
+    # only temperature — the decoding dial the retrieval path tunes for faithfulness.
     args: dict[str, Any] = {
         "modelId": model,
         "messages": turns,
@@ -97,7 +97,7 @@ _TOO_MANY_REQUESTS_STATUS = 429
 
 
 def _to_app_error(exc: ClientError | BotoCoreError) -> AppError:
-    """Map a Bedrock/botocore failure to a coded ``AppError`` (charter §9.1).
+    """Map a Bedrock/botocore failure to a coded ``AppError`` (ARCHITECTURE.md#error-codes).
 
     Raw botocore exceptions must not cross the provider boundary: the resilience decorators and the
     transport status mapping derive their behaviour from the ``ErrorCode``, and an unwrapped

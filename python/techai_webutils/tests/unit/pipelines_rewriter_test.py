@@ -35,7 +35,7 @@ class TestLlmQueryRewriter:
 
     @pytest.mark.asyncio
     async def test_forwards_the_injected_decoding_config_to_the_llm(self) -> None:
-        """Test that the rewriter forwards its injected per-call LLMConfig to the LLM (audit R4).
+        """Test that the rewriter forwards its injected per-call LLMConfig to the LLM.
 
         **Why this test is important:**
           - A low temperature keeps the follow-up→standalone rewrite deterministic; without the config

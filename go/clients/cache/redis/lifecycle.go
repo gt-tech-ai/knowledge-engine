@@ -14,7 +14,7 @@ var _ interfaces.Client = (*Cache)(nil)
 
 // Start verifies the Redis connection is reachable. The connection pool is created
 // in New; Start pings so an unreachable Redis fails fast at the composition root
-// rather than on the first cache operation (D11).
+// rather than on the first cache operation.
 func (c *Cache) Start(ctx context.Context) error {
 	return c.Ping(ctx)
 }

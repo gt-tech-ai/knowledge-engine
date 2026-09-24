@@ -204,7 +204,7 @@ func TestPostgresBackend_NotStartedGuards(t *testing.T) {
 // query), by opening the pool and pinging.
 //
 // Why this test is important:
-//   - Fail-fast at the composition root (D11) is the whole point of the pool's
+//   - Fail-fast at the composition root is the whole point of the pool's
 //     Start; a Start that "succeeds" against a dead host hides the outage.
 //
 // What it tests:

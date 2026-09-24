@@ -6,7 +6,7 @@ logging / metrics / timeout / recovery / tracing execute-bodies, re-written per
 tier with only the label strings, the (optional) metric counters, and the
 tracing support differing. This module holds those bodies once as generic,
 label-parameterized base classes; each tier keeps its own public decorator
-classes as thin subclasses that bake in the tier label, and its own §6.3 builder
+classes as thin subclasses that bake in the tier label, and its own builder
 and sync/async bridge adapters (which are tier-typed). A decorator fix is made
 here once instead of once per tier.
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 class Unwrappable(Protocol):
     """Exposes the inner unit a decorator wraps.
 
-    The mothership Unwrap seam (mothership-parity audit F7): a test can walk the
+    The Unwrap seam: a test can walk the
     decorator stack to the underlying handler through unwrap() instead of
     reaching into decorator internals. Every decorator base here is Unwrappable.
     """

@@ -86,7 +86,7 @@ func (d *cachingDecorator[T, P, ID]) Get(ctx context.Context, id ID) (*T, error)
 	if val, ok := d.readCache(ctx, key); ok {
 		return val, nil
 	}
-	// O1: collapse concurrent misses on this key into a single inner.Get + fill,
+	// collapse concurrent misses on this key into a single inner.Get + fill,
 	// so a request stampede on a cold key loads the backend once.
 	v, err, _ := d.sf.Do(key, func() (any, error) {
 		result, getErr := d.inner.Get(ctx, id)
@@ -118,7 +118,7 @@ func (d *cachingDecorator[T, P, ID]) List(
 }
 
 // Create writes through to the inner repository and, on success, warms the cache
-// with the freshly created entity (O8) so a subsequent Get is a hit. Warming is
+// with the freshly created entity so a subsequent Get is a hit. Warming is
 // safe on create — there is no prior version to race with. When no id-extractor
 // is configured the entity is instead cached lazily on its first Get.
 func (d *cachingDecorator[T, P, ID]) Create(ctx context.Context, entity *T) (*T, error) {
@@ -159,7 +159,7 @@ func (d *cachingDecorator[T, P, ID]) Delete(ctx context.Context, id ID) error {
 }
 
 // Exists reports whether the entity exists. A cache hit answers true without the
-// backend (O8) — a cached entity definitively exists; a miss is inconclusive
+// backend — a cached entity definitively exists; a miss is inconclusive
 // (the entity may exist but be uncached) and falls through to the inner repo.
 func (d *cachingDecorator[T, P, ID]) Exists(ctx context.Context, id ID) (bool, error) {
 	if _, ok := d.readCache(ctx, d.cacheKey(id)); ok {

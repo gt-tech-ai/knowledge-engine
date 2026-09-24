@@ -1,6 +1,6 @@
 """Domain error to gRPC status code mapper.
 
-Mirrors Go's ``pkg/go/transport/rpc/errors.go`` ``ToConnectError()``.
+Mirrors Go's ``go/transport/rpc/errors.go`` ``ToConnectError()``.
 Maps ``AppError`` codes to gRPC status codes using client-safe messages.
 """
 

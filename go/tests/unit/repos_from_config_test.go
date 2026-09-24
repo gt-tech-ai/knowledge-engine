@@ -23,7 +23,7 @@ type reposEnt struct{ ID string }
 type reposEntParams struct{}
 
 // TestDecoratedFromConfig_WiresStackAndDelegates tests that the shared
-// DecoratedFromConfig helper (audit D12 push-down) assembles the resilience +
+// DecoratedFromConfig helper assembles the resilience +
 // observability stack around a base store and delegates through it.
 //
 // Why this test is important:

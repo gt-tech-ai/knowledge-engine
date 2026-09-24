@@ -14,7 +14,7 @@ var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 
 // metricsDecorator records service operation counts and durations via the core
 // interfaces.Metrics abstraction, reaching parity with the repository builder's
-// metrics decorator (audit D1).
+// metrics decorator.
 type metricsDecorator[T any, P any, ID comparable] struct {
 	// inner is the next service in the decorator chain.
 	inner interfaces.DecoratedService[T, P, ID]

@@ -7,7 +7,7 @@ import (
 )
 
 // The role interfaces below decompose the fat data-access contract into small,
-// composable capabilities (charter §2.3). Store/Repository/Service are
+// composable capabilities (ARCHITECTURE.md#interface-composition). Store/Repository/Service are
 // defined as compositions of these roles, so a full-CRUD resource embeds the whole
 // set while a read-only or append-only resource embeds only the roles it honors —
 // instead of implementing (and panicking) the operations it does not support.

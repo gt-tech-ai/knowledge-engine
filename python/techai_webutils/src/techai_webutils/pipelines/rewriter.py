@@ -33,7 +33,7 @@ class LlmQueryRewriter(QueryRewriter):
     def __init__(self, llm: LLMProvider, prompt: RewritePrompt, config: LLMConfig | None = None) -> None:
         """Bind the LLM provider, the (product-specific) rewrite prompt, and the per-call decoding config.
 
-        ``config`` carries the decoding dials from ``retrieval.llm.*`` (audit R4/R12) — a low temperature
+        ``config`` carries the decoding dials from ``retrieval.llm.*`` — a low temperature
         keeps the rewrite deterministic; ``None`` lets the provider apply its defaults.
         """
         self._llm = llm

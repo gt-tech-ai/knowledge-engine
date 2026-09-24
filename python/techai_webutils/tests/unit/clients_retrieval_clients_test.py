@@ -315,7 +315,7 @@ class TestRetrievalFactory:
         assert engine._min_score == 0.7  # noqa: SLF001
 
     def test_bedrock_config_threads_search_type_and_reranker(self) -> None:
-        """kind=bedrock threads the config-selected search_type + reranker into the Bedrock engine (R6/R14).
+        """kind=bedrock threads the config-selected search_type + reranker into the Bedrock engine.
 
         **Why this test is important:**
           - HYBRID search + the reranker are the single biggest precision lever, and the One Idea requires
@@ -410,7 +410,7 @@ class TestAllowedClassificationsFor:
     """The shared clearance→allowed-classifications table (the KB `in` push-down + the decorator agree)."""
 
     def test_returns_the_labels_at_or_below_the_clearance(self) -> None:
-        """allowed_classifications_for expands a clearance to the classification labels at/below it (R11).
+        """allowed_classifications_for expands a clearance to the classification labels at/below it.
 
         **Why this test is important:**
           - This is the value list the engine's KB `in` metadata filter uses to pre-drop ineligible
@@ -507,7 +507,7 @@ class TestBedrockRetrievalEngineRequest:
 
     @pytest.mark.asyncio
     async def test_clearance_pushes_an_andAll_in_filter_into_the_kb(self) -> None:
-        """A caller clearance pushes an andAll(workspace, in-allowed-classifications) filter to the KB (R11).
+        """A caller clearance pushes an andAll(workspace, in-allowed-classifications) filter to the KB.
 
         **Why this test is important:**
           - Pushing clearance into the KB filter means ineligible passages never consume the (small) result

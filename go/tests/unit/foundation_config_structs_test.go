@@ -468,7 +468,7 @@ func TestAuthConfig_Validate(t *testing.T) {
 // the service-to-service auth bypass alongside the end-user stub.
 //
 // Why this test is important:
-//   - `search dev up` must work with no service tokens provisioned; the default must
+//   - A local dev stack must work with no service tokens provisioned; the default must
 //
 // bypass service auth (dev bypass), exactly as it bypasses end-user auth
 //   - a default that enforced service auth would break every local internal RPC

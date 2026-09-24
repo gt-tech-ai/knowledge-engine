@@ -80,7 +80,7 @@ type UserPermissions struct {
 	// Clearance is the caller's document-access clearance in the org ("public"/"internal"/"confidential"/"restricted")
 	Clearance string
 	// OrgExternalID is the caller's Auth0 org id (org_external_id / the X-Org-ID header) — the
-	// per-org KB routing key (Epic 32). Retained from the resolve request so the query
+	// per-org KB routing key. Retained from the resolve request so the query
 	// path can route retrieval per org without a second lookup. Empty for a caller with no org.
 	OrgExternalID string
 	// ExternalSub is the caller's Auth0 subject (X-User-Sub). Retained from the resolve request
@@ -165,7 +165,7 @@ func (p *UserPermissions) TeamIDs() []uuid.UUID {
 // authenticated (external sub, org external id). It is implemented by the consuming
 // service's identity client.
 //
-// §2.3 exemption — narrow consumer-side seam: a single Resolve(sub, org) → UserPermissions
+// interface-composition exemption — narrow consumer-side seam: a single Resolve(sub, org) → UserPermissions
 // authorization port, not an id-CRUD data-access surface, so it embeds no foundation generic.
 type IdentityResolver interface {
 	// Resolve maps a caller's external (sub, org external id) to their internal

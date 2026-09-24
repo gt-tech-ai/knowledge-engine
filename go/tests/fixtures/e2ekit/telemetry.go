@@ -1,10 +1,9 @@
-// Package e2ekit is the gen-free shared test-kit for the endpoint E2E + telemetry suite (Epic 31,
-// ). It holds the telemetry assertions that prove a request's spans/metrics/logs landed in
-// Tempo/Prometheus/Loki (correlated by the trace id carried back in the `traceresponse` header,
-// ) and the DB/API effect helpers that seed and tear down per-run test data. It imports NO
-// generated code (`gen/go/pb`), so both the `tools/cli` endpoint harness (the Playwright + worker
-// tiers) and the apps' `//go:build e2e` tests (the internal-gRPC + InternalService tiers, which own
-// the generated Connect clients) can share it without dragging generated proto into the bootstrap CLI.
+// Package e2ekit is the gen-free shared test-kit for endpoint E2E + telemetry suites. It holds the
+// telemetry assertions that prove a request's spans/metrics/logs landed in Tempo/Prometheus/Loki
+// (correlated by the trace id carried back in the `traceresponse` header) and the DB/API effect
+// helpers that seed and tear down per-run test data. It imports NO generated code, so both a CLI
+// endpoint harness and a service's `//go:build e2e` tests (which own the generated Connect clients)
+// can share it without dragging generated proto into a bootstrap CLI.
 package e2ekit
 
 import (
@@ -24,7 +23,7 @@ import (
 // HTTPDoer is the minimal HTTP boundary the telemetry assertions need. *http.Client satisfies it; a
 // unit test injects a mock so query construction + response parsing are testable without live backends.
 //
-// §2.3 exemption — consumer-side seam (accept interfaces): the stdlib http client boundary, no core
+// interface-composition exemption — consumer-side seam (accept interfaces): the stdlib http client boundary, no core
 // interface to embed.
 type HTTPDoer interface {
 	// Do executes an HTTP request and returns its response.
@@ -35,7 +34,7 @@ type HTTPDoer interface {
 // correlated by the trace id from the response's traceresponse header. *TelemetryClient
 // satisfies it; a unit test injects a stub so the case is testable without Tempo.
 //
-// §2.3 exemption — consumer-side seam (accept interfaces): a one-method Tempo boundary, no core
+// interface-composition exemption — consumer-side seam (accept interfaces): a one-method Tempo boundary, no core
 // interface to embed.
 type TraceAsserter interface {
 	// TraceInTempo returns the number of resource-span batches Tempo holds for traceID (0 if absent).
@@ -139,7 +138,7 @@ func (c *TelemetryClient) TraceInTempo(ctx context.Context, traceID string) (int
 // `service.name` resource attribute equals service — the model-independent proof that the trace
 // actually reached that service (e.g. a bulk-ingest trace spanning `ingestion`), not merely that
 // SOME spans exist. Returns false (nil error) when the trace is absent or names no such service, so
-// callers poll on false. Mirrors the Playwright `assertTraceSpansService` helper (31.24).
+// callers poll on false.
 func (c *TelemetryClient) TraceSpansService(
 	ctx context.Context,
 	traceID, service string,

@@ -1,5 +1,5 @@
-// Package e2ekit_test verifies the gen-free telemetry assertions the endpoint E2E suite shares across
-// the CLI harness (worker tier) and the apps' //go:build e2e tests. They mock the small HTTP boundary
+// Package e2ekit_test verifies the gen-free telemetry assertions an endpoint E2E suite shares across
+// a CLI harness and services' //go:build e2e tests. They mock the small HTTP boundary
 // so the Tempo/Prometheus/Loki query construction + response parsing are tested without live backends.
 package e2ekit_test
 

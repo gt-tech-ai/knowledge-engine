@@ -1,6 +1,6 @@
 // Package decorators wraps the messaging MessagePublisher and MessageHandler with
 // cross-cutting concerns. The publisher routes each send through the shared
-// client-boundary resilience stack (pkg/go/clients/decorators) —
+// client-boundary resilience stack (go/clients/decorators) —
 // Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging — so
 // the direct-SDK SendMessage path gets the same protection as the other clients
 // (DRY — one stack, every client). The existing Retrier is reused as the stack's

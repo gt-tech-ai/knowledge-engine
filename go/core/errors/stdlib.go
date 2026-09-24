@@ -4,7 +4,7 @@ import stderrors "errors"
 
 // Standard library re-exports.
 //
-// These allow all packages to import pkg/go/core/errors exclusively,
+// These allow all packages to import go/core/errors exclusively,
 // without needing a separate import of the standard "errors" package.
 
 // As finds the first error in err's tree that matches target, and if one

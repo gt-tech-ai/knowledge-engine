@@ -76,7 +76,7 @@ func TestUseStaticCredentials(t *testing.T) {
 //   - The two roots previously duplicated this ~30-line closure verbatim; it is now the single source,
 //     so a bug here breaks BOTH roots' credential-scoped connector client (the crawl would sign with the
 //     wrong creds/region). It also guards that the builder stays constructible offline (no lateral
-//     pkg/go/clients/connector import, no network on build).
+//     go/clients/connector import, no network on build).
 //
 // What it tests:
 //   - The returned builder produces a non-nil StorageClient for an explicit region, and falls back to

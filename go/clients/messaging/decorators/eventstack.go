@@ -11,7 +11,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/deadletter"
 )
 
-// EventStackDeps carries the collaborators for the §6.3 EventHandler stack. A nil layer
+// EventStackDeps carries the collaborators for the EventHandler stack. A nil layer
 // (or zero timeout) is skipped, so callers opt into exactly the concerns they have wired.
 type EventStackDeps struct {
 	// Dedup skips a message whose key was already processed (nil disables dedup).
@@ -45,11 +45,11 @@ type EventStackDeps struct {
 	Timeout time.Duration
 }
 
-// WrapHandler composes the charter §6.3 EventHandler stack around inner, outermost →
-// innermost: Dedup → DeadLetter → [Timeout → Retry → CircuitBreaker → Tracing → Metrics →
-// Logging] → Handler. (Decode is the handler's own concern.) The inner resilience +
+// WrapHandler composes the EventHandler stack (ARCHITECTURE.md#decorator-order) around
+// inner, outermost → innermost: Dedup → DeadLetter → [Retry → CircuitBreaker → Timeout →
+// Tracing → Metrics → Logging] → Handler. (Decode is the handler's own concern.) The inner resilience +
 // observability reuses the shared client stack, so the mechanism is composed once, not
-// re-implemented (charter §6.3). A message that still fails after retries is routed to the
+// re-implemented. A message that still fails after retries is routed to the
 // dead-letter queue and acked when it lands there; pair Dedup with a DeadLetter so a
 // terminal failure is dead-lettered rather than skipped as a duplicate on redrive.
 func WrapHandler(

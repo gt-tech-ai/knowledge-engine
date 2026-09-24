@@ -1,10 +1,10 @@
 """Core domain DTOs shared across deployables (the document-processing stage contracts).
 
-The dependency-free value objects a ``pkg/`` stage ABC references in its signature — parse
+The dependency-free value objects a shared stage ABC references in its signature — parse
 (``DocumentFormat``, ``Page``, ``ParsedDocument``), metadata (``DocumentMetadata``), and split
 (``ChunkPayload``). A DTO lives here only when a ``core.interfaces`` stage ABC references it, so an
 app programs against the same contract regardless of where the concretion runs (like Go's
-``pkg/go/core``). App-internal DTOs (request args, events) stay in the app's own ``core``.
+``go/core``). App-internal DTOs (request args, events) stay in the app's own ``core``.
 """
 
 from techai_webutils.core.domain.metadata import DocumentMetadata

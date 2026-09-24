@@ -1,6 +1,6 @@
 """Fluent builder for single-operation (OpService) domain services.
 
-The Python analog of Go's ``pkg/go/services/builder.go``. Dependency injection happens BEFORE
+The Python analog of Go's ``go/services/builder.go``. Dependency injection happens BEFORE
 ``build`` (the domain ``run`` closes over the service's collaborators); the builder only adds the
 cross-cutting decorator stack:
 

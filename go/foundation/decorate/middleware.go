@@ -25,7 +25,7 @@ import "context"
 //
 // Middlewares are composed by Chain, applied outermost-first.
 //
-// §2.3 exemption — decoration mechanism primitive: a WrapOp cross-cutting wrapper contract,
+// interface-composition exemption — decoration mechanism primitive: a WrapOp cross-cutting wrapper contract,
 // not an id-CRUD data-access surface, so it embeds no foundation generic.
 type OpMiddleware interface {
 	// WrapOp runs next under this middleware's concern for the named operation.

@@ -66,10 +66,10 @@ class TestPollingIngestor:
 
     @pytest.mark.asyncio
     async def test_start_returns_fresh_job_without_polling(self) -> None:
-        """Test that start returns the fresh (non-terminal) job and does NOT poll (split contract, F3).
+        """Test that start returns the fresh (non-terminal) job and does NOT poll (split contract).
 
         **Why this test is important:**
-          - The reattach fix (F3) requires the reconciler to see the freshly-started job_id (still
+          - The reattach fix requires the reconciler to see the freshly-started job_id (still
             IN_PROGRESS) so it can persist ``running``+``job_id`` BEFORE the long poll. If ``start``
             still blocked to terminal, that persist-before-poll ordering would be impossible.
 
@@ -91,7 +91,7 @@ class TestPollingIngestor:
         **Why this test is important:**
           - This is the reattach primitive: converging an ALREADY-started job (recovered from the
             persisted job-state, or the one the reconciler just started) to terminal without a second
-            StartIngestionJob that Bedrock would reject with ConflictException (F3).
+            StartIngestionJob that Bedrock would reject with ConflictException.
 
         **What it tests:**
           - poll_ingestion_job over a job that becomes COMPLETE after 2 polls returns COMPLETE and
@@ -147,7 +147,7 @@ class TestPollingIngestor:
 
 
 class TestStopIngestionJob:
-    """stop_ingestion_job across the backends + decorators (the watchdog's recovery call, F2)."""
+    """stop_ingestion_job across the backends + decorators (the watchdog's recovery call)."""
 
     @pytest.mark.asyncio
     async def test_noop_backend_records_stop_call(self) -> None:
@@ -191,7 +191,7 @@ class TestStopIngestionJob:
         """Test that RetryingIngestor does NOT retry stop_ingestion_job (the watchdog owns the backoff).
 
         **Why this test is important:**
-          - The watchdog wraps stop in its own bounded exponential backoff (D6); if RetryingIngestor ALSO
+          - The watchdog wraps stop in its own bounded exponential backoff; if RetryingIngestor ALSO
             retried stop (like start/get/list), the two would compose into double-backoff. This pins stop
             as a plain pass-through so a future "consistency" edit can't silently reintroduce that.
 
@@ -382,7 +382,7 @@ class TestJobFromPayload:
           - STOPPING is non-terminal in Bedrock (the job still holds Bedrock's server-side ingestion
             lock). Coercing it to terminal FAILED makes the poller stop and the single-writer lock
             release while a job is still active, so the next tick's StartIngestionJob hits
-            ConflictException in a loop with no recovery (audit F1).
+            ConflictException in a loop with no recovery.
 
         **What it tests:**
           - A STOPPING payload yields a STOPPING state that is NOT terminal.

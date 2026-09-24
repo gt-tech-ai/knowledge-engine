@@ -17,7 +17,7 @@ var _ interfaces.UserProvider = (*Client)(nil)
 
 // UserProvisioner mints a login-capable user and assigns tenant role ids to it. The SDK
 // adapter implements it against go-auth0; a generated mock drives it in tests.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for user create + role assignment.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for user create + role assignment.
 type UserProvisioner interface {
 	// CreateUser creates the user and returns the provider user id.
 	CreateUser(ctx context.Context, spec types.UserCreate) (userID string, err error)
@@ -125,7 +125,7 @@ func (c *Client) resolveUserIDByEmail(ctx context.Context, email string) (string
 // not immediately visible to POST /users/{id}/roles — the create→assign propagation lag
 // that fails persona seeding — so a role assignment against a fresh user can transiently
 // 404 until the tenant converges. We retry the WRITE rather than polling GET /users/{id}
-// because the seed M2M client is granted update:users but not read:users. Non-404 errors
+// because a Management-API client may hold update:users without read:users. Non-404 errors
 // (bad request, auth, conflict) fail fast. A genuinely missing role also 404s and is retried
 // up to the bound before surfacing — acceptable and non-fatal, since role ids are
 // config-validated (auth.auth0_roles), so in practice only the user-propagation case is hit.

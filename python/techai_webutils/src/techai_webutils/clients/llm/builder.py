@@ -77,7 +77,7 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
         return OllamaLlmProvider(client, config.model)
     if config.kind is LlmKind.BEDROCK:
         # A bedrock provider with no model id defers failure to first invocation, where it surfaces as
-        # an opaque Bedrock validation/AccessDenied error. Fail loudly at construction instead (audit R9)
+        # an opaque Bedrock validation/AccessDenied error. Fail loudly at construction instead
         # — the same loud-misconfiguration contract as the unknown-kind guard below.
         if not config.model:
             msg = "bedrock llm kind requires a model id, got empty"

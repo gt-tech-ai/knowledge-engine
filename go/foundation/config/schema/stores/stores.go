@@ -64,7 +64,7 @@ type Config struct {
 
 	// ListHardCap is the safety-net row bound the Ent guardrail interceptor applies to
 	// an otherwise-unbounded list (a query with no LIMIT set) — keyset pagination
-	// (Epic 33) is the real bound; this only catches a missing one. 0
+	// is the real bound; this only catches a missing one. 0
 	// disables the cap.
 	ListHardCap int `mapstructure:"list_hard_cap"`
 }

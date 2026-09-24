@@ -1,5 +1,5 @@
 // Package dedup provides message deduplication for exactly-once processing under
-// at-least-once delivery (D-40). The default Memory backend is single-process; a shared
+// at-least-once delivery. The default Memory backend is single-process; a shared
 // store (Redis/Postgres) is the cross-replica sibling that lands when a second replica does.
 package dedup
 

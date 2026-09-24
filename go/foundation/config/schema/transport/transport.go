@@ -52,7 +52,7 @@ type WSConfig struct {
 	MaxConnectionsPerUser int `mapstructure:"max_connections_per_user"`
 
 	// AllowInsecureOrigins disables the handshake Origin check (local dev only);
-	// replaces the ad-hoc os.Getenv("APP_ENV") devMode (coordinates with 10.9).
+	// replaces the ad-hoc os.Getenv("APP_ENV") devMode.
 	AllowInsecureOrigins bool `mapstructure:"allow_insecure_origins"`
 }
 

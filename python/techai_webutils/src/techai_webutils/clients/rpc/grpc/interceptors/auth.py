@@ -1,6 +1,6 @@
 """gRPC server interceptor for extracting authentication claims from metadata.
 
-Mirrors Go's ``pkg/go/clients/connect/interceptors/auth.go``.
+Mirrors Go's ``go/clients/transport/connect/interceptors/auth.go``.
 
 Kong (or another gateway) sets headers after identity-service JWT validation.
 This interceptor extracts those headers from gRPC metadata and makes them

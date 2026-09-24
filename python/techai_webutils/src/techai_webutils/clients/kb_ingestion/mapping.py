@@ -38,7 +38,7 @@ def kb_document_from_payload(detail: dict[str, object]) -> KnowledgeBaseDocument
 
     Lifts the S3 source URI (``identifier.s3.uri``), the per-document ``status``, and ``statusReason``.
     A non-S3 (``custom``) or missing identifier degrades to an empty ``s3_uri`` — never raises — so the
-    reconciler skips it (CR5) rather than crashing on an unexpected identifier shape.
+    reconciler skips it rather than crashing on an unexpected identifier shape.
     """
     identifier = detail.get("identifier")
     s3 = identifier.get("s3") if isinstance(identifier, dict) else None

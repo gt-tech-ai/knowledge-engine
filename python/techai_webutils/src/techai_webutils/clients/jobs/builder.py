@@ -2,8 +2,8 @@
 
 The tier-root factory: selects a job-queue backend by ``JobKind`` and returns the
 ``JobEnqueuer`` interface, mirroring Go ``jobs.NewFromConfig``. The in-memory
-backend lives in the ``memory/`` subpackage; a River/Postgres backend is added in
-a later story.
+backend lives in the ``memory/`` subpackage; a River/Postgres backend can be added
+as another kind.
 """
 
 from __future__ import annotations

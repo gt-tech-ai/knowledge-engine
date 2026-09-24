@@ -1,8 +1,9 @@
 // Package decorators provides fluent decorator composition for pipelines.
 // Decorators add cross-cutting concerns (logging, metrics) around any
 // interfaces.Pipeline implementation without modifying it. The decorator
-// implementations live once in pkg/go/foundation/decorator; this package keeps
-// only the pipeline-tier fluent builder — its §6.3 wrap order, its "pipeline"
+// implementations live once in go/foundation/decorator; this package keeps
+// only the pipeline-tier fluent builder — its wrap order (ARCHITECTURE.md#decorator-order),
+// its "pipeline"
 // labels, and its coded-error recovery contract.
 package decorators
 
@@ -19,7 +20,7 @@ import (
 const tier = "pipeline"
 
 // onPanic is the pipeline tier's recovery-error contract: a coded internal error
-// (charter §9.1). The panic value is logged by the recovery decorator; the
+// (ARCHITECTURE.md#error-codes). The panic value is logged by the recovery decorator; the
 // returned error is deliberately generic so it never leaks internals to callers.
 func onPanic(_ string, _ any) error {
 	return errors.Internal("internal pipeline error: panic recovered")

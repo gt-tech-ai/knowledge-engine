@@ -126,7 +126,7 @@ class KnowledgeBaseIngestor(ManagedResource, ABC):
     ) -> IngestionJob:
         """Request a stop of an in-flight ingestion job; returns the job in its ``STOPPING`` state.
 
-        The watchdog's recovery for a genuinely-stuck job (audit F2) — Bedrock has no force-unlock, so a
+        The watchdog's recovery for a genuinely-stuck job — Bedrock has no force-unlock, so a
         wedged job must be actively stopped. STOPPING is non-terminal (the job still holds Bedrock's
         ingestion lock until it winds down to STOPPED), so the caller reattaches and polls it to STOPPED.
         """
@@ -136,9 +136,9 @@ class KnowledgeBaseIngestor(ManagedResource, ABC):
 class ReattachableIngestor(KnowledgeBaseIngestor, ABC):
     """A ``KnowledgeBaseIngestor`` that can also poll an ALREADY-started job to terminal (the reattach seam).
 
-    Composes with ``KnowledgeBaseIngestor`` (charter §2.3) rather than standing alone: it adds only
+    Composes with ``KnowledgeBaseIngestor`` (ARCHITECTURE.md#interface-composition) rather than standing alone: it adds only
     ``poll_ingestion_job``, the capability the KB-sync reconciler needs to converge either a job it just
-    started OR one recovered from the persisted job-state (audit F3) without a second ``start`` that
+    started OR one recovered from the persisted job-state without a second ``start`` that
     Bedrock would reject with ``ConflictException``. The single implementation is ``PollingIngestor``
     (the decorator that owns the poll loop); base ingestors stay plain ``KnowledgeBaseIngestor``.
     """

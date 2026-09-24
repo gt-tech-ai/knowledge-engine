@@ -2,7 +2,8 @@
 // decorator stack (timeout, metrics, tracing, logging, recovery) shared by every
 // tier whose unit of work has the shape Execute(ctx, In) (Out, error) — pipelines
 // and workflows today. Each tier keeps its own fluent builder (and therefore its
-// own §6.3 wrap order and its tier-specific labels/recovery behavior); this
+// own wrap order (ARCHITECTURE.md#decorator-order) and its tier-specific labels/recovery
+// behavior); this
 // package holds the decorator implementations those builders compose, so a
 // decorator fix is made once instead of once per tier.
 //
@@ -26,7 +27,7 @@ import (
 // and interfaces.Workflow have the identical method set, so one decorator set
 // serves both tiers (and any future Execute(ctx, In) (Out, error) tier).
 //
-// §2.3 exemption — decoration mechanism primitive: the generic Execute(ctx, In) (Out, error) shape
+// interface-composition exemption — decoration mechanism primitive: the generic Execute(ctx, In) (Out, error) shape
 // the decorators wrap, not an id-CRUD data-access surface, so it embeds no foundation generic.
 type Executor[In any, Out any] interface {
 	// Execute runs the wrapped unit of work for input, returning its result or an error.
@@ -34,10 +35,10 @@ type Executor[In any, Out any] interface {
 }
 
 // Unwrapper exposes the inner Executor a decorator wraps, so a test can reach the
-// underlying handler through the decorator stack (the mothership Unwrap seam,
-// mothership-parity audit F7). Every decorator constructed here implements it.
+// underlying handler through the decorator stack (the Unwrap seam). Every decorator
+// constructed here implements it.
 //
-// §2.3 exemption — decoration mechanism primitive: a single Unwrap() → Executor introspection port,
+// interface-composition exemption — decoration mechanism primitive: a single Unwrap() → Executor introspection port,
 // not an id-CRUD data-access surface, so it embeds no foundation generic.
 type Unwrapper[In any, Out any] interface {
 	// Unwrap returns the inner Executor this decorator wraps.
@@ -111,7 +112,7 @@ func Logging[In, Out any](
 }
 
 // Recovery returns inner wrapped with panic recovery (always outermost in the
-// §6.3 order). A recovered panic is logged as tier+" panic recovered" and the
+// tier builders' order, ARCHITECTURE.md#decorator-order). A recovered panic is logged as tier+" panic recovered" and the
 // returned error is produced by onPanic, so each tier keeps its own recovery-error
 // contract (a coded error, a plain wrap, …). A nil onPanic falls back to a generic
 // wrapped error, so the recovery path never itself panics on a missing contract.

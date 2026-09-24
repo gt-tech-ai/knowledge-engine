@@ -1,6 +1,6 @@
 """Tests for the adaptive (AIMD) bulkhead + its factory selection.
 
-Parity with Go's ``pkg/go/tests/foundation/adaptive_bulkhead_test.go``: the self-tuning limit
+Parity with Go's ``go/tests/unit/foundation_adaptive_bulkhead_test.go``: the self-tuning limit
 shrinks under sustained latency and recovers, TryExecute rejects when saturated, and the factory
 selects the adaptive backend by kind.
 """

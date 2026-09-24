@@ -5,7 +5,7 @@ import "context"
 // ConnectorSource is the connector-family read seam any connector type satisfies — an object store now
 // (S3), a record system (Salesforce) or a file SaaS (GDrive/SharePoint) later. It is deliberately
 // transport-agnostic and AWS-free so it lives in dependency-free core; the concrete S3/OAuth clients
-// live in pkg/go/clients/connector/<type>. It exposes the two reads a connector needs: a bounded
+// live in go/clients/connector/<type>. It exposes the two reads a connector needs: a bounded
 // reachability probe (TestConnection, the "test" button) and the resumable, memory-bounded page-by-page
 // listing the sync engine crawls (ListPage). It does NOT fetch or normalize object BODIES —
 // that (parse + embed + ingest) is the Python (Ray) bulk pipeline downstream of the differ.
@@ -81,7 +81,7 @@ type SourceConfig struct {
 
 // SourceBuilder builds a ConnectorSource from a SourceConfig, failing loudly on an unknown kind (the
 // foundation/logger NewFromConfig pattern). It is the seam the connector service depends on and the
-// composition root injects; the concrete builder lives in pkg/go/clients/connector.
+// composition root injects; the concrete builder lives in go/clients/connector.
 type SourceBuilder interface {
 	// Build constructs the ConnectorSource for cfg.Kind, or returns a coded error on an unknown kind
 	// or a construction failure.

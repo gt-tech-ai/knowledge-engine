@@ -16,7 +16,7 @@ import (
 // behavior-preserving.
 //
 // Why this test is important:
-//   - The whole point of is to replace consts with a config surface
+//   - The whole point of the layer configs is to replace consts with a config surface
 //     without changing behavior at default values; a wrong default would silently
 //     shift page sizes, cache TTLs, or upload limits the moment the providers wire
 //     these in.

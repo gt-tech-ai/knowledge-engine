@@ -33,7 +33,7 @@ type Config struct {
 // capability (PUBLISH reports a subscriber count) so a fan-out consumer can decide
 // cluster-wide delivery; it is RAW (undecorated): cross-cutting resilience/observability
 // is applied at the composition root — the parent messaging factory's KindRedis case, or
-// a direct consumer's root — never inside the backend (client-backend.md; charter §6). The
+// a direct consumer's root — never inside the backend (ARCHITECTURE.md#decorators). The
 // subscriber is returned as the concrete *Subscriber so callers can reach its dynamic
 // Unsubscribe / PSubscribe / PUnsubscribe methods. It fails loudly (via NewPublisher /
 // NewSubscriber) if the client is nil.

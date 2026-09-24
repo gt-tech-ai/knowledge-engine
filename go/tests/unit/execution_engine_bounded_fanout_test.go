@@ -13,7 +13,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
 )
 
-// TestFanOut_HoldsAtMostNumWorkersGoroutines pins the #3 acquire-before-spawn
+// TestFanOut_HoldsAtMostNumWorkersGoroutines pins the acquire-before-spawn
 // fix: a large fan-out must hold at most ~numWorkers live goroutines, not one
 // per item.
 //

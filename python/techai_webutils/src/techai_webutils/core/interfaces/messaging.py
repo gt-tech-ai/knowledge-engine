@@ -36,7 +36,7 @@ MessageHandler = Callable[[Message], Awaitable[None]]
 class MessagePublisher(ManagedResource, ABC):
     """Publishes messages to a broker (SQS, etc.).
 
-    Composes ``ManagedResource`` (charter §2.3): the SQS backend owns an async client
+    Composes ``ManagedResource`` (ARCHITECTURE.md#interface-composition): the SQS backend owns an async client
     lifecycle, so ``new_messaging_from_config`` returns an async context manager.
     """
 
@@ -54,7 +54,7 @@ class MessagePublisher(ManagedResource, ABC):
 class MessageConsumer(ManagedResource, ABC):
     """Consumes messages from a queue/topic.
 
-    Composes ``ManagedResource`` (charter §2.3): the SQS backend owns an async client
+    Composes ``ManagedResource`` (ARCHITECTURE.md#interface-composition): the SQS backend owns an async client
     lifecycle, so ``new_messaging_subscriber_from_config`` returns an async context manager.
     """
 

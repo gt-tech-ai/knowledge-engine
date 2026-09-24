@@ -20,7 +20,7 @@ import (
 )
 
 // TestWrapHandler_DedupSkipsDuplicate tests that the EventHandler stack skips a message
-// whose key was already processed, so a redelivery is handled exactly once (D-40).
+// whose key was already processed, so a redelivery is handled exactly once.
 //
 // Why this test is important:
 //   - Under at-least-once delivery the same message can arrive twice; the dedup layer is
@@ -47,7 +47,7 @@ func TestWrapHandler_DedupSkipsDuplicate(t *testing.T) {
 }
 
 // TestWrapHandler_TerminalFailureDeadLettered tests that a message that still fails after
-// the resilience stack is routed to the dead-letter queue and acked (D-34).
+// the resilience stack is routed to the dead-letter queue and acked.
 //
 // Why this test is important:
 //   - A poison message that neither dead-letters nor acks would loop forever; routing it to
@@ -79,7 +79,7 @@ func TestWrapHandler_TerminalFailureDeadLettered(t *testing.T) {
 }
 
 // TestWrapJob_LeaderGating tests that the Job stack runs the job only on the leader, so a
-// job scheduled across N replicas fires once (D-30).
+// job scheduled across N replicas fires once.
 //
 // Why this test is important:
 //   - Running a scheduled job on every replica would duplicate its effect (e.g. N reaper

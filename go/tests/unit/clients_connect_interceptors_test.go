@@ -179,7 +179,7 @@ func TestRateLimitInterceptor_RejectsWhenExceeded(t *testing.T) {
 }
 
 // TestBulkheadInterceptor_ShedsWhenFull verifies the bulkhead interceptor rejects
-// requests with ResourceExhausted once the concurrency limit is reached (R6).
+// requests with ResourceExhausted once the concurrency limit is reached.
 //
 // Why this test is important:
 //   - Without shedding, a burst of concurrent internal calls can exhaust the DB
@@ -554,7 +554,7 @@ func TestRetryInterceptor_StopsOnPermanentError(t *testing.T) {
 }
 
 // TestRetryInterceptor_StopsOnResourceExhausted verifies that a rate-limited
-// (ResourceExhausted) response is not retried (audit R9).
+// (ResourceExhausted) response is not retried.
 //
 // Why this test is important:
 //   - Retrying a rate-limited dependency immediately only deepens the backpressure
@@ -586,7 +586,7 @@ func TestRetryInterceptor_StopsOnResourceExhausted(t *testing.T) {
 }
 
 // TestClientBuilder_BreakerWrapsRetry_OpenFailsFast verifies the client the
-// builder ACTUALLY produces places the circuit breaker OUTSIDE retry (R2).
+// builder ACTUALLY produces places the circuit breaker OUTSIDE retry.
 //
 // Why this test is important:
 //   - With retry outside the breaker, an open breaker's Unavailable is seen as a
@@ -633,7 +633,7 @@ func TestClientBuilder_BreakerWrapsRetry_OpenFailsFast(t *testing.T) {
 }
 
 // TestBudgetInterceptor_AttachesSharedBudget verifies the server entrypoint
-// attaches a per-request retry budget to the context (R4).
+// attaches a per-request retry budget to the context.
 //
 // Why this test is important:
 //   - Without one shared budget, each retrier in a request's chain retries
@@ -679,7 +679,7 @@ func TestBudgetInterceptor_AttachesSharedBudget(t *testing.T) {
 }
 
 // TestClientBuilder_PerAttemptTimeout_HungAttemptIsRetried verifies the timeout
-// sits INSIDE retry (R8): a hung attempt is cut short by its per-attempt deadline
+// sits INSIDE retry: a hung attempt is cut short by its per-attempt deadline
 // and the retrier proceeds to the next attempt, rather than the timeout cancelling
 // the whole retry loop.
 //

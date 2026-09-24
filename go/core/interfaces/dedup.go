@@ -2,7 +2,7 @@ package interfaces
 
 import "context"
 
-// Deduplicator provides idempotency for at-least-once delivery (D-40): it records the
+// Deduplicator provides idempotency for at-least-once delivery: it records the
 // keys it has seen so a redelivered message is processed exactly once.
 //
 // Implementations: an in-memory TTL store (default), or a shared store (Redis/Postgres)

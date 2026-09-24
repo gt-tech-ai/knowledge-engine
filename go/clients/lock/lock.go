@@ -1,7 +1,6 @@
 // Package lock builds a config-selected core/interfaces.Locker — a
 // DistributedLock (keyed, token-fenced, best-effort) plus Hold, the managed
-// acquire-with-watchdog helper the single-active-query guard (Epic 6) depends
-// on.
+// acquire-with-watchdog helper a single-active-query guard depends on.
 //
 // NewFromConfig chooses a backend from a Kind string — local (in-process, dev
 // / replica=1) or redis (cross-pod, staging/prod) — mirroring the

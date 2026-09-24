@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 _DEV_CLASSIFICATION = "public"
 """Fallback chunk classification when the caller supplies none (public — admitted at lowest clearance)."""
 
-# Embed + upsert one document a fixed-size sub-batch at a time (audit #29), instead of embedding EVERY
+# Embed + upsert one document a fixed-size sub-batch at a time, instead of embedding EVERY
 # chunk up front and doing one all-or-nothing upsert — on the CPU-Ollama path that single giant unit
 # exceeds the embed read timeout and the whole (thousands-of-chunk) document is lost and redriven from
 # zero forever. Sub-batches are processed SEQUENTIALLY, not concurrently: this KnowledgeBase is only the

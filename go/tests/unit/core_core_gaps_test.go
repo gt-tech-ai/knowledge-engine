@@ -1,4 +1,4 @@
-// Package core_test closes the remaining coverage gaps in pkg/go/core: the
+// Package core_test closes the remaining coverage gaps in go/core: the
 // upstream HTTP-status branch, the empty-stack and stack-preservation paths of
 // AppError, the wrapped-cause branches of the Zap marshallers, and the
 // transaction-context and span-kind option helpers in core/interfaces. Every

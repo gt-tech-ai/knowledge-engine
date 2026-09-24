@@ -1,6 +1,6 @@
 // Package s3 implements the S3 ConnectorSource for the connector family: a "test connection" probe that
 // lists a bounded page under a connector's bucket/prefix using the connector's OWN credentials, over the
-// shared StorageClient (INJECTED — this package never imports pkg/go/clients/storage, so there is no
+// shared StorageClient (INJECTED — this package never imports go/clients/storage, so there is no
 // lateral same-layer import). Its credential strategies (STS AssumeRole, static access key) are the
 // S3-specific, AWS-typed part of the family; an OAuth2-with-refresh strategy for SaaS connectors is a
 // future sibling package.

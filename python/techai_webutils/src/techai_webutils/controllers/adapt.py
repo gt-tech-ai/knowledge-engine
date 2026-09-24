@@ -1,6 +1,6 @@
 """REST adapter bridging typed handlers to framework handlers.
 
-Mirrors Go's ``pkg/go/transport/rest/adapt.go`` ``Adapt[Req, Resp]()`` and
+Mirrors Go's ``go/transport/rest/adapt.go`` ``Adapt[Req, Resp]()`` and
 ``AdaptNoContent[Req, Resp]()``.
 
 Provides a generic bridge from typed ``HandlerFunc`` to framework request

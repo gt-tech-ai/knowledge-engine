@@ -47,7 +47,7 @@ class TestEmailFactory:
         """Test that an ``EmailConfig`` with no explicit kind defaults to the noop sender.
 
         **Why this test is important:**
-          - "Defaulting to noop" is a stub-first guarantee (charter §13.2): a service that never sets
+          - "Defaulting to noop" is a stub-first guarantee (ARCHITECTURE.md#stub-first-backends): a service that never sets
             an email kind must build and dispatch with no SES/SMTP endpoint, not fail or send for real.
             The other tests pass an explicit kind; only this one locks the DEFAULT.
 
@@ -87,7 +87,7 @@ class TestEmailFactory:
           - A config typo like ``kind: sess`` (or a newly-added EmailKind the factory forgets to
             handle) must surface as a startup error, not silently degrade to the no-op sender that
             suppresses every email — the Go ``NewFromConfig`` "unknown kinds fail loudly" contract
-            (charter §2), and the same defensive ``raise`` the sibling ``new_lock_from_config`` has.
+            (ARCHITECTURE.md#swappable-components), and the same defensive ``raise`` the sibling ``new_lock_from_config`` has.
 
         **What it tests:**
           - ``new_email_from_config`` with a kind outside the handled set raises ValueError.

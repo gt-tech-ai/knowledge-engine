@@ -1,4 +1,4 @@
-"""In-memory stub vector store for no-infra builds/tests (D7).
+"""In-memory stub vector store for no-infra builds/tests.
 
 ``StubVectorStore`` keeps entries in a process-local map and ranks searches by cosine similarity,
 so the retrieval path can build and unit-test with no Qdrant. Deterministic (same vectors ⇒ same

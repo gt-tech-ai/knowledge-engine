@@ -50,7 +50,7 @@ func anySpan(ctrl *gomock.Controller) *mocks.MockSpan {
 // returns the active span's trace context to the caller in the `traceresponse` header.
 //
 // Why this test is important:
-//   - The telemetry round-trip proof (Epic 31) needs the client to learn its trace id;
+//   - A telemetry round-trip proof needs the client to learn its trace id;
 //     without this header a caller cannot correlate its request to the spans it produced.
 //
 // What it tests:

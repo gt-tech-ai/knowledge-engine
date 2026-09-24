@@ -13,8 +13,8 @@ import (
 // TxSafeInsertRepository for read-only and list-less resources (Phase 2).
 // Each type embeds only the role interfaces its resource honors and decorates every
 // method through the SAME unified op-decoration seam the custom-op path uses
-// (repository.OpChain + decorate.Exec), so the seven §6.3-ordered
-// cross-cutting bodies live in exactly one place and are never re-implemented per
+// (repository.OpChain + decorate.Exec), so the seven ordered
+// cross-cutting bodies (ARCHITECTURE.md#decorator-order) live in exactly one place and are never re-implemented per
 // role. Unlike the full-CRUD builder these deliberately omit the read-through
 // caching decorator: caching is a passthrough for the op-decoration chain (see
 // OpChain), so a narrowed repository behaves like a decorated custom op — the
@@ -121,7 +121,7 @@ type CRUDNoListStore[T any, ID comparable] interface {
 // CRUDNoListRepository is a resilience+observability-decorated repository for a
 // list-less resource (Reader + Writer + Deleter + Exister). Get/Update/Delete/Exists
 // run through the standard OpChain (with retry); Create runs through a retry-free
-// chain because a create is not idempotent (R3) — blindly retrying a create that
+// chain because a create is not idempotent — blindly retrying a create that
 // actually landed post-commit would insert a duplicate, so, exactly like the
 // full-CRUD retry decorator, Create is never retried. Circuit-breaker + timeout
 // still guard Create; only retry is dropped from its chain.
@@ -132,7 +132,7 @@ type CRUDNoListRepository[T any, ID comparable] struct {
 	// chain decorates Get/Update/Delete/Exists (includes retry).
 	chain decorate.OpMiddleware
 
-	// createChain decorates Create WITHOUT retry (R3 non-idempotent create).
+	// createChain decorates Create WITHOUT retry (non-idempotent create).
 	createChain decorate.OpMiddleware
 }
 
@@ -164,7 +164,7 @@ func (r CRUDNoListRepository[T, ID]) Get(ctx context.Context, id ID) (*T, error)
 		func(ctx context.Context) (*T, error) { return r.store.Get(ctx, id) })
 }
 
-// Create persists a new entity through the retry-free decorated chain (R3).
+// Create persists a new entity through the retry-free decorated chain.
 func (r CRUDNoListRepository[T, ID]) Create(ctx context.Context, entity *T) (*T, error) {
 	return decorate.Exec(ctx, r.createChain, "Create",
 		func(ctx context.Context) (*T, error) { return r.store.Create(ctx, entity) })

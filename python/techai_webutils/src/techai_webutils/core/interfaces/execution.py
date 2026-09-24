@@ -274,8 +274,8 @@ class Discoverer[T](Protocol):
 class Executor(Protocol):
     """Runs a mapper over items with bounded concurrency, returning a ``BatchResult``.
 
-    The seam between in-process (``AsyncioExecutor``) and distributed (``RayExecutor``,
-    deferred to) fan-out. Implementations must isolate per-item failure so one
+    The seam between in-process (``AsyncioExecutor``) and distributed (``RayExecutor``)
+    fan-out. Implementations must isolate per-item failure so one
     bad item never aborts the batch.
     """
 

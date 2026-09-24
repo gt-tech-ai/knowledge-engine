@@ -21,7 +21,7 @@ class LoggingInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: ignore[
     failure (``grpc client call failed``) are logged at DEBUG through the shared structlog logger,
     so every line is JSON on the canonical schema and carries the active span's trace ids (injected
     by the logger's ``_add_trace_context`` processor). Inner seam: DEBUG only (visible in dev;
-    suppressed in staging/prod, where only the outermost seam logs — charter §6.3).
+    suppressed in staging/prod, where only the outermost seam logs — ARCHITECTURE.md#decorator-order).
     """
 
     def __init__(self, logger_name: str = "grpc.client") -> None:

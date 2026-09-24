@@ -1,8 +1,8 @@
 """The hot per-item dataclasses are slotted (no per-instance ``__dict__``).
 
 One of these is allocated per chunk on every upsert and per hit on every query, so across a bulk
-index millions are created; a per-instance ``__dict__`` is ~100+ bytes of avoidable overhead each
-(audit #11-13). ``slots=True`` removes it.
+index millions are created; a per-instance ``__dict__`` is ~100+ bytes of avoidable overhead each.
+``slots=True`` removes it.
 """
 
 from __future__ import annotations

@@ -440,7 +440,7 @@ func TestObserverStartEvents(t *testing.T) {
 	require.Equal(t, "job-1", stepStarts[0], "OnStepStart not recorded: %v", stepStarts)
 }
 
-// --- Task 3: live per-unit emission from FanOut ---
+// --- Live per-unit emission from FanOut ---
 
 // TestRunJobGroup_FanOutEmitsLivePerUnit tests that a fan-out unit's
 // OnStepComplete fires live — while a sibling unit is still running — and that

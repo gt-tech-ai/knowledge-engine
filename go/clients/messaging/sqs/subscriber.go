@@ -169,7 +169,7 @@ func (s *Subscriber) consume(
 
 // handleBatch fans the messages of one receive batch out to the handler with
 // bounded concurrency (≤ maxConcurrentHandlers live goroutines), then acks the
-// successfully-handled subset in a single DeleteMessageBatch (#7, O6). Handlers
+// successfully-handled subset in a single DeleteMessageBatch. Handlers
 // run on grace-bounded contexts decoupled from the loop's cancellation, so an
 // in-flight batch drains when Close cancels the receive loop rather than aborting
 // mid-flight.
@@ -228,7 +228,7 @@ func (s *Subscriber) runHandler(
 }
 
 // deleteHandled acks the handled subset of a receive batch in one
-// DeleteMessageBatch (O6). The receive batch is capped at maxMessagesPerReceive
+// DeleteMessageBatch. The receive batch is capped at maxMessagesPerReceive
 // (≤ maxBatchSize), so no chunking is needed. A batch-level error or any
 // per-entry failure is logged — the affected message simply redelivers.
 func (s *Subscriber) deleteHandled(
@@ -277,7 +277,7 @@ func (s *Subscriber) backoffOrDone(
 	}
 	s.logError(op, topic, err)
 	// Sleep the current backoff with equal jitter so multiple subscribers
-	// recovering from the same outage don't retry in lock-step (R5).
+	// recovering from the same outage don't retry in lock-step.
 	if !sleepCtx(ctx, retry.EqualJitter(*backoff)) {
 		return false
 	}

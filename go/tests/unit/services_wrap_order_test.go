@@ -14,7 +14,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// TestServiceDecorator_WrapOrder_TracingOutermost locks the charter §6.3 observability
+// TestServiceDecorator_WrapOrder_TracingOutermost locks the observability
 // order for the service builder: Tracing is the outermost of the Tracing → Metrics →
 // Logging trio (Logging innermost).
 //

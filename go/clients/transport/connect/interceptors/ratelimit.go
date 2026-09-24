@@ -49,7 +49,7 @@ func (i rateLimitInterceptor) WrapStreamingClient(
 }
 
 // WrapStreamingHandler sheds a server-streaming request when the limiter denies it,
-// before the handler runs (audit F6).
+// before the handler runs.
 func (i rateLimitInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {

@@ -50,7 +50,7 @@ type AuthConfig struct {
 
 	// ServiceStub bypasses service-to-service auth for local development (dev
 	// bypass), mirroring Stub: the internal interceptor injects a synthetic caller and
-	// skips token validation so `search dev up` works without provisioned tokens. Must be
+	// skips token validation so a local dev stack works without provisioned tokens. Must be
 	// false in staging/prod (enforced by Validate when Stub is false + a k8stest guard).
 	ServiceStub bool `mapstructure:"service_stub" envalias:"SERVICE_STUB_AUTH"`
 

@@ -2,7 +2,7 @@
 
 Wraps a ray-free ``WorkerFactory`` so ``PooledExecutor``'s pool slots become Ray actors distributed
 across the cluster, each building its (expensive) worker context ONCE on its own persistent event
-loop and reusing it across every item routed to it (audit #5) — replacing the per-object client
+loop and reusing it across every item routed to it — replacing the per-object client
 rebuild of the stateless-task path (``RealRayRuntime`` + ``_run_mapper``). Imports ``ray`` (the
 optional ``techai-webutils[ray]`` extra), so it is imported lazily by the bulk runner only when the
 actor pool is configured; the default asyncio path never loads it. This mirrors the

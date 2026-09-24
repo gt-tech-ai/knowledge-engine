@@ -123,8 +123,8 @@ func assertBulkheadLimit(t *testing.T, bh interfaces.Bulkhead, limit int) {
 // overlay over the consumer's fallback default.
 //
 // Why this test is important:
-//   - The internal-service admission bulkhead was a hardcoded const before Epic 45
-//     requires it be overlay-tunable per BYOC env. This proves the overlay's max_concurrent (1)
+//   - The internal-service admission bulkhead was once a hardcoded const; it must
+//     be overlay-tunable per environment. This proves the overlay's max_concurrent (1)
 //     wins over the caller's fallback (5), so a deployment can tighten/loosen admission by config.
 //
 // What it tests:

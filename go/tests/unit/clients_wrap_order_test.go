@@ -16,7 +16,7 @@ import (
 
 // obsOrder records the observability call sequence ("trace" / "metric" / "log") in
 // the order the client stack invokes each collaborator, so a test can assert the
-// composed §6.3 order. It is plain test data — it implements no production
+// composed order (ARCHITECTURE.md#decorator-order). It is plain test data — it implements no production
 // interface; the generated metrics/logger mocks and the orderTracer below append to
 // it as the stack drives them.
 type obsOrder struct {
@@ -60,11 +60,11 @@ func (t orderTracer) Start(
 	return ctx, oteltrace.SpanFromContext(ctx)
 }
 
-// TestClientStack_WrapOrder_TracingMetricsLogging locks the charter §6.3 observability
+// TestClientStack_WrapOrder_TracingMetricsLogging locks the observability
 // order for the client stack: Tracing (outermost) → Metrics → Logging (innermost).
 //
 // Why this test is important:
-//   - The §6.3 order is semantic: the tracing span must bracket the whole operation, and
+//   - The order is semantic (ARCHITECTURE.md#decorator-order): the tracing span must bracket the whole operation, and
 //
 // the failure log is the innermost seam. Before the repo/service builders
 //

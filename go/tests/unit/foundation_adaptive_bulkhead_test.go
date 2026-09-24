@@ -89,7 +89,7 @@ func TestAdaptiveBulkhead_TryExecuteRejectsWhenFull(t *testing.T) {
 }
 
 // TestBulkhead_KindAdaptive_Selected tests that the factory selects the adaptive backend for
-// KindAdaptive (the config-selects-impl contract, charter §2).
+// KindAdaptive (the config-selects-impl contract, ARCHITECTURE.md#swappable-components).
 //
 // Why this test is important:
 //   - The adaptive limiter is opted into by a config Kind; if NewFromConfig silently returned a

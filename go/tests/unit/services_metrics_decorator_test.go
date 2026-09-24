@@ -41,7 +41,7 @@ func serviceCounter(
 
 // TestServiceDecorator_WithMetrics_RecordsOperationsAndErrors tests that the service
 // builder's WithMetrics decorator records per-operation counts and errors, reaching
-// parity with the repository builder's metrics decorator (audit D1).
+// parity with the repository builder's metrics decorator.
 //
 // Why this test is important:
 //   - Service-layer operations were unobservable via Prometheus (the service builder

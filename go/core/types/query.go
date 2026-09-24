@@ -39,7 +39,8 @@ const (
 // — a core/types value that holds []Filter — would otherwise force core/types to
 // import core/interfaces, and core/interfaces already imports core/types (a cycle).
 //
-// sealed union: FilterClause | CompositeFilter (charter §2.3 — a closed two-implementer set)
+// sealed union: FilterClause | CompositeFilter (a closed two-implementer set;
+// ARCHITECTURE.md#interface-composition)
 type Filter interface {
 	// IsEmpty reports whether the filter carries no constraint (the store omits WHERE).
 	IsEmpty() bool

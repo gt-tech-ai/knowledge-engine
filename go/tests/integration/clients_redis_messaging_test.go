@@ -1,11 +1,11 @@
 //go:build integration
 
 // Package integration verifies the Redis Pub/Sub messaging backend
-// (pkg/go/clients/messaging/redis) against a real Redis instance (redis:7-alpine
+// (go/clients/messaging/redis) against a real Redis instance (redis:7-alpine
 // via testcontainers). The backend wraps a concrete go-redis client with no
 // injectable seam, so its PUBLISH/SUBSCRIBE/PSUBSCRIBE behavior cannot be unit
 // tested with mocks — the pure-logic tests (ParseKind, nil-client guards, interface
-// mock-satisfaction) live in pkg/go/tests/unit/clients_redis_messaging_test.go; this
+// mock-satisfaction) live in go/tests/unit/clients_redis_messaging_test.go; this
 // suite targets correctness over a real connection.
 package integration
 
@@ -155,7 +155,7 @@ func (s *RedisMessagingSuite) TestPublisher_PublishesToChannel() {
 //
 // Why this test is important:
 //   - A caller must be able to classify a transient broker outage; a code-less error
-//     breaks that classification (charter §9.1).
+//     breaks that classification (ARCHITECTURE.md#error-codes).
 //
 // What it tests:
 //   - A publisher over a client pointed at a dead address returns CodeUnavailable.

@@ -406,7 +406,7 @@ func TestStorageClient_DeleteBatch_SurfacesPerObjectErrors(t *testing.T) {
 //
 // Why this test is important:
 //   - S3 DeleteObjects rejects a request with more than 1000 keys, so a large
-//     orphaned-file cleanup previously failed outright; it must be chunked (O9).
+//     orphaned-file cleanup previously failed outright; it must be chunked.
 //
 // What it tests:
 //   - Deleting 2500 keys issues 3 DeleteObjects calls, none exceeding 1000 keys,

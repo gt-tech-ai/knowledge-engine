@@ -2,7 +2,7 @@
 
 Shared, dependency-free contract (the element of ``DocumentSplitter.split``'s return list); a large
 parsed document is split into contiguous ``ChunkPayload`` units, each its own KB index unit. Lives in
-``pkg/`` so any deployable programs against the same DTO (like Go's ``pkg/go/core`` types).
+this shared library so any deployable programs against the same DTO (like Go's ``go/core`` types).
 """
 
 from __future__ import annotations

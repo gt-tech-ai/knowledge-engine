@@ -21,7 +21,7 @@ class VectorStoreKind(StrEnum):
     QDRANT = "qdrant"
     """The local Qdrant similarity-search store (dev)."""
     STUB = "stub"
-    """In-process cosine-ranking stub (dev/test/all-stubs; no Qdrant) — ."""
+    """In-process cosine-ranking stub (dev/test/all-stubs; no Qdrant)."""
 
 
 @dataclass(frozen=True, slots=True)

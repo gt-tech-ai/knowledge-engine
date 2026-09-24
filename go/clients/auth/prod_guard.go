@@ -30,7 +30,7 @@ var safeUserProvisioningEnvs = map[string]struct{}{
 }
 
 // prodGuardUserProvider decorates a UserProvider with a fail-closed refusal of user
-// provisioning outside an allow-listed non-production environment (charter §6.3: a
+// provisioning outside an allow-listed non-production environment (ARCHITECTURE.md#decorators: a
 // cross-cutting concern wraps business logic, never tangled into it). The embedded
 // UserProvider promotes every read/org/create method; only CreateUser is overridden to
 // guard, so a future prod can never mint users through this path.

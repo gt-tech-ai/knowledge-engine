@@ -33,11 +33,11 @@ func TestGoWorkModules(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	wsWrite(t, filepath.Join(root, "go.work"),
-		"go 1.26.5\n\nuse (\n\t.\n\t./pkg/go/core\n\t./apps/go/server/api\n)\n")
+		"go 1.26.5\n\nuse (\n\t.\n\t./pkg/go/core\n\t./apps/api\n)\n")
 
 	mods, err := golang.GoWorkModules(root, nil)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"pkg/go/core", "apps/go/server/api"}, mods,
+	assert.Equal(t, []string{"pkg/go/core", "apps/api"}, mods,
 		"use-block modules returned, root '.' excluded")
 
 	filtered, err := golang.GoWorkModules(root, func(rel string) bool {

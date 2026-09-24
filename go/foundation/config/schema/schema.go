@@ -2,9 +2,8 @@
 // composes the concern-grouped config sub-packages (currently schema/infra) into
 // a per-service AppConfig, and is the single struct the env-binding derivation
 // (viper.deriveEnvBindings) reflects over to bind each field's SEARCH_<PATH> var
-// from its mapstructure tag. Wire selects the subset a given service uses; the
-// later config-track stories add sibling sub-packages (resilience/, stores/, …)
-// under this seam.
+// from its mapstructure tag. Wire selects the subset a given service uses; further
+// sub-packages (resilience/, stores/, …) sit alongside under this seam.
 package schema
 
 import (

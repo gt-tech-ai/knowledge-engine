@@ -8,8 +8,8 @@ vector-store point ids (``{document_id}:{index}``) stay stable.
 
 from __future__ import annotations
 
-# Default chunk size (characters). Chosen to mirror the prod Bedrock KB's FIXED_SIZE chunking
-# (chunk_max_tokens = 512, zarf/terraform/modules/bedrock/variables.tf) so the local vector path
+# Default chunk size (characters). Chosen to mirror a Bedrock KB's FIXED_SIZE chunking at
+# chunk_max_tokens = 512, so the local vector path
 # indexes at the SAME granularity prod retrieves against — the earlier 800 (~166 tokens) over-chunked
 # ~3x, which both tripled local Ollama embed cost (one vector per chunk) and made dev retrieval a
 # poor proxy for prod. ~2048 chars ≈ 512 tokens (~4 chars/token) and stays under nomic-embed-text's

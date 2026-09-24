@@ -16,7 +16,7 @@ from techai_webutils.controllers.base import BaseController, ErrorResponse, map_
 from techai_webutils.controllers.decorators import HandlerBuilder
 
 # Named generic handler type, matching Go's ``HandlerFunc[Req, Resp]``
-# in ``pkg/go/transport/handler.go``.
+# in ``go/transport/handler.go``.
 type HandlerFunc = Callable[..., Awaitable[object]]
 
 __all__ = [

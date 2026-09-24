@@ -111,7 +111,7 @@ func TestAuthStub_MembersAndInvitations(t *testing.T) {
 // login-shaped user id without a live Auth0 tenant.
 //
 // Why this test is important:
-//   - The stub is the no-creds seed path (39.7): it must satisfy UserProvider and return a
+//   - The stub is the no-creds seed path: it must satisfy UserProvider and return a
 //     stable id so seeding runs offline without reaching Auth0.
 //
 // What it tests:

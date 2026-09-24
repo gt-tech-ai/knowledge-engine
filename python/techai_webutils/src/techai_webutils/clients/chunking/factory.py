@@ -1,8 +1,8 @@
 """Env-aware chunker factory (foundation/logger ``NewFromConfig`` pattern).
 
-Selects the embedding-granularity chunk backend from ``ChunkerConfig.kind`` (chunking-quality C1).
-Only ``fixed`` (deterministic paragraph-pack) ships today; ``semantic``/``layout`` are future ``Kind``s
-(the chunking-quality epic). Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract.
+Selects the embedding-granularity chunk backend from ``ChunkerConfig.kind``.
+Only ``fixed`` (deterministic paragraph-pack) ships today; ``semantic``/``layout`` are future ``Kind``s.
+Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract.
 """
 
 from __future__ import annotations

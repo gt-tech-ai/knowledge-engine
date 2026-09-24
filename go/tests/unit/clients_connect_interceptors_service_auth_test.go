@@ -216,7 +216,7 @@ func TestServiceAuthInterceptor_Unary(t *testing.T) {
 // bypass and the staged-rollout audit mode both admit a token-less call.
 //
 // Why this test is important:
-// - stub keeps `search dev up` working with no provisioned tokens (dev bypass)
+// - stub keeps a local dev stack working with no provisioned tokens (dev bypass)
 //   - audit mode is the rollout safety valve: log the caller but do not reject, so a
 //     missing token doesn't fail-closed before every client has rolled to a token
 //

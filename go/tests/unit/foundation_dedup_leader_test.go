@@ -12,7 +12,7 @@ import (
 
 // TestDeduplicator_Memory_FirstSeenThenDuplicate tests exactly-once semantics: a key is
 // not a duplicate on first sighting and is a duplicate on every repeat, while distinct
-// keys are independent (D-40).
+// keys are independent.
 //
 // Why this test is important:
 //   - Under at-least-once delivery a redelivered message must be processed once; the
@@ -42,7 +42,7 @@ func TestDeduplicator_Memory_FirstSeenThenDuplicate(t *testing.T) {
 }
 
 // TestLeaderElector_AlwaysLeader tests that the single-process elector always reports
-// leadership (D-30), so a job wrapped by it runs in dev/single-replica.
+// leadership, so a job wrapped by it runs in dev/single-replica.
 //
 // Why this test is important:
 //   - The single-process default must never withhold leadership, or the guarded job would

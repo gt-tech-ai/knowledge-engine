@@ -106,7 +106,7 @@ class TestTracingServerInterceptorTraceResponse:
         """A unary RPC returns the active span's trace id to the caller as ``traceresponse`` trailing metadata.
 
         Why this test is important:
-          - The telemetry round-trip proof (Epic 31) needs the caller to learn its trace id;
+          - A telemetry round-trip proof needs the caller to learn its trace id;
             for the internal gRPC servers that means trailing metadata — the gRPC analogue of the Go
             connect ``traceresponse`` header. Without it an internal call cannot be correlated to its spans.
 

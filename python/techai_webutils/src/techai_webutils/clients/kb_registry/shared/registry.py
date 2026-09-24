@@ -3,7 +3,7 @@
 Selected by ``KbRegistryKind.SHARED`` (the default) when per-org KBs are not provisioned: ``resolve``
 returns the single configured ``KbCoordinates`` for any workspace, and ``list_active`` yields exactly
 one ``active`` binding, so the ingestion worker keeps its single global KB-sync loop. This preserves
-today's single-KB behavior until per-org provisioning + migration land (design §6). Mirrors
+today's single-KB behavior until per-org provisioning + migration land. Mirrors
 ``NoopIngestionJobStateStore`` (a pure, I/O-free backend of a config-selected tier).
 """
 

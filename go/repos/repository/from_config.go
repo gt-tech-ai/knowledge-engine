@@ -8,8 +8,8 @@ import (
 )
 
 // Settings tunes the decorated-repository stack DecoratedFromConfig builds. Its
-// values were per-app constants duplicated across every service's config wiring
-// (D12); centralizing them here gives the resilience policy a single source of
+// values were per-app constants duplicated across every service's config wiring;
+// centralizing them here gives the resilience policy a single source of
 // truth that apps override only when a product choice demands it.
 type Settings struct {
 	// Timeout bounds a single decorated repository operation. Zero skips the
@@ -49,7 +49,7 @@ type Deps[T any, ID comparable] struct {
 // DecoratedFromConfig wraps a store in the canonical repository resilience +
 // observability stack (circuit breaker, retry, timeout, logging, metrics, tracing,
 // and optional caching), using the given settings and collaborators. It is the
-// shared push-down (audit D12) of the per-app newDecoratedRepository /
+// shared push-down of the per-app newDecoratedRepository /
 // provide<X>Repository wiring that every service duplicated: an app now injects its
 // store, a name, settings, and deps, and gets the fully decorated repository — the
 // resilience policy lives here, not copy-pasted into each composition root.

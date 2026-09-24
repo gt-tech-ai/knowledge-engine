@@ -124,7 +124,7 @@ func TestStorageDecorator_BuilderAndConfigError(t *testing.T) {
 	require.Error(t, err, "a bad resilience config must fail the decorate wiring")
 }
 
-// TestJobDecorator_WrapJob_GateBranches tests the §6.3 Job stack's outer gates:
+// TestJobDecorator_WrapJob_GateBranches tests the Job stack's outer gates:
 // leader election (error + non-leader skip) and rate-limit backpressure.
 //
 // Why this test is important:

@@ -25,7 +25,7 @@ type LockConfig struct {
 }
 
 // DefaultLockConfig returns the in-process backend with a 30s lease renewed every
-// 10s (renew_interval = ttl/3), matching configs/base.yaml. Dev inherits this
+// 10s (renew_interval = ttl/3), matching the base config. Dev inherits this
 // (local); staging/prod override kind to redis.
 func DefaultLockConfig() LockConfig {
 	return LockConfig{

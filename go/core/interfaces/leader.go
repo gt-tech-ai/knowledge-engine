@@ -2,7 +2,7 @@ package interfaces
 
 import "context"
 
-// LeaderElector coordinates single-instance execution (D-30): only the elected leader
+// LeaderElector coordinates single-instance execution: only the elected leader
 // runs the guarded work, so a job scheduled across N replicas fires once.
 //
 // Implementations: a single-process elector that is always the leader (dev/single-replica),

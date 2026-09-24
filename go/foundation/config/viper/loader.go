@@ -151,8 +151,8 @@ func (l *Loader) bindNonSchemaEnv() {
 		"AUTH0_MANAGEMENT_API_CLIENT_SECRET",
 	)
 
-	// Seed (search seed): the env overlay sets seed.mode; these allow per-run
-	// overrides (e.g. `search seed --mode` sets SEED_MODE) and CI/deploy injection.
+	// Seed: the env overlay sets seed.mode; these allow per-run overrides (a seeding
+	// tool setting SEED_MODE) and CI/deploy injection.
 	_ = l.v.BindEnv("seed.mode", "SEED_MODE")
 	_ = l.v.BindEnv("seed.org_external_id", "SEED_ORG_EXTERNAL_ID")
 	_ = l.v.BindEnv("seed.org_name", "SEED_ORG_NAME")

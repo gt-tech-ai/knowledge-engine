@@ -184,7 +184,7 @@ func TestCRUDNoListRepository_Delegates(t *testing.T) {
 // Why this test is important:
 //   - This two-chain split is the entire reason CRUDNoListRepository builds a
 //
-// separate createChain (R3): a create is not idempotent, so blindly
+// separate createChain: a create is not idempotent, so blindly
 //
 //	retrying one that actually landed post-commit would insert a duplicate. If a
 //	future edit routed Create through the retrying chain, a transient error would
@@ -214,7 +214,7 @@ func TestCRUDNoListRepository_CreateIsRetryFreeButReadsRetry(t *testing.T) {
 		t,
 		1,
 		store.createCalls,
-		"create must NOT retry (R3, non-idempotent) even on a retryable error",
+		"create must NOT retry (non-idempotent) even on a retryable error",
 	)
 
 	assert.Positive(t, attempts(), "the retrier must have engaged for the read path")

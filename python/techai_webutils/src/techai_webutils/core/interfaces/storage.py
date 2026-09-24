@@ -30,7 +30,7 @@ class StorageObject:
 class StorageClient(ManagedResource, ABC):
     """Object storage operations (S3-compatible).
 
-    Composes ``ManagedResource`` (charter §2.3): a storage client owns an async
+    Composes ``ManagedResource`` (ARCHITECTURE.md#interface-composition): a storage client owns an async
     connection lifecycle (``__aenter__``/``__aexit__``), so a composition root manages
     it with an ``AsyncExitStack`` and the ``new_storage_from_config`` factory returns a
     value that is itself an async context manager.

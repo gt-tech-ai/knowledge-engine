@@ -1,6 +1,6 @@
 """Extended error framework with classification, gRPC/HTTP mapping, and ExceptionGroup support.
 
-Builds on top of pkg/python/techai_webutils/src/techai_webutils/core/errors to add:
+Builds on top of python/techai_webutils/src/techai_webutils/core/errors to add:
 - Error classification (transient/permanent/internal/unknown)
 - Standalone gRPC/HTTP status mapping functions
 - IngestionErrors ExceptionGroup (supports except* syntax)

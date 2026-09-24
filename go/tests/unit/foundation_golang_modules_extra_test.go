@@ -54,7 +54,7 @@ func TestIsLintTarget(t *testing.T) {
 		{"pkg/go/core", true},
 		{"gen/go/pb", false},
 		{"gen/go/ent", false},
-		{"apps/go/server", true},
+		{"apps/api", true},
 	}
 	for _, tc := range cases {
 		assert.Equal(
@@ -111,7 +111,7 @@ func TestPythonLintFilter(t *testing.T) {
 		want bool
 	}{
 		{"pkg/python/techai_webutils", true},
-		{"apps/python/server/retrieval", true},
+		{"apps/python/svc", true},
 		{"gen/python/generated", false},
 		{"apps/python/generated", false},
 	}

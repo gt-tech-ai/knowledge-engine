@@ -1,7 +1,7 @@
 """Deduplication interface for at-least-once delivery idempotency.
 
 Mirrors Go's ``interfaces.Deduplicator``. A ``Deduplicator`` records the keys it has seen
-so a redelivered message is processed exactly once (D-40).
+so a redelivered message is processed exactly once.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class Deduplicator(Protocol):
-    """Provides idempotency for at-least-once delivery (D-40).
+    """Provides idempotency for at-least-once delivery.
 
     Implementations: an in-memory TTL store (default), or a shared store (Redis/Postgres)
     for cross-replica dedup. Handler code depends on this Protocol, never a concrete store.

@@ -146,7 +146,7 @@ func TestJSONAPIMatchRoute_MethodPathAndPrecedence(t *testing.T) {
 // TestJSONAPI_CreateMissingDataReturns500 is the regression pin.
 //
 // Why this test is important:
-//   - Before 34.3 a create whose handler omitted the resource key silently
+//   - Previously a create whose handler omitted the resource key silently
 //     returned a meta-only 200, contradicting the generated client's data-required
 //     type. It must now fail honestly as a 500.
 //
@@ -195,7 +195,7 @@ func TestJSONAPI_ActionIsMetaOnly200(t *testing.T) {
 // TestJSONAPI_RolesProduceExpectedEnvelope tests the status + body shape per role.
 //
 // Why this test is important:
-//   - The role→contract FSM is the whole point of 34.3; each role must produce its
+//   - The role→contract FSM is the whole point of the route table; each role must produce its
 //     exact status and envelope deterministically.
 //
 // What it tests:

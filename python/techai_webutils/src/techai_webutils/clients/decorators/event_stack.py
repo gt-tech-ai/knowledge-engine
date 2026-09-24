@@ -1,11 +1,11 @@
-"""Charter §6.3 EventHandler decorator stack for a message handler coroutine.
+"""EventHandler decorator stack for a message handler coroutine (ARCHITECTURE.md#decorator-order).
 
-Composes, outermost -> innermost, ``Dedup -> [Retry -> Timeout -> CircuitBreaker] ->
-DeadLetter -> Handler``. Mirrors Go's ``clients/messaging/decorators.WrapHandler``. A message
-already processed is skipped (D-40); one that still fails after retries is routed to the
-dead-letter queue and acked when it lands there (D-34). Built from the existing foundation
+Composes, outermost -> innermost, ``Dedup -> DeadLetter -> [Retry -> CircuitBreaker -> Timeout]
+-> Handler``. Mirrors Go's ``clients/messaging/decorators.WrapHandler``. A message already
+processed is skipped; one that still fails after retries is routed to the dead-letter queue and
+acked when it lands there. Built from the existing foundation
 primitives (``retry_transient_async`` + ``with_timeout`` + the circuit breaker) and the DLQ
-facade, so the mechanism is composed once, not re-implemented (charter §6.3).
+facade, so the mechanism is composed once, not re-implemented.
 
 Pair ``dedup`` with a ``dlq`` so a terminal failure is dead-lettered rather than skipped as a
 duplicate on redrive.
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class EventStackDeps:
-    """Collaborators for the §6.3 EventHandler stack.
+    """Collaborators for the EventHandler stack.
 
     A None layer (or non-positive timeout / ``retry_max_attempts`` <= 1) is skipped, so callers
     opt into exactly the concerns they have wired.
@@ -57,9 +57,9 @@ class EventStackDeps:
 
 
 def wrap_handler(inner: MessageHandler, deps: EventStackDeps) -> MessageHandler:
-    """Compose the §6.3 EventHandler stack around ``inner``.
+    """Compose the EventHandler stack around ``inner``.
 
-    Outermost -> innermost: ``Dedup -> [Retry -> Timeout -> CircuitBreaker] -> DeadLetter ->
+    Outermost -> innermost: ``Dedup -> DeadLetter -> [Retry -> CircuitBreaker -> Timeout] ->
     Handler``. A message whose key was already processed is acked without re-running; one that
     still fails after retries is routed to the dead-letter queue and acked when it lands there,
     otherwise the failure is re-raised so the source message is redriven.

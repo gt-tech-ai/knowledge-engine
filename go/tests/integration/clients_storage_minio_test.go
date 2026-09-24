@@ -1,7 +1,7 @@
 //go:build integration
 
 // Package clients_test verifies the S3 StorageClient against a real MinIO instance
-// (via testcontainers). Unit tests in pkg/go/tests/clients and the storage package
+// (via testcontainers). Unit tests in go/tests/unit and the storage package
 // cover error mapping, the multipart decision, and the decorator stack with mocks;
 // this suite targets end-to-end correctness over a real object store, driven by
 // committed fixtures under testdata/.

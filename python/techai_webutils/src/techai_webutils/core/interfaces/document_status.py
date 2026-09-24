@@ -2,8 +2,7 @@
 
 Ingestion (and, later, retrieval / the bulk Ray job) call the API's ``InternalService`` to advance a
 document's processing status and record post-parse metadata. The concrete gRPC implementation is
-proto-bound (mirroring ``pkg/go/clients/identity``) and lives with its consumer — the ingestion
-worker — injected at the composition root; this core module defines only the proto-free Protocol.
+proto-bound and lives with its consumer, injected at the composition root; this core module defines only the proto-free Protocol.
 """
 
 from __future__ import annotations

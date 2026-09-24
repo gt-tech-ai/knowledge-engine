@@ -1,12 +1,12 @@
 """``OutputBackedKbRegistry`` — a per-key ``KbBinding`` map loaded from the Terraform for_each output.
 
 Selected by ``KbRegistryKind.OUTPUT`` for per-org routing: the module's ``map(org → coords)`` output is
-serialized into config at deploy (bindings change only on ``terraform apply``, design §4), and this
+serialized into config at deploy (bindings change only on ``terraform apply``), and this
 backend does a pure in-memory lookup over it — no runtime I/O. The map is keyed by ``org_external_id``
 (the Auth0 org id — the Terraform ``per_org_kbs`` key), the same string the retrieval read path resolves
-by (the Go API puts it on ``QueryStreamRequest.org_id``, 32.9), so no workspace→org expansion is needed.
+by (the query request carries it as ``org_id``), so no workspace→org expansion is needed.
 Resolving an unknown key or a non-``active`` binding fails **closed** (returns ``None``), never falling
-through to another tenant's KB (the security invariant, design §3).
+through to another tenant's KB (the security invariant).
 """
 
 from __future__ import annotations

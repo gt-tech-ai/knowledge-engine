@@ -13,7 +13,7 @@ import (
 // nonRetryableGRPCCodes lists gRPC status codes that must not be retried:
 // permanent client/domain failures, plus ResourceExhausted — retrying a
 // rate-limited/quota-exceeded call immediately only adds load and deepens the
-// backpressure (R9). A parent-context deadline/cancel is handled by the retrier's
+// backpressure. A parent-context deadline/cancel is handled by the retrier's
 // context-awareness (it stops when ctx is done), not classified here, so a
 // per-attempt (child-context) timeout can still be retried.
 var nonRetryableGRPCCodes = map[codes.Code]bool{

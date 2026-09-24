@@ -60,7 +60,7 @@ class BedrockRetrievalEngine(RetrievalEngine):
         ``search_type`` selects semantic (vector-only) vs "hybrid" (vector+keyword, Retrieve's
         overrideSearchType); ``reranking_model`` is a Cohere reranker model id (e.g.
         ``cohere.rerank-v3-5:0``) whose presence enables Retrieve's rerankingConfiguration — both are
-        config-selected (audit R6/R14). Empty ``reranking_model`` = no reranking.
+        config-selected. Empty ``reranking_model`` = no reranking.
         """
         self._region = region
         self._kb_id = knowledge_base_id
@@ -115,7 +115,7 @@ class BedrockRetrievalEngine(RetrievalEngine):
         here instead of leaking another tenant's KB (defense-in-depth).
 
         Builds the Retrieve request from the config-selected strategy: numberOfResults (the wide pool),
-        an andAll metadata filter (workspace isolation + the R11 clearance push-down), overrideSearchType
+        an andAll metadata filter (workspace isolation + the clearance push-down), overrideSearchType
         for hybrid search, and a Cohere rerankingConfiguration when a reranker is configured.
         """
         kb_id = knowledge_base_id or self._kb_id
@@ -149,7 +149,7 @@ class BedrockRetrievalEngine(RetrievalEngine):
         return [_to_result(item, workspace_id) for item in results]
 
     def _metadata_filter(self, workspace_id: str, filters: dict[str, str] | None) -> dict[str, object]:
-        """Build the KB metadata filter: workspace isolation + (R11) the clearance push-down.
+        """Build the KB metadata filter: workspace isolation + the clearance push-down.
 
         Combines the workspace_id equality with an ``in`` clause over the classifications at/below the
         caller's clearance (``filters[CLEARANCE_FILTER_KEY]``) via ``andAll``, so the KB returns only

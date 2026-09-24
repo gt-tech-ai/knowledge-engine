@@ -4,7 +4,7 @@
 stage/prod) are interchangeable ``DistributedLock`` backends selected by ``new_lock_from_config``.
 ``SingleWriterRunner`` runs an async op under whichever backend the config picks and skips
 (returns ``None``) when another writer holds the lock. Postgres is the low-cardinality / long-hold
-sibling of the Epic 6 Redis WebSocket lock — same abstraction, backend chosen by profile.
+sibling of a Redis lock backend — same abstraction, backend chosen by profile.
 
 Cross-cutting concerns (logging, tracing, retry, circuit breaking) are layered onto a backend's
 ``acquire``/``release`` by the generic ``clients/decorators`` proxies at the composition root, not

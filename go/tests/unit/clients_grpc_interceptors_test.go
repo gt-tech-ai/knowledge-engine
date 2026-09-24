@@ -248,7 +248,7 @@ func TestGRPCRateLimitServerInterceptor_RejectsWhenExceeded(t *testing.T) {
 
 // TestBulkheadServerInterceptor_ShedsWhenFull verifies the gRPC bulkhead
 // interceptor rejects requests with ResourceExhausted once the concurrency limit
-// is reached (R6): with one request held in-flight against MaxConcurrent=1, a
+// is reached: with one request held in-flight against MaxConcurrent=1, a
 // second is shed and its handler never runs.
 func TestBulkheadServerInterceptor_ShedsWhenFull(t *testing.T) {
 	t.Parallel()
@@ -943,7 +943,7 @@ func TestGRPCRetryClientInterceptor_StopsOnPermanentError(t *testing.T) {
 }
 
 // TestGRPCRetryClientInterceptor_StopsOnResourceExhausted verifies that a
-// rate-limited (ResourceExhausted) status is not retried (audit R9).
+// rate-limited (ResourceExhausted) status is not retried.
 //
 // Why this test is important:
 //   - Retrying a rate-limited dependency immediately only deepens the backpressure
@@ -975,7 +975,7 @@ func TestGRPCRetryClientInterceptor_StopsOnResourceExhausted(t *testing.T) {
 }
 
 // TestGRPCClientBuilder_BreakerWrapsRetry_OpenFailsFast verifies the gRPC client
-// the builder ACTUALLY produces places the circuit breaker OUTSIDE retry (R2).
+// the builder ACTUALLY produces places the circuit breaker OUTSIDE retry.
 //
 // Why this test is important:
 //   - With retry outside the breaker, an open breaker's Unavailable is retried
@@ -1852,7 +1852,7 @@ func TestGRPCStreamingClientBuilder_FullComposition(t *testing.T) {
 
 // TestGRPCStreamingClientBuilder_BreakerWrapsRetry_OpenFailsFast verifies the
 // streaming builder ACTUALLY produces places the circuit breaker OUTSIDE
-// retry (R2), mirroring TestGRPCClientBuilder_BreakerWrapsRetry_OpenFailsFast
+// retry, mirroring TestGRPCClientBuilder_BreakerWrapsRetry_OpenFailsFast
 // for the unary builder.
 //
 // Why this test is important:

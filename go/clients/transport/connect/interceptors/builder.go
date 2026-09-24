@@ -66,7 +66,7 @@ func (b *ServerBuilder) WithRateLimit(limiter interfaces.RateLimiter) *ServerBui
 // WithBulkhead enables concurrency-based load shedding: requests over the
 // bulkhead's concurrency limit are rejected with ResourceExhausted, so a burst
 // can't exhaust goroutines or the backing DB pool. Used on the internal surface
-// Kong doesn't cover (R6).
+// Kong doesn't cover.
 func (b *ServerBuilder) WithBulkhead(bh interfaces.Bulkhead) *ServerBuilder {
 	b.bulkhead = bh
 	return b
@@ -134,7 +134,7 @@ func (b *ServerBuilder) WithIdentity(resolver IdentityResolver) *ServerBuilder {
 // resolved organization onto the request context (the sql.WithVar GUC for Postgres
 // RLS and entctx.WithTenant for the Ent tenant interceptor/hook). It MUST run after
 // WithIdentity so the org is resolved. Enable it only on clients whose Ent client
-// registers tenant enforcement (contracts/ent/tenant.Register).
+// registers tenant enforcement.
 func (b *ServerBuilder) WithTenant() *ServerBuilder {
 	b.tenant = true
 	return b
@@ -147,8 +147,8 @@ func (b *ServerBuilder) WithValidation() *ServerBuilder {
 }
 
 // WithRetryBudget attaches a shared per-request retry budget of maxRetries at the
-// server entrypoint, so every retrier in the downstream chain draws from one cap
-// (R4). Zero or negative disables it.
+// server entrypoint, so every retrier in the downstream chain draws from one cap.
+// Zero or negative disables it.
 func (b *ServerBuilder) WithRetryBudget(maxRetries int32) *ServerBuilder {
 	b.retryBudget = maxRetries
 	return b
@@ -163,8 +163,8 @@ func (b *ServerBuilder) Build() []connect.HandlerOption {
 	// Order: recovery → budget → rate limit → bulkhead → metrics → tracing →
 	// logging → service auth → auth → identity → validate (identity MUST follow auth so
 	// claims are present; service auth authenticates the CALLING SERVICE on internal
-	// mounts and runs before end-user auth; the budget (R4) spans the whole request and
-	// load shedding (R6) is early so it rejects before the request does any work).
+	// mounts and runs before end-user auth; the budget spans the whole request and
+	// load shedding is early so it rejects before the request does any work).
 	if b.recovery && b.logger != nil {
 		chain = append(chain, RecoveryInterceptor(b.logger))
 	}
@@ -289,10 +289,10 @@ func (b *ClientBuilder) WithLogging(logger interfaces.Logger) *ClientBuilder {
 //	metrics → circuit breaker → retry → timeout → tracing → logging
 //
 // The circuit breaker wraps retry so an open breaker fails fast instead of being
-// retried into (R2). The timeout sits inside retry so it bounds each attempt
+// retried into. The timeout sits inside retry so it bounds each attempt
 // (a per-attempt child context) while the retrier's MaxElapsedTime bounds the
-// whole logical call (R8). Metrics is outermost so it records one row per logical
-// operation, not one per retry attempt (R10).
+// whole logical call. Metrics is outermost so it records one row per logical
+// operation, not one per retry attempt.
 func (b *ClientBuilder) chain() []connect.Interceptor {
 	var chain []connect.Interceptor
 	if b.metrics != nil {

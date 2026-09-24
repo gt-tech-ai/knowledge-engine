@@ -24,11 +24,11 @@ _HEADER_BYTES = 4096
 
 # _WORD_RE matches runs of non-whitespace. Counting matches avoids materializing a full token list:
 # ``len(text.split())`` allocates millions of small ``str`` objects for a large document just to
-# take their length (audit #17). ``pymupdf`` and ``markitdown`` are imported lazily inside the parse
+# take their length. ``pymupdf`` and ``markitdown`` are imported lazily inside the parse
 # methods (not at module top) so the PARENT process that imports this class for the port never pays
-# their heavy import cost — only a subprocess that actually parses does (audit #15).
+# their heavy import cost — only a subprocess that actually parses does.
 _WORD_RE = re.compile(r"\S+")
-"""Matches runs of non-whitespace; counting matches avoids materializing a full token list (audit #17)."""
+"""Matches runs of non-whitespace; counting matches avoids materializing a full token list."""
 
 # _MAX_SANITIZE_BYTES bounds the lenient-decode fallback on the streaming (large) lane: a file whose
 # bytes are not valid UTF-8 even after the forced-charset pass is re-read + sanitized only when it fits
@@ -109,7 +109,7 @@ class MarkItDownParser:
         such documents deep in the file (RCA 2026-09-08). Genuinely-invalid bytes are sanitized
         (replaced) and retried.
         """
-        from markitdown import StreamInfo  # noqa: PLC0415 — lazy: the parent never loads markitdown (audit #15)
+        from markitdown import StreamInfo  # noqa: PLC0415 — lazy: the parent never loads markitdown
 
         info = StreamInfo(extension=f".{fmt.value}", charset="utf-8")
         try:
@@ -121,7 +121,7 @@ class MarkItDownParser:
 
     def _pdf_pages(self, content: bytes) -> list[Page]:
         """Extract per-page text from a PDF via pymupdf; return [] if extraction fails."""
-        import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf (audit #15)
+        import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf
 
         try:
             with pymupdf.open(stream=content, filetype="pdf") as doc:
@@ -173,7 +173,7 @@ class MarkItDownParser:
         _MAX_SANITIZE_BYTES, so the memory-bounded large lane never buffers a multi-GB file to recover a
         rare mis-encoding.
         """
-        from markitdown import StreamInfo  # noqa: PLC0415 — lazy: the parent never loads markitdown (audit #15)
+        from markitdown import StreamInfo  # noqa: PLC0415 — lazy: the parent never loads markitdown
 
         info = StreamInfo(extension=f".{fmt.value}", charset="utf-8")
         with Path(path).open("rb") as f:
@@ -188,7 +188,7 @@ class MarkItDownParser:
 
     def _pdf_pages_path(self, path: str) -> list[Page]:
         """Extract per-page text from a PDF opened by path via pymupdf; return [] on failure."""
-        import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf (audit #15)
+        import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf
 
         try:
             with pymupdf.open(path, filetype="pdf") as doc:

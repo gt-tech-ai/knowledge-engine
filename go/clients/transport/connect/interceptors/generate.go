@@ -1,7 +1,7 @@
 package interceptors
 
 // Mock generation for the interceptor's consumer-facing resolver port. The mock
-// lives in pkg/go/tests/mocks so black-box tests (pkg/go/tests/clients) can drive
+// lives in go/tests/mocks so black-box tests (go/tests/unit) can drive
 // the enrichment interceptor against a mocked IdentityResolver.
 
 //go:generate mockgen -destination=../../../../tests/mocks/mock_interceptor_resolver.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors IdentityResolver

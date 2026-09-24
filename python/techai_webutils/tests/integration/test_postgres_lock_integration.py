@@ -28,7 +28,7 @@ async def test_single_writer_runner_serializes_across_sessions(postgres_dsn: str
     """Test one holder blocks a contender and a SingleWriterRunner skips while the lock is held.
 
     **Why this test is important:**
-      - This is the invariant the whole ADR exists for: at replica>1, exactly one pod may drive the
+      - This is the invariant the single-writer lock exists for: at replica>1, exactly one pod may drive the
         Bedrock ingestion job. Two live sessions on one DB must not both acquire the same advisory lock.
 
     **What it tests:**

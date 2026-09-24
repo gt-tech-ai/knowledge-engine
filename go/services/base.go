@@ -1,6 +1,6 @@
 // Package services provides the shared service base and a generic operation
 // decorator/builder for CLI (operation) services. It is the operation-oriented
-// counterpart to pkg/go/services/service (entity CRUD): Base carries the
+// counterpart to go/services/service (entity CRUD): Base carries the
 // dependencies every CLI service shares, and Build assembles a decorated
 // interfaces.OpService[A,R] from a single run function.
 package services

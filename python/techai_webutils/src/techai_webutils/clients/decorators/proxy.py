@@ -49,13 +49,13 @@ class LoggingProxy:
     a single request is followable across services and each stage's latency (``duration_ms``) is
     legible. This is an inner seam: it logs at DEBUG only (visible in dev, where ``level=debug``;
     suppressed in staging/prod, where only the outermost transport/recovery seam logs at
-    INFO/ERROR — charter §6.3).
+    INFO/ERROR — ARCHITECTURE.md#decorator-order).
     """
 
     def __init__(self, wrapped: object, logger_name: str) -> None:
         """Wrap ``wrapped`` and log its calls as structured events via the structlog logger ``logger_name``."""
         self._wrapped = wrapped
-        # Exemption from "inject the logger" (charter One Idea): unlike Go's injected
+        # Exemption from "inject the logger" (ARCHITECTURE.md#dependency-injection): unlike Go's injected
         # ``interfaces.Logger``, the Python foundation's logging is structlog configured ONCE at the
         # process root (``configure_logging``); every seam resolves a bound logger by name via
         # ``get_logger``. The swap point here is the global structlog config, not a per-instance
@@ -88,7 +88,7 @@ class LoggingProxy:
                 except Exception:
                     # Inner-seam failure logs at Debug (suppressed in staging/prod where
                     # level=info); only the outermost recovery/transport seam logs Error
-                    # there (charter §6.3; unified across stacks in).
+                    # there (ARCHITECTURE.md#decorator-order; the same rule holds for every stack).
                     self._logger.debug(
                         "client call failed",
                         client=client,
@@ -339,7 +339,8 @@ class RateLimitProxy:
     Only async methods are gated (the limiter's ``wait`` is a coroutine); sync attributes
     pass through unchanged. Each call awaits a token before proceeding, so a burst is
     smoothed to the configured rate — the RateLimit layer of the Job/Controller stacks
-    (charter §6.3). It is NOT part of the client stack (§6.3 Client has no RateLimit row).
+    (ARCHITECTURE.md#decorator-order). It is NOT part of the client stack, which has no RateLimit
+    layer.
     """
 
     def __init__(self, wrapped: object, rate_limiter: RateLimiter) -> None:
@@ -426,16 +427,15 @@ def new_client_stack_from_config(
 ) -> object:
     """Compose the async client resilience stack around ``wrapped``.
 
-        Applies, outermost → innermost,
-        ``Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging`` — the Python
-        analog of the Go clients/decorators stack. The Tracing layer opens a per-call span,
-        so latency is visible in Tempo; unlike the Go stack this composer does **not** yet
-        emit explicit Prometheus ``client_operations_total``/``client_errors_total``/
-        ``client_operation_duration_seconds`` counters (span-derived RED metrics require a
-        spanmetrics connector in the collector). Reaching that metric parity is tracked in
-    . The circuit breaker is injected (it is stateful and shared
-        across calls); the other layers are built from ``config``. A disabled config returns
-        ``wrapped`` unchanged.
+    Applies, outermost → innermost,
+    ``Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging`` — the Python
+    analog of the Go clients/decorators stack. The Tracing layer opens a per-call span,
+    so latency is visible in Tempo; unlike the Go stack this composer does **not** yet
+    emit explicit Prometheus ``client_operations_total``/``client_errors_total``/
+    ``client_operation_duration_seconds`` counters (span-derived RED metrics require a
+    spanmetrics connector in the collector). Reaching that metric parity is future work.
+    The circuit breaker is injected (it is stateful and shared across calls); the other
+    layers are built from ``config``. A disabled config returns ``wrapped`` unchanged.
     """
     if not config.enabled:
         return wrapped

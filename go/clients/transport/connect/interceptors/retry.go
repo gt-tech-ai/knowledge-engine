@@ -11,7 +11,7 @@ import (
 )
 
 // DefaultRetryBudget is the per-request retry cap servers attach at the
-// entrypoint (R4): a single logical request may spend at most this many retries
+// entrypoint: a single logical request may spend at most this many retries
 // across every retrier in its chain (DB repo retriers + outbound client
 // retriers), so one request can never fan out into unbounded retries.
 const DefaultRetryBudget int32 = 10
@@ -19,7 +19,7 @@ const DefaultRetryBudget int32 = 10
 // nonRetryableConnectCodes lists Connect error codes that must not be retried:
 // permanent client/domain failures, plus ResourceExhausted — retrying a
 // rate-limited/quota-exceeded call immediately only adds load and deepens the
-// backpressure (R9). A parent-context deadline/cancel is handled by the retrier's
+// backpressure. A parent-context deadline/cancel is handled by the retrier's
 // context-awareness (it stops when ctx is done), not classified here, so a
 // per-attempt (child-context) timeout can still be retried.
 var nonRetryableConnectCodes = map[connect.Code]bool{
@@ -74,7 +74,7 @@ func RetryInterceptor(retrier interfaces.Retrier) connect.UnaryInterceptorFunc {
 }
 
 // BudgetInterceptor attaches a fresh retry budget to each inbound request's
-// context at the server entrypoint (R4). Every retrier in the downstream chain —
+// context at the server entrypoint. Every retrier in the downstream chain —
 // the handler's repo/DB retriers and any outbound client retriers — then draws
 // from this one shared per-request cap instead of each multiplying retries
 // independently. maxRetries <= 0 disables it (retries are then bounded only

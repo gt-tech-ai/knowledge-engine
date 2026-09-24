@@ -35,7 +35,7 @@ func New(cfg *infra.DatabaseConfig) *Client {
 }
 
 // Start opens the pool from config, applies the pool sizing, and pings to fail fast
-// at the composition root rather than on the first query (D11).
+// at the composition root rather than on the first query.
 func (c *Client) Start(ctx context.Context) error {
 	db, err := sql.Open("pgx", c.cfg.DSN())
 	if err != nil {

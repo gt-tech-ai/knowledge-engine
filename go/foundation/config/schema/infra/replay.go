@@ -23,7 +23,7 @@ type ReplayConfig struct {
 }
 
 // DefaultReplayConfig returns a 100-message, 5-minute buffer with a 500ms op timeout, matching
-// configs/base.yaml. Dev inherits this (memory backend, no Redis client); staging/prod share the
+// the base config. Dev inherits this (memory backend, no Redis client); staging/prod share the
 // Redis client so the same values drive the redis backend.
 func DefaultReplayConfig() ReplayConfig {
 	return ReplayConfig{

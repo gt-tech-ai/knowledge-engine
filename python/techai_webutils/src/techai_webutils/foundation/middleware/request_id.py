@@ -1,6 +1,6 @@
 """Request ID middleware for propagating correlation IDs.
 
-Mirrors Go's ``pkg/go/foundation/middleware/request_id/``.
+Mirrors Go's ``go/foundation/middleware/request_id.go``.
 Generates or propagates a request ID header across the request lifecycle.
 """
 

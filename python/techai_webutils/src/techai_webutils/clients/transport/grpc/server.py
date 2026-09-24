@@ -7,7 +7,7 @@ Creates a configured ``grpc.aio`` server with:
 - Graceful shutdown with a configurable drain period
 - Support for the async interceptor chain
 
-Mirrors Go's ``pkg/go/clients/connect/server.go`` ``Server`` struct.
+Mirrors Go's ``go/clients/transport/connect/server.go`` ``Server`` struct.
 """
 
 from __future__ import annotations

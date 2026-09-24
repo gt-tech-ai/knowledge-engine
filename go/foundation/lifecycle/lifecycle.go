@@ -1,8 +1,7 @@
 // Package lifecycle provides a Manager that starts a set of lifecycle-managed
 // clients in registration order and stops them in reverse for graceful shutdown,
 // so a composition root wires its clients once and coordinates their startup and
-// teardown centrally instead of by hand. It mirrors the mothership
-// foundation/lifecycle Manager.
+// teardown centrally instead of by hand.
 package lifecycle
 
 import (

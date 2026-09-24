@@ -1,6 +1,6 @@
 """Fluent builder for composing async gRPC server interceptors.
 
-Mirrors Go's ``pkg/go/clients/connect/interceptors/builder.go`` ServerBuilder. The interceptors are
+Mirrors Go's ``go/clients/transport/connect/interceptors/builder.go`` ServerBuilder. The interceptors are
 **async** (``grpc.aio.ServerInterceptor``) so they compose onto the ``grpc.aio`` servers the Python
 services run. Ordering: recovery → rate_limit → metrics → tracing → logging → service_auth → auth →
 validation (validation is innermost, so it checks the exact request the handler receives, after auth).
@@ -69,7 +69,7 @@ class ServerInterceptorBuilder:
     def with_recovery(self) -> ServerInterceptorBuilder:
         """Add the recovery interceptor (outermost).
 
-        Recovers an uncaught handler exception into a logged ``INTERNAL`` abort (charter §9.1), instead
+        Recovers an uncaught handler exception into a logged ``INTERNAL`` abort (ARCHITECTURE.md#error-codes), instead
         of leaking gRPC's opaque ``UNKNOWN``. An intentional abort and a client-cancellation pass
         through unchanged.
         """
@@ -131,7 +131,7 @@ class ServerInterceptorBuilder:
 
         Mirrors the Go connect ``ValidateInterceptor`` — the Python gRPC servers run the same compiled
         protovalidate rules, so an inbound request that violates a rule is rejected server-side with
-        ``INVALID_ARGUMENT`` (charter §9.1, parity) instead of reaching the handler unchecked.
+        ``INVALID_ARGUMENT`` (ARCHITECTURE.md#error-codes; Go parity) instead of reaching the handler unchecked.
         """
         self._validation = True
         return self
@@ -176,7 +176,7 @@ class ServerInterceptorBuilder:
 
 
 class _RecoveryServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
-    """Recovers an uncaught handler exception into a coded ``INTERNAL`` abort (charter §9.1).
+    """Recovers an uncaught handler exception into a coded ``INTERNAL`` abort (ARCHITECTURE.md#error-codes).
 
     The handler is reconstructed so the wrapper executes (and, for a stream, iterates) the real
     handler, catches an *unexpected* exception, logs it, and aborts ``INTERNAL`` — matching the Go
@@ -370,7 +370,7 @@ class _ServiceAuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore
 class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
     """Runs the compiled protovalidate rules on the inbound request proto (Go ValidateInterceptor parity).
 
-    Charter §9.1 (coded errors), (Go↔Python parity).
+    Coded errors per ARCHITECTURE.md#error-codes (Go↔Python parity).
     The handler is reconstructed (via ``_rebuild_handler``, like recovery/metrics) so the wrapper runs
     ``protovalidate.validate`` on the request before the real handler; a rule violation becomes an
     ``INVALID_ARGUMENT`` abort carrying the violation detail (the ``CodeInvalidInput`` classification at

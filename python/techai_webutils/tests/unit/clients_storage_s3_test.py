@@ -143,7 +143,7 @@ class TestS3StorageClient:
 
         **Why this test is important:**
           - The ingestion size gate must learn an object's real size WITHOUT downloading it
-            (the audit's #1 flag: a ``size_bytes==0`` event otherwise materializes the whole object
+            (a ``size_bytes==0`` event otherwise materializes the whole object
             in memory before rejection).
 
         **What it tests:**

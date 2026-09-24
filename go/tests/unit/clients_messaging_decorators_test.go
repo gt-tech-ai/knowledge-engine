@@ -93,7 +93,7 @@ func TestWrapPublisher_LogsPublishFailure(t *testing.T) {
 
 	require.Error(t, err)
 	// The client stack is an INNER seam, so it logs the failure at Debug (suppressed
-	// in staging/prod); the outermost seam is what logs Error there (§6.3).
+	// in staging/prod); the outermost seam is what logs Error there.
 	require.NotEmpty(
 		t,
 		(*spy.ChildDebugCalls),
@@ -238,7 +238,7 @@ func TestWrapPublisher_BatchFailureLoggedAndMeasured(t *testing.T) {
 		t,
 		pub.PublishBatch(context.Background(), "topic", [][]byte{[]byte("a")}),
 	)
-	// Inner-seam failure logs at Debug (§6.3).
+	// Inner-seam failure logs at Debug.
 	require.NotEmpty(
 		t,
 		(*spy.ChildDebugCalls),
@@ -348,7 +348,7 @@ func clientOpCounter(t *testing.T, reg *prometheus.Registry, op string) float64 
 // stack's metrics layer.
 //
 // Why this test is important:
-//   - This story renamed the publisher metric messaging_publish_total{topic} →
+//   - The publisher metric was renamed from messaging_publish_total{topic} to
 //     client_operations_total{client,op}; a silent drop of the publisher metric would
 //     leave the SQS send path unobservable with no failing test to catch it.
 //

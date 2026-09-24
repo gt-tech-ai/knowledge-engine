@@ -11,10 +11,10 @@ import (
 
 // ReadThrough is the shared read-through (cache-aside) primitive for a value of type T, folding the
 // versioned envelope (Encode/Decode) and single-flight (a stampede of concurrent misses on one key
-// collapses to ONE load) into one reuse point for every SCOPED cache decorator (suggest, count —
-// ). Its shape mirrors the repos-tier caching decorator, which predates this primitive and
+// collapses to ONE load) into one reuse point for every SCOPED cache decorator (suggest, count,
+// …). Its shape mirrors the repos-tier caching decorator, which predates this primitive and
 // still holds its own copy of the envelope + stampede logic; consolidating that decorator onto
-// ReadThrough is a future DRY cleanup, tracked separately from.
+// ReadThrough is a future DRY cleanup.
 //
 // Flow: a version-matching hit returns the decoded value WITHOUT calling load; otherwise a single
 // load (per key, across concurrent callers) runs, its result is encoded and stored with ttl, and

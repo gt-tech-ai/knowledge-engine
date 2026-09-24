@@ -15,7 +15,7 @@ import (
 )
 
 // TestStorageMemory_RoundTrip tests that the in-memory StorageClient round-trips an object through
-// the object CRUD surface with no external storage (D7).
+// the object CRUD surface with no external storage.
 //
 // Why this test is important:
 //   - The memory backend is only a useful no-infra stand-in if it behaves like real object storage
@@ -205,7 +205,7 @@ func TestStorageMemory_MultipartLifecycle(t *testing.T) {
 
 // TestStorageFactory_KindMemory_Selected tests that the storage factory selects the in-memory
 // backend for KindMemory — skipping S3 validation entirely — so a service builds with no S3
-// (the config-selects-impl contract, charter §2/§13.2).
+// (the config-selects-impl contract; ARCHITECTURE.md#stub-first-backends).
 //
 // Why this test is important:
 //   - The memory backend is opted into by the tier Kind; if NewFromConfig ignored the Kind and

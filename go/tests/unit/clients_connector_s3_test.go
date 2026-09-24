@@ -63,7 +63,7 @@ func s3Cfg(method string) interfaces.SourceConfig {
 }
 
 // TestS3ConnectorSource_TestConnection tests the S3 ConnectorSource probe over a mocked StorageClient:
-// it counts objects under the bucket/prefix and classifies failures (thread #5).
+// it counts objects under the bucket/prefix and classifies failures.
 //
 // Why this test is important:
 //   - TestConnection is the connector "test" button; it must reuse the shared StorageClient (bounded

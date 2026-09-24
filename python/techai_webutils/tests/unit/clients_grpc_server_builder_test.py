@@ -220,7 +220,7 @@ class TestRecoveryServerInterceptor:
 
         **Why this test is important:**
           - Before this, an uncaught handler exception surfaced as gRPC's opaque ``UNKNOWN``; the
-            recovery interceptor must convert it to an explicit ``INTERNAL`` (charter §9.1, matching
+            recovery interceptor must convert it to an explicit ``INTERNAL`` (ARCHITECTURE.md#error-codes, matching
             the Go recovery interceptor) so clients and dashboards see a coded server error.
 
         **What it tests:**

@@ -97,7 +97,7 @@ func TestGate_PhaseOrdering(t *testing.T) {
 // after the first failing phase and never runs subsequent phases.
 //
 // Why this test is important:
-//   - This is the fail-fast contract behind `search preflight`: once linting
+//   - This is the fail-fast contract behind a preflight gate: once linting
 //     fails there is no point running the test phase. If later phases still ran
 //     the developer would wait for irrelevant work and the gate would mask the
 //     real first failure under a wall of downstream noise.

@@ -1,6 +1,6 @@
 """Async batch fan-out execution substrate.
 
-The Python analog of ``pkg/go/execution`` — a foundation-tier peer of
+The Python analog of ``go/execution`` — a foundation-tier peer of
 ``techai_webutils.foundation`` that depends only on ``techai_webutils.core`` + stdlib +
 ``asyncio``. Models batch, multi-item fan-out (discover -> map -> fan-out -> aggregate),
 distinct from the single-item ``pipelines``/``workflows`` stack.

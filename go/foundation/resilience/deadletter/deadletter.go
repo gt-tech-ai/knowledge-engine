@@ -1,4 +1,4 @@
-// Package deadletter provides the dead-letter-queue facade (D-34) — the Go mirror of
+// Package deadletter provides the dead-letter-queue facade — the Go mirror of
 // techai_webutils.foundation.resilience.dlq. It wraps a DeadLetterBackend with
 // swallow-and-report semantics: a backend failure never propagates to crash the
 // consumer loop, but Send returns false so the caller can leave the source message for

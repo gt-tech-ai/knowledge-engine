@@ -13,7 +13,7 @@ import (
 // ConnectorClientBuilder builds a connector-scoped StorageClient signing with a connector's OWN
 // credentials + region. It is an UNNAMED func type (an alias, not a defined type) so a value of it is
 // assignable to connector/s3.S3ClientBuilder at the composition root — this package therefore never
-// imports pkg/go/clients/connector, so there is no lateral same-layer clients import.
+// imports go/clients/connector, so there is no lateral same-layer clients import.
 type ConnectorClientBuilder = func(
 	ctx context.Context,
 	creds aws.CredentialsProvider,
@@ -25,7 +25,7 @@ type ConnectorClientBuilder = func(
 // duplicated verbatim. Given the app's base S3Config (region + optional MinIO endpoint, captured once),
 // it builds a connector-scoped StorageClient signing with the connector's credentials, falling back to
 // the app region when the connector carries none. It depends only on storage config, so it stays free of
-// any pkg/go/clients/connector import; the composition root passes the result to connector.NewSourceBuilder.
+// any go/clients/connector import; the composition root passes the result to connector.NewSourceBuilder.
 func NewConnectorClientBuilder(base infra.S3Config) ConnectorClientBuilder {
 	endpoint := ""
 	if base.Kind == "minio" {

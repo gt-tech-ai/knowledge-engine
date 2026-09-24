@@ -39,7 +39,7 @@ def _finish_reason(done_reason: str | None) -> str:
 
 
 def _to_app_error(exc: Exception) -> AppError:
-    """Map an Ollama transport/decode failure to a coded ``AppError`` (charter §9.1).
+    """Map an Ollama transport/decode failure to a coded ``AppError`` (ARCHITECTURE.md#error-codes).
 
     Raw ``httpx`` / JSON errors must not cross the provider boundary: the resilience decorators (retry,
     circuit breaker) and the transport status mapping derive their behaviour from the ``ErrorCode``, so

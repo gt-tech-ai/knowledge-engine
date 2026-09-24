@@ -15,7 +15,7 @@ import (
 //
 // River's tables are infrastructure River owns, not Ent-managed entities, so they
 // are applied with River's native migrator rather than the Ent/Atlas migration
-// directory — keeping them out of `search migrate check` (which diffs the Ent
+// directory — keeping them out of an Ent/Atlas drift check (which diffs the Ent
 // schema against the Atlas migrations and would otherwise report perpetual drift
 // for the non-Ent river_* tables). The document-events worker's runtime cannot
 // start until these tables exist; the migration Job invokes Migrate after the

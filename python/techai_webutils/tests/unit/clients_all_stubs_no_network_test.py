@@ -1,7 +1,7 @@
-"""All-stubs zero-network build proof (D7 / charter §13.2).
+"""All-stubs zero-network build proof (ARCHITECTURE.md#stub-first-backends).
 
 Proves the stub-first property: with every swappable client tier selected as its stub/memory/noop
-backend (the ``configs/test.yaml`` overlay), the tier factories a composition root calls build
+backend (as a test-environment config overlay would), the tier factories a composition root calls build
 successfully AND construct NO real network backend. Each real backend's constructor is patched to
 fail, so if a factory wrongly took the real path the test would raise.
 """
@@ -55,7 +55,7 @@ def test_service_builds_all_stubs_no_network(monkeypatch: pytest.MonkeyPatch) ->
     """Every swappable tier builds via its factory under all-stubs, constructing no real backend.
 
     Why this test is important:
-        - Stub-first (charter §13.2) is the property that makes the whole tree buildable/testable with
+        - Stub-first (ARCHITECTURE.md#stub-first-backends) is the property that makes the whole tree buildable/testable with
           no infra. If any tier factory silently fell back to its real backend under the all-stubs
           selection, a "no-infra" build would dial a network the environment does not have.
 

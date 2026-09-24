@@ -181,7 +181,7 @@ func TestCORS_SetsHeaders(t *testing.T) {
 //
 // Why this test is important:
 //   - A response header is invisible to `fetch` unless it is listed in
-//     Access-Control-Expose-Headers; the Epic-31 telemetry round-trip proof relies on the
+//     Access-Control-Expose-Headers; a telemetry round-trip proof relies on the
 //
 // SPA reading `traceresponse`. Without this the header is set but unreadable.
 //
@@ -435,7 +435,7 @@ func TestHTTPMetrics_PatternUsedAsRouteLabel(t *testing.T) {
 }
 
 // TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries tests that raw-path
-// requests carrying distinct entity ids collapse to a single route label (#2).
+// requests carrying distinct entity ids collapse to a single route label.
 //
 // Why this test is important:
 //   - On the catch-all forward the matched pattern is "/", so the route label
@@ -478,17 +478,17 @@ func TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries(t *testing.T) {
 		"22222222-2222-2222-2222-222222222222",
 	} {
 		// No ServeMux: r.Pattern is "", so routeLabel falls back to the raw path,
-		// exercising the normalization branch (#2).
+		// exercising the normalization branch.
 		req := httptest.NewRequest("GET", "/api/documents/"+id, nil)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 }
 
 // TestHTTPMetrics_RouteLabelNormalizationCases tests the raw-path route label
-// across every id-shape the normalizer recognizes and the no-id pass-through (#2).
+// across every id-shape the normalizer recognizes and the no-id pass-through.
 //
 // Why this test is important:
-//   - #2 collapses numeric ids, UUIDs, and long hex tokens (object keys / hashes)
+//   - The normalizer collapses numeric ids, UUIDs, and long hex tokens (object keys / hashes)
 //     to "{id}"; each shape is a distinct branch, and a path with a digit but no
 //     id segment must pass through unchanged — a wrong classification either leaks
 //     cardinality (missed id) or corrupts a legitimate route label (false collapse)

@@ -17,7 +17,7 @@ import (
 )
 
 // TestLockDecorators_FullStackWrapOrder tests that the decorator builder engages
-// every cross-cutting concern and nests them in the charter §6.3 order.
+// every cross-cutting concern and nests them in the documented order (ARCHITECTURE.md#decorator-order).
 //
 // Why this test is important:
 //   - The One Idea requires the lock's business logic to be wrapped by the full

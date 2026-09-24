@@ -51,7 +51,7 @@ func TestGoWorkModules_ScannerError(t *testing.T) {
 // discovery.
 //
 // Why this test is important:
-//   - PythonPackages feeds `search lint/typecheck/test --python`; a search directory
+//   - PythonPackages feeds Python lint/typecheck/test fan-outs; a search directory
 //     that is unreadable (or a nested tree that cannot be walked) must surface an
 //     error, and stray non-directory entries must be skipped, so discovery neither
 //     crashes nor silently drops packages.

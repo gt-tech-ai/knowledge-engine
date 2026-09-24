@@ -4,8 +4,7 @@ import "context"
 
 // Lifecycle is implemented by any client/component with coordinated startup and
 // shutdown, so a lifecycle.Manager can Start them in registration order and Stop
-// them in reverse for graceful shutdown. It mirrors the mothership client-lifecycle
-// contract.
+// them in reverse for graceful shutdown.
 type Lifecycle interface {
 	// Start initializes the component and establishes its connection/resources. It
 	// should block until the component is ready or ctx is cancelled.
@@ -31,8 +30,7 @@ type HealthChecker interface {
 
 // Client is the base contract for a resilient, lifecycle-managed client (gRPC,
 // database pool, Connect server): it can be started/stopped by a lifecycle.Manager
-// and health-probed by Kubernetes. It composes Lifecycle + HealthChecker per the
-// mothership client platform.
+// and health-probed by Kubernetes. It composes Lifecycle + HealthChecker.
 type Client interface {
 	// Lifecycle provides coordinated Start/Stop.
 	Lifecycle

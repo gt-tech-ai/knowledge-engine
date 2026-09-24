@@ -4,7 +4,7 @@ Bedrock allows at most one concurrent ingestion job per KB, so only one worker m
 at a time. ``acquire()`` returns whether the caller won the lock; only the winner calls
 ``release()`` (a loser must never free the holder's lock). Implementations live in ``clients/lock/``
 (``InMemoryLock`` for single-process / local; ``PostgresAdvisoryLock`` for cross-pod stage/prod; a
-Redis backend is the Epic 6 WebSocket sibling of the same abstraction).
+Redis backend is a sibling of the same abstraction).
 """
 
 from __future__ import annotations

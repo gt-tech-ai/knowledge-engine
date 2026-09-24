@@ -144,7 +144,7 @@ func PollUntil(
 
 // ResolveInternalIDs returns the seeded (userID, orgID) internal UUIDs for the given org external id
 // and user external subject — the tenant-scoped ids the worker events/rows reference (the API headers
-// carry external ids; the DB rows carry internal ids). Errors if either row is missing (run `search seed`).
+// carry external ids; the DB rows carry internal ids). Errors if either row is missing (seed them first).
 func ResolveInternalIDs(
 	ctx context.Context,
 	db *sql.DB,
@@ -193,10 +193,9 @@ func SeedWorkspace(ctx context.Context, db *sql.DB, orgID, name string) (string,
 	return id, nil
 }
 
-// APIClient drives the API's document HTTP endpoints on the internal port (:8091) with INJECTED dev
-// identity headers — the same internal, non-Kong lane the retrieval closed-loop E2E uses
-// (test_closed_loop.py), valid under dev STUB_AUTH. The edge/UI real-Auth0 flow stays in Playwright;
-// this is the harness's internal seed path. It is NOT a production client.
+// APIClient drives an API's document HTTP endpoints on its internal port with INJECTED dev identity
+// headers — the internal lane that bypasses the edge gateway, valid under dev STUB_AUTH. The
+// edge/UI real-Auth0 flow is out of scope; this is the harness's internal seed path. It is NOT a production client.
 type APIClient struct {
 	http      *http.Client
 	base      string // e.g. http://localhost:8091

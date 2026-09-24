@@ -47,7 +47,7 @@ class TestFanOut:
 
         **Why this test is important:**
           - The bulk lane fans tens of thousands of objects through one fan_out; the fixed worker pool
-            (audit #7) must keep at most `concurrency` mappers in flight for a huge batch (bounding
+            must keep at most `concurrency` mappers in flight for a huge batch (bounding
             driver memory to O(concurrency), not O(batch)) WITHOUT reordering the per-item results.
 
         **What it tests:**

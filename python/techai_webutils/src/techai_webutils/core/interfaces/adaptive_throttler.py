@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class AdaptiveThrottler(Protocol):
-    """Sheds outbound load client-side when a backend starts failing (see).
+    """Sheds outbound load client-side when a backend starts failing.
 
     A peer resilience contract of ``Retrier``/``Bulkhead``: it wraps an operation with a policy
     and depends on no concrete implementation. Composes with the retry budget -- a locally

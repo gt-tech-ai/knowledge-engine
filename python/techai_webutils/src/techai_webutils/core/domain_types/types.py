@@ -1,6 +1,6 @@
 """Shared domain types used across the platform.
 
-Mirrors the Go types in pkg/go/core/types/types.go. Every type here must
+Mirrors the Go types in go/core/types/types.go. Every type here must
 stay in sync with its Go counterpart to ensure consistent serialization
 and cross-service communication.
 """

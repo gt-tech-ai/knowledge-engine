@@ -52,7 +52,7 @@ class LLMConfig:
 class LLMProvider(ManagedResource, ABC):
     """Abstract LLM provider for text generation and conversation.
 
-    Composes ``ManagedResource`` (charter §2.3): a provider may own an async SDK client
+    Composes ``ManagedResource`` (ARCHITECTURE.md#interface-composition): a provider may own an async SDK client
     (the Bedrock backend does), so it is an async context manager — ``__aenter__`` opens
     lazily on first use, ``__aexit__`` releases it.
 

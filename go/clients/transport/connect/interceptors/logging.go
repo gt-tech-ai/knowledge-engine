@@ -72,7 +72,7 @@ func connectCodeToHTTPStatus(code connect.Code) int {
 //
 // It is used on both the server and the client interceptor chains, so WrapStreamingClient
 // is intentionally a no-op: client-streaming logging is a deliberate, currently-untracked
-// scope boundary (audit F6 covers only the server-streaming handler), NOT because this
+// scope boundary (only the server-streaming handler is covered), NOT because this
 // interceptor is server-side.
 type loggingInterceptor struct {
 	// logger emits the per-request access log line.
@@ -148,8 +148,7 @@ func (i loggingInterceptor) WrapStreamingClient(
 	return next
 }
 
-// WrapStreamingHandler emits one access line for a whole server-streaming RPC
-// (audit F6).
+// WrapStreamingHandler emits one access line for a whole server-streaming RPC.
 func (i loggingInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {

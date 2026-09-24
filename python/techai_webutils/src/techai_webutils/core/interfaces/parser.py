@@ -1,7 +1,7 @@
 """DocumentParser stage contract: parse document bytes (or a file path) into a ``ParsedDocument``.
 
 The shared, dependency-free parse seam every deployable programs against (mirrors Go's
-``pkg/go/core/interfaces``). The config-selected backends in ``techai_webutils.clients.parsing``
+``go/core/interfaces``). The config-selected backends in ``techai_webutils.clients.parsing``
 satisfy it; a parser never raises for a bad document — it returns a ``ParsedDocument`` carrying the
 error.
 

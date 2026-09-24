@@ -50,7 +50,7 @@ func (b *ServerBuilder) WithRateLimit(limiter interfaces.RateLimiter) *ServerBui
 // WithBulkhead enables concurrency-based load shedding: requests over the
 // bulkhead's concurrency limit are rejected with ResourceExhausted, so a burst
 // can't exhaust goroutines or the backing DB pool. Used on the internal surface
-// Kong doesn't cover (R6).
+// Kong doesn't cover.
 func (b *ServerBuilder) WithBulkhead(bh interfaces.Bulkhead) *ServerBuilder {
 	b.bulkhead = bh
 	return b

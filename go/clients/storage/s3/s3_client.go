@@ -37,7 +37,7 @@ const maxDeleteConcurrency = 8
 // maxUploadConcurrency bounds how many multipart part uploads run at once,
 // matching the AWS SDK upload manager's default upload concurrency. Parts are
 // read sequentially (an io.Reader can't be seeked) but uploaded in parallel, so a
-// large document's part PUTs overlap instead of running strictly serially (O7).
+// large document's part PUTs overlap instead of running strictly serially.
 const maxUploadConcurrency = 5
 
 // S3API is the subset of the aws-sdk-go-v2 S3 client used by s3Client. It is an
@@ -281,7 +281,7 @@ func (c *s3Client) putSingle(
 // putMultipart streams a large object as a multipart upload. Parts are read
 // sequentially into their own buffers (an io.Reader cannot be seeked) but their
 // UploadPart calls run concurrently (bounded by maxUploadConcurrency), so a big
-// document's part PUTs overlap instead of blocking one another (O7) — the
+// document's part PUTs overlap instead of blocking one another — the
 // dominant win over the former strictly-serial loop. Any part failure aborts the
 // whole upload so no partial upload lingers. Part size equals the threshold (S3
 // requires every part except the last to be at least 5 MiB).
@@ -446,7 +446,7 @@ func (c *s3Client) DeleteBatch(ctx context.Context, bucket string, keys []string
 		return nil
 	}
 	// S3 DeleteObjects rejects a request with more than 1000 keys, so split into
-	// ≤1000-key chunks. Before this a >1000-key delete failed outright (O9). A
+	// ≤1000-key chunks. Before this a >1000-key delete failed outright. A
 	// single chunk runs inline; multiple chunks run concurrently (bounded), and
 	// the first chunk error is returned.
 	if len(keys) <= maxDeleteBatchKeys {
@@ -776,7 +776,7 @@ func (c *s3Client) ListObjects(
 				fmt.Sprintf("s3 list %s/%s", bucket, prefix),
 			)
 		}
-		// Grow once per page so the inner appends don't repeatedly reallocate (#17).
+		// Grow once per page so the inner appends don't repeatedly reallocate.
 		objs = slices.Grow(objs, len(page.Contents))
 		for _, o := range page.Contents {
 			objs = append(objs, interfaces.StorageObject{

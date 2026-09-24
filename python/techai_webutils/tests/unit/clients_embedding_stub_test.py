@@ -1,7 +1,7 @@
-"""Tests for the deterministic stub embedding backend + factory selection (D7).
+"""Tests for the deterministic stub embedding backend + factory selection.
 
 The ``stub`` embedder lets a retrieval-adjacent service build and unit-test the embedding path with
-no Ollama — the stub-first property (charter §13.2).
+no Ollama — the stub-first property (ARCHITECTURE.md#stub-first-backends).
 """
 
 from __future__ import annotations

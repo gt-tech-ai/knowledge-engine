@@ -1,6 +1,6 @@
 // Package decorators wraps a connector ConnectorSource with the shared client
 // observability stack (metrics/tracing/logging). It composes the same
-// pkg/go/clients/decorators stack the storage and messaging clients use (DRY,
+// go/clients/decorators stack the storage and messaging clients use (DRY,
 // one stack for every client); resilience (retry/circuit-breaker) is
 // deliberately omitted — the sync engine owns
 // retriable-vs-terminal policy, not the rare "test connection" probe.

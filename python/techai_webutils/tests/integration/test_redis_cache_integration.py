@@ -1,6 +1,6 @@
 """Integration tests for RedisCache against a real Redis instance.
 
-The Python parity to ``pkg/go/tests/integration/clients/redis_cache_test.go``.
+The Python parity to ``go/tests/integration/clients_redis_cache_test.go``.
 Unit tests cover the BYPASS/ERROR error branches with mocks; this suite confirms
 the get/set/delete/exists/TTL behavior against a real connection — TTL expiry in
 particular cannot be validated with a mock or a fake clock.

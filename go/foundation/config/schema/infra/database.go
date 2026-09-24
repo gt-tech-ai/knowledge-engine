@@ -40,7 +40,7 @@ type DatabaseConfig struct {
 	// MaxConnections is the maximum number of open connections in the pool. This
 	// is the per-replica Ent budget; with the dedicated River pgxpool it must
 	// satisfy replicaCount * (MaxConnections + river.MaxConns) <= server
-	// max_connections (see pkg/go/clients/jobs/river; D5).
+	// max_connections (see go/clients/jobs/river).
 	MaxConnections int `mapstructure:"max_connections"`
 
 	// MaxIdleConnections is the maximum number of idle connections kept in the
@@ -48,12 +48,12 @@ type DatabaseConfig struct {
 	// number), so a high MaxConnections isn't paired with a 20:1 open:idle ratio
 	// that reopens connections under steady load.
 	//
-	// PgBouncer note (D12): if a future deployment fronts Postgres with a
+	// PgBouncer note: if a future deployment fronts Postgres with a
 	// transaction-pooling PgBouncer, the pgx driver must be switched to the simple
 	// query protocol (DSN default_query_exec_mode=simple_protocol, or
 	// statement_cache_capacity=0) because prepared-statement caching is unsafe
-	// across a transaction pooler. No PgBouncer exists in configs/ or zarf/ today,
-	// so the DSN is unchanged; this is a latent flag for whoever adds one.
+	// across a transaction pooler. The DSN does not set either option, so a
+	// deployment that adds such a pooler must.
 	MaxIdleConnections int `mapstructure:"max_idle_connections"`
 }
 

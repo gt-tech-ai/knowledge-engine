@@ -1,6 +1,6 @@
 """Composable ASGI middleware utilities.
 
-Mirrors Go's ``pkg/go/foundation/middleware/`` with ``Chain()``,
+Mirrors Go's ``go/foundation/middleware/`` with ``Chain()``,
 ``request_id()``, and other composable HTTP/ASGI middleware.
 
 Usage::

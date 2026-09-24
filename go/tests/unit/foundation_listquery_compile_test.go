@@ -209,8 +209,8 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		"joined clause compiles to a correlated EXISTS (multi-column ORs)",
 		func(t *testing.T) {
 			t.Parallel()
-			// A member "name" filter joins users and ORs first_name/last_name — one EXISTS, one join
-			// (§3). The clause carries the JoinTarget ResolveFilter would stamp in production.
+			// A member "name" filter joins users and ORs first_name/last_name — one EXISTS, one join.
+			// The clause carries the JoinTarget ResolveFilter would stamp in production.
 			clause := types.FilterClause{
 				Field: "name", Operator: types.OpLike, Value: "smith",
 				Join: &types.JoinTarget{
@@ -230,7 +230,7 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 			// Filtering by member name AND email — both on the users join — yields two independent EXISTS,
-			// never a duplicate JOIN (the payoff of the EXISTS mechanism, /§4).
+			// never a duplicate JOIN (the payoff of the EXISTS mechanism).
 			f := types.CompositeFilter{And: []types.Filter{
 				types.FilterClause{
 					Field:    "name",

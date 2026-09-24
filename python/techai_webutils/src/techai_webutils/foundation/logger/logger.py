@@ -23,7 +23,7 @@ from structlog.tracebacks import ExceptionDictTransformer
 if TYPE_CHECKING:
     from structlog.typing import EventDict, WrappedLogger
 
-# Guards the single-configure invariant (audit #9): new_logger() self-configures logging exactly once
+# Guards the single-configure invariant: new_logger() self-configures logging exactly once
 # instead of re-running structlog.configure + logging.basicConfig(force=True) — which tore down and
 # re-added the root handlers on every call, a dropped/duplicated-line + off-thread-startup-race risk.
 # configure_logging() itself stays un-guarded so setup_observability and the tests can (re)configure
@@ -51,8 +51,8 @@ def _add_trace_context(
 
 # The one sanctioned bootstrap env read in the logger: GIT_SHA is a deploy-time image
 # constant bound at import so every log line carries git_sha (Grafana → GitHub deep
-# links). Allow-listed in the §7 env guard (`search check env`) rather than threaded
-# through every service's settings (mirrors the Go zap logger's GIT_SHA read).
+# links). A deliberate exception to reading configuration in one place
+# (ARCHITECTURE.md#configuration) rather than threaded through every service's settings (mirrors the Go zap logger's GIT_SHA read).
 _GIT_SHA = os.environ.get("GIT_SHA", "")
 """Deployed commit SHA (image tag) bound at import; stamped on every log for GitHub deep-links."""
 
@@ -203,11 +203,11 @@ def configure_logging(
         wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=target_stream),
-        # NOTE: audit #18 (cache_logger_on_first_use=True) is intentionally NOT applied. The cached
+        # NOTE: cache_logger_on_first_use=True is intentionally NOT applied. The cached
         # bound logger binds to the PrintLoggerFactory's stream at first use and is NOT rebuilt when
         # configure() is re-run with a different stream, which breaks the per-test stream-capture
         # pattern (test_observability et al.). The per-call bound-logger rebuild is cheap relative to
-        # the JSON render + I/O; the #9 configure-once fix already removes the far costlier per-call
+        # the JSON render + I/O; the configure-once guard already removes the far costlier per-call
         # structlog.configure + basicConfig(force=True) teardown.
         cache_logger_on_first_use=False,
     )
@@ -241,7 +241,7 @@ def configure_logging(
     ):
         logging.getLogger(_noisy).setLevel(logging.WARNING)
 
-    # Mark configured so new_logger() self-configures at most once (audit #9); configure_logging itself
+    # Mark configured so new_logger() self-configures at most once; configure_logging itself
     # stays un-guarded, so setup_observability + the tests may (re)configure with an explicit stream.
     global _configured  # noqa: PLW0603
     _configured = True

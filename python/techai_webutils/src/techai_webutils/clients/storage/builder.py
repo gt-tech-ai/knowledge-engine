@@ -24,7 +24,7 @@ class StorageKind(StrEnum):
     S3 = "s3"
     """S3-compatible object storage (AWS S3 in cloud, MinIO in dev)."""
     MEMORY = "memory"
-    """In-memory stub (dev/test/all-stubs; no external storage) — ."""
+    """In-memory stub (dev/test/all-stubs; no external storage)."""
 
 
 @dataclass(frozen=True, slots=True)

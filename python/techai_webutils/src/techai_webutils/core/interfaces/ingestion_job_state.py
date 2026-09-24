@@ -1,4 +1,4 @@
-"""Ingestion job-state port — the API ``InternalService`` persisted-job read/write surface (audit F4).
+"""Ingestion job-state port — the API ``InternalService`` persisted-job read/write surface.
 
 The ingestion worker persists the CURRENT Bedrock ingestion job for a ``(knowledge_base_id,
 data_source_id)`` pair so a restart or poll-timeout can *reattach* to an in-flight job instead of
@@ -37,7 +37,7 @@ class IngestionJobStateRecord:
     """The persisted job-state row for one KB data source — the read side of ``IngestionJobStateStore``.
 
     Returned by ``get`` when a row exists (``None`` when the data source is idle). ``started_at`` is
-    when the current job was first recorded; the 32.4 watchdog compares it against ``datetime.now(UTC)``
+    when the current job was first recorded; a stuck-job watchdog compares it against ``datetime.now(UTC)``
     to detect a stuck job, so both timestamps are timezone-aware UTC.
     """
 

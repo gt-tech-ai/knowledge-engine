@@ -19,7 +19,7 @@ def parse_sample_rate(raw: str | None) -> float:
     Invalid or out-of-range values fall back to 1.0 (sample everything) so a bad
     config never silently disables tracing. This is pure normalization logic (no env
     read) exposed so the composition-root entrypoints — the sanctioned place to read
-    the environment (charter §7) — can parse the raw TRACE_SAMPLE_RATE they read.
+    the environment (ARCHITECTURE.md#configuration) — can parse the raw TRACE_SAMPLE_RATE they read.
     """
     if not raw:
         return 1.0
@@ -42,7 +42,7 @@ def setup_observability(
     The OTLP endpoint and trace sample rate are INJECTED by the caller (the
     composition-root entrypoint reads OTEL_EXPORTER_OTLP_ENDPOINT / TRACE_SAMPLE_RATE
     from the environment once and passes them down) — this foundation function does
-    not read the environment itself (charter §7).
+    not read the environment itself (ARCHITECTURE.md#configuration).
 
     Args:
         service_name: Service name used for trace resource attribution + logs.

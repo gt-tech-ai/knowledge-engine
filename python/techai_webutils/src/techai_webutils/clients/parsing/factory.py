@@ -1,8 +1,8 @@
 """Env-aware document-parser factory (foundation/logger ``NewFromConfig`` pattern).
 
 Selects the parse backend from ``ParserConfig.kind``. Only ``isolated`` (MarkItDown + pymupdf in a
-bounded subprocess) ships today; layout-aware / OCR backends are future ``Kind``s (chunking-quality
-epic). Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract. The heavy
+bounded subprocess) ships today; layout-aware / OCR backends are future
+``Kind``s. Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract. The heavy
 ``markitdown``/``pymupdf`` deps stay lazy — the ``isolated`` backend module is imported only when the
 ``isolated`` kind is selected, and it in turn imports the parser libs lazily inside its parse methods.
 """

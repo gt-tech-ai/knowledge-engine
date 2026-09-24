@@ -16,7 +16,7 @@ def test_database_settings_defaults() -> None:
 
     **Why this test is important:**
       - These defaults are what a developer gets with no env vars set; they must
-        match the Docker Compose Postgres so `search dev up` works out of the box
+        match a local Docker Compose Postgres so a dev stack works out of the box
       - A drifted default (wrong port, user, or db name) would silently point
         local services at a nonexistent database
 

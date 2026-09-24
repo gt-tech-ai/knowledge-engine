@@ -50,10 +50,10 @@ class RetrievalConfig:
     knowledge_base_id: str = ""
     """The Bedrock Knowledge Base id to query (empty for the stub)."""
     search_type: str = "semantic"
-    """KB search strategy (audit R6/R14): "semantic" (vector only) | "hybrid" (vector + keyword; the KB's
+    """KB search strategy: "semantic" (vector only) | "hybrid" (vector + keyword; the KB's
     OpenSearch storage supports it). "hybrid" sets Retrieve's overrideSearchType."""
     reranking_kind: str = "none"
-    """Reranker selection (audit R6/R14): "none" | "bedrock_rerank" (a Cohere Rerank model reorders the
+    """Reranker selection: "none" | "bedrock_rerank" (a Cohere Rerank model reorders the
     candidate pool via Retrieve's rerankingConfiguration)."""
     reranking_model: str = ""
     """Reranker model id for the bedrock_rerank kind, e.g. "cohere.rerank-v3-5:0" (empty → no reranking)."""
@@ -90,7 +90,7 @@ def new_retrieval_engine_from_config(config: RetrievalConfig) -> RetrievalEngine
             endpoint=config.endpoint,
             search_type=config.search_type,
             # The reranker model is passed only when the kind selects it, so kind=none disables reranking
-            # regardless of a stray model id (audit R6/R14).
+            # regardless of a stray model id.
             reranking_model=(config.reranking_model if config.reranking_kind == "bedrock_rerank" else ""),
         )
     elif config.kind is RetrievalKind.QDRANT:

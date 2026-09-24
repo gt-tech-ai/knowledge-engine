@@ -164,7 +164,7 @@ func TestParse_RejectsUnknownFieldAndTypeMismatch(t *testing.T) {
 // (matches-nothing) clause, while a mixed-type array is rejected.
 //
 // Why this test is important:
-//   - $in: [] and mixed-type arrays are exactly the edges the Ent compiler (31.17) and
+//   - $in: [] and mixed-type arrays are exactly the edges the Ent compiler and
 //     adversarial clients will hit; leaving them implicit risks a surprising default or a
 //     type-unsafe value reaching SQL.
 //

@@ -141,8 +141,8 @@ markers = [
 [tool.coverage.run]
 # relative_files + a distinct (non-hidden, so GitHub upload-artifact keeps it)
 # data file let the combined coverage GATE merge this unit dataset with the
-# integration dataset across separate CI jobs (see the `python-coverage-gate` job
-# + .coveragerc.combined). `search test unit --python` writes coverage_unit.dat;
+# integration dataset across separate CI jobs (see .coveragerc.combined). The unit
+# run writes coverage_unit.dat;
 # the integration run writes coverage_integration.dat; the gate combines them.
 relative_files = true
 data_file = "coverage_unit.dat"

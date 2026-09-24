@@ -104,7 +104,7 @@ class TestConverseArgs:
 
         **Why this test is important:**
           - With config=None the provider decodes at 1024/0.7 — truncating long cited answers and
-            reducing faithfulness (audit R4) — so the composition root's max_tokens/temperature must
+            reducing faithfulness — so the composition root's max_tokens/temperature must
             reach inferenceConfig verbatim.
           - Bedrock Converse rejects ``temperature`` and ``topP`` together for Claude models ("cannot
             both be specified"), so the request must carry temperature only; sending topP alongside it
@@ -210,7 +210,7 @@ class TestLlmFactory:
 
         **Why this test is important:**
           - A bedrock provider constructed with no model id defers the failure to first invocation, where
-            it surfaces as an opaque Bedrock validation/AccessDenied error (audit R9 — the mechanism behind
+            it surfaces as an opaque Bedrock validation/AccessDenied error (the mechanism behind
             an env that sets kind=bedrock but omits the model inheriting a guaranteed-failing default).
             Failing at construction — like the unknown-kind guard — turns a silent misconfiguration into a
             loud, actionable startup error.
@@ -226,8 +226,8 @@ class TestLlmFactory:
 
         **Why this test is important:**
           - The old defaults (anthropic.claude-3-*-2024…) are BOTH retired and bare (non-inference-profile);
-            every Anthropic model on Bedrock is inference-profile-only, so a bare id AccessDenies at runtime
-            (audit R9). The canonical defaults must be active us.anthropic.* inference-profile ids so a
+            every Anthropic model on Bedrock is inference-profile-only, so a bare id AccessDenies at runtime.
+            The canonical defaults must be active us.anthropic.* inference-profile ids so a
             bedrock config that omits the model inherits a working default, not a guaranteed-failing one.
 
         **What it tests:**
@@ -285,7 +285,7 @@ class TestOllamaLlmProvider:
 
         Why this test is important:
           - The resilience decorators (retry, circuit breaker) and the transport status mapping derive
-            their behaviour from the ErrorCode (charter §9.1); a raw ``httpx.HTTPStatusError`` escaping the
+            their behaviour from the ErrorCode (ARCHITECTURE.md#error-codes); a raw ``httpx.HTTPStatusError`` escaping the
             provider would bypass transient-vs-terminal classification, so a retryable 5xx would look
             terminal.
 

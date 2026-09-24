@@ -89,7 +89,7 @@ func TestCircuitBreaker_OpensAfterConsecutiveFailures(t *testing.T) {
 }
 
 // TestCircuitBreaker_DomainErrorsDoNotTrip verifies that permanent domain errors
-// (NotFound, Conflict) never open the breaker (audit R1).
+// (NotFound, Conflict) never open the breaker.
 //
 // Why this test is important:
 //   - Before the IsSuccessful classifier, every error — including ordinary
@@ -133,8 +133,7 @@ func TestCircuitBreaker_DomainErrorsDoNotTrip(t *testing.T) {
 }
 
 // TestCircuitBreaker_FailureRatioTrips verifies the failure-ratio guard opens the
-// breaker on a sustained error mix that never accumulates consecutive failures
-// (audit R7).
+// breaker on a sustained error mix that never accumulates consecutive failures.
 //
 // Why this test is important:
 //   - A dependency that fails ~half its calls interleaved with successes never

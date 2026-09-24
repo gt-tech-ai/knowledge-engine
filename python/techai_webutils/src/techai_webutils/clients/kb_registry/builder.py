@@ -5,7 +5,7 @@ single-KB topology; ``output`` for per-org routing off the Terraform for_each ma
 ``TenantKbRegistry`` port. Unknown kinds — and a kind whose required config is absent (shared without
 coordinates, output without a bindings map) — fail loudly with ``ValueError``, matching the
 ``foundation/logger`` ``NewFromConfig`` contract. A future
-``db``/``grpc`` backend (design §4) adds a ``KbRegistryKind`` here without changing the port.
+``db``/``grpc`` backend adds a ``KbRegistryKind`` here without changing the port.
 """
 
 from __future__ import annotations

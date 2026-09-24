@@ -1,8 +1,8 @@
 """Env-aware document-splitter factory (foundation/logger ``NewFromConfig`` pattern).
 
 Selects the ``split`` backend from ``SplitterConfig.kind``. Only ``kb_unit`` (page/paragraph pack to a
-byte ceiling) ships today; table-atomic / layout-aware splitters are future ``Kind``s (the
-chunking-quality epic). Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract.
+byte ceiling) ships today; table-atomic / layout-aware splitters are future ``Kind``s.
+Unknown kinds fail loudly, matching the Go ``NewFromConfig`` contract.
 """
 
 from __future__ import annotations

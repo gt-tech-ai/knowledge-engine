@@ -16,7 +16,7 @@ import (
 // user provisioning in a production environment.
 //
 // Why this test is important:
-//   - Story AC #2 (audit T11): user provisioning must be fail-closed against prod. The guard
+//   - User provisioning must be fail-closed against prod. The guard
 //     is defense-in-depth so a misconfigured prod deploy can never mint users through this
 //     path — a refusal here must be a coded error, and no user may be created.
 //

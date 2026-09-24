@@ -12,15 +12,14 @@ import (
 )
 
 // testConnectionMaxKeys bounds the reachability probe — a small count, not a
-// full inventory (the bulk list + ingestion is the Python/Ray side, Story
-// 9.5).
+// full inventory (bulk listing + ingestion is the Python/Ray side).
 const testConnectionMaxKeys = 1000
 
 // S3ClientBuilder builds a connector-scoped StorageClient that signs with the
 // given credentials in the given region. The APP composition root supplies it
 // (a closure over the storage tier's client construction, capturing the
 // app-infra endpoint — MinIO in dev, none in prod), so
-// pkg/go/clients/connector NEVER imports pkg/go/clients/storage — the layering
+// go/clients/connector NEVER imports go/clients/storage — the layering
 // seam that avoids a lateral same-layer import.
 type S3ClientBuilder func(
 	ctx context.Context,
@@ -75,7 +74,7 @@ func NewSource(
 // TestConnection lists a bounded page under the connector's bucket/prefix and
 // returns the object count on that page — a reachability + credential probe,
 // not a full inventory (the exhaustive crawl is ListPage). It classifies a
-// failure via classifyListError (thread #5).
+// failure via classifyListError.
 func (s *Source) TestConnection(ctx context.Context) (int, error) {
 	objs, err := s.storage.ListObjectsPage(ctx, s.bucket, s.prefix, testConnectionMaxKeys)
 	if err != nil {

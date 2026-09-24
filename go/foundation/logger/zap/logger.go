@@ -53,8 +53,9 @@ func New(cfg Config) *Logger {
 	// Bind the deployed commit (GIT_SHA env = image tag) so every log line carries
 	// git_sha, letting Grafana deep-link errors to GitHub source at that revision.
 	// This is the one sanctioned bootstrap env read in the logger: it is a deploy-time
-	// image constant read at logger construction, and is allow-listed in the §7 env
-	// guard (`search check env`) rather than threaded through every app's config.
+	// image constant read at logger construction — a deliberate exception to reading
+	// configuration in one place (ARCHITECTURE.md#configuration) — rather than threaded
+	// through every app's config.
 	if sha := os.Getenv("GIT_SHA"); sha != "" {
 		l = l.With(slog.String("git_sha", sha))
 	}

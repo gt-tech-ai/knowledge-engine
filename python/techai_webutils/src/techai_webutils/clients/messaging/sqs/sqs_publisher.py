@@ -78,7 +78,7 @@ class SQSPublisher(MessagePublisher):
             for p in payloads
         ]
         # SQS caps a batch at 10 messages; send the chunks concurrently rather than paying a full
-        # round-trip per chunk in sequence (audit #22) — an outbox-relay burst of N>10 messages now
+        # round-trip per chunk in sequence — an outbox-relay burst of N>10 messages now
         # costs one round-trip, not ceil(N/10).
         await asyncio.gather(
             *(

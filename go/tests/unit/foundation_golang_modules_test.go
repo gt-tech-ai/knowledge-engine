@@ -27,7 +27,7 @@ func TestLintFilters(t *testing.T) {
 	t.Parallel()
 	assert.True(t, golang.IsLintTarget("pkg/go/core"))
 	assert.False(t, golang.IsLintTarget("gen/go/pb"), "generated code excluded")
-	assert.True(t, golang.GoLintFilter("apps/go/server/api"))
+	assert.True(t, golang.GoLintFilter("apps/api"))
 	assert.False(t, golang.GoLintFilter("gen/go/ent"))
 	assert.True(t, golang.PythonLintFilter("pkg/python/techai_webutils"))
 	assert.False(t, golang.PythonLintFilter("gen/python/generated"),

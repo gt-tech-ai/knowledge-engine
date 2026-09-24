@@ -12,7 +12,7 @@
 // The layers are nil-able: a nil primitive (or zero timeout) disables that layer,
 // so a bare [Stack] is a passthrough. Which layers a client gets is chosen by
 // configuration ([StackFromConfig]); resilience primitives come from
-// pkg/go/foundation/resilience behind pkg/go/core/interfaces.
+// go/foundation/resilience behind go/core/interfaces.
 package decorators
 
 import (
@@ -178,8 +178,8 @@ func Run[T any](
 	// Bulkhead is outermost, bounding concurrency across the whole sequence. The
 	// acquire uses the caller's ctx (NOT the per-attempt timeout, which is applied
 	// only after a slot is held), so a caller that needs the slot wait bounded must
-	// pass a ctx with a deadline. (A dedicated acquire timeout is deferred to the
-	// resilience config surface, .)
+	// pass a ctx with a deadline. (A dedicated acquire timeout is not yet part of the
+	// resilience config surface.)
 	if s.bulkhead != nil {
 		prev := run
 		run = func() error { return s.bulkhead.Execute(ctx, prev) }
@@ -248,7 +248,7 @@ func RunStream[T any](
 // client_operations_total / client_errors_total count attempts (not logical ops), and
 // each failed attempt is logged at Debug — this is an INNER seam, so its failure log is
 // suppressed in staging/prod (level=info); only the outermost recovery/transport seam
-// logs Error there (charter §6.3; unified across all stacks in).
+// logs Error there (ARCHITECTURE.md#decorator-order; the same rule holds for every stack).
 func (s *Stack) record(
 	ctx context.Context,
 	op string,

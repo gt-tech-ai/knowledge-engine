@@ -76,7 +76,7 @@ func TestHedger_Disabled_RunsOnce(t *testing.T) {
 }
 
 // TestHedger_UnknownKind_Errors tests that the factory fails loudly on an unknown kind rather
-// than silently returning a nil/degenerate hedger (charter §2 factory shape).
+// than silently returning a nil/degenerate hedger (the factory shape, ARCHITECTURE.md#swappable-components).
 //
 // Why this test is important:
 //   - A factory that swallowed an unknown kind would ship a mis-selected resilience policy to

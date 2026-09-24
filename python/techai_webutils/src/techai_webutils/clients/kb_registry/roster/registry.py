@@ -1,7 +1,7 @@
 """``RosterKbRegistry`` — per-org routing with a gapless, reversible migration roster.
 
 Selected by ``KbRegistryKind.ROSTER`` for the per-org topology WITH an in-flight migration. It extends
-the ``output`` backend's org-keyed map with a per-binding status FSM (design §5) so a tenant migrates
+the ``output`` backend's org-keyed map with a per-binding status FSM so a tenant migrates
 without a read gap and cutover is per-tenant + reversible — all config/output-backed (bindings change
 only on ``terraform apply`` / a redeploy), with **no** runtime-mutable ``db`` backend:
 

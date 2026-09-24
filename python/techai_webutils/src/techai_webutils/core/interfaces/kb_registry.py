@@ -1,12 +1,12 @@
-"""Tenant→KB registry port — resolves an isolation unit to its Bedrock KB coordinates (audit F5).
+"""Tenant→KB registry port — resolves an isolation unit to its Bedrock KB coordinates.
 
-The single seam both Track B paths resolve through (design §1): the write path fans out one
+The single seam both the ingestion and retrieval paths resolve through: the write path fans out one
 lock-guarded KB-sync runner per ``list_active()`` binding, and the read path resolves a request's org to
 the KB it must query. The interface is keyed by a routing key (``org_external_id`` for the per-org
-topology, 32.9) — so per-org / per-BU / per-tier grouping is a registry *population policy*, not an
+topology) — so per-org / per-BU / per-tier grouping is a registry *population policy*, not an
 interface change. Concrete backends live in ``techai_webutils.clients.kb_registry`` and are selected by
 ``kb_registry_from_config`` (``shared`` default; ``output`` per-key map from the Terraform for_each
-output). Async so a future ``db``/``grpc`` backend (design §4, deferred) needs no interface change,
+output). Async so a future ``db``/``grpc`` backend needs no interface change,
 matching the async-first ``RetrievalEngine`` / ``KnowledgeBaseIngestor`` ports.
 """
 
@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-# Binding lifecycle status values (design §5 FSM). ``active`` is the ONLY status the registry routes on
+# Binding lifecycle status values (a small FSM). ``active`` is the ONLY status the registry routes on
 # — a read resolves and a write fans out solely for an active binding; ``provisioning``/``migrating``
 # bindings are visible to operators but MUST fail closed on both paths (the tenant still reads the
 # shared KB until cutover flips the binding to ``active``). Kept as strings (not an enum) to match the
@@ -51,7 +51,7 @@ class KbBinding:
     """A registry binding: one isolation-unit key → its KB coordinates + lifecycle status.
 
     ``list_active()`` returns the ``active`` bindings the write path fans out over; ``tenant_key`` is
-    the grouping key (org/BU/workspace) the binding was provisioned for (design §1).
+    the grouping key (org/BU/workspace) the binding was provisioned for.
     """
 
     tenant_key: str
@@ -76,7 +76,7 @@ class TenantKbRegistry(Protocol):
         """Return the ``active`` KB coordinates for a routing key, or ``None`` (fail closed) if unknown.
 
         The key is the isolation-unit routing key — ``org_external_id`` for the per-org ``output``
-        topology (32.9); the ``shared`` backend ignores it and returns the one configured KB.
+        topology; the ``shared`` backend ignores it and returns the one configured KB.
         """
         ...
 

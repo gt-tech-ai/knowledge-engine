@@ -8,9 +8,9 @@ job fails one document alone.
 
 The child is forked from a **forkserver** that preloads the heavy parser libraries (``markitdown`` +
 ``pymupdf``) where the platform supports it, so each parse pays a cheap fork instead of a full
-interpreter spawn + a per-parse re-import of the markitdown/pymupdf dependency tree (audit #2). The
-forkserver is a SEPARATE process that holds those imports, so the async parent stays lazy-import-clean
-(audit #15). Every parse still gets its OWN fresh, killable, memory-capped child — the forkserver only
+interpreter spawn + a per-parse re-import of the markitdown/pymupdf dependency tree. The
+forkserver is a SEPARATE process that holds those imports, so the async parent stays lazy-import-clean.
+Every parse still gets its OWN fresh, killable, memory-capped child — the forkserver only
 changes how cheaply that child is created, not the isolation contract. Platforms without forkserver
 (e.g. Windows) fall back to ``spawn``.
 """
@@ -54,7 +54,7 @@ _POLL_INTERVAL_SECONDS = 0.05
 """How often (seconds) the parent re-checks the result queue and child liveness while waiting."""
 
 # Heavy parser libraries the forkserver preloads so a forked parse child inherits them (no per-parse
-# re-import, audit #2). They must be importable in the forkserver — both are hard ingestion deps.
+# re-import). They must be importable in the forkserver — both are hard ingestion deps.
 _FORKSERVER_PRELOAD = ["markitdown", "pymupdf"]
 """Heavy parser libs the forkserver preloads so a forked parse child inherits them (no per-parse re-import)."""
 
@@ -64,7 +64,7 @@ def _isolated_context():  # noqa: ANN202 — inferred SpawnContext|ForkServerCon
 
     forkserver forks each parse child from a server process that has already imported the heavy parser
     libs, so a parse pays a cheap fork instead of a full interpreter spawn + markitdown/pymupdf
-    re-import (audit #2), while every parse still gets its own killable, memory-capped child. spawn is
+    re-import, while every parse still gets its own killable, memory-capped child. spawn is
     the fallback where forkserver is unsupported (e.g. Windows); it re-imports per child as before.
     """
     if "forkserver" in mp.get_all_start_methods():

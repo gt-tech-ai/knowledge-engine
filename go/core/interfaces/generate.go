@@ -1,8 +1,8 @@
 package interfaces
 
 // Mock generation directives for core interfaces.
-// Run: go generate ./pkg/go/core/interfaces
-// All generated mocks are written to pkg/go/tests/mocks/.
+// Run: go generate ./go/core/interfaces
+// All generated mocks are written to go/tests/mocks/.
 
 // Auth
 //go:generate mockgen -destination=../../tests/mocks/mock_auth.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AuthProvider

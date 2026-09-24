@@ -52,7 +52,7 @@ type RawMember struct {
 
 // OrgPager fetches one page of organizations; cursor is nil for the first page,
 // and the returned next cursor is nil once no pages remain.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for the read/write loops.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for the read/write loops.
 type OrgPager interface {
 	// ListOrgPage returns one page of organizations plus the next-page cursor
 	// (nil once the last page is reached).
@@ -63,7 +63,7 @@ type OrgPager interface {
 }
 
 // MemberPager fetches one page of an organization's members.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for the read/write loops.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for the read/write loops.
 type MemberPager interface {
 	// ListMemberPage returns one page of the organization's members plus the
 	// next-page cursor (nil once the last page is reached).
@@ -76,7 +76,7 @@ type MemberPager interface {
 
 // OrgWriter creates/updates/deletes Auth0 organizations. The SDK adapter
 // implements it; a fake drives the write methods in tests.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for the read/write loops.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for the read/write loops.
 type OrgWriter interface {
 	// CreateOrg creates an organization and returns its Auth0-assigned id.
 	CreateOrg(ctx context.Context, org types.OrgWrite) (extID string, err error)
@@ -89,7 +89,7 @@ type OrgWriter interface {
 // Inviter creates org invitations, lists an org's outstanding invitations, revokes
 // one, and removes a member from an org. The SDK adapter implements it; a fake drives
 // these in tests.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for the read/write loops.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for the read/write loops.
 type Inviter interface {
 	// CreateInvitation creates one org invitation for the given invitee and roles.
 	CreateInvitation(ctx context.Context, orgExtID string, inv types.InviteInput) error
@@ -103,7 +103,7 @@ type Inviter interface {
 
 // MemberRoleLister lists the Auth0 org role names assigned to one member. The SDK
 // adapter implements it; a fake drives it in tests.
-// SDK seam (charter §2.3): abstracts the go-auth0 SDK for the read/write loops.
+// SDK seam (ARCHITECTURE.md#interface-composition): abstracts the go-auth0 SDK for the read/write loops.
 type MemberRoleLister interface {
 	// ListMemberRoles returns the names of the Auth0 org roles assigned to the member.
 	ListMemberRoles(ctx context.Context, orgExtID, userSub string) ([]string, error)
@@ -138,8 +138,8 @@ type Client struct {
 	// assignRetryMax / assignRetryBase bound the role-assignment retry that absorbs
 	// Auth0's create→assign eventual-consistency lag: a just-created user can briefly
 	// 404 (inexistent_user) on POST /users/{id}/roles before the tenant propagates it.
-	// We retry the WRITE (not a GET /users/{id} poll) because the seed M2M client has
-	// update:users but not read:users. Defaults set by the constructors; a test may
+	// We retry the WRITE (not a GET /users/{id} poll) because a Management-API client may
+	// hold update:users without read:users. Defaults set by the constructors; a test may
 	// shrink them via WithAssignRetry. (Scalars last for optimal struct alignment.)
 	assignRetryMax int
 	// assignRetryBase is the base backoff between role-assignment retries (grows

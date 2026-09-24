@@ -58,9 +58,9 @@ type Client struct {
 }
 
 // NewFromConfig validates cfg.Kind and returns an unopened GORM client. It is the
-// adapter's app-wiring entrypoint (mothership repos/adapters shape) and does no I/O:
-// the connection is dialed in Start so a composition root can be assembled against an
-// unreachable database without failing at graph-build time (charter DoD).
+// adapter's app-wiring entrypoint and does no I/O: the connection is dialed in Start so
+// a composition root can be assembled against an unreachable database without failing
+// at graph-build time.
 func NewFromConfig(cfg Config) (*Client, error) {
 	if cfg.Kind != KindPostgres {
 		return nil, coreerrors.New(

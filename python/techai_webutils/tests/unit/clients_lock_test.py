@@ -58,9 +58,9 @@ class TestPostgresAdvisoryLock:
         """Test acquire opens one keepalive-enabled session, returns the pg_try_advisory_lock result.
 
         **Why this test is important:**
-          - The whole ADR rests on ``pg_try_advisory_lock`` mapping to the single-writer decision; and
-            the long, idle hold requires TCP keepalives (CR1) so a middlebox does not reap the session
-            and silently release the lock. One pinned connection, reused across ticks (CR5/CR6).
+          - The single-writer lock rests on ``pg_try_advisory_lock`` mapping to the single-writer decision; and
+            the long, idle hold requires TCP keepalives so a middlebox does not reap the session
+            and silently release the lock. One pinned connection, reused across ticks.
 
         **What it tests:**
           - Two ``acquire()`` calls connect exactly once; the DSN passes through and keepalive
@@ -155,7 +155,7 @@ class TestPostgresAdvisoryLock:
 
     @pytest.mark.asyncio
     async def test_connect_is_lazy_not_on_enter(self) -> None:
-        """Test entering the context does NOT connect — the session opens on first acquire (CR5).
+        """Test entering the context does NOT connect — the session opens on first acquire.
 
         **Why this test is important:**
           - The lock connection is entered into the worker's AsyncExitStack at startup; connecting
@@ -174,7 +174,7 @@ class TestPostgresAdvisoryLock:
 
     @pytest.mark.asyncio
     async def test_acquire_reconnects_when_session_closed(self) -> None:
-        """Test acquire reopens the session when the held connection has been closed (CR2).
+        """Test acquire reopens the session when the held connection has been closed.
 
         **Why this test is important:**
           - The pinned session can be reaped between 30s ticks (idle timeout / crash). Without a
@@ -221,7 +221,7 @@ class TestPostgresAdvisoryLock:
 
     @pytest.mark.asyncio
     async def test_release_swallows_a_broken_session(self) -> None:
-        """Test release does not raise when the session is already broken (CR8).
+        """Test release does not raise when the session is already broken.
 
         **Why this test is important:**
           - ``SingleWriterRunner`` calls ``release`` in a ``finally``; if it raised on a dead socket it
@@ -340,7 +340,7 @@ class TestLockFromConfig:
 
     @pytest.mark.asyncio
     async def test_postgres_dsn_carries_sslmode_and_encodes_credentials(self) -> None:
-        """Test the factory's Postgres DSN carries sslmode and percent-encodes credentials (CR4).
+        """Test the factory's Postgres DSN carries sslmode and percent-encodes credentials.
 
         **Why this test is important:**
           - asyncpg has no ``sslmode`` kwarg — TLS must travel in the DSN URI, or staging/prod RDS

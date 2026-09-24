@@ -104,8 +104,7 @@ func (i tracingInterceptor) WrapStreamingClient(
 	return next
 }
 
-// WrapStreamingHandler opens one server span spanning the whole server-streaming RPC
-// (audit F6).
+// WrapStreamingHandler opens one server span spanning the whole server-streaming RPC.
 func (i tracingInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {
@@ -164,7 +163,7 @@ func ClientTracingInterceptor(tracer interfaces.Tracer) connect.UnaryInterceptor
 func parseConnectProcedure(procedure string) (service, method string) {
 	// A Connect procedure is "/package.Service/Method". Slice it in place — the
 	// first '/' separates service from method — instead of allocating a []string
-	// via strings.Split on this per-request tracing/metrics hot path (#18).
+	// via strings.Split on this per-request tracing/metrics hot path.
 	p := strings.TrimPrefix(procedure, "/")
 	if i := strings.IndexByte(p, '/'); i >= 0 {
 		return p[:i], p[i+1:]

@@ -32,7 +32,7 @@ type CompilerConfig struct {
 	Kind string `mapstructure:"kind"`
 }
 
-// DefaultCompilerConfig returns the Ent/SQL backend, matching configs/base.yaml.
+// DefaultCompilerConfig returns the Ent/SQL backend, matching the base config.
 func DefaultCompilerConfig() CompilerConfig {
 	return CompilerConfig{Kind: "ent"}
 }

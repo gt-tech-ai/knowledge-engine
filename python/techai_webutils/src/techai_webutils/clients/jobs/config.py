@@ -1,6 +1,6 @@
 """Job queue configuration.
 
-Mirrors Go's ``pkg/go/clients/jobs/jobs.go`` configuration types.
+Mirrors Go's ``go/clients/jobs/jobs.go`` configuration types.
 """
 
 from __future__ import annotations

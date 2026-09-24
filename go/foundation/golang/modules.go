@@ -110,7 +110,7 @@ var (
 // process and the workspace is stable within a run, so caching collapses the
 // repeated `go list` storm — module-eligibility probing runs ~5x per preflight
 // (format, lint, typecheck, security, test), plus the per-integration-module
-// unit-package exclusion — down to a single `go list` per directory (#5/#24).
+// unit-package exclusion — down to a single `go list` per directory.
 // Both FilterModulesWithGoPackages (eligibility) and the CLI's unit-package
 // exclusion read it, so they share one listing per dir. Concurrent calls for the
 // same dir dedupe on a per-dir sync.Once; distinct dirs list in parallel.
@@ -179,7 +179,7 @@ func FilterModulesWithGoPackages(
 	ok := make([]bool, len(modules))
 	// Bound concurrency at NumCPU with errgroup.SetLimit (acquire-before-spawn),
 	// so a workspace with many modules holds ≤NumCPU probe goroutines rather than
-	// one per module (#4).
+	// one per module.
 	g := new(errgroup.Group)
 	g.SetLimit(runtime.NumCPU())
 	for i, mod := range modules {

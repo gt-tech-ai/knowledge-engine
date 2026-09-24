@@ -110,11 +110,10 @@ type defaultDecoratedImpl[T any, P any, ID comparable] struct {
 
 // Build constructs the decorated service. Decorators are applied inside-out:
 // base → timeout → authorization → logging → metrics → tracing → validation → recovery
-// (recovery is ALWAYS outermost; validation outermost of the business decorators per
-// §6.3 Service). The observability trio nests
-// Tracing → Metrics → Logging (Logging innermost) per charter §6.3, matching the
-// client stack; the full §6.3 placement of timeout/auth relative to the trio is
-// the remaining charter-sync owned by.
+// (recovery is ALWAYS outermost; validation is the outermost business decorator). The
+// observability trio nests Tracing → Metrics → Logging (Logging innermost), matching the
+// client stack (ARCHITECTURE.md#decorator-order); timeout and authorization sit inside
+// the trio.
 func (b *Builder[T, P, ID]) Build() interfaces.DecoratedService[T, P, ID] {
 	var svc interfaces.DecoratedService[T, P, ID] = &defaultDecoratedImpl[T, P, ID]{Service: b.base}
 
@@ -125,7 +124,7 @@ func (b *Builder[T, P, ID]) Build() interfaces.DecoratedService[T, P, ID] {
 		svc = &authDecorator[T, P, ID]{inner: svc, authFn: b.authFn, name: b.name}
 	}
 	// Observability trio, innermost → outermost: Logging → Metrics → Tracing, so
-	// the composed nesting is Tracing → Metrics → Logging (Logging innermost) per §6.3.
+	// the composed nesting is Tracing → Metrics → Logging (Logging innermost).
 	if b.logger != nil {
 		svc = &loggingDecorator[T, P, ID]{inner: svc, logger: b.logger, name: b.name}
 	}
@@ -135,8 +134,7 @@ func (b *Builder[T, P, ID]) Build() interfaces.DecoratedService[T, P, ID] {
 	if b.tracer != nil {
 		svc = &tracingDecorator[T, P, ID]{inner: svc, tracer: b.tracer, name: b.name}
 	}
-	// Validation is the outermost business decorator (§6.3 Service: Validation
-	// outermost) — it fails an invalid write fast, just inside recovery.
+	// Validation is the outermost business decorator — it fails an invalid write fast, just inside recovery.
 	if b.validate != nil {
 		svc = &validationDecorator[T, P, ID]{inner: svc, validate: b.validate}
 	}

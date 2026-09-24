@@ -1,4 +1,4 @@
-"""Shared gRPC client-boundary error translation (charter §9.1).
+"""Shared gRPC client-boundary error translation (ARCHITECTURE.md#error-codes).
 
 Maps a raw ``grpc.aio.AioRpcError`` raised by an InternalService stub call into a coded ``AppError``
 at the client boundary, plus the ``wrap_grpc_errors`` decorator that applies it to an async client
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from types import CoroutineType
     from typing import Any
 
-# gRPC status codes treated as transient/retryable at the client boundary (charter §9.1).
+# gRPC status codes treated as transient/retryable at the client boundary (ARCHITECTURE.md#error-codes).
 #
 # NOTE — this set is DELIBERATELY different from ``classify._grpc_transient`` (which lists only
 # UNAVAILABLE + DEADLINE_EXCEEDED): the boundary additionally treats RESOURCE_EXHAUSTED as transient
@@ -43,7 +43,7 @@ _TRANSIENT_GRPC_CODES = frozenset(
 
 
 def grpc_error_to_app_error(exc: AioRpcError) -> AppError:
-    """Map a raw gRPC ``AioRpcError`` to a coded ``AppError`` at the client boundary (charter §9.1).
+    """Map a raw gRPC ``AioRpcError`` to a coded ``AppError`` at the client boundary (ARCHITECTURE.md#error-codes).
 
     A transient status (UNAVAILABLE / DEADLINE_EXCEEDED / RESOURCE_EXHAUSTED) becomes an ``AppError``
     with a transient ``ErrorCode`` — so the resiliency stack (RetryProxy, which only retries a

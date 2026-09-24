@@ -22,7 +22,7 @@ type NotificationsRetentionConfig struct {
 }
 
 // DefaultNotificationsRetentionConfig returns a 30-day retention window and an hourly purge, matching
-// configs/base.yaml. An absent config section keeps these.
+// the base config. An absent config section keeps these.
 func DefaultNotificationsRetentionConfig() NotificationsRetentionConfig {
 	return NotificationsRetentionConfig{
 		TTL:           30 * 24 * time.Hour,

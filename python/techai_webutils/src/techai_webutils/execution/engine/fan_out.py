@@ -65,7 +65,7 @@ async def fan_out[T](
 
     # A fixed pool of `limit` workers pulls items from a shared cursor, so at most `limit` tasks (and
     # their coroutine frames) exist at once — instead of eagerly creating one task per item and letting
-    # the semaphore cap only *execution* (audit #7). At bulk scale (tens of thousands of objects) this
+    # the semaphore cap only *execution*. At bulk scale (tens of thousands of objects) this
     # bounds driver memory to O(concurrency), not O(batch). Results stay index-ordered and each item is
     # still isolated + observed exactly once, so the contract is unchanged.
     next_index = 0

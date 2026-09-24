@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class Hedger(Protocol):
-    """Reduces tail latency by racing a backup attempt (see).
+    """Reduces tail latency by racing a backup attempt.
 
     A peer resilience contract of ``Retrier``/``Bulkhead``: it wraps an operation with a policy
     and depends on no concrete implementation. Only safe for IDEMPOTENT operations -- a second

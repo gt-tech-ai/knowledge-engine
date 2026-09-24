@@ -13,7 +13,7 @@ import (
 //     queue is capped at exactly the requested K and that the defaults apply. It is white-box because
 //     buildQueues is internal to NewRuntime (which needs a live Postgres to open its pool); the
 //     ≤K-concurrent behavior itself is proven by the River+Postgres integration test, not here. Uses
-//     stdlib assertions to keep the pkg/go library module free of a testify dependency.
+//     stdlib assertions to keep the go library module free of a testify dependency.
 //
 // What it tests:
 //   - A named queue + K maps to exactly {name: {MaxWorkers: K}}; an empty name falls back to the default

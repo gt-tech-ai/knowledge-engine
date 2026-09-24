@@ -1,7 +1,7 @@
-"""Tests for the KB ingestor's per-document listing (Bedrock ListKnowledgeBaseDocuments + CR4).
+"""Tests for the KB ingestor's per-document listing (Bedrock ListKnowledgeBaseDocuments).
 
 Covers the pure payload mapper, the Bedrock impl's pagination (mocked aiobotocore client), the stub's
-empty listing, and — critically (CR4) — that ``list_documents`` delegates through both the
+empty listing, and — critically — that ``list_documents`` delegates through both the
 ``PollingIngestor`` and ``RetryingIngestor`` decorators so the composed stack still instantiates.
 """
 
@@ -42,7 +42,7 @@ class TestKbDocumentFromPayload:
         """Test that a non-S3 / missing identifier degrades to an empty uri, never raising.
 
         **Why this test is important:**
-          - The reconciler skips documents whose uri it cannot parse (CR5); the mapper must not crash
+          - The reconciler skips documents whose uri it cannot parse; the mapper must not crash
             on a custom/foreign identifier shape, it must hand back an empty uri to be skipped.
 
         **What it tests:**
@@ -98,7 +98,7 @@ class TestBedrockListDocuments:
 
 
 class TestDecoratorDelegation:
-    """CR4: list_documents delegates through both decorators, keeping the stack instantiable."""
+    """list_documents delegates through both decorators, keeping the stack instantiable."""
 
     @pytest.mark.asyncio
     async def test_polling_over_retrying_delegates_list_documents(self) -> None:
@@ -106,7 +106,7 @@ class TestDecoratorDelegation:
 
         **Why this test is important:**
           - list_documents is an abstract method on KnowledgeBaseIngestor; if either decorator failed
-            to implement it, ``_build_kb_sync`` would raise TypeError at construction (CR4) — the
+            to implement it, ``_build_kb_sync`` would raise TypeError at construction — the
             composed stack must build and delegate the call to the wrapped ingestor.
 
         **What it tests:**

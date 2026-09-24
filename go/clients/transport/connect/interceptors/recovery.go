@@ -63,7 +63,7 @@ func (i recoveryInterceptor) WrapStreamingClient(
 
 // WrapStreamingHandler recovers a panic in a server-streaming handler into a
 // CodeInternal error, so a panic mid-stream returns a clean error instead of crashing
-// the serving goroutine (audit F6).
+// the serving goroutine.
 func (i recoveryInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {

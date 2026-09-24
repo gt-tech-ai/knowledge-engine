@@ -18,7 +18,7 @@ import (
 // and fails loudly on an unknown kind or a redis kind with no client.
 //
 // Why this test is important:
-//   - Backend selection is a config-driven seam (charter One Idea): a mis-selection or a silently
+//   - Backend selection is a config-driven seam (ARCHITECTURE.md#the-one-idea): a mis-selection or a silently
 //     accepted bad config (redis without a client, non-positive bound) would surface as a nil-deref or
 //     an unbounded buffer at runtime instead of a loud startup error.
 //

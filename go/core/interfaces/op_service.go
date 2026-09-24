@@ -12,24 +12,16 @@ import "context"
 // A is the operation argument type (often a tagged union for multi-op services);
 // R is the operation result type.
 //
-// Result-type contract (tools/cli OpServices, audit G1). A CLI OpService's R is one
-// of exactly two archetypes, so the CLI stays uniform enough for a future
-// `search gen command` scaffolder:
+// Result-type contract. An OpService's R is one of exactly two archetypes, so
+// operation services stay uniform:
 //
 //   - types.StepResults — GATE-PRODUCING: the operation fans out into per-item steps
-//     that a gate renders (lint, testrun's suites, build, format, security, …). The
+//     that a gate renders (lint, test suites, build, format, security, …). The
 //     error channel signals a hard failure; the steps carry per-item pass/fail/warn.
 //   - struct{} — CMD-DIRECT: the operation has no per-item breakdown; success/failure
-//     is carried entirely in Run's error (codegen, migrate, check, build's cmd ops).
+//     is carried entirely in Run's error (codegen, migrate, check, …).
 //
-// Any other R is a drift to be migrated to one of these two. The two known holdouts:
-//   - testrun.TestrunResult (carries Results + Elapsed) → converge on types.StepResults,
-//
-// folding Elapsed into a StepResults.Detail / observer emission (Task 5).
-//   - synthetic.Result (carries *Manifest) → the ops are cmd-direct (wrapped by
-//     adapter.Single) and the seed op consumes the manifest internally, so synthetic
-//
-// migrates to the struct{} archetype (Task 4).
+// Any other R is drift to be migrated to one of these two.
 type OpService[A any, R any] interface {
 	// Name returns the service name, used as a label in logs, metrics, and
 	// decorator actions.

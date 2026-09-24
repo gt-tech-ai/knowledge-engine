@@ -2,7 +2,7 @@
 // today (grpc/) — by Kind and returns the RPCClient contract, so switching RPC
 // frameworks is a config change, not a caller edit. RPCClient is defined here
 // rather than in core because it exposes grpc.ClientConnInterface — an SDK seam
-// (charter §2.3) — which keeps the gRPC dependency out of the dependency-free core
+// (ARCHITECTURE.md#interface-composition) — which keeps the gRPC dependency out of the dependency-free core
 // layer. It mirrors the cache/storage NewFromConfig factory shape.
 package rpc
 
@@ -18,7 +18,7 @@ import (
 
 // RPCClient is the RPC client contract: a lifecycle-managed, health-checkable
 // client (interfaces.Client) that exposes the connection generated stubs are built
-// on. It is an SDK seam (charter §2.3) — Conn returns grpc.ClientConnInterface — so
+// on. It is an SDK seam (ARCHITECTURE.md#interface-composition) — Conn returns grpc.ClientConnInterface — so
 // the contract lives in this tier, not core, to keep gRPC out of the core layer.
 type RPCClient interface {
 	// Client contributes the lifecycle-managed, health-checkable client surface.

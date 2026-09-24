@@ -1,8 +1,8 @@
-"""Cross-cutting LLM provider decorators (: decorators live at the client-package top).
+"""Cross-cutting LLM provider decorators (decorators live at the client-package top).
 
 ``FallbackLlmProvider`` wraps a primary + fallback ``LLMProvider`` and, when the primary is throttled
-(429) or returns a server error (5xx), transparently retries the request on the fallback model (Story
-5.4). If the fallback also fails it raises a ``UnavailableError`` (mapped to gRPC UNAVAILABLE / HTTP
+(429) or returns a server error (5xx), transparently retries the request on the fallback model. If
+the fallback also fails it raises a ``UnavailableError`` (mapped to gRPC UNAVAILABLE / HTTP
 503) rather than leaking a raw botocore error. A non-transient error (e.g. a validation 400) is
 re-raised without a wasteful fallback. Throttle-vs-error is recorded on ``bedrock_fallback_activations
 _total`` so the fallback rate is observable.

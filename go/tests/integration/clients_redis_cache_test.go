@@ -4,7 +4,7 @@
 // Redis instance (redis:7-alpine via testcontainers). Tests confirm that the
 // cache satisfies the interfaces.ByteCache contract and that concrete extensions
 // (GetOrLoad population, Ping, TTL expiry) work end-to-end. Unit tests in
-// pkg/go/tests/clients/cache_redis_test.go cover error paths using mocks; this
+// go/tests/unit/clients_cache_redis_test.go cover error paths using mocks; this
 // suite targets correctness over a real connection.
 package integration
 

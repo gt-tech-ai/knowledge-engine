@@ -2,8 +2,8 @@
 
 Shared, dependency-free contract (the return type of
 ``techai_webutils.core.interfaces.metadata.MetadataExtractor``); the ingestion worker writes these
-fields into the Bedrock KB sidecar. Lives in ``pkg/`` so any deployable programs against the same
-DTO (like Go's ``pkg/go/core`` types).
+fields into the Bedrock KB sidecar. Lives in this shared library so any deployable programs against the same
+DTO (like Go's ``go/core`` types).
 """
 
 from __future__ import annotations

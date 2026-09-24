@@ -1,13 +1,13 @@
 # Combined (unit + integration) coverage config for the Python coverage GATE,
-# the parallel to Go's combined coverage-gate over pkg/go + contracts/ent.
+# the parallel to a Go combined coverage gate.
 #
-# `search test coverage --python` runs the unit suite then the integration suite
+# A combined run executes the unit suite then the integration suite
 # under one coverage dataset (--cov-append) and reports against this config.
 #
 # Denominator vs. the UNIT gate (pyproject.toml [tool.coverage.report] omit):
 #   - The redis/sqs/s3 wrappers are NOT omitted here — the integration suite covers
-#     them (the Python analogue of contracts/ent being covered only by Go's
-#     integration suite, then counted in the combined gate).
+#     them (the Python analogue of Go code covered only by its integration
+#     suite, then counted in the combined gate).
 #   - mocks (test doubles) and the OTel/gRPC-server runtime wiring that NEITHER
 #     suite exercises stay omitted (Go's combined gate likewise excludes
 #     unmeasurable app/entrypoint wiring).

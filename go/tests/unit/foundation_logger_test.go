@@ -150,10 +150,10 @@ func TestRedactPII_NoMatch(t *testing.T) {
 }
 
 // TestRedactPII_CombinedSinglePass tests that a log line carrying several PII
-// types is fully redacted in the single alternation pass (#11).
+// types is fully redacted in the single alternation pass.
 //
 // Why this test is important:
-//   - #11 collapsed five sequential ReplaceAllString passes into one alternation;
+//   - RedactPII collapsed five sequential ReplaceAllString passes into one alternation;
 //     a real log line mixes PII types, so the one-pass output must still redact
 //     every type — a regression here silently leaks PII into logs
 //   - RE2 leftmost-first alternation must not let an earlier alternative "win" and
@@ -172,8 +172,8 @@ func TestRedactPII_CombinedSinglePass(t *testing.T) {
 }
 
 // BenchmarkRedactPII measures RedactPII on a realistic mixed-PII log line so the
-// #11 single-pass alternation can be compared against the previous five-pass
-// implementation (Done clause: no small-input regression).
+// single-pass alternation can be compared against the previous five-pass
+// implementation (no small-input regression).
 func BenchmarkRedactPII(b *testing.B) {
 	input := "user john@example.com called 555-123-4567 from 192.168.1.1 token=abc123xyz"
 	b.ReportAllocs()

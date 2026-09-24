@@ -78,10 +78,10 @@ func TestTransportValidate_RejectsEnabledZeroRate(t *testing.T) {
 //
 // Why this test is important:
 //   - hardens the WS hub with heartbeat/idle/oversize behaviour; threads those
-//     timings through config (charter One Idea) rather than re-declaring package constants. If
+//     timings through config (ARCHITECTURE.md#configuration) rather than re-declaring package constants. If
 //     PongTimeout defaulted to zero the heartbeat would wait forever for a pong (a dead peer is
 //     never reaped), and if MaxMessageBytes stayed at the old 1 MiB default the WS read limit would
-//     silently diverge from the story's intended 64 KiB oversize→1009 cap.
+//     silently diverge from the intended 64 KiB oversize→1009 cap.
 //
 // What it tests:
 //   - DefaultConfig sets WS.PingInterval=30s, WS.PongTimeout=10s, and WS.MaxMessageBytes=64 KiB;

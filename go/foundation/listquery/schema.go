@@ -21,7 +21,7 @@ type ResourceSchema struct {
 // time tiebreaker CompileOrder appends to every ORDER BY for a stable total order (created_at for
 // most resources, joined_at for the membership join tables). It falls back to created_at when no
 // field is marked keysettable, matching the Timestamps-mixin default. The keysettable annotation
-// (design §1) is the single source of truth, so a store never hard-codes its tiebreaker column.
+// is the single source of truth, so a store never hard-codes its tiebreaker column.
 func (s ResourceSchema) KeysetColumn() string {
 	// Index rather than range-by-value: FieldSchema is a wide struct, so a value copy per
 	// iteration is wasteful (gocritic rangeValCopy).
@@ -64,7 +64,7 @@ func (s ResourceSchema) Field(name string) (FieldSchema, bool) {
 }
 
 // FieldSchema is the full generated schema for one filterable/sortable field —
-// every axis declared on the proto (design §1).
+// every axis declared on the proto.
 type FieldSchema struct {
 	// ValueSource is the decoded value-provisioning strategy for the field.
 	ValueSource ValueSource

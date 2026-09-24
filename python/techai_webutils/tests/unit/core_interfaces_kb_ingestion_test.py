@@ -16,7 +16,7 @@ class TestIngestionJob:
           - The batched KB-sync loop polls until terminal; a wrong terminal check would either spin
             forever (never terminal) or stop mid-sync (terminal too early), corrupting document status.
             STOPPING in particular is NON-terminal — treating it as terminal releases the single-writer
-            lock while Bedrock still has an active job, causing a StartIngestionJob conflict loop (F1).
+            lock while Bedrock still has an active job, causing a StartIngestionJob conflict loop.
 
         **What it tests:**
           - COMPLETE, FAILED, and STOPPED are terminal; STARTING, IN_PROGRESS, and STOPPING are not.

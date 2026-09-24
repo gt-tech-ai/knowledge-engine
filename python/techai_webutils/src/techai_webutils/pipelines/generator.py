@@ -39,7 +39,7 @@ class ResponseGenerator(AnswerGenerator):
         """Bind the LLM provider, the (product-specific) generation prompt, and the per-call decoding config.
 
         ``config`` carries the max_tokens/temperature/top_p the composition root resolves from
-        ``retrieval.llm.*`` (audit R4/R12); ``None`` lets the provider apply its conservative defaults.
+        ``retrieval.llm.*``; ``None`` lets the provider apply its conservative defaults.
         """
         self._llm = llm
         self._prompt = prompt

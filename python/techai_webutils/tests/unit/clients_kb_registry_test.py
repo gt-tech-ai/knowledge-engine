@@ -1,4 +1,4 @@
-"""Tests for the tenant→KB registry client (pure in-memory backends) — audit F5.
+"""Tests for the tenant→KB registry client (pure in-memory backends).
 
 The registry resolves an isolation unit (keyed by ``workspace_id``) to its Bedrock KB coordinates.
  ships two config-selected backends — ``shared`` (one KB for every key, the
@@ -37,7 +37,7 @@ class TestSharedKbRegistry:
         """Test that the shared registry returns the one configured KB for any workspace id.
 
         **Why this test is important:**
-          - ``shared`` is the default topology (design §6): until per-org KBs are provisioned +
+          - ``shared`` is the default topology: until per-org KBs are provisioned +
             migrated, every workspace must resolve to the single global KB — a regression here would
             silently break retrieval for every tenant.
 
@@ -56,8 +56,8 @@ class TestSharedKbRegistry:
         """Test that the shared registry advertises exactly one active binding for write-path fan-out.
 
         **Why this test is important:**
-          - The ingestion write path fans out one lock-guarded runner per ``list_active()`` binding
-            (design §2); the shared topology must yield exactly one so the worker keeps its single
+          - The ingestion write path fans out one lock-guarded runner per ``list_active()`` binding;
+            the shared topology must yield exactly one so the worker keeps its single
             global KB-sync loop (no accidental fan-out, no missing loop).
 
         **What it tests:**
@@ -107,7 +107,7 @@ class TestOutputBackedKbRegistry:
 
         **Why this test is important:**
           - Fail-closed is THE security invariant: an unmapped org must return nothing, never fall
-            through to a default/other-tenant KB (design §3).
+            through to a default/other-tenant KB.
 
         **What it tests:**
           - ``resolve("org_unknown")`` returns ``None``.
@@ -123,7 +123,7 @@ class TestOutputBackedKbRegistry:
         """Test that a provisioning/migrating binding resolves to ``None`` (routes only when active).
 
         **Why this test is important:**
-          - Reads/writes route to a tenant KB ONLY at ``active`` (design §5 FSM); resolving a
+          - Reads/writes route to a tenant KB ONLY at ``active`` (the status FSM); resolving a
             still-provisioning or mid-migration binding would read an incomplete index.
 
         **What it tests:**
@@ -158,7 +158,7 @@ class TestOutputBackedKbRegistry:
         """Test that a ``migrating`` binding is excluded from ``list_active`` and fails closed on read.
 
         **Why this test is important:**
-          - During migration (design §5) the tenant still reads the shared KB; the tenant KB must not
+          - During migration the tenant still reads the shared KB; the tenant KB must not
             appear active on either the read or the write path until cutover flips it to ``active``.
 
         **What it tests:**
@@ -181,7 +181,7 @@ class TestOutputBackedKbRegistry:
           - Per-org routing hinges on ONE key-space: the Terraform ``per_org_kbs`` map key, the module's
             ``per_org_knowledge_bases`` output, the registry map, and ``QueryStreamRequest.org_id`` must be
             the same ``org_external_id`` string. A mismatch (Auth0 org id vs internal UUID vs workspace)
-            fails every resolve closed = a platform-wide retrieval outage (spec-review).
+            fails every resolve closed = a platform-wide retrieval outage.
 
         **What it tests:**
           - An ``output`` backend populated from a ``per_org_knowledge_bases``-shaped map keyed by a
@@ -240,7 +240,7 @@ class TestRosterKbRegistry:
         **Why this test is important:**
           - During migration an org's docs aren't fully in its new KB yet; it must keep reading the shared
             KB it is authoritative for, or retrieval returns an incomplete result (a regression). This is
-            the gapless-migration guarantee (design §5) — and it is NOT a fail-closed violation because the
+            the gapless-migration guarantee — and it is NOT a fail-closed violation because the
             org is explicitly listed and reads its own current data.
 
         **What it tests:**
@@ -300,7 +300,7 @@ class TestRosterKbRegistry:
 
         **Why this test is important:**
           - After cutover the shared KB is no longer read by anyone; keeping its sync runner alive would
-            waste an ingestion lane (and the shared KB is decommissioned, design §5 step 4). It must drop
+            waste an ingestion lane (and the shared KB is decommissioned). It must drop
             out of the write fan-out when no org is migrating.
 
         **What it tests:**
@@ -323,7 +323,7 @@ class TestKbRegistryFactory:
 
         **Why this test is important:**
           - The topology must default to ``shared`` so an environment that hasn't provisioned per-org
-            KBs keeps the single-KB behavior (safe rollout, design §6).
+            KBs keeps the single-KB behavior (safe rollout).
 
         **What it tests:**
           - ``kb_registry_from_config`` with the default kind resolves any key to the shared coords.

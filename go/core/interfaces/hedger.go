@@ -9,7 +9,7 @@ import "context"
 //
 // A peer resilience contract of Retrier and Bulkhead: like them it wraps an operation with a
 // policy and depends on no concrete implementation. Swap implementations via the hedge.New
-// factory (see).
+// factory.
 type Hedger interface {
 	// Hedge runs op, racing a second concurrent attempt after the configured delay, and
 	// returns the result of the first attempt to complete. The slower attempt is cancelled

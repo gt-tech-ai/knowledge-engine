@@ -56,7 +56,7 @@ func SpanID(ctx context.Context) string {
 	return spanCtx.SpanID().String()
 }
 
-// piiPattern is the single alternation regexp applied by RedactPII (#11): one
+// piiPattern is the single alternation regexp applied by RedactPII: one
 // pass over the input replacing any email / phone / SSN / IPv4 / auth-token match
 // with "[REDACTED]", instead of five sequential ReplaceAllString passes. The
 // alternatives keep the previous order (email first, token last); RE2 is

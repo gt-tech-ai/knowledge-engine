@@ -3,8 +3,8 @@
 // not-found, schema errors) into core/errors.AppError with appropriate codes.
 //
 // Only the generic, dependency-light mappers live here (Postgres via pgx/pgconn).
-// The Ent-ORM mapper is product-side (contracts/ent/errmap.MapEntError) because it
-// imports the schema-generated ent error predicates; a product Ent store injects it
+// An Ent-ORM mapper belongs with the consumer that owns the Ent schema, because it
+// imports the schema-generated ent error predicates; that consumer's Ent store injects it
 // as a DBMapperFunc — the seam type below — at its composition point.
 package errors
 
@@ -17,7 +17,7 @@ import (
 
 // DBMapperFunc maps a database error to an *AppError.
 // Implementations must return nil when the input error is nil.
-// A concrete ORM mapper (e.g. the product's Ent mapper) is a DBMapperFunc value
+// A concrete ORM mapper (e.g. a consumer's Ent mapper) is a DBMapperFunc value
 // injected by the store that owns that ORM.
 type DBMapperFunc func(error) error
 

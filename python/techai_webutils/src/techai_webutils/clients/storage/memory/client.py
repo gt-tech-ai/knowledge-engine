@@ -1,7 +1,7 @@
-"""In-memory object-storage backend for no-infra builds/tests (D7).
+"""In-memory object-storage backend for no-infra builds/tests.
 
 ``InMemoryStorageClient`` keeps objects in a process-local map so a service can build and
-unit-test the storage path with no S3/MinIO — the stub-first property (charter §13.2). Mirrors
+unit-test the storage path with no S3/MinIO — the stub-first property (ARCHITECTURE.md#stub-first-backends). Mirrors
 Go's ``clients/storage/memory``. Selected via ``StorageKind.MEMORY``. ``presign_url`` returns a
 synthetic ``memory://`` URL: a memory backend never produces real signed URLs, so it is confined
 to test/CI/all-stubs config and is never reachable from a real client-facing upload flow.

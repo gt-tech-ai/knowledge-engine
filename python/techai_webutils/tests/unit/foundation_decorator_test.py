@@ -57,7 +57,7 @@ def test_decorator_unwrap_returns_inner() -> None:
     """A decorator's unwrap() returns the exact inner it wraps, and it is Unwrappable.
 
     Why this test is important:
-      - The Unwrap seam (mothership-parity audit F7) is the sanctioned way a test
+      - The Unwrap seam is the sanctioned way a test
         reaches the wrapped handler through the stack instead of touching decorator
         internals; every tier that subclasses the generic bases inherits it.
 

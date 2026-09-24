@@ -46,7 +46,7 @@ class TestValidatingServerInterceptor:
 
         Why this test is important:
           - This is the whole point of the interceptor — an inbound proto that breaks a rule must be
-            rejected server-side with a coded status (charter §9.1), not silently handled.
+            rejected server-side with a coded status (ARCHITECTURE.md#error-codes), not silently handled.
 
         What it tests:
           - On ``protovalidate.ValidationError`` the wrapped handler calls ``context.abort`` with
@@ -121,7 +121,7 @@ class TestValidatingServerInterceptor:
 
         Why this test is important:
           - Validation must see the exact request the authenticated handler receives; placing it after
-            auth (innermost, since the list is outermost-first) is the contract the story requires.
+            auth (innermost, since the list is outermost-first) is the required contract.
 
         What it tests:
           - ``.with_auth().with_validation().build()`` yields [auth, validate] in that order.

@@ -1,7 +1,7 @@
 """gRPC client interceptor for distributed tracing.
 
 Creates an OTel span per outbound RPC, matching Go's tracing interceptor
-in ``pkg/go/clients/connect/interceptors/tracing``.
+in ``go/clients/transport/connect/interceptors/tracing.go``.
 """
 
 from __future__ import annotations

@@ -32,9 +32,9 @@ func testUserClient(t *testing.T, p auth0.UserProvisioner) *auth0.Client {
 // response, not a reconstructed auth0|<UserID>).
 //
 // Why this test is important:
-//   - This is the primitive the seeder (39.7) uses to provision test identities, and the fix for
+//   - This is the primitive a seeder uses to provision test identities, and it guards a
 //
-// the staging seed-personas failure: the tenant does not necessarily mint the
+// real failure mode: the tenant does not necessarily mint the
 //
 //	user_id we request, so assigning roles against a reconstructed id 404s (inexistent_user).
 //	Resolving the real id by email is what makes role assignment (and idempotent re-runs) work.
@@ -87,7 +87,7 @@ func TestCreateUser_ResolvesRealIDByEmailThenAssignsRoles(t *testing.T) {
 // a coded core/errors error and never attempts the email lookup or role assignment.
 //
 // Why this test is important:
-//   - Charter §9.1: every error crossing a boundary carries a code so retry/HTTP-status
+//   - ARCHITECTURE.md#error-codes: every error crossing a boundary carries a code so retry/HTTP-status
 //     classification is derivable. And a real create failure must abort — not proceed to resolve
 //     a user that was never created.
 //

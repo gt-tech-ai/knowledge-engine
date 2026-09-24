@@ -1,6 +1,6 @@
 // Package decorators composes cross-cutting concerns — a per-op timeout and the observability trio
 // (logging, metrics, tracing) — around any core/interfaces.ReplayBuffer, without touching the
-// backend. It mirrors clients/lock/decorators and the charter's §6.3 ordering: the timeout nests
+// backend. It mirrors clients/lock/decorators and its ordering (ARCHITECTURE.md#decorator-order): the timeout nests
 // closest to the backend and the observability trio wraps it as Tracing → Metrics → Logging
 // (Tracing outermost, Logging innermost), so a span/metric covers the whole bounded operation. Every
 // With* is nil-safe: a nil collaborator skips that decorator, so dev/test paths run undecorated.
@@ -78,7 +78,7 @@ func (b *Builder) WithTracing(tracer interfaces.Tracer) *Builder {
 //	base → timeout → logging → metrics → tracing
 //
 // so the timeout nests closest to the backend and the observability trio wraps it as
-// Tracing → Metrics → Logging (Logging innermost) per charter §6.3. A nil collaborator skips its
+// Tracing → Metrics → Logging (Logging innermost) per ARCHITECTURE.md#decorator-order. A nil collaborator skips its
 // decorator, so an all-nil builder returns the base unchanged.
 func (b *Builder) Build() interfaces.ReplayBuffer {
 	rb := b.base

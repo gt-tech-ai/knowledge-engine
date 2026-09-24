@@ -1,7 +1,7 @@
-"""Tests for the in-memory stub vector store + factory selection (D7).
+"""Tests for the in-memory stub vector store + factory selection.
 
 The ``stub`` vector store lets the retrieval path build and unit-test with no Qdrant — the
-stub-first property (charter §13.2) that makes the all-stubs build (Task 10) possible.
+stub-first property (ARCHITECTURE.md#stub-first-backends) that makes the all-stubs build possible.
 """
 
 from __future__ import annotations

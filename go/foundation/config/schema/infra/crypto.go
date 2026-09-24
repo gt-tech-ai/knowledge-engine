@@ -4,8 +4,8 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// CryptoConfig carries the application's data-at-rest encryption key (connector credentials,
-// ). The key is base64-encoded (32 bytes decoded), sourced from configuration — a dev
+// CryptoConfig carries the application's data-at-rest encryption key (connector
+// credentials, …). The key is base64-encoded (32 bytes decoded), sourced from configuration — a dev
 // default in base.yaml, overridden by secrets.yaml / an ESO externalsecret in staging/prod.
 type CryptoConfig struct {
 	// ConnectorCredentialsKey is the base64 AES-256 key used to encrypt connector auth configs.

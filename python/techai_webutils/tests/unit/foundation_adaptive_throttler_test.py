@@ -1,6 +1,6 @@
 """Tests for the client-side adaptive throttler.
 
-Parity with Go's ``pkg/go/tests/foundation/adaptivethrottle_test.go``: the SRE rejection
+Parity with Go's ``go/tests/unit/foundation_adaptivethrottle_test.go``: the SRE rejection
 probability rises while a backend fails and eases on recovery, and a shed request skips the
 backend call entirely.
 """

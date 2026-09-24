@@ -66,7 +66,7 @@ func ApplyOptions[T any](target *T, opts ...Option[T]) {
 //	cloned := &Component{}
 //	ApplyOptions(cloned, original.Options()...)
 //
-// §2.3 exemption — foundation options primitive: a single Options() → []Option[T] self-cloning port,
+// interface-composition exemption — foundation options primitive: a single Options() → []Option[T] self-cloning port,
 // not an id-CRUD data-access surface, so it embeds no foundation generic.
 type OptionsProvider[T any] interface {
 	// Options returns a slice of Option functions that capture the current

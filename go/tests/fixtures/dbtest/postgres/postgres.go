@@ -2,12 +2,11 @@
 // for integration tests.
 //
 // It is deliberately schema-agnostic: it starts a real PostgreSQL container and
-// exposes the DSN, but applies NO application schema (no Ent, no product tables).
+// exposes the DSN, but applies NO application schema (no Ent, no consumer tables).
 // A caller that needs a schema provisions it over the DSN — e.g. River applies
-// its own migration, and the product's Ent-schema fixture
-// (contracts/ent/tests/fixtures/dbtest/postgres) wraps this to run Ent
+// its own migration, and a consumer's Ent-schema fixture can wrap this to run Ent
 // auto-migration. Keeping this fixture generic is what lets the engine's client
-// integration tests (River, etc.) run without any product dependency.
+// integration tests (River, etc.) run without any consumer schema.
 package postgres
 
 import (

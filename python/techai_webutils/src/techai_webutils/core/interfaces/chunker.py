@@ -1,9 +1,9 @@
-"""Chunker stage-collaborator contract: split parsed text into retrieval-sized chunks (chunking C1).
+"""Chunker stage-collaborator contract: split parsed text into retrieval-sized chunks.
 
 The embedding-granularity chunk seam a ``KnowledgeBase`` indexer applies per index unit (NOT a
-standalone stage — an index-stage collaborator,). Config-selected backends in
+standalone stage — an index-stage collaborator). Config-selected backends in
 ``techai_webutils.clients.chunking`` satisfy it; structure-aware/semantic backends are future
-``Kind``s (the chunking-quality epic). Imported by full submodule path (not re-exported from
+``Kind``s. Imported by full submodule path (not re-exported from
 ``core.interfaces``).
 """
 

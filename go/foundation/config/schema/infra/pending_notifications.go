@@ -28,7 +28,7 @@ type PendingNotificationsConfig struct {
 }
 
 // DefaultPendingNotificationsConfig returns a 50-row-per-user cap, a 60s claim lease, a 7-day TTL, and
-// an hourly purge, matching configs/base.yaml. An absent config section keeps these.
+// an hourly purge, matching the base config. An absent config section keeps these.
 func DefaultPendingNotificationsConfig() PendingNotificationsConfig {
 	return PendingNotificationsConfig{
 		MaxPerUser:    50,

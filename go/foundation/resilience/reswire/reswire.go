@@ -82,7 +82,7 @@ func NewBreaker(
 // config section, overlaid on the caller's fallback (defaultMaxConcurrent — the value the call
 // site used to hardcode, so an absent overlay is behavior-preserving). An overlay overrides
 // per-field; the kind string ("channel"/"adaptive") is mapped to a bulkhead.Kind and fails loudly
-// on an unknown value (charter One Idea). This brings the previously-inert resilience.adaptive_limit
+// on an unknown value (ARCHITECTURE.md#swappable-components). This brings the previously-inert resilience.adaptive_limit
 // sub-tier into use.
 func NewBulkhead(
 	loader interfaces.ConfigLoader,

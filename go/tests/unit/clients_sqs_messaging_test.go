@@ -559,7 +559,7 @@ func TestPublisher_PublishBatch_SendsEachPayload(t *testing.T) {
 }
 
 // TestPublisher_PublishBatch_ChunksInto10s tests that PublishBatch groups payloads
-// into SendMessageBatch requests of at most maxBatchSize (#8) instead of one
+// into SendMessageBatch requests of at most maxBatchSize instead of one
 // SendMessage per payload.
 //
 // Why this test is important:
@@ -597,7 +597,7 @@ func TestPublisher_PublishBatch_ChunksInto10s(t *testing.T) {
 
 // TestPublisher_PublishBatch_SurfacesFailedEntries tests that a partial batch
 // failure (SendMessageBatchOutput.Failed) is surfaced as an error naming the
-// failed entries (#8), rather than being silently dropped.
+// failed entries, rather than being silently dropped.
 //
 // Why this test is important:
 //   - SendMessageBatch can partially succeed; swallowing the Failed list would
@@ -630,8 +630,7 @@ func TestPublisher_PublishBatch_SurfacesFailedEntries(t *testing.T) {
 }
 
 // TestSubscriber_FansOutBatchAndBatchDeletes tests that a receive batch is handled
-// concurrently (#7) and the handled subset is acked in a single DeleteMessageBatch
-// (O6).
+// concurrently and the handled subset is acked in a single DeleteMessageBatch.
 //
 // Why this test is important:
 //   - Sequential per-message handling caps consume throughput at one handler at a

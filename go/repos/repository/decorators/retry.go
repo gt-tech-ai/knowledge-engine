@@ -58,7 +58,7 @@ func (d *retryDecorator[T, P, ID]) List(
 	return result, err
 }
 
-// Create runs the inner Create exactly once and never retries it (R3): a create
+// Create runs the inner Create exactly once and never retries it: a create
 // is not idempotent, so retrying after a transient error that actually landed
 // post-commit (the write succeeded but the ack was lost) would insert a duplicate.
 // Recovering a failed create must use an idempotency key / ON CONFLICT at a higher

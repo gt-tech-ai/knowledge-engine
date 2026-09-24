@@ -222,7 +222,7 @@ func TestLayerConfigValidate_RemainingBranches(t *testing.T) {
 	assert.Error(t, badCountCap.Validate(), "a negative count_cap must be rejected")
 
 	// the list-query cache TTLs must be non-negative, and the
-	// defaults are the 45s/60s the ADR names — a negative TTL is a config error.
+	// defaults are 45s/60s — a negative TTL is a config error.
 	require.NoError(
 		t,
 		stores.DefaultConfig().Validate(),

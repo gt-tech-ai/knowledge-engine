@@ -48,7 +48,7 @@ _CLASSID_INGESTION_KB_SYNC = 0x4B425359  # 1_262_698_841 — within [0, 2^31-1]
 # Connection-level server settings for the lock session:
 #   - application_name tags the session so it is identifiable in pg_stat_activity.
 #   - Server-side TCP keepalives stop a middlebox (NAT / ELB / RDS proxy) from silently reaping the
-#     long, idle session mid-poll — which would look like a crash and auto-release the lock (CR1).
+#     long, idle session mid-poll — which would look like a crash and auto-release the lock.
 #     Budget: probe after 60s idle (> the 30s tick, < typical middlebox timeouts), then 4 probes 15s
 #     apart, so a dead peer is detected within ~120s — well inside the minutes-long Bedrock poll.
 _SERVER_SETTINGS = {
@@ -89,7 +89,7 @@ class PostgresAdvisoryLock:
         self._conn: asyncpg.Connection | None = None
 
     async def __aenter__(self) -> Self:
-        """Enter the async context; the session is opened lazily on first ``acquire`` (CR5)."""
+        """Enter the async context; the session is opened lazily on first ``acquire``."""
         return self
 
     async def __aexit__(
@@ -124,7 +124,7 @@ class PostgresAdvisoryLock:
                 logger.warning("advisory-lock session terminate failed (ignored)")
 
     async def _ensure_connection(self) -> asyncpg.Connection:
-        """Return the pinned session, opening (or reopening) it as needed (CR5/CR6/CR2).
+        """Return the pinned session, opening (or reopening) it as needed.
 
         Lazily connects on first use, and reconnects when a previously-opened session has been closed
         (idle-reaped or crashed) so a dead socket cannot wedge KB sync until a pod restart.

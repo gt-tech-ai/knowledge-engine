@@ -12,13 +12,13 @@ import (
 // counterpart of the role-scoped repositories (Phase 2). Each type
 // embeds only the role interfaces its service honors and decorates every method
 // through the SAME unified op-decoration seam the custom-op path uses
-// (service.OpChain + decorate.Exec), so the §6.3-ordered cross-cutting
+// (service.OpChain + decorate.Exec), so the ordered cross-cutting
 // bodies (recovery → tracing → metrics → logging → auth → timeout) live in
 // exactly one place and are never re-implemented per role.
 
 // CRUDNoListRepo is the list-less repository surface a list-less service
 // delegates to: Get + Create + Update + Delete (services expose no Exists). The
-// narrowed identity UserRepository (Reader+Writer+Deleter+Exister) satisfies it.
+// narrowed user repository (Reader+Writer+Deleter+Exister) satisfies it.
 type CRUDNoListRepo[T any, ID comparable] interface {
 	// Reader contributes Get (read by id).
 	interfaces.Reader[T, ID]

@@ -5,7 +5,7 @@ a cold Ray Client connect can intermittently time out the head's per-connection 
 (head-side ``proxier`` "Timeout waiting for channel"), so this wraps the connect in
 ``retry_transient_async`` (tenacity exponential-backoff + jitter) and logs each attempt. It is
 composed at ``executor_from_config`` OUTSIDE ``RealRayRuntime`` — resilience is a decorator, never
-inlined into the runtime (charter §6.3).
+inlined into the runtime (ARCHITECTURE.md#decorators).
 
 It touches no ``ray`` (it delegates to an inner ``RayRuntime``), so ``techai_webutils`` still imports
 without the ray extra. The task ``submit`` itself is NOT retried here — ``RayExecutor``'s ``fan_out``

@@ -121,8 +121,8 @@ type authInterceptor struct {
 // context for unary and streaming handlers.
 // Headers consumed: X-User-Sub, X-Org-ID, X-User-Email, X-User-Name, X-User-Nickname,
 // X-Roles (comma-separated). Clearance is NOT read from a header — it is DB-resolved from
-// the caller's membership (see identity resolution); the X-Clearance-Level header was
-// dropped in / audit T10.
+// the caller's membership (see identity resolution); the X-Clearance-Level header is
+// no longer consumed.
 // Token validation is NOT performed here -- it is delegated to Kong.
 //
 // When stub is true (auth.stub: true in dev config), synthetic dev claims are injected

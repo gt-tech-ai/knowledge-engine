@@ -36,8 +36,7 @@ func newStreamConn(t *testing.T) *mocks.MockStreamingHandlerConn {
 }
 
 // TestRecoveryInterceptor_Streaming_ConvertsPanic tests that the recovery interceptor
-// recovers a panic in a server-streaming handler and returns CodeInternal
-// (audit F6).
+// recovers a panic in a server-streaming handler and returns CodeInternal.
 //
 // Why this test is important:
 //   - Before F6 the recovery interceptor was unary-only, so a panic in a stream handler
@@ -64,7 +63,7 @@ func TestRecoveryInterceptor_Streaming_ConvertsPanic(t *testing.T) {
 
 // TestMetricsInterceptor_Streaming_RecordsCounterAndDuration tests that the metrics
 // interceptor records one request counter + one duration observation for a
-// server-streaming RPC (audit F6).
+// server-streaming RPC.
 //
 // Why this test is important:
 //   - Before F6 streaming RPCs (QueryStream) emitted no metrics at all, so their request
@@ -99,7 +98,7 @@ func TestMetricsInterceptor_Streaming_RecordsCounterAndDuration(t *testing.T) {
 }
 
 // TestTracingInterceptor_Streaming_CreatesSpan tests that the tracing interceptor opens
-// a server span for a server-streaming RPC (audit F6).
+// a server span for a server-streaming RPC.
 //
 // Why this test is important:
 //   - Before F6 a streamed RPC produced no span, so it was invisible in distributed
@@ -128,8 +127,7 @@ func TestTracingInterceptor_Streaming_CreatesSpan(t *testing.T) {
 }
 
 // TestLoggingInterceptor_Streaming_EmitsOneAccessLine tests that the logging interceptor
-// emits exactly one access-log line for a successful server-streaming RPC
-// (audit F6).
+// emits exactly one access-log line for a successful server-streaming RPC.
 //
 // Why this test is important:
 //   - Before F6 streamed RPCs produced no access log, so a QueryStream request left no
@@ -158,8 +156,7 @@ func TestLoggingInterceptor_Streaming_EmitsOneAccessLine(t *testing.T) {
 }
 
 // TestRateLimitInterceptor_Streaming_ShedsAndAllows tests that the rate-limit interceptor
-// sheds a server-streaming RPC when the limiter denies and admits it when allowed
-// (audit F6).
+// sheds a server-streaming RPC when the limiter denies and admits it when allowed.
 //
 // Why this test is important:
 //   - Before F6 streamed RPCs bypassed rate limiting entirely, so a flood of QueryStream
@@ -201,8 +198,7 @@ func TestRateLimitInterceptor_Streaming_ShedsAndAllows(t *testing.T) {
 }
 
 // TestBulkheadInterceptor_Streaming_ShedsWhenFull tests that the bulkhead interceptor
-// sheds a server-streaming RPC when the concurrency limit is full
-// (audit F6).
+// sheds a server-streaming RPC when the concurrency limit is full.
 //
 // Why this test is important:
 //   - Before F6 streamed RPCs took no bulkhead slot, so unbounded concurrent streams

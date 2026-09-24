@@ -10,15 +10,14 @@ import (
 // When the envelope's version doesn't match the expected version, the cached
 // entry is treated as a miss — stale-schema entries are silently evicted.
 //
-// Serialization is JSON, deliberately, not proto/binary (#15): T is an arbitrary
-// type parameter (repository entities: Ent models, domain structs), NOT a
-// proto.Message, so proto.Marshal cannot encode it. The identity CachingClient
-// (apps/go/server/api/clients/identity/caching.go) uses proto only because it caches a
-// *concrete* proto response type; that pattern does not generalize to Envelope[T].
+// Serialization is JSON, deliberately, not proto/binary: T is an arbitrary type
+// parameter (repository entities: Ent models, domain structs), NOT a proto.Message,
+// so proto.Marshal cannot encode it. A cache of one *concrete* proto response type
+// can use proto encoding; that pattern does not generalize to Envelope[T].
 // The companion cursor codec (repos/repository/cursor.go) drops reflection where
 // it can (a fixed 2-field shape); the generic payload here cannot, and a
 // binary-header-plus-JSON-payload variant would churn the cache wire format on a
-// hot read path for a Low-rated, version-bump-only gain — so JSON stays.
+// hot read path for a small, version-bump-only gain — so JSON stays.
 type Envelope[T any] struct {
 	// Data is the cached value payload.
 	Data T `json:"data"`

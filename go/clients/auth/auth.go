@@ -103,6 +103,7 @@ func NewFromConfig(ctx context.Context, cfg Config) (interfaces.UserProvider, er
 	if err != nil {
 		return nil, err
 	}
-	// Wrap in the fail-closed prod guard (charter §6.3) so CreateUser is refused in prod.
+	// Wrap in the fail-closed prod guard (a decorator, ARCHITECTURE.md#decorators) so CreateUser
+	// is refused in prod.
 	return newProdGuard(provider, cfg.Env), nil
 }

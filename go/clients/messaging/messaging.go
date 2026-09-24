@@ -62,7 +62,8 @@ func (k Kind) String() string {
 
 // ParseKind maps a config kind string ("sqs" | "memory" | "redis") to its Kind,
 // failing loudly on an unknown value. It is the messaging-tier bridge a composition
-// root uses to select a backend from configuration (charter §2); the backend config
+// root uses to select a backend from configuration (ARCHITECTURE.md#swappable-components);
+// the backend config
 // (e.g. the injected Redis client) is still supplied separately via options.
 func ParseKind(s string) (Kind, error) {
 	switch s {

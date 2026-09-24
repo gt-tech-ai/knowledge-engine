@@ -1,7 +1,7 @@
-"""Tests for the in-memory storage backend + its factory selection (D7).
+"""Tests for the in-memory storage backend + its factory selection.
 
 The ``memory`` StorageClient lets a service build and unit-test the object-storage path with no
-S3/MinIO — the stub-first property (charter §13.2). Parity with Go's ``storage/memory``.
+S3/MinIO — the stub-first property (ARCHITECTURE.md#stub-first-backends). Parity with Go's ``storage/memory``.
 """
 
 from __future__ import annotations

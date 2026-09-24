@@ -6,8 +6,8 @@
 // Vanguard, rewriting response bodies into {data, meta, links, errors} and
 // validating/unwrapping the inbound {data:{type,attributes}} request envelope.
 //
-// The transformation is driven by the generated operation-keyed route table
-// (34.3): each REST RPC classifies into a Role, and the
+// The transformation is driven by the generated operation-keyed route table:
+// each REST RPC classifies into a Role, and the
 // middleware transforms by role rather than re-guessing method/path/data-presence.
 package jsonapi
 

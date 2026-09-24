@@ -117,12 +117,12 @@ func TestWorkersConfig_ValidatesSweepTimings(t *testing.T) {
 // carries the same common-knob values the document-events worker ships today.
 //
 // Why this test is important:
-//   - Epic 45 makes every worker knob config-tier-overridable by composing the shared
+//   - Every worker knob is config-tier-overridable by composing the shared
 //     workers tier over these defaults. If workers.DefaultConfig() drifts from the
 //     worker's own DefaultWorkerConfig() common subset, an empty overlay would silently
-//     change the worker's behavior — the regression the field-for-field parity DoD guards
+//     change the worker's behavior — the regression a field-for-field parity check guards
 //
-// against. This pins the shared-tier defaults at the source (charter §7).
+// against. This pins the shared-tier defaults at the source (ARCHITECTURE.md#configuration).
 //
 // What it tests:
 //   - Every common field of workers.DefaultConfig() equals today's document-events default

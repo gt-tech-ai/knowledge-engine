@@ -437,7 +437,7 @@ func TestUserPermissions_EffectiveAccess(t *testing.T) {
 //   - This is the single gate for document mutations (delete/upload/confirm/
 //     complete/abort); a read-only member must be denied, a write/admin member and
 //
-// any org admin allowed — the exact boundary audit F5 / enforces.
+// any org admin allowed — the exact boundary the interceptor enforces.
 //
 // What it tests:
 //   - read -> false; write/admin -> true; an org admin with no workspace grant ->

@@ -18,8 +18,8 @@ var defaultDurationBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5
 //
 // It is used on both the server and the client interceptor chains (ServerBuilder + the
 // ClientBuilder), so WrapStreamingClient is intentionally a no-op: client-streaming
-// metrics are a deliberate, currently-untracked scope boundary (audit F6 covers only the
-// server-streaming handler), NOT because this interceptor is server-side.
+// metrics are a deliberate, currently-untracked scope boundary (only the
+// server-streaming handler is covered), NOT because this interceptor is server-side.
 type metricsInterceptor struct {
 	// requestsTotal counts RPCs, labelled by service, method, and outcome.
 	requestsTotal interfaces.Counter
@@ -78,7 +78,7 @@ func (i metricsInterceptor) WrapStreamingClient(
 }
 
 // WrapStreamingHandler records one counter increment + one duration observation for a
-// whole server-streaming RPC (audit F6).
+// whole server-streaming RPC.
 func (i metricsInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,
 ) connect.StreamingHandlerFunc {

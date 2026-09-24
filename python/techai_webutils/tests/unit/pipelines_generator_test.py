@@ -102,7 +102,7 @@ class TestResponseGenerator:
 
     @pytest.mark.asyncio
     async def test_forwards_the_injected_decoding_config_to_the_llm(self) -> None:
-        """Test that the generator forwards its injected per-call LLMConfig to the LLM (audit R4).
+        """Test that the generator forwards its injected per-call LLMConfig to the LLM.
 
         **Why this test is important:**
           - Without the config the provider decodes at its defaults (max_tokens=1024, temperature=0.7),

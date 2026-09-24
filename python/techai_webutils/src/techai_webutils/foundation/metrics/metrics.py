@@ -64,8 +64,8 @@ class PrometheusMetricsProvider(MetricsProvider):
 
         A second in-process init of the SAME metric — a supervised restart, a second observer, or
         two tests in one interpreter — reuses the existing series instead of raising 'Duplicated
-        timeseries in CollectorRegistry' (audit #4). The global REGISTRY default is kept, so the
-        ``/metrics`` scrape is unaffected (R1).
+        timeseries in CollectorRegistry'. The global REGISTRY default is kept, so the
+        ``/metrics`` scrape is unaffected.
 
         Reuse is deliberately narrow: only a collector of the SAME prometheus type and label names is
         handed back. A same-name collision with a different type or label set is a real programming

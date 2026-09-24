@@ -106,12 +106,12 @@ func routeLabel(r *http.Request) string {
 		return "/"
 	}
 	// Catch-all forward (Pattern "/" or empty): the raw path carries entity ids,
-	// so collapse id-shaped segments to {id} before using it as a label (#2).
+	// so collapse id-shaped segments to {id} before using it as a label.
 	return normalizeRoute(r.URL.Path)
 }
 
 // normalizeRoute collapses high-cardinality identifier segments in a raw request
-// path to the literal "{id}" so the metrics `route` label stays bounded (#2).
+// path to the literal "{id}" so the metrics `route` label stays bounded.
 // Without this, "/api/documents/<uuidA>" and "/api/documents/<uuidB>" would open
 // two Prometheus series (and a scanner walking ids would open unbounded series);
 // after it, both map to "/api/documents/{id}" — one series.
@@ -164,7 +164,7 @@ func normalizeRoute(path string) string {
 // must be collapsed to "{id}" in the route label: an all-digits numeric id, a
 // canonical UUID, or a long (>=16) hex token (object keys / hashes). Each of these
 // contains a digit, matching normalizeRoute's fast-path guard. The primitive
-// classifiers live in the shared pkg/go/helpers leaf utility.
+// classifiers live in the shared go/helpers leaf utility.
 func looksLikeID(seg string) bool {
 	switch {
 	case seg == "":

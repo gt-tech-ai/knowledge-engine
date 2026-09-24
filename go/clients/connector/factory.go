@@ -1,7 +1,7 @@
-// Package connector builds ConnectorSources for the connector family (→ pkg): S3 now, a
-// future GDrive/Salesforce kind added as a new case + sibling package (charter One Idea; the
-// foundation/logger NewFromConfig pattern). It imports only the storage INTERFACE — via the injected
-// S3ClientBuilder — never pkg/go/clients/storage, so there is no lateral same-layer import.
+// Package connector builds ConnectorSources for the connector family: S3 now, a future
+// GDrive/Salesforce kind added as a new case + sibling package (ARCHITECTURE.md#the-one-idea;
+// the foundation/logger NewFromConfig pattern). It imports only the storage INTERFACE — via the injected
+// S3ClientBuilder — never go/clients/storage, so there is no lateral same-layer import.
 package connector
 
 import (
@@ -20,7 +20,7 @@ import (
 // dispatching on Kind and failing loud on an unknown kind.
 type builder struct {
 	// buildS3Client constructs a connector-scoped StorageClient; injected by the app root so this
-	// package never imports pkg/go/clients/storage.
+	// package never imports go/clients/storage.
 	buildS3Client connectors3.S3ClientBuilder
 	// sts is the AssumeRole client used only by the iam_role strategy.
 	sts stscreds.AssumeRoleAPIClient

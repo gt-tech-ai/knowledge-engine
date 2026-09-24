@@ -10,7 +10,7 @@ import (
 // and assigning its (already-resolved) org + clearance role ids against an external auth
 // provider (Auth0 today). The Auth0 client and the in-memory stub are its interchangeable
 // config-selected backends; the seeder uses it to provision synthetic test identities. It
-// composes the core OrgProvider contract (charter §2.3).
+// composes the core OrgProvider contract (ARCHITECTURE.md#interface-composition).
 type UserProvider interface {
 	// OrgProvider supplies the organization + member reads/writes and invitation operations.
 	OrgProvider

@@ -2,7 +2,7 @@
 
 These tests exercise the thin external-dependency wrappers (Redis cache, SQS
 publisher/subscriber, S3 storage client) against REAL services started on demand
-via testcontainers — the Python parity to ``pkg/go/tests/integration/``. They are
+via testcontainers — the Python parity to ``go/tests/integration/``. They are
 the combined-gate counterpart to the unit-gate carve-outs in ``pyproject.toml``:
 the unit suite excludes these wrappers (their uncovered lines are real network
 calls); this suite covers them end-to-end against live dependencies.
@@ -37,8 +37,8 @@ from techai_webutils.clients.cache.types import FailureMode
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
 
-# Images mirror zarf/docker/docker-compose.yaml so the integration suite tests against the
-# same dependency versions the platform deploys (and reuses already-pulled layers).
+# Pinned images, so the integration suite tests against fixed dependency versions (and reuses
+# already-pulled layers).
 _REDIS_IMAGE = "redis:7-alpine"
 _ELASTICMQ_IMAGE = "softwaremill/elasticmq:1.6.6"
 _MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"

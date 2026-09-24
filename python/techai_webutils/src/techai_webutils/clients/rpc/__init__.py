@@ -1,6 +1,6 @@
 """RPC client tier — transport backends for service-to-service calls.
 
-Mirrors Go's ``pkg/go/clients/rpc``: the gRPC backend lives in ``rpc/grpc`` (channel
+Mirrors Go's ``go/clients/rpc``: the gRPC backend lives in ``rpc/grpc`` (channel
 factory, graceful server, and the interceptor stack). Selecting a different RPC
 transport would add a sibling backend here.
 """

@@ -33,7 +33,7 @@ func NewSet(fields ...string) *Set {
 // keyset tiebreaker (resource-appropriate — created_at, joined_at, …), NOT a fixed column this
 // resource may not have. It never errors and never string-concatenates client input, and it only
 // ever returns allow-listed fields — the Set is the SQL-safety boundary for sorting. Wired at the
-// transport edge (31.18).
+// transport edge.
 func (s *Set) ParseList(spec string) []types.OrderField {
 	var out []types.OrderField
 	for tok := range strings.SplitSeq(spec, ",") {

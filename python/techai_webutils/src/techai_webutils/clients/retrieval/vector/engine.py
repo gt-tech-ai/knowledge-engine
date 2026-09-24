@@ -52,7 +52,7 @@ def _to_retrieval_result(hit: VectorSearchResult) -> RetrievalResult:
     """Map a VectorSearchResult into a RetrievalResult, preserving the full metadata payload.
 
     ``hit.metadata`` is a freshly-built, owned dict (``qdrant/store.py`` builds one per hit) and ``hit``
-    is discarded right after this mapping, so the result carries it directly rather than copying it (#26).
+    is discarded right after this mapping, so the result carries it directly rather than copying it.
     """
     page_raw = hit.metadata.get("page_number", "")
     page_number = int(page_raw) if page_raw.isdigit() else None

@@ -1,6 +1,6 @@
 """Tests for the OpService builder — single-operation decorated services.
 
-The Python analog of Go's ``pkg/go/services/builder.go``: a domain service exposes ONE decoratable
+The Python analog of Go's ``go/services/builder.go``: a domain service exposes ONE decoratable
 ``run`` chokepoint (unlike CRUD's five methods), and the builder wraps it with the cross-cutting
 decorator stack (logging + timeout + recovery, recovery outermost) that every app service adopts.
 """

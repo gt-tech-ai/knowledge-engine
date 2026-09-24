@@ -19,7 +19,7 @@ import (
 // the concrete workflow type directly; future gate-producing workflows implement
 // this interface to signal intent.
 //
-// §2.3 exemption — execution-engine primitive: a single Gate() → *Gate producer contract,
+// interface-composition exemption — execution-engine primitive: a single Gate() → *Gate producer contract,
 // not an id-CRUD data-access surface, so it embeds no foundation generic.
 type GateFactory interface {
 	// Gate builds and returns the composed *Gate.
@@ -121,7 +121,7 @@ func RunGateNoRunner(ctx context.Context, g *Gate) error {
 
 // RunGate executes all phases of g in order.
 // Each phase's jobs run in parallel or serially per configuration.
-// Failures are aggregated into a CodeQualityFailed error (Pattern #21).
+// Failures are aggregated into a CodeQualityFailed error.
 // When StopOnFailure is set, the first failed phase halts subsequent phases.
 // Returns nil when all phases pass or produce only warnings.
 func RunGate(
@@ -213,7 +213,7 @@ func runPhase(
 }
 
 // phaseFailureError constructs a CodeQualityFailed error aggregating all
-// failed step errors in results (Pattern #21).
+// failed step errors in results.
 func phaseFailureError(phaseName string, results types.StepResults) error {
 	var errs []error
 	for _, r := range results {

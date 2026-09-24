@@ -10,7 +10,7 @@ import "context"
 //
 // Contract: Exec returns exactly what fn returns, unmodified, on both the success and
 // error paths — the result is never zeroed when fn returns an error, so a partial
-// result reported alongside an error survives the decoration (spec-review F5). The
+// result reported alongside an error survives the decoration. The
 // chain is synchronous and single-call, so the closure capture is race-free.
 func Exec[R any](
 	ctx context.Context,

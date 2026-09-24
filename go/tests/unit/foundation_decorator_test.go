@@ -15,7 +15,7 @@ import (
 )
 
 // foundFullStack composes all five generic decorators around base in the canonical
-// §6.3 order (base → timeout → metrics → tracing → logging → recovery), the order
+// order (ARCHITECTURE.md#decorator-order; base → timeout → metrics → tracing → logging → recovery), the order
 // the pipeline/workflow builders apply. onPanic is the tier's recovery contract.
 func foundFullStack(
 	base decorator.Executor[string, string],
@@ -40,7 +40,7 @@ func foundFullStack(
 // Unwrapper seam, so a test can walk the composed stack down to the base handler.
 //
 // Why this test is important:
-//   - The Unwrap seam (mothership-parity audit F7) is the sanctioned way a test
+//   - The Unwrap seam is the sanctioned way a test
 //     reaches the underlying handler through the decorator stack; without it, a
 //     test would have to reach into unexported decorator internals. It also proves
 //     the wrap depth/order: five decorators sit between the top and the base.

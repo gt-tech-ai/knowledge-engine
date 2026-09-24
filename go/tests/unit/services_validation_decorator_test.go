@@ -14,7 +14,7 @@ import (
 )
 
 // nameRequired is the shared business rule used by the validation-decorator tests: an entity's
-// Name must be non-empty, and a violation is a coded invalid-input error (§9.1).
+// Name must be non-empty, and a violation is a coded invalid-input error (ARCHITECTURE.md#error-codes).
 func nameRequired(e *fixtures.TestEntity) error {
 	if e.Name == "" {
 		return coreerrors.New(coreerrors.CodeInvalidInput, "name is required")
@@ -25,7 +25,7 @@ func nameRequired(e *fixtures.TestEntity) error {
 // TestServiceDecorator_WithValidation_RejectsInvalidAndShortCircuits tests that the
 // service builder's WithValidation decorator rejects an entity that fails a business
 // rule and short-circuits before the inner service runs, while a valid entity passes
-// through (audit D8).
+// through.
 //
 // Why this test is important:
 //   - Business-rule validation below the transport boundary is the guard that keeps a

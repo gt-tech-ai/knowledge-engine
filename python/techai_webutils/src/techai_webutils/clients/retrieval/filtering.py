@@ -51,7 +51,7 @@ def _clearance_rank(clearance: str) -> int:
 
 
 def allowed_classifications_for(clearance: str) -> list[str]:
-    """Return the classification labels at/below ``clearance`` — the KB ``in``-filter value list (R11).
+    """Return the classification labels at/below ``clearance`` — the KB ``in``-filter value list.
 
     Mirrors ``_allowed``'s ranking EXACTLY (a document is admissible iff its classification rank is
     <= the caller's clearance rank), so the KB pre-filter returns the SAME eligible set the

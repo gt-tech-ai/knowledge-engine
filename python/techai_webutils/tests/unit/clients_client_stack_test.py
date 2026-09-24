@@ -175,7 +175,7 @@ async def test_client_stack_permanent_error_does_not_trip_breaker() -> None:
 
     Why this test is important:
         - A breaker that trips on ordinary business outcomes (NotFound, validation) fails healthy
-          callers; the breaker must be error-aware, mirroring the Go gobreaker IsSuccessful (audit R1).
+          callers; the breaker must be error-aware, mirroring the Go gobreaker IsSuccessful.
 
     What it tests:
         - With a classifying breaker (is_failure=is_transient), repeated permanent AppErrors never open
@@ -193,7 +193,7 @@ async def test_client_stack_permanent_error_does_not_trip_breaker() -> None:
 
 
 def test_client_stack_wrap_order_tracing_outermost_logging_innermost() -> None:
-    """The composed client stack nests Tracing -> Logging (Logging innermost), per charter §6.3.
+    """The composed client stack nests Tracing -> Logging (Logging innermost), per ARCHITECTURE.md#decorator-order.
 
     Why this test is important:
         - The tracing span must bracket the logging seam; before the Go builders had
@@ -227,7 +227,7 @@ async def test_rate_limit_proxy_gates_each_call_through_the_limiter() -> None:
     """RateLimitProxy awaits a token from the RateLimiter before each async call.
 
     Why this test is important:
-        - The RateLimit layer (Job/Controller stacks, §6.3) must smooth bursts to the
+        - The RateLimit layer (Job/Controller stacks) must smooth bursts to the
           configured rate; a proxy that forgot to await the limiter would let a burst through.
 
     What it tests:

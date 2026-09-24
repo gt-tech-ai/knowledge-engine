@@ -41,8 +41,8 @@ Resilience Interfaces:
     RateLimiter: Token-bucket rate limiting.
     Bulkhead: Concurrency limiting.
     Retrier: Automatic retry on transient failures.
-    Deduplicator: Idempotency for at-least-once delivery (D-40).
-    LeaderElector: Single-instance execution across replicas (D-30).
+    Deduplicator: Idempotency for at-least-once delivery.
+    LeaderElector: Single-instance execution across replicas.
     Hedger: Tail-latency reduction by racing a backup attempt.
     AdaptiveThrottler: Client-side SRE load-shedding.
 

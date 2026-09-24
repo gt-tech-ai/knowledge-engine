@@ -33,7 +33,7 @@ const (
 	KindChannel Kind = iota
 
 	// KindAdaptive uses a self-tuning (AIMD) limit that shrinks under latency and recovers.
-	// Suitable for a backend whose safe concurrency is unknown or varies (see).
+	// Suitable for a backend whose safe concurrency is unknown or varies.
 	KindAdaptive
 )
 

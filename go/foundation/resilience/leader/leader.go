@@ -1,4 +1,4 @@
-// Package leader provides leader election for single-instance job execution (D-30).
+// Package leader provides leader election for single-instance job execution.
 // The default AlwaysLeader is the single-process backend; a distributed elector (a
 // Postgres advisory lock, the sibling of clients/lock's postgres backend) is
 // the production backend that lands when a second replica does.

@@ -1,7 +1,7 @@
-// Package decorators composes the charter §6.3 Job decorator stack around a scheduled
-// job function: LeaderElection → RateLimit → Retry → Timeout → Tracing → Metrics →
+// Package decorators composes the Job decorator stack (ARCHITECTURE.md#decorator-order)
+// around a scheduled job function: LeaderElection → RateLimit → Retry → Timeout → Tracing → Metrics →
 // Logging → Job. The inner Retry/Timeout/observability reuses the shared client stack
-// (pkg/go/clients/decorators), so the mechanism is composed once, not re-implemented.
+// (go/clients/decorators), so the mechanism is composed once, not re-implemented.
 package decorators
 
 import (
@@ -17,7 +17,7 @@ import (
 // JobFunc is one run of a scheduled job.
 type JobFunc func(ctx context.Context) error
 
-// JobStackDeps carries the collaborators for the §6.3 Job stack. A nil layer (or zero
+// JobStackDeps carries the collaborators for the Job stack. A nil layer (or zero
 // timeout) is skipped, so callers opt into exactly the concerns they have wired.
 type JobStackDeps struct {
 	// Leader gates execution: a non-leader instance skips the job (nil = always run).
@@ -45,7 +45,8 @@ type JobStackDeps struct {
 	Timeout time.Duration
 }
 
-// WrapJob composes the charter §6.3 Job stack around fn, outermost → innermost:
+// WrapJob composes the Job stack (ARCHITECTURE.md#decorator-order) around fn, outermost →
+// innermost:
 // LeaderElection → RateLimit → [Retry → Timeout → Tracing → Metrics → Logging] → Job.
 // A non-leader instance skips the run (returns nil), so a job scheduled across N replicas
 // fires once; the rate limiter then smooths its start rate before the inner shared client

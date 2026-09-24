@@ -14,7 +14,7 @@ import (
 // EnsureBucket creates the named bucket if it does not already exist,
 // idempotently: it probes with HeadBucket, creates the bucket when absent, and
 // tolerates the already-exists/already-owned races so concurrent callers both
-// succeed. It exists so local/dev provisioning — notably the `search seed` CLI —
+// succeed. It exists so local/dev provisioning — e.g. a seeding tool —
 // can guarantee the document-upload path has a bucket to write to, rather than
 // surfacing NoSuchBucket only on the first presigned PUT.
 func (c *s3Client) EnsureBucket(ctx context.Context, bucket string) error {

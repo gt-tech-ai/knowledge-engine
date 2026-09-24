@@ -70,14 +70,14 @@ func New(cfg Config) *Breaker {
 		// Only transient infrastructure failures (the same class the retrier
 		// retries) count against the breaker; permanent domain errors — NotFound,
 		// Conflict, InvalidInput, and the auth codes — are treated as successful so
-		// ordinary business outcomes never trip it (R1). The shared retryability
+		// ordinary business outcomes never trip it. The shared retryability
 		// policy lives in retry/exponential.
 		IsSuccessful: func(err error) bool {
 			return err == nil || !exponential.IsRetryable(err)
 		},
 		ReadyToTrip: func(counts gb.Counts) bool {
 			// Consecutive failures remain a floor; additionally trip on a sustained
-			// failure ratio once a minimum request volume is seen (R7).
+			// failure ratio once a minimum request volume is seen.
 			if counts.ConsecutiveFailures >= cfg.ConsecutiveFailures {
 				return true
 			}

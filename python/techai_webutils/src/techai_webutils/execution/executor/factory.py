@@ -44,7 +44,7 @@ class ExecutorConfig:
     ray_namespace: str = ""
     """Optional Ray namespace to isolate this workload's actors/tasks (blank ⇒ Ray's default)."""
     actor_pool_size: int = 0
-    """Ray-only: number of pooled ``BulkWorker`` actors that reuse clients per worker (audit #5).
+    """Ray-only: number of pooled ``BulkWorker`` actors that reuse clients per worker.
 
     ``0`` (the default) keeps the stateless-task path (the mapper rebuilds clients per object); ``> 0``
     selects the actor pool (``PooledExecutor`` over that many actors, each built once). Ignored by the
@@ -74,7 +74,7 @@ def ray_runtime_from_config(config: ExecutorConfig) -> RayRuntime:
     """Build the resilience-decorated ``RealRayRuntime`` for the ray kind (lazy ``ray`` import).
 
     ``ResilientRayRuntime`` wraps ``RealRayRuntime`` so a flaky cold connect is retried with backoff
-    (charter §6.3 — resilience is a decorator, not inlined). Shared by ``executor_from_config`` (per-batch
+    (resilience is a decorator, not inlined — ARCHITECTURE.md#decorators). Shared by ``executor_from_config`` (per-batch
     dispatch) and the bulk-consumer's startup warm-up, so both connect through the one resilient path.
     The concrete ``RealRayRuntime`` is imported here so the asyncio path never loads ``ray``.
     """

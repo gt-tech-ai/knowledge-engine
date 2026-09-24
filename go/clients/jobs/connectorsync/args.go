@@ -10,8 +10,8 @@
 // most K syncs run at once per worker replica, so the fleet-wide ceiling is K
 // × replicas; the rest queue = backpressure), and every SyncArgs is UNIQUE per
 // connector across the active states (at most one sync per connector
-// pending/running GLOBALLY, enforced by River's DB-backed unique key — the
-// story's "max 1 concurrent sync per connector"). Duplicate triggers or a
+// pending/running GLOBALLY, enforced by River's DB-backed unique key — "max 1
+// concurrent sync per connector"). Duplicate triggers or a
 // backstop tick while a sync is already in flight are deduped, not doubled.
 package connectorsync
 

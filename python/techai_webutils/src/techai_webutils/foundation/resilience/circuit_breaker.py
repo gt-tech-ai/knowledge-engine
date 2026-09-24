@@ -111,7 +111,7 @@ class CircuitBreaker:
             # A success — OR a non-failure exception (permanent domain error,
             # cancellation) when a classifier is configured — resets the breaker, so
             # ordinary business outcomes never trip it. Mirrors the Go gobreaker
-            # IsSuccessful (audit R1). With no classifier every exception counts.
+            # IsSuccessful. With no classifier every exception counts.
             if exc_type is None or (
                 exc_val is not None and self._is_failure is not None and not self._is_failure(exc_val)
             ):

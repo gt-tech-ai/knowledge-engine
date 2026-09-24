@@ -251,7 +251,7 @@ func (e *ConnectorSyncCompletedEvent) Type() EventType { return EventConnectorSy
 // Metadata returns the embedded common event metadata.
 func (e *ConnectorSyncCompletedEvent) Metadata() EventMetadata { return e.EventMetadata }
 
-// eventEnvelope decodes any event payload in a single pass (#9). The embedded
+// eventEnvelope decodes any event payload in a single pass. The embedded
 // EventMetadata carries the discriminant (event_type) and the fields common to
 // every event; the remaining fields are the union of all concrete event bodies.
 // The wire format is flat (each field promoted to the top-level JSON object — the
@@ -308,7 +308,7 @@ type eventEnvelope struct {
 
 // ParseEvent parses a JSON event payload and returns the appropriate Event type.
 // It unmarshals the payload exactly once (into eventEnvelope) and dispatches on
-// event_type, rather than parsing the same bytes twice (#9).
+// event_type, rather than parsing the same bytes twice.
 func ParseEvent(data []byte) (Event, error) {
 	var env eventEnvelope
 	if err := json.Unmarshal(data, &env); err != nil {

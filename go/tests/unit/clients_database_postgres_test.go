@@ -23,7 +23,7 @@ import (
 // Why this test is important:
 //   - The DatabaseConnectionPoolSaturation SLO alerts on
 //     db_pool_active_connections / db_pool_max_connections; if those series are
-//     absent the alert can never fire and pool exhaustion goes unnoticed (D4).
+//     absent the alert can never fire and pool exhaustion goes unnoticed.
 //
 // What it tests:
 //   - After StartPoolStatsCollector publishes once, /metrics exposes
@@ -65,9 +65,9 @@ func TestStartPoolStatsCollector_PublishesGauges(t *testing.T) {
 // reports an error once its pool can no longer reach the database.
 //
 // Why this test is important:
-//   - Check is the readiness probe's DB gate (F7): if the
+//   - Check is the readiness probe's DB gate: if the
 //     closure did not surface a dead pool, /readyz would stay 200 with a
-//     black-holed database — the exact bug this story closes. Pinning that a
+//     black-holed database — the exact bug this guards against. Pinning that a
 //     closed pool makes the closure error is what makes the probe load-bearing.
 //
 // What it tests:
@@ -92,7 +92,7 @@ func TestCheck_ClosedPoolErrors(t *testing.T) {
 // when the database is unreachable.
 //
 // Why this test is important:
-//   - PingDB is the boot-time fail-fast (D11); a bad DSN or down server must
+//   - PingDB is the boot-time fail-fast; a bad DSN or down server must
 //     produce a clear error at the composition root, not a silent first-request
 //     failure.
 //

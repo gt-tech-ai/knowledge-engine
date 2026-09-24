@@ -1,5 +1,5 @@
 // Package decorators wraps a base StorageClient with the shared client-boundary
-// resilience stack (pkg/go/clients/decorators): Bulkhead → Retry → CircuitBreaker
+// resilience stack (go/clients/decorators): Bulkhead → Retry → CircuitBreaker
 // → Timeout → Tracing → Metrics → Logging. It delegates each operation to that
 // stack's Run/RunStream so S3 gets the same protection as the other direct-SDK
 // clients (DRY — one stack, every client).

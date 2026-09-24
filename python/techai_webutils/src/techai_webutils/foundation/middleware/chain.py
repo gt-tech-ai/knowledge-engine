@@ -1,6 +1,6 @@
 """Middleware chain composition.
 
-Mirrors Go's ``pkg/go/foundation/middleware/chain.go``:
+Mirrors Go's ``go/foundation/middleware/chain.go``:
 ``Chain(a, b, c)(handler) == a(b(c(handler)))``.
 """
 

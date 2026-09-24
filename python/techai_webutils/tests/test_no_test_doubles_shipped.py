@@ -7,7 +7,7 @@ def test_no_fake_doubles_in_shipped_src() -> None:
     """Test doubles are test-only and never appear in the packaged src/ tree.
 
     Why this test is important:
-      - Test-only code shipping in the production wheel is the F1 audit finding; a fake_*.py
+      - Test-only code must not ship in the production wheel; a fake_*.py
         creeping back into src/techai_webutils would ship to every downstream consumer of the
         techai-webutils wheel. This pins the "doubles are test-only" invariant cheaply — no wheel
         build needed on every run (the full build+grep assertion is a manual/CI verification).

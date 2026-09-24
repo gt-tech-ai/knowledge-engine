@@ -150,7 +150,7 @@ func TestAuth0Client_Invitations(t *testing.T) {
 //
 // Why this test is important:
 //   - Downstream retry/HTTP-status classification is derived from the domain error
-//     code (charter §9.1); mapping a 404 to UPSTREAM or a 400 to INTERNAL would make
+//     code (ARCHITECTURE.md#error-codes); mapping a 404 to UPSTREAM or a 400 to INTERNAL would make
 //     callers retry a permanent failure or 500 on bad input.
 //
 // What it tests:

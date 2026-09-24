@@ -67,8 +67,7 @@ func TestDecorateExec_ArbitraryReturnTypes(t *testing.T) {
 }
 
 // TestDecorateExec_ReturnsResultUnmodifiedOnError tests the Exec[R] contract that a
-// non-nil error alongside a non-zero result is propagated verbatim — no zeroing
-// (spec-review F5).
+// non-nil error alongside a non-zero result is propagated verbatim — no zeroing.
 //
 // Why this test is important:
 //   - Callers must get exactly what fn returned so a partial result + error survives
@@ -248,8 +247,7 @@ func TestTimeoutMW_AppliesDeadline(t *testing.T) {
 }
 
 // TestRetryMW_TxGuardedRunsOnce tests that the retry middleware runs the operation
-// exactly once inside a transaction (no retry) and uses the retrier outside one
-// (spec-review F1/tx-guard).
+// exactly once inside a transaction (no retry) and uses the retrier outside one.
 //
 // Why this test is important:
 //   - Retrying a statement inside the caller's transaction is unsafe (the tx is
@@ -332,7 +330,7 @@ func TestRecoveryMW_ConvertsPanic(t *testing.T) {
 }
 
 // TestAuthMW_ShortCircuitsOnDeny tests that the auth middleware denies before running
-// the operation and allows otherwise (spec-review F3).
+// the operation and allows otherwise.
 //
 // Why this test is important:
 //   - authMW is the required eighth middleware: a custom service op must be authorized

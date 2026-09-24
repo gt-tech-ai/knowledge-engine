@@ -1,8 +1,8 @@
 """Tests for the Python Job + EventHandler decorator stacks.
 
-Parity with Go's ``pkg/go/tests/clients/jobevent_stack_test.go``: the event stack skips a
-duplicate (D-40) and dead-letters a message that still fails after retries (D-34); the job stack
-runs only on the leader (D-30).
+Parity with Go's ``go/tests/unit/clients_jobevent_stack_test.go``: the event stack skips a
+duplicate and dead-letters a message that still fails after retries; the job stack
+runs only on the leader.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def _message(message_id: str = "m1") -> Message:
 
 @pytest.mark.asyncio
 async def test_wrap_handler_dedup_skips_duplicate() -> None:
-    """The event stack runs a redelivered message's handler exactly once (D-40).
+    """The event stack runs a redelivered message's handler exactly once.
 
     Why this test is important:
         - Under at-least-once delivery the same message can arrive twice; the dedup layer is the
@@ -58,7 +58,7 @@ async def test_wrap_handler_dedup_skips_duplicate() -> None:
 
 @pytest.mark.asyncio
 async def test_wrap_handler_retries_then_dead_letters() -> None:
-    """A message that still fails after retries is dead-lettered and acked (D-34).
+    """A message that still fails after retries is dead-lettered and acked.
 
     Why this test is important:
         - A poison message that neither dead-letters nor acks would loop forever; retrying the
@@ -91,7 +91,7 @@ async def test_wrap_handler_retries_then_dead_letters() -> None:
 
 @pytest.mark.asyncio
 async def test_wrap_job_leader_gating() -> None:
-    """The job stack runs the job only on the leader, so an N-replica schedule fires once (D-30).
+    """The job stack runs the job only on the leader, so an N-replica schedule fires once.
 
     Why this test is important:
         - Running a scheduled job on every replica would duplicate its effect (e.g. N reaper

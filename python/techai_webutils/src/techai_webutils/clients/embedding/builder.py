@@ -21,7 +21,7 @@ class EmbeddingKind(StrEnum):
     OLLAMA = "ollama"
     """The local Ollama embedding server (``/api/embed``; dev)."""
     STUB = "stub"
-    """Deterministic in-process stub (dev/test/all-stubs; no Ollama) — ."""
+    """Deterministic in-process stub (dev/test/all-stubs; no Ollama)."""
 
 
 @dataclass(frozen=True, slots=True)

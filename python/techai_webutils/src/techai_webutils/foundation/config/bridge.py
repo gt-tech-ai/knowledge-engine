@@ -40,7 +40,7 @@ from techai_webutils.foundation.config.loader import load_config
 logger = logging.getLogger(__name__)
 
 # Sentinel flag + lock ensuring initialize_config() loads the YAML exactly once, thread-safely
-# (audit #30 — the former unlocked check-then-set was safe only if init preceded any thread spawn).
+# (the former unlocked check-then-set was safe only if init preceded any thread spawn).
 _initialized = False
 _init_lock = threading.Lock()
 

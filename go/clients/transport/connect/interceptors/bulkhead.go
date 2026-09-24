@@ -11,7 +11,7 @@ import (
 
 // Default internal load-shedding limits — safety-net ceilings for the internal
 // gRPC surface (identity resolver + the InternalService the Python fleet calls)
-// that Kong doesn't front (R6). Sized generously so normal service-to-service
+// that Kong doesn't front. Sized generously so normal service-to-service
 // load is never shed; they only engage under a genuine burst. Tune per service
 // as load data warrants (a follow-up may lift these into config).
 //
@@ -82,7 +82,7 @@ func (i bulkheadInterceptor) WrapStreamingClient(
 }
 
 // WrapStreamingHandler runs a server-streaming handler only while a bulkhead slot is
-// free, else sheds with ResourceExhausted (audit F6). The slot is
+// free, else sheds with ResourceExhausted. The slot is
 // held for the stream's full lifetime.
 func (i bulkheadInterceptor) WrapStreamingHandler(
 	next connect.StreamingHandlerFunc,

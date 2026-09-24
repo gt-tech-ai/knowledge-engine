@@ -2,7 +2,7 @@
 
 Mirrors Go's ``clients/cache``: ``builder.py`` selects a backend by ``CacheKind`` and returns the
 core ``Cache`` interface; each backend lives in its own subpackage (``redis``/``local``/``null``);
-``decorators.py`` wraps a cache with logging + metrics. Relocated from ``foundation/cache`` (D2) so the
+``decorators.py`` wraps a cache with logging + metrics. Relocated from ``foundation/cache`` so the
 concrete backends sit at the clients tier (L2, external-system integration), matching Go.
 """
 

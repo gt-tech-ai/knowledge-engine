@@ -2,8 +2,8 @@
 
 A second in-process init of the same metric name must reuse the existing collector instead of raising
 prometheus_client's "Duplicated timeseries in CollectorRegistry" — so a supervised restart, a second
-observer, or two tests in one interpreter no longer crash (audit #4). The global ``REGISTRY`` default
-is kept, so the ``/metrics`` scrape is unaffected (R1).
+observer, or two tests in one interpreter no longer crash. The global ``REGISTRY`` default
+is kept, so the ``/metrics`` scrape is unaffected.
 """
 
 from __future__ import annotations

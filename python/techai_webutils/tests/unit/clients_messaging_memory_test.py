@@ -1,7 +1,7 @@
-"""Tests for the in-memory messaging backend + its factory selection (D7).
+"""Tests for the in-memory messaging backend + its factory selection.
 
 The ``memory`` publisher/subscriber let a worker build and unit-test the SQS path with no
-ElasticMQ/SQS — the stub-first property (charter §13.2). Parity with Go's ``messaging/memory``.
+ElasticMQ/SQS — the stub-first property (ARCHITECTURE.md#stub-first-backends). Parity with Go's ``messaging/memory``.
 Publisher and subscriber connect only through a **shared broker instance** (not module-global
 state), so two unrelated brokers are isolated under parallel test execution.
 """

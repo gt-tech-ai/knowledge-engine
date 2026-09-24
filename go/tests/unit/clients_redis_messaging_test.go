@@ -18,14 +18,14 @@ import (
 // The actual PUBLISH/SUBSCRIBE/PSUBSCRIBE behavior can only be exercised against a
 // real Redis (the backend wraps a concrete go-redis client with no injectable seam,
 // unlike the SQS backend's mockable API), so those round-trips live in the
-// integration suite: pkg/go/tests/integration/clients_redis_messaging_test.go.
+// integration suite: go/tests/integration/clients_redis_messaging_test.go.
 
 // TestMessagingCapabilityInterfaces_MocksSatisfyContracts tests that the generated
 // mocks for the dynamic pub/sub capability interfaces satisfy their contracts.
 //
 // Why this test is important:
 //   - DynamicConsumer and PatternConsumer are core capability interfaces that
-//     compose with MessageConsumer (charter §2.3); a consumer of the Redis backend
+//     compose with MessageConsumer (ARCHITECTURE.md#interface-composition); a consumer of the Redis backend
 //     depends on them, so their shape and their generated mocks must stay in lockstep.
 //
 // What it tests:

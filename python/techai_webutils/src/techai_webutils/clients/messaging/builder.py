@@ -23,7 +23,7 @@ class MessagingKind(StrEnum):
     SQS = "sqs"
     """AWS SQS (real SQS in cloud, ElasticMQ in dev)."""
     MEMORY = "memory"
-    """In-process broker (dev/test/all-stubs; no external broker) — ."""
+    """In-process broker (dev/test/all-stubs; no external broker)."""
 
 
 @dataclass(frozen=True, slots=True)

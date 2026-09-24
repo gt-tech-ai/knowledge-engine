@@ -1,4 +1,4 @@
-// Package core_test verifies the pkg/go/core/events package: domain event
+// Package core_test verifies the go/core/events package: domain event
 // construction, JSON marshal/unmarshal round-trips, ParseEvent dispatch, and
 // error handling for unknown or malformed event bodies. No network I/O occurs.
 package unit_test
@@ -332,7 +332,7 @@ func TestParseEvent_InvalidEventBody(t *testing.T) {
 // every field of a document.uploaded payload into the concrete event.
 //
 // Why this test is important:
-//   - #9 replaced the per-type json.Unmarshal with a single envelope decode that
+//   - ParseEvent replaced the per-type json.Unmarshal with a single envelope decode that
 //     hand-copies each field into the concrete struct; a copy-paste slip there
 //     would silently drop or cross-wire a field (e.g. StorageKey ← FileName),
 //     corrupting the ingestion sidecar that indexes on these exact values
@@ -376,8 +376,8 @@ func TestParseEvent_DocumentUploadedFieldFidelity(t *testing.T) {
 }
 
 // BenchmarkParseEvent measures ParseEvent on a document.uploaded payload so the
-// #9 single-decode envelope can be compared against the previous two-parse
-// implementation (Done clause: one decode, no small-input regression).
+// single-decode envelope can be compared against the previous two-parse
+// implementation (one decode, no small-input regression).
 func BenchmarkParseEvent(b *testing.B) {
 	data := []byte(
 		`{"event_id":"e1","event_type":"document.uploaded","occurred_at":"2026-04-20T12:00:00Z","org_id":"o1","document_id":"d1","workspace_id":"w1","file_name":"test.pdf","content_type":"application/pdf","size_bytes":100,"storage_key":"k1","trust_level":"verified","classification":"public"}`,

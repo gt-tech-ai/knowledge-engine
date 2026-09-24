@@ -75,7 +75,7 @@ func TestNewFromConfig_FileKindBuildsWithRunner(t *testing.T) {
 // TestNewFromConfig_UnknownKindFailsLoudly tests that an unrecognized Kind is rejected.
 //
 // Why this test is important:
-//   - Fail-loud on an unknown Kind is the factory contract (charter One Idea); a silent
+//   - Fail-loud on an unknown Kind is the factory contract (ARCHITECTURE.md#swappable-components); a silent
 //     nil Source would defer the failure to a confusing later nil-panic.
 //
 // What it tests:

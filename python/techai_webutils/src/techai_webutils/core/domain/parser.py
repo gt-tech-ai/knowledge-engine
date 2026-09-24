@@ -1,9 +1,9 @@
 """Parser domain DTOs: supported formats, per-page text, and the parsed-document result.
 
 These are the shared, dependency-free contracts a ``DocumentParser`` backend produces
-(``techai_webutils.core.interfaces.parser``). They live in ``pkg/`` — not an app — so any
-deployable (the ingestion worker today, a future stand-alone parse microservice) programs against
-the same DTO, exactly like Go's ``pkg/go/core`` types. Frozen ``slots`` dataclasses of scalars/lists
+(``techai_webutils.core.interfaces.parser``). They live in this shared library — not an app — so any
+deployable (an ingestion worker, a stand-alone parse service) programs against
+the same DTO, exactly like Go's ``go/core`` types. Frozen ``slots`` dataclasses of scalars/lists
 so a boundary DTO is "a queue message waiting to happen" (extraction-ready).
 """
 

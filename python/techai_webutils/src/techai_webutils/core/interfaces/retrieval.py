@@ -95,7 +95,7 @@ class RetrievalEngine(ManagedResource, ABC):
     ) -> list[RetrievalResult]:
         """Retrieve relevant document chunks for a query.
 
-        ``knowledge_base_id`` selects the KB to query per call (per-org routing, Epic 32);
+        ``knowledge_base_id`` selects the KB to query per call (per-org routing);
         ``None`` uses the engine's construction-time KB (the shared topology). An engine constructed
         with no default KB and called with ``None`` must fail loudly, not silently fall back.
         """

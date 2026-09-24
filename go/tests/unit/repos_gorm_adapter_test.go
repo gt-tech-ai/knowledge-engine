@@ -42,7 +42,7 @@ func TestGormAdapter_KindAndUnknown(t *testing.T) {
 //   - The adapter is the swappable Ent sibling; a composition root relies on Liveness
 //     and Readiness reporting not-ready until Start opens the pool, and on Start failing
 //     fast when the database is unreachable rather than deferring the failure to the
-//     first query (and NOT doing I/O in the constructor — charter DoD).
+//     first query (and NOT doing I/O in the constructor).
 //
 // What it tests:
 //   - The client satisfies interfaces.Client.

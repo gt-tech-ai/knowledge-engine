@@ -68,9 +68,8 @@ class SQSSubscriber(MessageConsumer):
             )
             messages = resp.get("Messages", [])
             if messages:
-                # Fan the poll batch out concurrently instead of awaiting each message serially
-                # (audit #16), so a consumer built on this reference subscriber (e.g. the notification
-                # worker) gets batch throughput. Each message still acks (deletes) only on its own
+                # Fan the poll batch out concurrently instead of awaiting each message serially,
+                # so a consumer built on this reference subscriber gets batch throughput. Each message still acks (deletes) only on its own
                 # handler success; a failing handler is logged and left for redrive. No explicit
                 # semaphore is needed — SQS caps a receive batch at 10 (max_messages), which is already
                 # a safe fan-out width, so the batch size IS the bound.

@@ -1,11 +1,11 @@
-"""Charter §6.3 Job decorator stack for a scheduled job coroutine.
+"""Job decorator stack for a scheduled job coroutine (ARCHITECTURE.md#decorator-order).
 
 Composes, outermost -> innermost, ``LeaderElection -> RateLimit -> [Retry -> Timeout] ->
 Job``. Mirrors Go's ``clients/jobs/decorators.WrapJob``. A non-leader instance skips the run
-(a job scheduled across N replicas fires once, D-30); the rate limiter then smooths the start
+(a job scheduled across N replicas fires once); the rate limiter then smooths the start
 rate before the inner retry/timeout runs the job. Built from the existing foundation
 primitives (``retry_transient_async`` + ``with_timeout``), so the mechanism is composed once,
-not re-implemented (charter §6.3).
+not re-implemented.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ JobFunc = Callable[[], Awaitable[None]]
 
 @dataclass(frozen=True, slots=True)
 class JobStackDeps:
-    """Collaborators for the §6.3 Job stack.
+    """Collaborators for the Job stack.
 
     A None layer (or non-positive timeout / ``retry_max_attempts`` <= 1) is skipped, so callers
     opt into exactly the concerns they have wired.
@@ -47,7 +47,7 @@ class JobStackDeps:
 
 
 def wrap_job(fn: JobFunc, deps: JobStackDeps) -> JobFunc:
-    """Compose the §6.3 Job stack around ``fn``.
+    """Compose the Job stack around ``fn``.
 
     Outermost -> innermost: ``LeaderElection -> RateLimit -> [Retry -> Timeout] -> Job``. A
     non-leader instance returns without running; otherwise the limiter awaits a token and the

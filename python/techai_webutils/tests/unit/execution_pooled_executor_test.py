@@ -62,7 +62,7 @@ class TestPooledExecutor:
 
         **Why this test is important:**
           - Building the per-worker context once and reusing it across items is the whole point of
-            audit #5 (the bulk lane's per-object client rebuild is the cost being removed); a rebuild
+            the pool (the bulk lane's per-object client rebuild is the cost being removed); a rebuild
             per item, or a leaked (unclosed) worker, would defeat it.
 
         **What it tests:**
@@ -89,7 +89,7 @@ class TestPooledExecutor:
             concurrently on one event loop. Without the lock, concurrent first-item calls each
             ``await factory()`` (the build yields on the S3-session open) and build a SECOND worker,
             orphaning the first's un-closed clients and defeating the reuse — the guarantee the S3
-            bulk lane's actor pool (audit #5) relies on. Ray-free so the guarantee runs in CI.
+            bulk lane's actor pool relies on. Ray-free so the guarantee runs in CI.
 
         **What it tests:**
           - 8 concurrent ``get()`` calls against a factory that yields mid-build invoke the factory

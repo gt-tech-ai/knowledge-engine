@@ -1,9 +1,8 @@
 // Package suite provides test suite constructors for unit and integration tests.
 //
 // It carries the schema-agnostic suites (a gomock UnitSuite plus one suite per
-// generic backing service — Redis, MinIO, ElasticMQ). The Postgres/Ent
-// IntegrationSuite lives product-side (contracts/ent/tests/fixtures/suite),
-// since it provisions the product's Ent schema.
+// generic backing service — Redis, MinIO, ElasticMQ). A Postgres/Ent
+// integration suite belongs with the consumer that owns the Ent schema.
 package suite
 
 import (

@@ -30,7 +30,7 @@ const readinessTimeout = 2 * time.Second
 
 // Check returns a readiness closure that pings db under a bounded (readinessTimeout)
 // context, so a Kubernetes readiness probe can gate /readyz on the pool actually
-// reaching Postgres (F7): the closure returns nil while the
+// reaching Postgres: the closure returns nil while the
 // database is reachable and a wrapped error once it is not, at which point the pod
 // is pulled from the Service endpoints. Liveness must NOT use this — a slow DB
 // should not restart the pod.
@@ -44,7 +44,7 @@ func Check(db *sql.DB) func() error {
 
 // Ping verifies the pool can reach the database, so a bad DSN or a down server
 // surfaces as a clear boot-time error at the composition root instead of as the
-// first request's failure (D11). Call it right after building the pool.
+// first request's failure. Call it right after building the pool.
 func Ping(ctx context.Context, db *sql.DB) error {
 	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
@@ -63,10 +63,9 @@ func Ping(ctx context.Context, db *sql.DB) error {
 // immediately after publishing once, so the series exist before the first scrape.
 // A non-positive interval falls back to StatsInterval.
 //
-// The gauge names match the DatabaseConnectionPoolSaturation SLO
-// (zarf/k8s/components/prometheus-rules/slo-rules.yaml), which alerts on
-// db_pool_active_connections / db_pool_max_connections > 0.8 — so wiring this at
-// each server's composition root is what makes that alert resolve (D4). "active"
+// The gauge names are stable so a pool-saturation alert can be written against them
+// (e.g. db_pool_active_connections / db_pool_max_connections > 0.8) — wiring this at
+// each server's composition root is what makes such an alert resolve. "active"
 // is the in-use count (connections currently serving a query); the pool nears
 // saturation as in-use approaches the max, at which point new callers wait.
 func StartStatsCollector(

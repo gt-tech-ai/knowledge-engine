@@ -45,7 +45,7 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
     ``start_ingestion_job`` returns the fresh (non-terminal) job; ``poll_ingestion_job`` polls a given
     ``job_id`` via ``get_ingestion_job`` until it is terminal or the max-poll deadline is exceeded (a
     timeout yields a ``FAILED`` ``poll_timeout`` job). Splitting start from poll lets the KB-sync
-    reconciler persist ``running``+``job_id`` before the poll and reattach to a recovered job (audit F3).
+    reconciler persist ``running``+``job_id`` before the poll and reattach to a recovered job.
     ``clock`` and ``sleep`` are injectable for deterministic tests.
     """
 
@@ -73,7 +73,7 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
 
         Delegates to the wrapped ingestor's ``start`` and returns immediately, so the caller (the KB-sync
         reconciler) can persist ``running``+``job_id`` BEFORE the up-to-30-min poll — the ordering the
-        reattach fix depends on (audit F3). Converge the job with ``poll_ingestion_job``; the
+        reattach fix depends on. Converge the job with ``poll_ingestion_job``; the
         ``SingleWriterRunner`` holds the single-writer lock across the reconciler's whole start→poll thunk.
         """
         return await self._inner.start_ingestion_job(
@@ -88,7 +88,7 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
         data_source_id: str,
         job_id: str,
     ) -> IngestionJob:
-        """Poll an already-started job (by ``job_id``) until terminal — the reattach primitive (F3).
+        """Poll an already-started job (by ``job_id``) until terminal — the reattach primitive.
 
         Fetches the job's current state via the wrapped ingestor, then polls to a terminal state (or a
         ``FAILED``/``poll_timeout`` job when the max-poll deadline is hit) — the same loop ``start`` used
@@ -246,7 +246,7 @@ class RetryingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Knowledge
         data_source_id: str,
         job_id: str,
     ) -> IngestionJob:
-        """Delegate a stop request WITHOUT the retry wrapper — the watchdog owns the stop backoff (D6).
+        """Delegate a stop request WITHOUT the retry wrapper — the watchdog owns the stop backoff.
 
         Unlike ``start``/``get``/``list`` (which wrap ``self._retry``), stop is a plain pass-through so a
         transient stop failure surfaces to the KB-sync watchdog, whose own bounded exponential backoff is

@@ -1,4 +1,4 @@
-"""Deterministic stub embedding provider for no-infra builds/tests (D7).
+"""Deterministic stub embedding provider for no-infra builds/tests.
 
 ``StubEmbeddingProvider`` derives a deterministic vector from the input text (a SHA-256 counter
 expansion), so a retrieval-adjacent service can build and unit-test the embedding path with no

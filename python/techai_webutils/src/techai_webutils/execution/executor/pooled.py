@@ -3,7 +3,7 @@
 Where ``fan_out`` (and ``AsyncioExecutor``/``RayExecutor``) drives a *stateless* per-item mapper,
 ``PooledExecutor`` drives a small pool of ``PooledWorker``s that each build their (expensive)
 per-worker context ONCE and reuse it across every item routed to them — the distributed bulk lane's
-per-worker client reuse (audit #5), replacing the per-object client rebuild of the stateless-task
+per-worker client reuse, replacing the per-object client rebuild of the stateless-task
 path. It reuses ``fan_out`` for the driver-side concerns (bounded concurrency, per-item isolation,
 exactly-once observer, ordered ``BatchResult``) and adds only the build-once pool + round-robin
 routing on top. It carries no ``ray`` import: the Ray actor pool plugs in behind the ``WorkerFactory``

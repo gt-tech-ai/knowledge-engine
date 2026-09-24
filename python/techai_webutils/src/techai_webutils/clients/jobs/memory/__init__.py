@@ -2,7 +2,7 @@
 
 Backend subpackage of ``clients/jobs`` (shape): re-exports the in-memory
 enqueuer / scheduler / worker-registry that ``builder.py`` selects for
-``JobKind.MEMORY``. A River/Postgres backend lands in a later story.
+``JobKind.MEMORY``. A River/Postgres backend would be a sibling kind.
 """
 
 from techai_webutils.clients.jobs.memory.backend import (

@@ -2,8 +2,7 @@
 //
 // A Broker holds one buffered channel per topic; a Publisher and Subscriber connect only when
 // handed the SAME broker instance (not package-global state), so two separate brokers are fully
-// isolated. Mirrors the Python messaging/memory backend. Selected by the messaging tier Kind
-// (D7).
+// isolated. Mirrors the Python messaging/memory backend. Selected by the messaging tier Kind.
 package memory
 
 import (

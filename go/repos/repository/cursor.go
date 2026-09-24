@@ -31,7 +31,7 @@ type CursorPayload struct {
 
 // CursorCodec encodes and decodes opaque cursor tokens for keyset pagination.
 // A token is the base64url encoding of a hand-formatted "RFC3339Nano|id" payload
-// (see Encode) — not JSON, to avoid reflection on the per-page hot path (#15).
+// (see Encode) — not JSON, to avoid reflection on the per-page hot path.
 // This enables stable, efficient pagination without OFFSET.
 type CursorCodec struct{}
 
@@ -44,7 +44,7 @@ func NewCursorCodec() *CursorCodec {
 // The timestamp is normalized to UTC before encoding.
 func (c *CursorCodec) Encode(createdAt time.Time, id string) string {
 	// Hand-encode "RFC3339Nano|id" instead of json.Marshal (reflection) on this
-	// per-page hot path (#15). RFC3339Nano contains no '|' and ids are UUIDs, so
+	// per-page hot path. RFC3339Nano contains no '|' and ids are UUIDs, so
 	// the first '|' is an unambiguous separator.
 	payload := createdAt.UTC().Format(time.RFC3339Nano) + "|" + id
 	return base64.RawURLEncoding.EncodeToString([]byte(payload))

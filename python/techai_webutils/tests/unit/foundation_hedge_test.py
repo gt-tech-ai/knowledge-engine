@@ -1,6 +1,6 @@
 """Tests for the request-hedging primitive + HedgeProxy.
 
-Parity with Go's ``pkg/go/tests/foundation/hedge_test.go``: the delay-then-race hedger lets a
+Parity with Go's ``go/tests/unit/foundation_hedge_test.go``: the delay-then-race hedger lets a
 fast backup beat a slow first attempt, the disabled hedger never duplicates the op, and the
 factory fails loudly on an unknown kind.
 """

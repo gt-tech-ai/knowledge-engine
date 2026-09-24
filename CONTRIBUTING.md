@@ -13,8 +13,12 @@ Thanks for your interest in the Tech AI Knowledge Engine.
 - **Tests.** Black-box, in the `go/tests/` tree, asserting observable behaviour. Unit
   tests mock the external boundary (generated mocks); integration tests run the real
   dependency in a Docker container via testcontainers. No hand-rolled fakes.
-- **No tracker ids in source.** Issue/ADR/story ids do not belong in code comments or
-  docstrings (the `check comment-refs` gate is blocking).
+- **Self-contained.** This repository never references anything outside itself: no
+  consumer names, paths or design documents, and no issue/ADR/story ids in code, comments,
+  docstrings, tests or config. Consumers may reference into it. Design rules live in
+  [ARCHITECTURE.md](ARCHITECTURE.md); cite its sections (`ARCHITECTURE.md#<section>`).
+- **No product code.** Product logic stays with its consumer; a consumer plugs its policy into
+  a seam here (see [ARCHITECTURE.md](ARCHITECTURE.md#what-belongs-here)).
 
 ## Workflow
 
@@ -28,5 +32,6 @@ Thanks for your interest in the Tech AI Knowledge Engine.
 ## Releases
 
 Versioning follows the git tag as the single source of truth (SemVer). Maintainers
-tag `vX.Y.Z`; the release workflow builds the GitHub release and publishes the
-`techai_webutils` Python package.
+tag `vX.Y.Z`; the release workflow builds the GitHub release and publishes
+`techai-webutils` to PyPI when its version is new. Record user-visible changes in
+[CHANGELOG.md](CHANGELOG.md).

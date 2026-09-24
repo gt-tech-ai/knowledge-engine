@@ -1,8 +1,8 @@
 """Tests for the deduplication + leader-election resilience primitives.
 
-Parity with Go's ``pkg/go/tests/foundation/dedup_leader_test.go``: the in-memory deduplicator
-gives exactly-once semantics under redelivery (D-40) and the single-process leader always holds
-leadership (D-30).
+Parity with Go's ``go/tests/unit/foundation_dedup_leader_test.go``: the in-memory deduplicator
+gives exactly-once semantics under redelivery and the single-process leader always holds
+leadership.
 """
 
 from __future__ import annotations

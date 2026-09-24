@@ -10,7 +10,7 @@ import "context"
 //
 // A peer resilience contract of Retrier and Bulkhead: it wraps an operation with a policy and
 // depends on no concrete implementation. Swap implementations via the adaptivethrottle.New
-// factory (see).
+// factory.
 type AdaptiveThrottler interface {
 	// Do runs op unless the throttler decides to reject it locally, in which case it returns a
 	// coded "throttled" rejection (see adaptivethrottle) WITHOUT invoking op. Each op outcome

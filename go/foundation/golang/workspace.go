@@ -11,7 +11,7 @@ import (
 )
 
 // GoWorkModules parses go.work and returns the module directories listed in
-// the use block, relative to root (e.g. "pkg/go/core", "apps/go/server/api").
+// the use block, relative to root (e.g. "libs/core", "services/api").
 // The root module (".") is excluded. An optional filter excludes modules by
 // relative path (return false to skip).
 func GoWorkModules(root string, filter func(relPath string) bool) ([]string, error) {
@@ -51,16 +51,17 @@ func GoWorkModules(root string, filter func(relPath string) bool) ([]string, err
 	return modules, nil
 }
 
-// PythonPackages discovers Python packages by walking pkg/python/ and
-// apps/python/ for directories containing a pyproject.toml. Paths are
-// returned relative to root (e.g. "pkg/python/techai_webutils"). An optional
+// PythonPackages discovers Python packages by walking the conventional pkg/python/,
+// apps/python/ and tools/ directories for directories containing a pyproject.toml
+// (a missing directory is skipped). Paths are returned relative to root (e.g.
+// "pkg/python/mylib"). An optional
 // filter excludes packages by relative path (return false to skip).
 func PythonPackages(root string, filter func(relPath string) bool) ([]string, error) {
 	searchDirs := []string{
 		filepath.Join(root, "pkg", "python"),
 		filepath.Join(root, "apps", "python"),
-		// Python dev tools (e.g. tools/synthetic, the binary renderer) so they are covered by
-		// `search lint/typecheck/test --python`. tools/cli (Go) has no pyproject, so it is a no-op there.
+		// Python dev tools under tools/ are discovered too; a Go-only tool directory has no
+		// pyproject.toml, so it contributes nothing.
 		filepath.Join(root, "tools"),
 	}
 
