@@ -20,6 +20,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage"
@@ -47,6 +48,28 @@ type StorageMinIOSuite struct {
 //   - Wires StorageMinIOSuite into the runner
 func TestStorageMinIOSuite(t *testing.T) {
 	suite.Run(t, new(StorageMinIOSuite))
+}
+
+// TestNewTestMinIO_WithImageOverridesTheDefault tests that the MinIO fixture starts
+// the image a consumer passes instead of its pinned default.
+//
+// Why this test is important:
+//   - The pinned image will go stale or vanish (the old quay.io pin did); consumers
+//     must be able to repin in their own tests without an engine release.
+//
+// What it tests:
+//   - WithImage with a tag that does not exist fails to start and names that image,
+//     which it could only do if the override replaced DefaultImage (the suite above
+//     proves DefaultImage itself starts).
+func TestNewTestMinIO_WithImageOverridesTheDefault(t *testing.T) {
+	ctx := context.Background()
+	const missing = "cgr.dev/chainguard/minio:ke-fixture-override-probe-does-not-exist"
+
+	m, err := miniodb.NewTestMinIO(ctx, miniodb.WithImage(missing))
+	t.Cleanup(func() { m.Close(ctx) })
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, missing)
 }
 
 func (s *StorageMinIOSuite) SetupSuite() {

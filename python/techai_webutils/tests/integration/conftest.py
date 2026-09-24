@@ -8,7 +8,7 @@ the unit suite excludes these wrappers (their uncovered lines are real network
 calls); this suite covers them end-to-end against live dependencies.
 
 Containers use the SAME images the platform deploys locally (``redis:7-alpine``,
-``softwaremill/elasticmq`` for SQS, ``minio/minio`` for S3) so layers are already
+``softwaremill/elasticmq`` for SQS, Chainguard's MinIO for S3) so layers are already
 pulled and behavior matches runtime.
 
 All tests are marked ``integration`` and require a Docker daemon. When Docker is
@@ -41,7 +41,11 @@ if TYPE_CHECKING:
 # already-pulled layers).
 _REDIS_IMAGE = "redis:7-alpine"
 _ELASTICMQ_IMAGE = "softwaremill/elasticmq:1.6.6"
-_MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+# MinIO no longer publishes images: Chainguard's free build, pinned by digest (the Go
+# fixture go/tests/fixtures/dbtest/minio pins the same one).
+_MINIO_IMAGE = (
+    "cgr.dev/chainguard/minio:latest@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
+)
 
 # MinIO root credentials (match the compose defaults). ElasticMQ ignores creds.
 _MINIO_USER = "minioadmin"

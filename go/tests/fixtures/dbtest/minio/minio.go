@@ -16,8 +16,12 @@ import (
 )
 
 const (
-	// minioImage is the pinned MinIO container image (matches the dev Compose stack).
-	minioImage = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+	// DefaultImage is the MinIO image NewTestMinIO starts unless WithImage overrides it:
+	// Chainguard's free build, pinned by digest (a multi-arch index) because MinIO no
+	// longer publishes its own images. The tag is informational; the digest is what
+	// is pulled.
+	DefaultImage = "cgr.dev/chainguard/minio:latest" +
+		"@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
 	// minioAPIPort is the container's S3 API port.
 	minioAPIPort = "9000/tcp"
 
@@ -36,11 +40,32 @@ type TestMinIO struct {
 	endpoint string
 }
 
-// NewTestMinIO starts a MinIO container and waits up to 60 seconds for its
-// readiness endpoint to report healthy.
-func NewTestMinIO(ctx context.Context) (*TestMinIO, error) {
+// options holds the settings an Option adjusts.
+type options struct {
+	// image is the container image to start.
+	image string
+}
+
+// Option adjusts how NewTestMinIO starts the container.
+type Option func(*options)
+
+// WithImage starts image instead of DefaultImage, so a consumer can repin MinIO
+// (a newer digest, a mirror) without waiting for an engine release. The image
+// must accept `server /data` and serve /minio/health/ready on port 9000.
+func WithImage(image string) Option {
+	return func(o *options) { o.image = image }
+}
+
+// NewTestMinIO starts a MinIO container (DefaultImage unless WithImage overrides
+// it) and waits up to 60 seconds for its readiness endpoint to report healthy.
+func NewTestMinIO(ctx context.Context, opts ...Option) (*TestMinIO, error) {
+	o := options{image: DefaultImage}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	req := testcontainers.ContainerRequest{
-		Image:        minioImage,
+		Image:        o.image,
 		ExposedPorts: []string{minioAPIPort},
 		Env: map[string]string{
 			"MINIO_ROOT_USER":     RootUser,
@@ -63,7 +88,7 @@ func NewTestMinIO(ctx context.Context) (*TestMinIO, error) {
 		return nil, coreerr.Wrap(
 			err,
 			coreerr.CodeInternal,
-			"failed to start MinIO container",
+			fmt.Sprintf("failed to start MinIO container from %s", o.image),
 		)
 	}
 
