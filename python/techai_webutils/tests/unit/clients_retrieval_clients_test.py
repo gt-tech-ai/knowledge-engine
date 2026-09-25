@@ -10,6 +10,7 @@ from techai_webutils.clients.retrieval.builder import (
     RetrievalConfig,
     RetrievalKind,
     new_retrieval_engine_from_config,
+    wrap_retrieval_engine,
 )
 from techai_webutils.clients.retrieval.filtering import (
     FilteringRetrievalEngine,
@@ -362,6 +363,33 @@ class TestFilteringRetrievalEngine:
 
 
 class TestRetrievalFactory:
+    @pytest.mark.asyncio
+    async def test_wrap_applies_the_factory_filtering_to_a_consumer_engine(self) -> None:
+        """wrap_retrieval_engine gives a consumer's own engine the factory's filtering.
+
+        **Why this test is important:**
+          - A consumer with its own engine (e.g. a dev corpus) must be scoped exactly like the
+            factory's kinds; repeating the wrapping in the consumer drifts from the library.
+
+        **What it tests:**
+          - A wrapped engine drops a passage under ``config.min_score`` and one a scope policy
+            rejects, keeps the admitted one, and passes the query and filters through.
+        """
+        inner = _inner_returning(
+            _passage("low", score=0.1, tenant="t1"),
+            _passage("other-tenant", tenant="t2"),
+            _passage("kept", tenant="t1"),
+        )
+        engine = wrap_retrieval_engine(
+            inner, RetrievalConfig(min_score=0.5), policies=[MetadataEquals("tenant")]
+        )
+
+        got = await engine.retrieve("q", top_k=5, filters={"tenant": "t1"})
+
+        assert [p.document_id for p in got] == ["kept"]
+        inner.retrieve.assert_awaited_once()
+        assert inner.retrieve.await_args.args[0] == "q"
+
     def test_config_rejects_a_none_min_score(self) -> None:
         """RetrievalConfig refuses min_score=None at construction instead of failing on every query.
 

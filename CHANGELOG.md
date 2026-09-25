@@ -45,9 +45,9 @@ Go:
 - `infra.AuthConfig`: the Auth0 block is a generic OIDC block (`auth.oidc.issuer`, `audience`,
   `client_id`; no env aliases); `Validate` requires issuer + audience when `stub` is false.
 - `infra.S3Config`: `ImagesBucket` is gone and `Bucket` has no default; `infra.SQSConfig` defaults
-  to no queues; `workers.DefaultConfig` sets no service name or port; the tracing
-  `SEARCH_TRACING_*` aliases are gone (`OTEL_EXPORTER_OTLP_ENDPOINT` stays); `stores.Config` drops
-  the pending-indexing page sizes.
+  to no queues; `workers.DefaultConfig` sets no service name or port; the consumer-prefixed
+  tracing env aliases are gone (`OTEL_EXPORTER_OTLP_ENDPOINT` stays); `stores.Config` drops the
+  pending-indexing page sizes.
 - S3 connector (security): `iam_role` auth requires an `ExternalID`. Without one, a tenant who
   registers another tenant's role ARN could have the platform assume it for them (the
   confused-deputy problem). Build also refuses (`CodeInvalidInput`) an `ExternalID` outside STS's
@@ -118,8 +118,9 @@ Python:
   `ValueError` without one. The lock session's `application_name` comes from
   `LockConfig.application_name` (default `advisory-lock`; 0.1.x hardcoded `app-kb-lock`), so set
   `application_name="app-kb-lock"` to keep `pg_stat_activity` queries that match the old name.
-- Settings: `BaseSearchSettings` is `BaseAppSettings` with no env prefix; `initialize_config` /
-  `apply_yaml_defaults` default to no prefix and to the `APP_ENV`/`ENVIRONMENT` selectors. Set a
+- Settings: the prefixed base settings class is replaced by `BaseAppSettings`, with no env
+  prefix; `initialize_config` / `apply_yaml_defaults` default to no prefix and to the
+  `APP_ENV`/`ENVIRONMENT` selectors. Set a
   prefix: with none, YAML keys are exported under bare names (`AWS_REGION`, `DEBUG`) that collide
   with ambient variables such as Kubernetes service links (`REDIS_PORT=tcp://…`). A second
   `initialize_config` call with a different `config_dir`, `env_prefix` or `env_selectors` raises
@@ -134,7 +135,7 @@ Python:
   constant time, so a token that contains a comma is now two accepted tokens.
 - LLM: `LlmConfig.model` has no default, and an empty model raises `ValueError` for both the
   `bedrock` and `ollama` kinds; `DEFAULT_MODEL` / `DEFAULT_REWRITE_MODEL` are gone.
-- gRPC boundary errors read `gRPC upstream <STATUS>` instead of `api InternalService <STATUS>`.
+- gRPC boundary errors read `gRPC upstream <STATUS>` instead of naming a consumer service.
 
 ### Added
 
@@ -191,8 +192,9 @@ Python:
   when the request's value is empty) and `OrdinalCeiling` (empty `ranks` raise `ValueError`);
   Bedrock `filter_builder` and `document_id_resolver` seams; `new_retrieval_engine_from_config`
   seams `policies`, `filter_builder`, `document_id_resolver`, `store_filter_keys` and
-  `stub_passages`; `StubRetrievalEngine(passages)`; `VectorRetrievalEngine(..., filter_keys=...)`.
-  `clients.retrieval` and `clients.retrieval.bedrock` export their public API (including
+  `stub_passages`; `StubRetrievalEngine(passages)`; `VectorRetrievalEngine(..., filter_keys=...)`;
+  `wrap_retrieval_engine(inner, config, policies=...)`, which gives a consumer's own engine the
+  factory's filtering (score floor, then the policies). `clients.retrieval` and `clients.retrieval.bedrock` export their public API (including
   `FilterBuilder`, `DocumentIdResolver`, `metadata_document_id` and `SOURCE_URI_KEY`) without
   importing the AWS or Qdrant SDKs.
 - Python citations: `Citation.attributes` and `PassageCitationExtractor(attribute_keys=...)`.

@@ -88,6 +88,21 @@ class RetrievalConfig:
             raise TypeError(msg)
 
 
+def wrap_retrieval_engine(
+    inner: RetrievalEngine,
+    config: RetrievalConfig,
+    *,
+    policies: Sequence[PassagePolicy],
+) -> RetrievalEngine:
+    """Wrap ``inner`` in the filtering the factory applies: ``MinScore(config.min_score)``, then ``policies``.
+
+    ``new_retrieval_engine_from_config`` wraps every kind it builds with this; a consumer with its own
+    engine (a custom corpus, a test double of the backend) calls it directly so that engine is scoped
+    exactly like the factory's.
+    """
+    return FilteringRetrievalEngine(inner, [MinScore(config.min_score), *policies])
+
+
 def new_retrieval_engine_from_config(
     config: RetrievalConfig,
     *,
@@ -97,9 +112,9 @@ def new_retrieval_engine_from_config(
     store_filter_keys: Sequence[str] = (),
     stub_passages: Sequence[RetrievalResult] = (),
 ) -> RetrievalEngine:
-    """Build the retrieval engine selected by ``config.kind``, wrapped in the filtering decorator.
+    """Build the retrieval engine selected by ``config.kind``, wrapped by ``wrap_retrieval_engine``.
 
-    The decorator applies ``MinScore(config.min_score)`` plus ``policies`` — the consumer's scope
+    The wrapping applies ``MinScore(config.min_score)`` plus ``policies`` — the consumer's scope
     rules (e.g. ``MetadataEquals`` on its tenant key); pass an empty list only when there is no scope
     to enforce. The other seams (code, not config data) reach one kind each: ``filter_builder`` and
     ``document_id_resolver`` the Bedrock engine, ``store_filter_keys`` the vector engine's push-down,
@@ -137,7 +152,7 @@ def new_retrieval_engine_from_config(
     else:
         msg = f"unknown retrieval kind: {config.kind!r}"
         raise ValueError(msg)
-    return FilteringRetrievalEngine(inner, [MinScore(config.min_score), *policies])
+    return wrap_retrieval_engine(inner, config, policies=policies)
 
 
 _SEAM_KINDS = {
