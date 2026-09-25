@@ -30,7 +30,7 @@ Go:
   rather than failing per request: `NewPrincipalInterceptor(nil, …)`, `NewTenantScopeInterceptor`
   with a nil extractor, no stampers or a nil stamper, `SessionVarStamper("")` and a nil
   `WithInterceptors` entry. `GetAuthClaims` returns `ok=false` for nil claims, which is what the
-  principal interceptor leaves behind; read the caller with `PrincipalFrom`.
+  principal interceptor leaves behind; read the caller with `core/principal.PrincipalFrom`.
 - Events: `EventMetadata.OrgID` (JSON `org_id`) is `TenantID` (JSON `tenant_id`). A payload that
   still carries `org_id` decodes with an empty `TenantID`, so upgrade producers and consumers
   together, or drain or dual-read the events already persisted or in flight (outbox rows, queued
@@ -156,10 +156,13 @@ Python:
   parses its own event catalog. The zero value is usable; `Register` rejects an empty type, a
   duplicate and a factory that does not return a non-nil pointer; `Parse` rejects a payload with
   no `event_type`.
+- Principal (`go/core/principal`): `WithPrincipal[P]` / `PrincipalFrom[P]` carry the request's
+  resolved principal (the consumer's own type) in the context, beside `core/tenant`, so every tier
+  reads the caller without importing the transport.
 - Connect interceptors (`go/clients/transport/connect/interceptors`):
   - `HeaderMap` — the gateway header names the auth interceptor reads.
-  - `PrincipalResolver[P]`, `NewPrincipalInterceptor[P]`, `WithPrincipal[P]`, `PrincipalFrom[P]` —
-    resolve claims into the consumer's own principal type. A resolver error maps by code (a
+  - `PrincipalResolver[P]`, `NewPrincipalInterceptor[P]` — resolve claims into the consumer's
+    own principal type, stored with `core/principal`. A resolver error maps by code (a
     `*connect.Error` keeps its own, a `core/errors` code maps to the matching Connect code, an
     uncoded error is `Unavailable`); the client sees only `principal resolution failed`, and the
     cause goes to the request log. A nil principal is `Unauthenticated`.

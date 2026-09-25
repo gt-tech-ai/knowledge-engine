@@ -8,6 +8,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	coreprincipal "github.com/gt-tech-ai/knowledge-engine/go/core/principal"
 )
 
 // errPrincipalResolution is the client-facing message for every failed principal
@@ -22,21 +23,6 @@ const errPrincipalResolution = "principal resolution failed"
 // with a nil error rejects the caller as unauthenticated.
 type PrincipalResolver[P any] func(ctx context.Context, claims *AuthClaims) (P, error)
 
-// principalKey is the private context key for a principal of type P; each P gets
-// its own key, so principals of different types never collide.
-type principalKey[P any] struct{}
-
-// WithPrincipal stores the caller's resolved principal in the context.
-func WithPrincipal[P any](ctx context.Context, principal P) context.Context {
-	return context.WithValue(ctx, principalKey[P]{}, principal)
-}
-
-// PrincipalFrom retrieves the caller's resolved principal of type P from the context.
-func PrincipalFrom[P any](ctx context.Context) (P, bool) {
-	principal, ok := ctx.Value(principalKey[P]{}).(P)
-	return principal, ok
-}
-
 // principalInterceptor resolves the request's AuthClaims into a principal of type P
 // for BOTH unary and streaming RPCs. It must run after the auth interceptor so the
 // claims are present. Streaming coverage matters because a unary-only resolver would
@@ -50,8 +36,8 @@ type principalInterceptor[P any] struct {
 }
 
 // NewPrincipalInterceptor returns an interceptor that resolves each authenticated
-// request's claims into the consumer's principal type P and stores it for
-// PrincipalFrom. Per RPC:
+// request's claims into the consumer's principal type P and stores it with
+// core/principal.WithPrincipal (read it with core/principal.PrincipalFrom). Per RPC:
 //   - no AuthClaims (unauthenticated/public request) → pass through
 //   - synthetic claims and a non-nil stub → the stub principal, no resolve call; real
 //     claims always resolve, so a caller behind the gateway never gets the stub identity
@@ -131,7 +117,7 @@ func (i principalInterceptor[P]) withPrincipal(
 		cause := errors.Unauthorized("principal resolver returned a nil principal")
 		return ctx, resolveError(ctx, cause, connect.CodeUnauthenticated)
 	}
-	return WithPrincipal(ctx, principal), nil
+	return coreprincipal.WithPrincipal(ctx, principal), nil
 }
 
 // resolveError captures err as the request's real error (for the access log) and

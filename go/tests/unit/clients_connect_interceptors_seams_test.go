@@ -16,6 +16,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	coreprincipal "github.com/gt-tech-ai/knowledge-engine/go/core/principal"
 	coretenant "github.com/gt-tech-ai/knowledge-engine/go/core/tenant"
 )
 
@@ -135,7 +136,7 @@ func TestInterceptorWiring_FailsLoudlyOnMisconfiguration(t *testing.T) {
 //
 // What it tests:
 //   - On both paths, claims are resolved into the consumer's principal, readable via
-//     PrincipalFrom, and GetAuthClaims then reports no claims.
+//     core/principal.PrincipalFrom, and GetAuthClaims then reports no claims.
 //   - A principal of one type is invisible to PrincipalFrom of another type.
 //   - A request without claims passes through with no principal and no resolver call.
 func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
@@ -154,29 +155,22 @@ func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 				&interceptors.AuthClaims{Sub: "u1", TenantID: "t1"})
 			got, err := invoke(ic, ctx)
 			require.NoError(t, err)
-			p, ok := interceptors.PrincipalFrom[principal](got)
+			p, ok := coreprincipal.PrincipalFrom[principal](got)
 			require.True(t, ok)
 			assert.Equal(t, principal{Sub: "u1", Tenant: "t1"}, p)
 			claims, ok := interceptors.GetAuthClaims(got)
 			assert.False(t, ok, "cleared claims must read as absent")
 			assert.Nil(t, claims, "raw claims must be cleared once resolved")
-			_, ok = interceptors.PrincipalFrom[otherPrincipal](got)
+			_, ok = coreprincipal.PrincipalFrom[otherPrincipal](got)
 			assert.False(t, ok, "a principal of another type must not be visible")
 
 			got, err = invoke(ic, context.Background())
 			require.NoError(t, err)
-			_, ok = interceptors.PrincipalFrom[principal](got)
+			_, ok = coreprincipal.PrincipalFrom[principal](got)
 			assert.False(t, ok, "no claims → no principal")
 			assert.Equal(t, 1, calls, "no claims → no resolver call")
 		})
 	}
-
-	ctx := interceptors.WithPrincipal(context.Background(), principal{Sub: "u1"})
-	ctx = interceptors.WithPrincipal(ctx, otherPrincipal{ID: "o1"})
-	p, _ := interceptors.PrincipalFrom[principal](ctx)
-	o, _ := interceptors.PrincipalFrom[otherPrincipal](ctx)
-	assert.Equal(t, "u1", p.Sub, "principals of different types must coexist")
-	assert.Equal(t, "o1", o.ID, "principals of different types must coexist")
 }
 
 // TestPrincipalInterceptor_StubAndErrors tests the local-dev stub path and how resolver
@@ -209,19 +203,19 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 	got, err := invokeUnary(interceptors.NewPrincipalInterceptor[principal](resolve, stub),
 		interceptors.WithAuthClaims(context.Background(), synthetic))
 	require.NoError(t, err)
-	p, _ := interceptors.PrincipalFrom[principal](got)
+	p, _ := coreprincipal.PrincipalFrom[principal](got)
 	assert.Equal(t, "stub", p.Tenant, "synthetic claims take the stub principal")
 
 	got, err = invokeUnary(interceptors.NewPrincipalInterceptor[principal](resolve, stub),
 		interceptors.WithAuthClaims(context.Background(), &interceptors.AuthClaims{Sub: "real"}))
 	require.NoError(t, err)
-	p, _ = interceptors.PrincipalFrom[principal](got)
+	p, _ = coreprincipal.PrincipalFrom[principal](got)
 	assert.Equal(t, "resolved", p.Tenant, "real claims resolve even with a stub set")
 
 	got, err = invokeUnary(interceptors.NewPrincipalInterceptor[principal](resolve, nil),
 		interceptors.WithAuthClaims(context.Background(), synthetic))
 	require.NoError(t, err)
-	p, _ = interceptors.PrincipalFrom[principal](got)
+	p, _ = coreprincipal.PrincipalFrom[principal](got)
 	assert.Equal(t, "resolved", p.Tenant, "without a stub, synthetic claims resolve")
 
 	const secret = "pq: host db-7.internal password auth failed"
