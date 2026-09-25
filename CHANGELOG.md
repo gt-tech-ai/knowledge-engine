@@ -31,6 +31,9 @@ wording) is removed or replaced by a seam the consumer fills. v0.1.x is retracte
     validation.
 - Connector (`go/core/interfaces`): `SourceConfig.ExternalID`, sent as the STS ExternalId on every
   `iam_role` AssumeRole.
+- gRPC clients (`go/clients/rpc/grpc/interceptors`): `StreamingClientBuilder.WithServiceAuth` and
+  `ServiceAuthStreamClientInterceptor` — a streaming client presents its service-to-service bearer
+  token on every RPC of the connection (stream opens and unary calls).
 - MinIO test fixture (`go/tests/fixtures/dbtest/minio`): exported `DefaultImage` and a `WithImage`
   option on `NewTestMinIO`, so a consumer can repin the image without an engine release.
 - Python config: `initialize_config(env_prefix=..., env_selectors=...)` and

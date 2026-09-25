@@ -238,10 +238,14 @@ func (b *ClientBuilder) Build() []grpc.DialOption {
 // canonical order (outermost first), with timeout outermost so one open budget
 // bounds the whole retried open without leaking a deadline into the long-lived
 // stream (unlike the unary builder's per-attempt, inside-retry timeout):
-// timeout → metrics → circuit breaker → retry → tracing → logging.
+// timeout → metrics → circuit breaker → retry → tracing → logging → service auth.
 type StreamingClientBuilder struct {
 	// clientBuilderConfig supplies the shared interceptor config and With* setters.
 	clientBuilderConfig[StreamingClientBuilder]
+
+	// serviceToken is the caller's service-to-service bearer token; empty
+	// attaches no authorization metadata (local-dev bypass).
+	serviceToken string
 }
 
 // NewStreamingClientBuilder creates a new StreamingClientBuilder with no interceptors enabled.
@@ -260,12 +264,23 @@ func (b *StreamingClientBuilder) WithTimeout(d time.Duration) *StreamingClientBu
 	return b
 }
 
+// WithServiceAuth attaches the caller's service-to-service bearer token as
+// `authorization: Bearer <token>` outgoing metadata on every RPC of the connection —
+// stream opens and unary calls alike, since an internal server that enforces service
+// auth rejects any call without it. An empty token attaches nothing (local dev leaves
+// it unset and the server's bypass admits the call).
+func (b *StreamingClientBuilder) WithServiceAuth(token string) *StreamingClientBuilder {
+	b.serviceToken = token
+	return b
+}
+
 // Build assembles the interceptor chain in canonical client order and returns
-// dial options ready for use with grpc.NewClient. Returns nil if no
+// dial options ready for use with grpc.NewClient: the stream chain, plus a unary
+// service-auth interceptor when a service token is set. Returns nil if no
 // interceptors are configured.
 func (b *StreamingClientBuilder) Build() []grpc.DialOption {
 	var chain []grpc.StreamClientInterceptor
-	// Order: timeout → metrics → circuit breaker → retry → tracing → logging
+	// Order: timeout → metrics → circuit breaker → retry → tracing → logging → service auth
 	if b.timeout > 0 {
 		chain = append(chain, TimeoutStreamClientInterceptor(b.timeout))
 	}
@@ -284,9 +299,19 @@ func (b *StreamingClientBuilder) Build() []grpc.DialOption {
 	if b.logger != nil {
 		chain = append(chain, LoggingStreamClientInterceptor(b.logger))
 	}
+	if b.serviceToken != "" {
+		chain = append(chain, ServiceAuthStreamClientInterceptor(b.serviceToken))
+	}
 
 	if len(chain) == 0 {
 		return nil
 	}
-	return []grpc.DialOption{grpc.WithChainStreamInterceptor(chain...)}
+	opts := []grpc.DialOption{grpc.WithChainStreamInterceptor(chain...)}
+	if b.serviceToken != "" {
+		opts = append(
+			opts,
+			grpc.WithChainUnaryInterceptor(ServiceAuthClientInterceptor(b.serviceToken)),
+		)
+	}
+	return opts
 }
