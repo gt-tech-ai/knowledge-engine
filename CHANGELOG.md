@@ -4,9 +4,7 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/). Go and Python (`techai-webutils`) ship together from one tag.
 
-## [0.2.0] - Unreleased
-
-<!-- When v0.2.0 is tagged, replace "Unreleased" with the tag date (YYYY-MM-DD). -->
+## [0.2.0] - 2026-09-25
 
 0.2.0 makes the library product-agnostic: everything one consumer's product needed (its event
 catalog, authorization model, config sections, identity provider, key layouts, retrieval scope and
