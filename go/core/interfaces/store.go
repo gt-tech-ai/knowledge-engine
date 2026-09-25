@@ -8,9 +8,6 @@ package interfaces
 // adapter can embed only the roles it honors.
 //
 // T = entity type, P = query/filter params, ID = identifier type.
-//
-// Phase 1: Interface definition.
-// Phase 3: Ent and sqlc implementations.
 type Store[T any, P any, ID comparable] interface {
 	// Reader provides Get (retrieve by id).
 	Reader[T, ID]

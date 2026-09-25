@@ -9,8 +9,8 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.JobScheduler = (*Scheduler)(nil)
 
-// Scheduler manages periodic jobs.
-// Phase 1: Stub. Phase 3: River periodic job scheduling.
+// Scheduler is a no-op JobScheduler. Periodic jobs run through River via
+// RuntimeConfig.PeriodicJobs instead.
 type Scheduler struct{}
 
 // NewScheduler creates a new periodic job scheduler.
@@ -18,10 +18,7 @@ func NewScheduler() *Scheduler {
 	return &Scheduler{}
 }
 
-// Schedule adds a periodic job to the schedule.
-// Phase 1: No-op. Phase 3: River periodic job insertion.
+// Schedule accepts job without scheduling it and returns nil.
 func (s *Scheduler) Schedule(job interfaces.PeriodicJob, interval time.Duration) error {
-	// Phase 1: Stub
-	// Phase 3: Use River to schedule periodic job
 	return nil
 }

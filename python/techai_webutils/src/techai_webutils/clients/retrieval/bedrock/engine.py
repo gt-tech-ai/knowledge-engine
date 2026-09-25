@@ -2,9 +2,10 @@
 
 Thin aiobotocore wrapper. The consumer may inject a ``filter_builder`` (the KB metadata filter pushed
 down with each query; none by default) and a ``document_id_resolver`` (how a passage's document id is
-derived from its chunk metadata; the ``document_id`` key by default). Passages are re-validated
-server-side by ``FilteringRetrievalEngine`` (defense-in-depth). Carved out of unit coverage;
-exercised against a real Knowledge Base.
+derived from its chunk metadata; by default the ``document_id`` key, else the chunk's source URI).
+Passages are re-validated server-side by ``FilteringRetrievalEngine`` (defense-in-depth). Botocore
+failures surface as coded ``AppError``s (``foundation/resilience/aws_boundary``). Carved out of unit
+coverage; exercised against a real Knowledge Base.
 """
 
 from __future__ import annotations
@@ -13,15 +14,20 @@ from collections.abc import Callable, Mapping
 from typing import Any, Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
+from botocore.exceptions import BotoCoreError, ClientError
 
 from techai_webutils.core.errors import InternalError
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
+from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 
 FilterBuilder = Callable[[Mapping[str, str]], dict[str, object] | None]
 """Builds the KB metadata filter from the request filters; ``None`` pushes no filter down."""
 
 DocumentIdResolver = Callable[[Mapping[str, str], Mapping[str, str]], str]
 """Resolves a passage's document id from ``(chunk metadata, request filters)``; ``""`` when unknown."""
+
+SOURCE_URI_KEY = "x-amz-bedrock-kb-source-uri"
+"""The chunk-metadata key Bedrock KB Retrieve results carry with the source document's URI."""
 
 
 class _BedrockAgentRuntimeClient(Protocol):
@@ -68,8 +74,8 @@ class BedrockRetrievalEngine(RetrievalEngine):
         ``cohere.rerank-v3-5:0``) whose presence enables Retrieve's rerankingConfiguration — both are
         config-selected. Empty ``reranking_model`` = no reranking. ``filter_builder`` builds the KB
         metadata filter (default: none) and ``document_id_resolver`` resolves each passage's document
-        id (default: the chunk's ``document_id`` metadata), so a consumer's metadata keys and
-        object-key layout are its own.
+        id (default: ``metadata_document_id`` — the chunk's ``document_id`` metadata, else its source
+        URI), so a consumer's metadata keys and object-key layout are its own.
         """
         self._region = region
         self._kb_id = knowledge_base_id
@@ -119,18 +125,23 @@ class BedrockRetrievalEngine(RetrievalEngine):
     ) -> list[RetrievalResult]:
         """Retrieve passages from the Bedrock Knowledge Base.
 
-        ``index_id`` is the knowledge base id for this call (e.g. per-tenant routing); ``None`` falls
-        back to the construction-time KB. With neither, this raises an ``InternalError`` rather than
-        silently querying an unintended KB — an engine constructed with no default errors here if an
-        upstream routing check was missed, instead of leaking another tenant's KB (defense-in-depth).
+        ``index_id`` is the knowledge base id for this call (e.g. per-tenant routing); only ``None``
+        falls back to the construction-time KB. An empty per-call id, or ``None`` with no default,
+        raises an ``InternalError`` rather than silently querying an unintended KB — a router that
+        returns "" for an unmapped tenant, or a missed upstream routing check, errors here instead of
+        leaking the shared or another tenant's KB (defense-in-depth).
 
         Builds the Retrieve request from the config-selected strategy: numberOfResults (the wide pool),
         the consumer's metadata filter when a ``filter_builder`` returns one, overrideSearchType for
-        hybrid search, and a Cohere rerankingConfiguration when a reranker is configured.
+        hybrid search, and a Cohere rerankingConfiguration when a reranker is configured. A botocore
+        failure raises a coded ``AppError`` (throttling / 5xx → transient ``UNAVAILABLE``).
         """
-        kb_id = index_id or self._kb_id
+        if index_id == "":
+            msg = "empty per-call knowledge base id (pass None to use the engine's default)"
+            raise InternalError(msg)
+        kb_id = index_id if index_id is not None else self._kb_id
         if not kb_id:
-            msg = "no knowledge base id: per-call id is empty and the engine has no configured default"
+            msg = "no knowledge base id: no per-call id and the engine has no configured default"
             raise InternalError(msg)
         client = await self._runtime_client()
         request = filters or {}
@@ -150,11 +161,14 @@ class BedrockRetrievalEngine(RetrievalEngine):
                     },
                 },
             }
-        response = await client.retrieve(
-            knowledgeBaseId=kb_id,
-            retrievalQuery={"text": query},
-            retrievalConfiguration={"vectorSearchConfiguration": vector_config},
-        )
+        try:
+            response = await client.retrieve(
+                knowledgeBaseId=kb_id,
+                retrievalQuery={"text": query},
+                retrievalConfiguration={"vectorSearchConfiguration": vector_config},
+            )
+        except (ClientError, BotoCoreError) as exc:
+            raise botocore_error_to_app_error(exc, "bedrock retrieve") from exc
         results = cast("list[dict[str, object]]", response.get("retrievalResults", []))
         return [_to_result(item, request, self._resolve_document_id) for item in results]
 
@@ -165,14 +179,19 @@ def _to_float(value: object) -> float:
 
 
 def metadata_document_id(metadata: Mapping[str, str], filters: Mapping[str, str]) -> str:  # noqa: ARG001
-    """Return the chunk's ``document_id`` metadata, or ``""`` (the default resolver; no guessing)."""
-    return metadata.get("document_id", "")
+    """Return the chunk's ``document_id`` metadata, else its source URI, else ``""`` (the default resolver).
+
+    Standard Bedrock KB chunks carry no ``document_id``, but every Retrieve result carries the source
+    document's URI (``x-amz-bedrock-kb-source-uri``) — a stable per-document id that assumes nothing
+    about the consumer's object-key layout.
+    """
+    return metadata.get("document_id") or metadata.get(SOURCE_URI_KEY, "")
 
 
 def _to_result(
     item: dict[str, object],
     filters: Mapping[str, str],
-    resolve_document_id: DocumentIdResolver = metadata_document_id,
+    resolve_document_id: DocumentIdResolver,
 ) -> RetrievalResult:
     """Map one Bedrock retrievalResult to a RetrievalResult.
 

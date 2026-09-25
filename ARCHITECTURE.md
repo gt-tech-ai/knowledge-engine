@@ -1,14 +1,18 @@
 # Architecture
 
 The rules every package here follows, cited from code comments as `ARCHITECTURE.md#<section>`.
-Go paths are relative to the repo root; Python paths to `python/techai_webutils/src/techai_webutils/`.
+Paths starting `go/` or `python/` are relative to the repo root. Otherwise a Go path is relative to
+`go/`, a Python source path to `python/techai_webutils/src/techai_webutils/`, and a Python test path
+(`tests/…`) to `python/techai_webutils/`.
 
 ## The one idea
 
 Everything is an implementation detail behind an interface. The contract lives in `core`, which
-imports no other layer; the implementation is **selected by configuration** (a `Kind`),
-**injected explicitly** through constructors, and **wrapped by decorators** for cross-cutting
-concerns. Swapping S3 for memory, zap for slog, or asyncio for Ray is a config change.
+imports no other layer, and that includes the policy seams a consumer implements (Python's
+`PassagePolicy` is in `core/interfaces/retrieval.py`). The implementation is **selected by
+configuration** (a `Kind`), **injected explicitly** through constructors, and **wrapped by
+decorators** for cross-cutting concerns. Swapping S3 for memory, zap for slog, or asyncio for Ray
+is a config change.
 
 ## Layers and import direction
 
@@ -21,7 +25,8 @@ Outside the ladder: `go/execution` (batch fan-out; imports only `core`), `go/hel
 utilities), and `go/tests` (may import anything). No package imports a higher layer. Integration
 families in a tier don't import each other (`clients/connector` is handed a storage builder rather
 than importing `clients/storage`); the shared clients-tier pieces are `clients/decorators` and
-`clients/interceptorcore`. `.golangci.yml` carries `depguard` rules for these boundaries.
+`clients/interceptorcore`. `.golangci.yml` enforces the layer order and the `go/helpers` leaf rule
+with `depguard`; the `go/execution` and same-tier rules have no lint rule, so review holds them.
 
 Python mirrors the tiers: `core` → `foundation` (+ `execution`) → `clients` → `repos` →
 `services` → `pipelines` → `workflows` → `controllers` (the transport edge). Imports point
@@ -107,6 +112,7 @@ Outermost → innermost:
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
 | Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
+| gRPC streaming client | `go/clients/rpc/grpc/interceptors` (`StreamingClientBuilder`) | Timeout → Metrics → CircuitBreaker → Retry → Tracing → Logging → ServiceAuth |
 | gRPC server | `go/clients/rpc/grpc/interceptors` | Recovery → RateLimit → Bulkhead → Metrics → Tracing → Logging |
 | Repository | `go/repos/repository/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry → Caching |
 | Service | `go/services/service/decorators` | Recovery → Validation → Tracing → Metrics → Logging → Authorization → Timeout |
@@ -118,21 +124,35 @@ Outermost → innermost:
 | Python Job | `clients/decorators/job_stack.py` | LeaderElection → RateLimit → Retry → Timeout |
 
 In the client stack Retry applies only to `Retryable` ops (`RunStream` never retries) and sits
-outside the breaker, so each attempt is observed. Custom repository ops (`OpChain`) use the
-Repository order minus Caching. Tests pin the orders (`go/tests/unit/clients_wrap_order_test.go`,
+outside the breaker, so each attempt is observed. The gRPC streaming client puts Timeout
+outermost, so one budget bounds the whole retried stream open (not the stream's lifetime); with a
+service token it also adds a unary ServiceAuth interceptor for the connection's unary calls.
+Custom repository ops (`OpChain`) use the Repository order minus Caching. Tests pin the orders
+(`go/tests/unit/clients_wrap_order_test.go` for the client boundary, EventHandler and Job stacks;
 `services_wrap_order_test.go`, `clients_lock_decorators_test.go`, `foundation_decorator_test.go`).
 
 ## Configuration
 
 Config selects; the composition root injects. Go `foundation/config` (Viper) layers `base.yaml` →
 `{env}.yaml` → `secrets.yaml` → env vars into typed structs (`foundation/config/schema/*`, each with
-`Default…Config()` and a coded-error `Validate()`); `viper.ResolveEnvFrom(selectors...)` picks the
-overlay from the consumer's chosen env vars. The consumer owns its conventions: the env prefix,
-its root config struct (`WithSchema` — every leaf field binds `<PREFIX>_<PATH>` plus its
-`envalias` names) and extra bindings for keys outside that struct (`WithExtraEnv`). Python
-`foundation/config` loads the same hierarchy into pydantic-settings classes:
+`Default…Config()` and a coded-error `Validate()`). The consumer owns its conventions: the env
+prefix, its root config struct (`WithSchema` — every leaf field binds `<PREFIX>_<PATH>` plus its
+`envalias` names) and extra bindings for keys outside that struct (`WithExtraEnv`).
+`WithEnvSelectors` (over `viper.ResolveEnvFrom`) picks the overlay from the consumer's own env vars
+(default `APP_ENV`, then `ENVIRONMENT`): the first one set, trimmed and lowercased; with none set,
+`base.yaml` loads alone. Set an env prefix: unprefixed names collide with the service-link
+variables Kubernetes injects (`REDIS_PORT=tcp://…`). Without `WithSchema`, `UnmarshalKey` sees env
+overrides only for keys present in the YAML or listed in `WithExtraEnv`. A `WithExtraEnv` entry
+replaces that key's schema-derived binding, so its `envalias` names stop applying;
+`<PREFIX>_<PATH>` still takes precedence through Viper's AutomaticEnv.
+
+Python `foundation/config` loads the same layers into pydantic-settings classes:
 `initialize_config(env_prefix=..., env_selectors=...)` exports the YAML under the consumer's
-prefix, and the consumer's settings class sets the matching `env_prefix`.
+prefix (given with or without its trailing `_`), and the consumer's settings class sets the
+matching `env_prefix`; `strict=True` raises on a missing directory, a missing `base.yaml` or bad
+YAML instead of warning. Overlay selection differs from Go: Python uses the first set selector's
+value as-is (not lowercased) and falls back to `dev` (`dev.yaml`) where Go loads `base.yaml`
+alone, so a mixed Go/Python stack should set the selector explicitly.
 
 Business logic never reads the environment. In `go/`, env reads are confined to the config loader,
 the `env` secrets backend, subprocess plumbing in `foundation/system`, `helpers.OrDefault`, and one
@@ -152,7 +172,8 @@ domain errors count as successes), and the edges (`ToHTTPStatus`; `transport/rpc
 which maps codes and captures the real cause for the request log). Python raises
 `AppError(code, message, cause=…)` or a subclass from `core/errors`; `is_transient`, `grpc_status`
 and `http_status` derive from the code, retries retry only transient `AppError`s, and boundary
-helpers translate SDK errors (`foundation/resilience/grpc_boundary.py`).
+helpers translate SDK errors (`foundation/resilience/grpc_boundary.py`,
+`foundation/resilience/aws_boundary.py`).
 
 ## Stub-first backends
 
@@ -174,7 +195,7 @@ Python stub kind with every real backend constructor patched to fail.
 Generic substrate only: contracts, mechanisms, and adapters any service stack can reuse, including
 domain-adjacent building blocks (knowledge-base, retrieval, embedding and LLM clients; RAG pipeline
 stages whose prompts and policies the consumer injects). A consumer plugs its own policy into
-seams: its event types into an event registry, its principal type into the identity resolver,
+seams: its event types into an event registry, its principal type into the principal resolver,
 its config sections and env conventions into the config loader.
 
 Product code stays with its consumers: domain event catalogs, authorization models, business
@@ -196,8 +217,10 @@ Go `go/execution` models batch work: discover → map → fan out → aggregate.
   in order and aggregates failures into a `CodeQualityFailed` error.
 
 Python `execution` mirrors these (`fan_out`, `run_job_group`, `new_gate`, `run_gate`) and adds the
-`Executor` seam chosen by `executor_from_config`: `AsyncioExecutor` (default), `RayExecutor` over
-the `RayRuntime` seam (the lazily imported `RealRayRuntime`, wrapped by the `ResilientRayRuntime` retry decorator), and `PooledExecutor` (a fixed pool of build-once workers).
+`Executor` seam. `executor_from_config` chooses `AsyncioExecutor` (default) or `RayExecutor` over
+the `RayRuntime` seam (the lazily imported `RealRayRuntime`, wrapped by the `ResilientRayRuntime`
+retry decorator); `PooledExecutor` (a fixed pool of build-once workers) has no kind, so the caller
+builds it directly.
 
 ## Testing
 
@@ -211,7 +234,9 @@ the `RayRuntime` seam (the lazily imported `RealRayRuntime`, wrapped by the `Res
   code, not test doubles. Python unit tests use `unittest.mock`, and `tests/integration`
   (`@pytest.mark.integration`) runs against testcontainers.
 - CI (`.github/workflows/ci.yml`): vet, golangci-lint, `go test -race`; ruff, basedpyright, pytest
-  (90% unit coverage gate); an integration job for both languages.
+  (90% unit coverage gate); an integration job for both languages. The combined unit + integration
+  coverage config (`python/techai_webutils/.coveragerc.combined`) is an optional local gate; no CI
+  job loads it.
 
 ## Versioning and releases
 

@@ -243,7 +243,7 @@ class TestIsolatedParser:
 
         **Why this test is important:**
           - A parse overrun must fail the single document (so the batch continues), tagged with the
-            detected format so the orchestrator can route it — never propagate out of the parser.
+            detected format so the caller can route it — never propagate out of the parser.
 
         **What it tests:**
           - When run_isolated raises TimeoutError, parse() returns not-ok with error 'parse_timeout'

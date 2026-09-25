@@ -1,8 +1,11 @@
 """Deterministic in-memory retrieval engine for local development and tests.
 
 Returns the passages it was constructed with (none by default), capped at ``top_k``, whatever the
-query — so a consumer can run its retrieval path without a real index by supplying its own sample
-corpus. Scope rules still apply through ``FilteringRetrievalEngine``.
+query, filters or ``index_id`` — so a consumer can run its retrieval path without a real index by
+supplying its own sample corpus. Scope rules still apply through ``FilteringRetrievalEngine``, but only
+AFTER the ``top_k`` cut: with a multi-scope corpus, order the passages (or raise ``top_k``) so a
+scope's passages are among the first ``top_k``. Through ``new_retrieval_engine_from_config`` the
+config's ``MinScore`` floor also applies, so give hand-written passages scores at or above it.
 """
 
 from __future__ import annotations
@@ -18,7 +21,10 @@ if TYPE_CHECKING:
 
 
 class StubRetrievalEngine(NoOpAsyncResource, RetrievalEngine):
-    """RetrievalEngine returning a fixed corpus (local development and tests)."""
+    """RetrievalEngine returning a fixed corpus (local development and tests).
+
+    One corpus for every call: filters and ``index_id`` are ignored (scope is the decorator's job).
+    """
 
     def __init__(self, passages: Sequence[RetrievalResult] = ()) -> None:
         """Hold ``passages`` as the corpus every query returns (empty by default)."""

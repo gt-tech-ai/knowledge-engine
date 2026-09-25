@@ -129,8 +129,8 @@ func TestDecoratorStackPassesResultThrough(t *testing.T) {
 //     a no-op metrics mock could not catch it; this spy asserts the label value.
 //
 // What it tests:
-//   - After one Execute through Metrics(tier="pipeline", name="create-workspace"),
-//     every recorded Counter/Histogram label value is "create-workspace" (the
+//   - After one Execute through Metrics(tier="pipeline", name="create-item"),
+//     every recorded Counter/Histogram label value is "create-item" (the
 //     instance name), never "pipeline" (the tier).
 func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 	t.Parallel()
@@ -165,7 +165,7 @@ func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 	)
 	m := decorator.Metrics(
 		inner,
-		"pipeline", "create-workspace",
+		"pipeline", "create-item",
 		metricsMock,
 		decorator.DefaultBuckets,
 	)
@@ -177,7 +177,7 @@ func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 	for _, v := range labels {
 		require.Equal(
 			t,
-			"create-workspace",
+			"create-item",
 			v,
 			"series are labelled by the instance name, not the tier",
 		)

@@ -136,7 +136,7 @@ func (c *TelemetryClient) TraceInTempo(ctx context.Context, traceID string) (int
 
 // TraceSpansService returns true when Tempo's trace for traceID contains a resource batch whose
 // `service.name` resource attribute equals service — the model-independent proof that the trace
-// actually reached that service (e.g. a bulk-ingest trace spanning `ingestion`), not merely that
+// actually reached that service (e.g. a trace that crossed into a downstream worker), not merely that
 // SOME spans exist. Returns false (nil error) when the trace is absent or names no such service, so
 // callers poll on false.
 func (c *TelemetryClient) TraceSpansService(
@@ -230,29 +230,19 @@ func (c *TelemetryClient) LogHasTrace(
 }
 
 // PollTraceInTempo polls ta until traceID has at least one span batch in Tempo, or ~20s elapse
-// (spans reach Tempo a few seconds after the RPC). Returns nil on success, else the last error/miss.
+// (spans reach Tempo a few seconds after the RPC). Returns nil on success, else a CodeUnavailable
+// error carrying the last error/miss.
 func PollTraceInTempo(ctx context.Context, ta TraceAsserter, traceID string) error {
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		n, err := ta.TraceInTempo(ctx, traceID)
-		if err == nil && n > 0 {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			if err != nil {
-				return err
-			}
-			return apperr.New(
-				apperr.CodeUnavailable,
-				"trace "+traceID+" not found in Tempo within 20s",
-			)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
+	return pollEvery(
+		ctx,
+		20*time.Second,
+		500*time.Millisecond,
+		"trace "+traceID+" in Tempo",
+		func(ctx context.Context) (bool, error) {
+			n, err := ta.TraceInTempo(ctx, traceID)
+			return err == nil && n > 0, err
+		},
+	)
 }
 
 // getJSON GETs endpoint and decodes a 2xx body into out. A 404 is treated as "not found" (out is left

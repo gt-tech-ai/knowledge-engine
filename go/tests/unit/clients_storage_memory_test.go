@@ -157,16 +157,16 @@ func TestStorageMemory_ListObjectsPageToken(t *testing.T) {
 	require.Empty(t, next, "listing exhausted → empty token")
 }
 
-// TestStorageMemory_MultipartLifecycle tests the in-memory multipart upload lifecycle so the
-// upload path that uses multipart also builds and runs with no S3.
+// TestStorageMemory_MultipartLifecycle tests the in-memory multipart upload lifecycle so a
+// caller's upload path that uses multipart also builds and runs with no S3.
 //
 // Why this test is important:
-//   - The API uses multipart for large uploads; a memory backend that omitted the multipart methods
-//     would fail to build the API composition root under kind=memory.
+//   - A consumer that uses multipart for large uploads needs the memory backend to implement the
+//     multipart methods, or its composition root fails to build under kind=memory.
 //
 // What it tests:
-//   - create → list → presign a part → complete assembles an object; a separate create → abort
-//     removes the in-progress upload.
+//   - create → list → presign a part → complete yields an (empty) object at the upload's key; a
+//     separate create → abort removes the in-progress upload.
 func TestStorageMemory_MultipartLifecycle(t *testing.T) {
 	t.Parallel()
 

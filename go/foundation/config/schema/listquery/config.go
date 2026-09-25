@@ -1,6 +1,5 @@
-// Package listquery is the config surface for the List-Query Platform's scale path
-// the value-suggestion facet knobs — the row
-// threshold above which a facet-eligible field is served from the maintained
+// Package listquery is the config surface for the list-query value-suggestion facet:
+// the row threshold above which a facet-eligible field is served from the maintained
 // distinct_values table instead of a live DISTINCT, and the interval at which the
 // reconcile job recomputes refcounts. Pure data (mirrors infra/S3Config), read by the
 // suggest routing (threshold) and the reconcile job (interval).
@@ -25,9 +24,10 @@ type FacetConfig struct {
 	// rename-orphaned value). It bounds the facet's worst-case staleness window.
 	ReconcileInterval time.Duration `mapstructure:"reconcile_interval"`
 
-	// RowThreshold is the per-workspace fact-row count above which a facet-eligible field
-	// is served from the distinct_values facet; at or below it the suggest uses a live
-	// scoped DISTINCT. It trades facet-maintenance cost for read speed on large workspaces.
+	// RowThreshold is the fact-row count, within one access scope, above which a
+	// facet-eligible field is served from the distinct_values facet; at or below it the
+	// suggest uses a live scoped DISTINCT. It trades facet-maintenance cost for read
+	// speed on large scopes.
 	RowThreshold int `mapstructure:"row_threshold"`
 }
 

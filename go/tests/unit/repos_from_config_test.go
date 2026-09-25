@@ -89,8 +89,7 @@ func TestDecoratedFromConfig_WiresStackAndDelegates(t *testing.T) {
 // Why this test is important:
 //   - Caching is the one optional layer the helper adds only when a cache is
 //     supplied; if the Cache/IDOf branch were mis-wired, a cache-backed repository
-//     (the API's workspace repo) would either bypass the cache or panic on a nil
-//     key func.
+//     would either bypass the cache or panic on a nil key func.
 //
 // What it tests:
 //   - With a cache (returning a miss) and an IDOf key func, a Get flows through the

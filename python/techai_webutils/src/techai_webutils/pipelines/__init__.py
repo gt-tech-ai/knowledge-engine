@@ -4,8 +4,8 @@ Pipelines model sequential operations where each stage consumes the output of th
 prior stage. Unlike workflows, pipelines do not coordinate state or orchestrate
 multiple services. They are pure transformations: Input → Processing → Output.
 
-Pipelines implements the sixth layer in the nine-layer architecture model:
-core → foundation → clients → repos → services → pipelines → workflows → controllers → entrypoints
+Pipelines implements the sixth tier (ARCHITECTURE.md#layers-and-import-direction):
+core -> foundation -> clients -> repos -> services -> pipelines -> workflows -> controllers
 """
 
 from techai_webutils.pipelines.base import BaseAsyncPipeline, BasePipeline

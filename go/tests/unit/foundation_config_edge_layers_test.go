@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPipelinesDefaults_MatchConsts tests that the pipeline config defaults equal
-// today's multipart upload consts.
+// TestPipelinesDefaults_MatchConsts tests the pipeline config's multipart-upload and
+// timeout defaults.
 //
 // Why this test is important:
 //   - The multipart threshold/part size drive how uploads are chunked; a wrong
@@ -121,22 +121,26 @@ func TestWorkersConfig_ValidatesSweepTimings(t *testing.T) {
 //     broke the sweep-timing invariant would reject an empty overlay.
 //
 // What it tests:
-//   - No service name or port is set (the worker sets its own); the cadences, TTLs and
-//     batching carry conservative values; and the defaults validate against a 60m
-//     multipart presign expiry.
+//   - No service name or port is set (the worker sets its own); Env is "dev"; every
+//     cadence, TTL and batching knob carries its documented conservative value; and the
+//     defaults validate against a 60m multipart presign expiry.
 func TestWorkersDefaults_AreNeutralAndValid(t *testing.T) {
 	t.Parallel()
 
-	c := workers.DefaultConfig()
-	assert.Empty(t, c.ServiceName)
-	assert.Zero(t, c.Port)
-	assert.Equal(t, "localhost:4317", c.OTelEndpoint)
-	assert.Equal(t, 10*time.Second, c.RelayInterval)
-	assert.Equal(t, 90*time.Minute, c.ReaperTTL)
-	assert.Equal(t, 2*time.Hour, c.OrphanGrace)
-	assert.Equal(t, 100, c.BatchSize)
-	assert.Equal(t, 8, c.FanOutWorkers)
-	require.NoError(t, c.Validate(60*time.Minute),
+	assert.Equal(t, workers.Config{
+		Env:               "dev",
+		OTelEndpoint:      "localhost:4317",
+		RelayInterval:     10 * time.Second,
+		CleanupInterval:   24 * time.Hour,
+		ReaperInterval:    5 * time.Minute,
+		ReaperTTL:         90 * time.Minute,
+		RetentionInterval: time.Hour,
+		RetentionTTL:      7 * 24 * time.Hour,
+		OrphanGrace:       2 * time.Hour,
+		BatchSize:         100,
+		FanOutWorkers:     8,
+	}, workers.DefaultConfig(), "no service name or port; conservative cadences, TTLs and batching")
+	require.NoError(t, workers.DefaultConfig().Validate(60*time.Minute),
 		"the defaults must satisfy the sweep-timing invariant")
 }
 
@@ -144,9 +148,9 @@ func TestWorkersDefaults_AreNeutralAndValid(t *testing.T) {
 // shared workers config through the real Viper loader, changing the parsed common config.
 //
 // Why this test is important:
-//   - requires every common worker knob be overlay-overridable. The mapstructure
+//   - Every common worker knob must be overlay-overridable. The mapstructure
 //     tags are the contract that makes that possible; a wrong/missing tag would silently
-//     ignore an overlay value and pin the default across every BYOC cloud. This drives the
+//     ignore an overlay value and pin the default in every deployment. This drives the
 //     exact production decode path (base.yaml -> UnmarshalKey) over the shared tier.
 //
 // What it tests:

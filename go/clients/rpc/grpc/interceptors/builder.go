@@ -8,7 +8,7 @@ import (
 )
 
 // ServerBuilder composes server-side gRPC interceptors in the canonical
-// order: recovery → rate limit → metrics → tracing → logging.
+// order: recovery → rate limit → bulkhead → metrics → tracing → logging.
 type ServerBuilder struct {
 	// logger enables structured logging; nil disables the logging interceptor.
 	logger interfaces.Logger
@@ -107,11 +107,11 @@ func (b *ServerBuilder) Build() []grpc.ServerOption {
 }
 
 // clientBuilderConfig holds the interceptor config shared by ClientBuilder
-// and StreamingClientBuilder, plus their common With* setters. self lets each
-// setter return the concrete outer builder type (ClientBuilder or
-// StreamingClientBuilder) so fluent chains keep their own Build(); only
-// WithTimeout is excluded because its meaning legitimately differs between
-// the two (see each type's own WithTimeout doc).
+// and StreamingClientBuilder, plus their common With* setters (including
+// WithServiceAuth). self lets each setter return the concrete outer builder
+// type (ClientBuilder or StreamingClientBuilder) so fluent chains keep their
+// own Build(); only WithTimeout is excluded because its meaning legitimately
+// differs between the two (see each type's own WithTimeout doc).
 type clientBuilderConfig[T any] struct {
 	// self points back at the concrete outer builder so shared With* setters can
 	// return it and keep the concrete type's own Build() available in fluent chains.
@@ -131,6 +131,10 @@ type clientBuilderConfig[T any] struct {
 
 	// cb enables circuit-breaker protection; nil disables circuit breaking.
 	cb interfaces.CircuitBreaker
+
+	// serviceToken is the caller's service-to-service bearer token; empty
+	// attaches no authorization metadata (local-dev bypass).
+	serviceToken string
 
 	// timeout enables a per-call (ClientBuilder) or stream-open-only
 	// (StreamingClientBuilder) deadline; zero disables the timeout
@@ -168,16 +172,26 @@ func (b *clientBuilderConfig[T]) WithLogging(logger interfaces.Logger) *T {
 	return b.self
 }
 
+// WithServiceAuth attaches the caller's service-to-service bearer token as
+// `authorization: Bearer <token>` outgoing metadata, innermost (so every
+// retried attempt carries it), on every RPC the built options cover:
+// ClientBuilder's unary calls; StreamingClientBuilder's stream opens and its
+// unary calls too, since an internal server that enforces service auth rejects
+// any call without it. A conn built from both builders' options still sends one
+// value per call (see ServiceAuthClientInterceptor). An empty token attaches
+// nothing (local dev leaves it unset and the server's dev bypass admits the
+// call). The token is plain metadata: use it over TLS or a mesh-encrypted link.
+func (b *clientBuilderConfig[T]) WithServiceAuth(token string) *T {
+	b.serviceToken = token
+	return b.self
+}
+
 // ClientBuilder composes client-side gRPC interceptors in the canonical
 // resilience order (outermost first): metrics → circuit breaker → retry →
 // timeout → tracing → logging → service auth (assembled by chain).
 type ClientBuilder struct {
 	// clientBuilderConfig supplies the shared interceptor config and With* setters.
 	clientBuilderConfig[ClientBuilder]
-
-	// serviceToken is the caller's service-to-service bearer token; empty
-	// attaches no authorization metadata (local-dev bypass).
-	serviceToken string
 }
 
 // NewClientBuilder creates a new ClientBuilder with no interceptors enabled.
@@ -190,15 +204,6 @@ func NewClientBuilder() *ClientBuilder {
 // WithTimeout enables a deadline on every outgoing call.
 func (b *ClientBuilder) WithTimeout(d time.Duration) *ClientBuilder {
 	b.timeout = d
-	return b
-}
-
-// WithServiceAuth attaches the caller's service-to-service bearer token as
-// `authorization: Bearer <token>` outgoing metadata on every call (Phase 1), so
-// the internal server can authenticate this caller. An empty token attaches nothing
-// (local dev leaves it unset and the server's stub admits the call).
-func (b *ClientBuilder) WithServiceAuth(token string) *ClientBuilder {
-	b.serviceToken = token
 	return b
 }
 
@@ -242,10 +247,6 @@ func (b *ClientBuilder) Build() []grpc.DialOption {
 type StreamingClientBuilder struct {
 	// clientBuilderConfig supplies the shared interceptor config and With* setters.
 	clientBuilderConfig[StreamingClientBuilder]
-
-	// serviceToken is the caller's service-to-service bearer token; empty
-	// attaches no authorization metadata (local-dev bypass).
-	serviceToken string
 }
 
 // NewStreamingClientBuilder creates a new StreamingClientBuilder with no interceptors enabled.
@@ -261,16 +262,6 @@ func NewStreamingClientBuilder() *StreamingClientBuilder {
 // TimeoutStreamClientInterceptor.
 func (b *StreamingClientBuilder) WithTimeout(d time.Duration) *StreamingClientBuilder {
 	b.timeout = d
-	return b
-}
-
-// WithServiceAuth attaches the caller's service-to-service bearer token as
-// `authorization: Bearer <token>` outgoing metadata on every RPC of the connection —
-// stream opens and unary calls alike, since an internal server that enforces service
-// auth rejects any call without it. An empty token attaches nothing (local dev leaves
-// it unset and the server's bypass admits the call).
-func (b *StreamingClientBuilder) WithServiceAuth(token string) *StreamingClientBuilder {
-	b.serviceToken = token
 	return b
 }
 

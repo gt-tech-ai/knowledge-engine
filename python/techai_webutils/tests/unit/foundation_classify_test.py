@@ -95,8 +95,8 @@ class TestClassify:
         """Test that gRPC UNAVAILABLE / DEADLINE_EXCEEDED are transient.
 
         **Why this test is important:**
-          - The ingestion service calls the API InternalService over gRPC; a briefly-unavailable
-            peer or a deadline must retry, not fail the document.
+          - A service calling a peer over gRPC must retry a briefly-unavailable peer or a deadline,
+            not fail the work item.
 
         **What it tests:**
           - RpcError with UNAVAILABLE and DEADLINE_EXCEEDED classify as transient; INVALID_ARGUMENT

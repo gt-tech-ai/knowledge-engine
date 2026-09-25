@@ -1,7 +1,7 @@
 """RealRayRuntime: the production RayRuntime backed by an actual Ray cluster.
 
 Imports ``ray`` (the optional ``techai-webutils[ray]`` extra) and is imported lazily by
-``executor_from_config`` only when ``ingestion.executor.kind: ray`` — so the default asyncio path
+``executor_from_config`` only when ``ExecutorConfig.kind`` is ``ray`` — so the default asyncio path
 never loads Ray. Each ``submit`` schedules one Ray task that runs the async mapper to completion on
 a worker via ``asyncio.run`` and awaits the resulting ObjectRef (Ray ObjectRefs are awaitable in
 asyncio, giving driver-side concurrency bounded by ``fan_out``'s semaphore).
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 # Cold-connect resiliency defaults (overridable via the constructor). The head's per-connection Ray
 # Client server (SpecificServer) can intermittently time out its gRPC channel on the FIRST connect from
 # a pod (head-side ``proxier`` "Timeout waiting for channel"); retrying recovers it, and once connected
-# the process-global Ray session is reused by every later submit. Warm the connection at bulk-consumer
+# the process-global Ray session is reused by every later submit. Warm the connection at the caller's
 # startup (RealRayRuntime.warm_up) so this flaky first connect happens once, off the live-batch path.
 _CONNECT_RETRIES = 5
 """Number of cold-connect attempts before giving up on the flaky Ray Client channel."""
@@ -65,7 +65,7 @@ class RealRayRuntime:
     async def warm_up(self) -> None:
         """Eagerly establish the process-global Ray connection so the first batch skips the cold connect.
 
-        Call once at bulk-consumer startup. Cold-connect resilience (the head's per-connection client
+        Call once at the caller's startup. Cold-connect resilience (the head's per-connection client
         server can time out its gRPC channel) is supplied by the ``ResilientRayRuntime`` DECORATOR wrapped
         around this runtime at ``executor_from_config`` — never inlined here (ARCHITECTURE.md#decorators).
         """
@@ -74,12 +74,13 @@ class RealRayRuntime:
     async def _ensure_started(self) -> None:
         """Connect to (or start) the Ray cluster once, idempotently.
 
-        Respects a cluster already initialized out-of-band (the KubeRay / ``ray://`` driver case, the
-        startup warm-up, or a test fixture) so we never emit a redundant ``ray.init`` and concurrent
-        batches reuse the one process-global session. ``ray.init`` is a blocking call, so it runs in a
-        worker thread to avoid stalling the driver's event loop during connection; ``ignore_reinit_error``
-        makes a benign concurrent double-init a no-op. Cold-connect retry/backoff is the resilience
-        decorator's job (see ``ResilientRayRuntime``), keeping this method a single, honest connect.
+        Respects a cluster already initialized out-of-band (a ``ray://`` driver connecting to a remote
+        cluster, the startup warm-up, or a test fixture) so we never emit a redundant ``ray.init`` and
+        concurrent batches reuse the one process-global session. ``ray.init`` is a blocking call, so it
+        runs in a worker thread to avoid stalling the driver's event loop during connection;
+        ``ignore_reinit_error`` makes a benign concurrent double-init a no-op. Cold-connect
+        retry/backoff is the resilience decorator's job (see ``ResilientRayRuntime``), keeping this
+        method a single, honest connect.
         """
         if self._started:
             return

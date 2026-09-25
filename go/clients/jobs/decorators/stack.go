@@ -1,6 +1,7 @@
-// Package decorators composes the Job decorator stack (ARCHITECTURE.md#decorator-order)
-// around a scheduled job function: LeaderElection → RateLimit → Retry → Timeout → Tracing → Metrics →
-// Logging → Job. The inner Retry/Timeout/observability reuses the shared client stack
+// Package decorators composes the Job decorator stack
+// (ARCHITECTURE.md#decorator-order) around a scheduled job function:
+// LeaderElection → RateLimit → Retry → Timeout → Tracing → Metrics → Logging →
+// Job. The inner Retry/Timeout/observability reuses the shared client stack
 // (go/clients/decorators), so the mechanism is composed once, not re-implemented.
 package decorators
 

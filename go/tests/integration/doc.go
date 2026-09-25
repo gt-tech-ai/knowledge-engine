@@ -1,18 +1,13 @@
-// Package integration is the module root for go integration tests.
+// Package integration holds the Go integration tests: each file exercises a
+// clients-tier backend against the real service it wraps, started in a throwaway
+// testcontainers container by the fixtures under go/tests/fixtures/dbtest —
+// Redis (cache, lock, messaging, replay buffer), MinIO (S3 storage and the S3
+// connector), ElasticMQ (SQS messaging), and PostgreSQL (River's runtime and
+// migrations). The package is flat; files are named after the tier they cover.
 //
-// Each sub-package exercises a specific layer against real infrastructure
-// (PostgreSQL, Redis) via testcontainers:
-//
-//   - clients/   - Redis cache roundtrip over a real Redis container
-//
-// Ent-layer integration tests belong with the consumer that owns the Ent schema
-// they exercise.
+// Integration tests for a consumer's own schema or ORM layer belong with that
+// consumer.
 //
 // All tests require the build tag "integration" and a Docker daemon.
-// Run with: INTEGRATION=1 go test -tags=integration ./...
-//
-// TODO(phase3): Add integration tests for clients/messaging/sqs and
-// clients/jobs/river once the real (non-stub) implementations land.
-// Current Phase 1 stubs return nil without touching a broker or database,
-// so an integration test would exercise no real behavior.
+// Run with: INTEGRATION=1 go test -tags=integration ./tests/integration/...
 package integration

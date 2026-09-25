@@ -1,8 +1,8 @@
-"""Knowledge-base factory — Kind + Config + ``new_knowledge_base_from_config`` (shape).
+"""Knowledge-base factory — Kind + Config + ``new_knowledge_base_from_config``.
 
-Only the local vector-dev backend ships today (Ollama embedder → Qdrant store); staging/prod index
-through the Bedrock Knowledge Base via the separate ``clients/kb_ingestion`` ingestor (a different
-contract — start/poll job, not this chunk-indexing ``KnowledgeBase``;). Heavy backends are
+Only the local vector backend ships today (Ollama embedder → Qdrant store); a managed Bedrock
+Knowledge Base is fed through the separate ``clients/kb_ingestion`` ingestor instead (a different
+contract — start/poll a sync job, not this chunk-indexing ``KnowledgeBase``). Heavy backends are
 imported lazily so selecting a different kind never loads httpx/qdrant-client.
 """
 

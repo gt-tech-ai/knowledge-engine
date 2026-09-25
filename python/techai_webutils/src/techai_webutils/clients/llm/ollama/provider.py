@@ -2,7 +2,7 @@
 
 The local analogue of the Bedrock LLM: instead of AWS, it generates against a local Ollama server
 (the same one that serves embeddings), so the RAG generator produces real answers with no external
-dependency. Selected by config (``retrieval.llm.kind = ollama``). Takes an injected
+dependency. Selected by config (``LlmConfig.kind = ollama``). Takes an injected
 ``httpx.AsyncClient`` (base_url = the Ollama host) so unit tests inject a mock; the factory that
 builds it owns the client's lifetime (process-lived — see ``new_llm_from_config``).
 

@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
@@ -78,12 +79,14 @@ func DefaultDatabaseConfig() DatabaseConfig {
 // DSN returns a PostgreSQL connection string in the format:
 // postgres://user:password@host:port/database?sslmode=disable
 // Every component is URL-escaped, so credentials containing reserved characters
-// (@ : / ? # % [ ]) and IPv6 hosts produce a DSN that parses back to the same values.
+// (@ : / ? # % [ ]) and IPv6 hosts — bare ("::1") or already bracketed ("[::1]") —
+// produce a DSN that parses back to the same values.
 func (c *DatabaseConfig) DSN() string {
+	host := strings.TrimSuffix(strings.TrimPrefix(c.Host, "["), "]")
 	dsn := url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(c.User, c.Password),
-		Host:     net.JoinHostPort(c.Host, strconv.Itoa(c.Port)),
+		Host:     net.JoinHostPort(host, strconv.Itoa(c.Port)),
 		Path:     "/" + c.Database,
 		RawQuery: url.Values{"sslmode": {c.SSLMode}}.Encode(),
 	}

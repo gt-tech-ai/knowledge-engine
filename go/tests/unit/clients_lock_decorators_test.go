@@ -257,7 +257,7 @@ func TestLockDecorators_Renew_ErrorObserved(t *testing.T) {
 //
 // Why this test is important:
 //   - For a lock, "graceful degradation" is unsafe in either direction: a fake
-//     acquired=true admits a duplicate query; a fake acquired=false wedges every
+//     acquired=true admits a duplicate operation; a fake acquired=false wedges every
 //     pod. The breaker must fail closed (surface the error) and NOT call the
 //     backend, letting the caller decide how to degrade.
 //

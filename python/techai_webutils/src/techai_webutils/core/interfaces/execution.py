@@ -85,7 +85,8 @@ class BatchResult:
     """Aggregate outcome of a fan-out over many items (mirrors Go ``StepResults``)."""
 
     results: Sequence[StepResult] = ()
-    """The per-item outcomes, in item order; the count properties below (total/succeeded/failed/...) derive from this sequence."""
+    """The per-item outcomes, in item order; the count properties below (total/succeeded/failed/...)
+    derive from this sequence."""
 
     @property
     def total(self) -> int:

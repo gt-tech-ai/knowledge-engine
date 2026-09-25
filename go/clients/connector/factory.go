@@ -31,9 +31,10 @@ type builder struct {
 // Ensure builder satisfies the SourceBuilder contract.
 var _ interfaces.SourceBuilder = (*builder)(nil)
 
-// NewSourceBuilder builds the SourceBuilder over the injected S3-client builder (supplied by the app
-// composition root so pkg/clients/connector never imports pkg/clients/storage), the STS client (used
-// only by the iam_role strategy), and the observability deps for the decorator.
+// NewSourceBuilder builds the SourceBuilder over the injected S3-client builder (supplied by the
+// composition root so go/clients/connector never imports go/clients/storage), the STS client (used
+// only by the iam_role strategy, which refuses to build without one), and the observability deps for
+// the decorator.
 func NewSourceBuilder(
 	buildS3Client connectors3.S3ClientBuilder,
 	sts stscreds.AssumeRoleAPIClient,

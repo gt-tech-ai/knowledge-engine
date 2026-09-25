@@ -296,7 +296,7 @@ func TestJSONAPI_CreateRequestWrongTypeReturns400(t *testing.T) {
 	})
 
 	wrongType := doREST(docRoutes(), inner, http.MethodPost, "/api/v1/documents",
-		`{"data":{"type":"workspaces","attributes":{"title":"x"}}}`)
+		`{"data":{"type":"widgets","attributes":{"title":"x"}}}`)
 	assert.Equal(t, http.StatusBadRequest, wrongType.Code)
 	assert.Contains(t, wrongType.Body.String(), "errors")
 

@@ -86,14 +86,28 @@ func TestWrapPreservesOriginStack(t *testing.T) {
 //     the trace, every error appears to originate in the errors package.
 //
 // What it tests:
-//   - The first frame of New(...).StackTrace() is this test function.
+//   - The first frame of the trace is this test function for New, for a helper
+//     constructor that calls New internally (InvalidInput, Unavailable), and for Wrap of a
+//     plain error — each adds errors-package frames the trace must skip.
 func TestStackTraceStartsAtCaller(t *testing.T) {
 	t.Parallel()
 
-	stack := apperr.New(apperr.CodeInternal, "origin").StackTrace()
-	first, _, _ := strings.Cut(stack, "\n")
+	for name, err := range map[string]*apperr.AppError{
+		"New":          apperr.New(apperr.CodeInternal, "origin"),
+		"InvalidInput": apperr.InvalidInput("origin"),
+		"Unavailable":  apperr.Unavailable("origin"),
+	} {
+		first, _, _ := strings.Cut(err.StackTrace(), "\n")
+		assert.True(t, strings.HasSuffix(first, ".TestStackTraceStartsAtCaller"),
+			"%s: first frame = %q, want the calling test function", name, first)
+	}
+
+	var wrapped *apperr.AppError
+	require.True(t, errors.As(
+		apperr.Wrap(errors.New("cause"), apperr.CodeInternal, "origin"), &wrapped))
+	first, _, _ := strings.Cut(wrapped.StackTrace(), "\n")
 	assert.True(t, strings.HasSuffix(first, ".TestStackTraceStartsAtCaller"),
-		"first frame = %q, want the calling test function", first)
+		"Wrap: first frame = %q, want the calling test function", first)
 }
 
 // TestMarshalLogObjectWithCause tests that MarshalLogObject encodes the wrapped

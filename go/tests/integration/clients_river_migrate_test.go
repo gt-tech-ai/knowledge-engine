@@ -15,16 +15,14 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx database/sql driver for the assertion query
 )
 
-// TestRiverMigrate_CreatesRiverSchema verifies the worker's River migration step
-// creates River's own tables against a real Postgres.
+// TestRiverMigrate_CreatesRiverSchema verifies that river.Migrate creates River's
+// own tables against a real Postgres.
 //
 // Why this test is important:
-//   - A worker's River runtime cannot start until River's schema
-//
-// (river_job, river_leader, …) exists. applies it via River's own
-//
-//	migrator (NOT the Ent/Atlas migration dir, which would make `migrate check`
-//	report false drift). This proves the migrator runs and creates the tables.
+//   - A River runtime cannot start until River's schema (river_job, river_leader,
+//     …) exists. Migrate applies it with River's own migrator, outside the caller's
+//     schema-migration tool (whose drift check would otherwise flag the river_*
+//     tables); this proves the migrator runs and creates the tables.
 //
 // What it tests:
 //   - river.Migrate(ctx, dsn) creates the river_job and river_leader tables.

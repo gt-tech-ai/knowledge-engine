@@ -33,7 +33,7 @@ func DefaultClientConfig(target string) ClientConfig {
 		MaxMessageSize:   16 * 1024 * 1024, // 16MB
 		KeepaliveTime:    time.Minute,
 		KeepaliveTimeout: 20 * time.Second,
-		UseTLS:           false, // Phase 1: insecure for local dev
+		UseTLS:           false, // insecure: enable TLS outside local dev
 	}
 }
 

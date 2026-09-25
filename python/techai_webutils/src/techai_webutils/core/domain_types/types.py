@@ -1,4 +1,4 @@
-"""Shared domain types used across the platform.
+"""Shared domain types used across the library.
 
 Mirrors the Go types in go/core/types/types.go. Every type here must
 stay in sync with its Go counterpart to ensure consistent serialization

@@ -94,9 +94,9 @@ func (s *roleScopedCRUDStore) Exists(_ context.Context, _ string) (bool, error) 
 // repository forwards each read op to its store and returns the store's result.
 //
 // Why this test is important:
-//   - ReadListExistRepository exists so a read-only resource (e.g. the api
-//     notification-preference read model, whose writes identity owns) gets the
-//     platform decoration stack WITHOUT embedding write methods it would panic on.
+//   - ReadListExistRepository exists so a read-only resource (e.g. a read model
+//     another service writes) gets the shared decoration stack WITHOUT embedding
+//     write methods it would panic on.
 //     If a method stopped delegating (or wrapped the wrong store call), reads would
 //     silently return wrong data.
 //
@@ -134,8 +134,8 @@ func TestReadListExistRepository_Delegates(t *testing.T) {
 // forwards each op to its store and returns the store's result.
 //
 // Why this test is important:
-//   - CRUDNoListRepository is the write-capable-but-list-less decorator (e.g.
-//     identity users, addressed only by id/external id). A broken delegation would
+//   - CRUDNoListRepository is the write-capable-but-list-less decorator (e.g. a
+//     resource addressed only by id or an external id). A broken delegation would
 //     corrupt or drop writes for a resource with no listable collection to
 //     cross-check against.
 //

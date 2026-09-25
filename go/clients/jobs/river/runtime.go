@@ -12,14 +12,13 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// defaultMaxConns caps the River pgxpool conservatively. The worker also holds
-// a separate database/sql (Ent) pool to the same Postgres, so both pools must
-// stay small enough that replicaCount × (river + ent) connections fit
-// max_connections.
+// defaultMaxConns caps the River pgxpool conservatively. A caller that also
+// holds other pools to the same Postgres must size them together so that
+// replicas × (river + other pools) connections fit max_connections.
 const defaultMaxConns int32 = 8
 
-// defaultMaxWorkers is the per-queue concurrency when the caller does not set
-// one.
+// defaultMaxWorkers is the per-queue, per-client concurrency when the caller
+// does not set one.
 const defaultMaxWorkers = 10
 
 // RuntimeConfig configures the River runtime.
@@ -28,10 +27,10 @@ type RuntimeConfig struct {
 	Workers *river.Workers
 
 	// ExtraQueues are ADDITIONAL named queues merged onto the base queue
-	// (QueueName), each with its own MaxWorkers cap. A worker that serves more
-	// than one job kind at DIFFERENT concurrency ceilings (e.g. periodic
-	// sweeps on the default queue + heavy syncs on a dedicated queue capped
-	// at MaxWorkers=K) supplies them here.
+	// (QueueName), each with its own MaxWorkers cap (per client, like
+	// MaxWorkers). A worker that serves more than one job kind at DIFFERENT
+	// concurrency ceilings (e.g. periodic sweeps on the default queue + heavy
+	// jobs on a dedicated queue capped at MaxWorkers=K) supplies them here.
 	ExtraQueues map[string]river.QueueConfig
 
 	// DatabaseURL is the pgx connection string for the runtime's dedicated
@@ -46,8 +45,10 @@ type RuntimeConfig struct {
 	// election.
 	PeriodicJobs []*river.PeriodicJob
 
-	// MaxWorkers caps concurrency on the base queue; non-positive uses
-	// defaultMaxWorkers.
+	// MaxWorkers caps concurrency on the base queue for THIS client (one
+	// replica); non-positive uses defaultMaxWorkers. River applies the cap per
+	// client, so fleet-wide concurrency is MaxWorkers × replicas — size it
+	// from the downstream's capacity divided by the replica count.
 	MaxWorkers int
 
 	// MaxConns caps the pgxpool size; non-positive uses defaultMaxConns.
@@ -102,9 +103,9 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*Runtime, error) {
 }
 
 // buildQueues maps the runtime onto its single queue: queueName (empty → river.QueueDefault) capped at
-// maxWorkers (non-positive → defaultMaxWorkers). A dedicated worker's MaxWorkers on its own named queue
-// is the GLOBAL admission cap for that job kind. Pure so the construction is unit-tested
-// without a database (the ≤K-concurrent behavior itself is proven by the River+Postgres integration).
+// maxWorkers (non-positive → defaultMaxWorkers). The cap is PER CLIENT (per replica), not global: K
+// workers on a named queue across N replicas run up to K × N jobs of that kind at once. Pure so the
+// construction is unit-tested without a database.
 func buildQueues(queueName string, maxWorkers int) map[string]river.QueueConfig {
 	if queueName == "" {
 		queueName = river.QueueDefault

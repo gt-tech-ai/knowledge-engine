@@ -1,10 +1,10 @@
 //go:build integration
 
-// Package clients_test verifies the S3 StorageClient against a real MinIO instance
-// (via testcontainers). Unit tests in go/tests/unit and the storage package
-// cover error mapping, the multipart decision, and the decorator stack with mocks;
-// this suite targets end-to-end correctness over a real object store, driven by
-// committed fixtures under testdata/.
+// This file verifies the S3 StorageClient against a real MinIO instance (via
+// testcontainers). Unit tests in go/tests/unit cover error mapping, the multipart
+// decision, and the decorator stack with mocks; this suite targets end-to-end
+// correctness over a real object store, driven by committed fixtures under
+// testdata/.
 package integration
 
 import (
@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,6 +23,7 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
@@ -58,16 +60,31 @@ func TestStorageMinIOSuite(t *testing.T) {
 //     must be able to repin in their own tests without an engine release.
 //
 // What it tests:
-//   - WithImage with a tag that does not exist fails to start and names that image,
-//     which it could only do if the override replaced DefaultImage (the suite above
-//     proves DefaultImage itself starts).
+//   - WithImage with another reference to the pinned image (digest only, no tag)
+//     starts a reachable MinIO.
+//   - WithImage with a tag that does not exist fails to start and names that image —
+//     a start that could only fail if the override replaced DefaultImage.
+//   - It needs a Docker daemon: without one both cases would fail or pass for the
+//     wrong reason, so it skips.
 func TestNewTestMinIO_WithImageOverridesTheDefault(t *testing.T) {
+	if testing.Short() || (os.Getenv("INTEGRATION") == "" && os.Getenv("CI") == "") {
+		t.Skip("set INTEGRATION=1 or CI=1 to run integration tests")
+	}
+	testcontainers.SkipIfProviderIsNotHealthy(t)
 	ctx := context.Background()
-	const missing = "cgr.dev/chainguard/minio:ke-fixture-override-probe-does-not-exist"
 
+	digestOnly := "cgr.dev/chainguard/minio@" + strings.SplitN(miniodb.DefaultImage, "@", 2)[1]
+	started, err := miniodb.NewTestMinIO(ctx, miniodb.WithImage(digestOnly))
+	t.Cleanup(func() { started.Close(ctx) })
+	require.NoError(t, err, "the overriding reference starts")
+	resp, err := http.Get(started.Endpoint() + "/minio/health/ready") //nolint:noctx // test probe
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	const missing = "cgr.dev/chainguard/minio:ke-fixture-override-probe-does-not-exist"
 	m, err := miniodb.NewTestMinIO(ctx, miniodb.WithImage(missing))
 	t.Cleanup(func() { m.Close(ctx) })
-
 	require.Error(t, err)
 	require.ErrorContains(t, err, missing)
 }
@@ -206,7 +223,7 @@ func (s *StorageMinIOSuite) TestPresignedURL_PutGet() {
 //
 // Why this test is important:
 //   - Content-type detection (Stat) and prefix listing (connector diffing) are
-//     load-bearing for ingestion and sync
+//     load-bearing for any caller that reads or syncs objects
 //
 // What it tests:
 //   - Stat returns the stored content-type and size

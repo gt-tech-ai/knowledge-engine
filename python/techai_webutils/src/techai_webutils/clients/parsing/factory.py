@@ -33,7 +33,7 @@ class ParserKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ParserConfig:
-    """Document-parser configuration (resolved from ``ingestion.parser.*``)."""
+    """Document-parser configuration (the consumer maps its own config section onto it)."""
 
     kind: ParserKind = ParserKind.ISOLATED
     """Selects the parse backend (only ``isolated`` ships today)."""

@@ -54,8 +54,8 @@ func injectTraceContext(ctx context.Context) context.Context {
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if ok {
 		// Copy so we never mutate the caller's outgoing MD. This is a per-call allocation on the
-		// request hot path — fine at current volumes; revisit (e.g. a pooled carrier) if a high-QPS
-		// path such as retrieval makes it show up in a profile.
+		// request hot path; revisit (e.g. a pooled carrier) if a high-QPS caller makes it show up
+		// in a profile.
 		md = md.Copy()
 	} else {
 		md = metadata.MD{}
@@ -164,8 +164,8 @@ func TracingStreamClientInterceptor(
 		span.SetAttribute("rpc.service", service)
 		span.SetAttribute("rpc.method", rpcMethod)
 
-		// Propagate the trace over the wire so the streaming callee (e.g. retrieval's
-		// a server-streaming RPC) continues this trace instead of starting a new one.
+		// Propagate the trace over the wire so the streaming callee (e.g. a
+		// server-streaming RPC) continues this trace instead of starting a new one.
 		ctx = injectTraceContext(ctx)
 
 		stream, err := streamer(ctx, desc, cc, method, opts...)

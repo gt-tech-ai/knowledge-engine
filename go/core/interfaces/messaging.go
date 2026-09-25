@@ -4,10 +4,8 @@ import (
 	"context"
 )
 
-// MessagePublisher publishes domain events to a message broker (SQS, Watermill, etc.).
-//
-// Phase 1: Async event publishing for document lifecycle events.
-// Phase 2+: Transactional outbox, guaranteed delivery, dead-letter handling.
+// MessagePublisher publishes messages (typically domain events) to a message broker
+// (SQS, Watermill, etc.).
 type MessagePublisher interface {
 	// Publish sends a message to the specified topic.
 	Publish(ctx context.Context, topic string, payload []byte) error
@@ -35,10 +33,8 @@ type CountingPublisher interface {
 	PublishCount(ctx context.Context, topic string, payload []byte) (int, error)
 }
 
-// MessageConsumer consumes messages from a queue/topic.
-//
-// Phase 1: Simple sequential consumer with ack/nack.
-// Phase 2+: Batch consumption, parallel processing, backpressure.
+// MessageConsumer consumes messages from a queue/topic, acking or nacking each one
+// by its handler's result.
 type MessageConsumer interface {
 	// Subscribe starts consuming messages from the specified topic.
 	// The handler is called for each message. Return nil to ack, error to nack.

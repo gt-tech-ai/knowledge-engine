@@ -19,13 +19,12 @@ import pytest
 
 pytest.importorskip("ray")
 
-# Opt-in gate: even with the ``ray`` extra installed, standing up a real local Ray
-# cluster (``ray.init``) can hang on some developer machines (macOS/Docker), so this
-# module is SKIPPED by default and runs only when ``RAY_INTEGRATION`` is set — e.g.
-# against a local ``ray-head`` service. CI
-# already skips it via the ``importorskip`` above (the ``ray`` extra is absent there),
-# so this changes nothing in CI; it only makes the default LOCAL run match CI instead
-# of hanging, keeping a full local preflight runnable.
+# Opt-in gate: ray is importable wherever the dev dependency group is installed (including
+# CI), but standing up a real local Ray cluster (``ray.init``) can hang on some machines
+# (macOS/Docker), so this module is SKIPPED unless ``RAY_INTEGRATION`` is set — e.g. against
+# a reachable Ray cluster. This env guard (not the ``importorskip`` above, which only fires
+# where ray is not installed at all) is what keeps the test out of CI and the default local
+# run.
 if not os.environ.get("RAY_INTEGRATION"):
     pytest.skip(
         "RAY_INTEGRATION not set — real-cluster Ray integration test skipped "
@@ -76,7 +75,7 @@ async def test_ray_executor_runs_on_real_cluster() -> None:
     **Why this test is important:**
       - The mock-runtime unit tests can't prove cloudpickling, remote execution, or that a real
         RayTaskError is caught as a single FAIL — only a real cluster does; this is the guarantee
-        the S3 bulk job relies on.
+        a large distributed batch relies on.
 
     **What it tests:**
       - Four items (two even, two odd) yield a BatchResult of two PASS + two FAIL, with the odd
@@ -98,8 +97,8 @@ async def test_pooled_executor_runs_on_real_cluster() -> None:
     **Why this test is important:**
       - The fake-worker unit tests can't prove that the ``WorkerFactory`` cloudpickles to a Ray actor,
         that the actor builds the worker once on its own event loop and reuses it, or that a real
-        RayTaskError is isolated to one FAIL — only a real cluster does; this is the guarantee the S3
-        bulk job's actor-pool path relies on.
+        RayTaskError is isolated to one FAIL — only a real cluster does; this is the guarantee the
+        actor-pool path relies on.
 
     **What it tests:**
       - Four items (two even, two odd) fanned over a 2-actor pool yield a BatchResult of two PASS +

@@ -56,7 +56,7 @@ _POLL_INTERVAL_SECONDS = 0.05
 # Heavy parser libraries the forkserver preloads so a forked parse child inherits them (no per-parse
 # re-import). They must be importable in the forkserver — both are hard ingestion deps.
 _FORKSERVER_PRELOAD = ["markitdown", "pymupdf"]
-"""Heavy parser libs the forkserver preloads so a forked parse child inherits them (no per-parse re-import)."""
+"""Heavy parser libs the forkserver preloads so a forked parse child inherits them (no re-import)."""
 
 
 def _isolated_context():  # noqa: ANN202 — inferred SpawnContext|ForkServerContext keeps .Process/.Queue

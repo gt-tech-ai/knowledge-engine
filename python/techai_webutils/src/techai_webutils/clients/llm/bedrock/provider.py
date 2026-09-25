@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, cast
 import aiobotocore.session  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 
-from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
+from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from techai_webutils.core.errors import AppError
     from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage
 
 
@@ -54,8 +55,8 @@ def _converse_args(model: str, messages: list[LLMMessage], config: LLMConfig | N
     rejects an empty ``system`` list); the remaining turns map to ``{role, content:[{text}]}``. This
     shape is identical for Nova, Claude, Llama, etc., which is the whole point of Converse. The
     decoding dials (``maxTokens`` and ``temperature``) come from the per-call ``config`` when the
-    caller supplies one (the retrieval composition root builds it from ``retrieval.llm.*``);
-    otherwise the conservative provider defaults apply. ``topP`` is deliberately not sent: Claude on
+    caller supplies one (the consumer builds it from its own config); otherwise the conservative
+    provider defaults apply. ``topP`` is deliberately not sent: Claude on
     Converse rejects ``temperature`` and ``topP`` together, and the retrieval path tunes temperature.
     """
     system = [{"text": m.content} for m in messages if m.role == "system"]
@@ -76,49 +77,15 @@ def _converse_args(model: str, messages: list[LLMMessage], config: LLMConfig | N
     return args
 
 
-# Bedrock ClientError codes worth a retry — throttling, transient 5xx, and model-side timeouts.
-# Everything else (access-denied, ResourceNotFound for a legacy/unavailable model, validation) is a
-# terminal misconfiguration/permission error.
-_TRANSIENT_BEDROCK_CODES = frozenset(
-    {
-        "ThrottlingException",
-        "ServiceUnavailableException",
-        "ServiceQuotaExceededException",
-        "ModelTimeoutException",
-        "ModelNotReadyException",
-        "InternalServerException",
-    }
-)
-"""Bedrock ClientError codes worth a retry (throttling, transient 5xx, model-side timeouts)."""
-_SERVER_ERROR_STATUS = 500
-"""HTTP status classifying a Bedrock response as a server error (retryable)."""
-_TOO_MANY_REQUESTS_STATUS = 429
-"""HTTP status classifying a Bedrock response as throttled (retryable)."""
-
-
 def _to_app_error(exc: ClientError | BotoCoreError) -> AppError:
     """Map a Bedrock/botocore failure to a coded ``AppError`` (ARCHITECTURE.md#error-codes).
 
-    Raw botocore exceptions must not cross the provider boundary: the resilience decorators and the
-    transport status mapping derive their behaviour from the ``ErrorCode``, and an unwrapped
-    ``ClientError`` also escaped structlog as a multi-KB frame-locals dump. A ``ClientError`` is
-    classified by its Bedrock error code / HTTP status — throttling / 5xx / model-timeout →
-    ``UNAVAILABLE`` (transient, retryable); everything else (access-denied, ``ResourceNotFound`` for a
-    legacy/unavailable model, validation) → ``INTERNAL`` (terminal). Any other ``BotoCoreError``
-    (connect/read timeout, endpoint failure) → ``UNAVAILABLE``.
+    Delegates to the shared ``foundation/resilience/aws_boundary`` mapping (throttling / 5xx /
+    model-timeout → transient ``UNAVAILABLE``; access-denied, ``ResourceNotFound``, validation →
+    terminal ``INTERNAL``). An unwrapped ``ClientError`` would also escape structlog as a multi-KB
+    frame-locals dump.
     """
-    if isinstance(exc, ClientError):
-        err = exc.response.get("Error", {})
-        code = str(err.get("Code", ""))
-        status = int(exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0) or 0)
-        transient = (
-            code in _TRANSIENT_BEDROCK_CODES
-            or status >= _SERVER_ERROR_STATUS
-            or status == _TOO_MANY_REQUESTS_STATUS
-        )
-        app_code = ErrorCode.UNAVAILABLE if transient else ErrorCode.INTERNAL
-        return AppError(app_code, f"bedrock converse failed: {code or status or 'error'}", cause=exc)
-    return AppError(ErrorCode.UNAVAILABLE, f"bedrock unreachable: {exc}", cause=exc)
+    return botocore_error_to_app_error(exc, "bedrock converse")
 
 
 class BedrockLlmProvider(LLMProvider):

@@ -37,11 +37,7 @@ class DocumentChunk:
 
 
 class DocumentParser(ABC):
-    """Abstract document parser for extracting text from various file formats.
-
-    Phase 1: PDF, DOCX, PPTX, XLSX, MD, TXT.
-    Phase 2+: OCR for images, table extraction, layout-aware parsing.
-    """
+    """Abstract document parser for extracting text from various file formats."""
 
     @abstractmethod
     async def parse(self, content: bytes, content_type: str) -> ParsedDocument:
@@ -53,11 +49,7 @@ class DocumentParser(ABC):
 
 
 class ChunkingStrategy(ABC):
-    """Abstract chunking strategy for splitting documents into retrieval-sized pieces.
-
-    Phase 1: Fixed-size with overlap, sentence-aware boundaries.
-    Phase 2+: Semantic chunking, hierarchical chunking, table-aware.
-    """
+    """Abstract chunking strategy for splitting documents into retrieval-sized pieces."""
 
     @abstractmethod
     def chunk(self, document: ParsedDocument) -> list[DocumentChunk]:

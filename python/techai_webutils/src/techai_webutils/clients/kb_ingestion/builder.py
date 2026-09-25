@@ -1,8 +1,8 @@
 """Env-aware Knowledge Base client factory (the foundation/logger ``NewFromConfig`` pattern).
 
 Selects the no-op stub (dev, no Bedrock emulator) or the real Bedrock ingestor (stage/prod)
-from top-level config (``ingestion.kb.kind``), so environment approximation is configuration,
-not code. Unknown kinds fail loudly. The real Bedrock client is imported lazily so the dev
+from config (``KbConfig.kind``), so environment approximation is configuration, not
+code. Unknown kinds fail loudly. The real Bedrock client is imported lazily so the dev
 (stub) path never loads the AWS client.
 """
 
@@ -29,7 +29,7 @@ class KbKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class KbConfig:
-    """Knowledge Base client configuration resolved from ``ingestion.kb.*``."""
+    """Knowledge Base client configuration (the consumer maps its own config section onto it)."""
 
     kind: KbKind = KbKind.STUB
     """Selects the ingestor implementation (``stub`` in dev, ``bedrock`` in stage/prod)."""

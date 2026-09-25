@@ -14,9 +14,6 @@ import (
 //   - Returns ([]byte, bool) from Get instead of (T, bool)
 //   - Set does not return an error (fire-and-forget)
 //   - Has no Exists method
-//
-// Phase 1: Interface definition for MetricsCache and decorator wrappers.
-// Phase 3: Redis and in-memory implementations.
 type ByteCache interface {
 	// Get retrieves a value by key. Returns (nil, false) if not found or expired.
 	Get(ctx context.Context, key string) ([]byte, bool)

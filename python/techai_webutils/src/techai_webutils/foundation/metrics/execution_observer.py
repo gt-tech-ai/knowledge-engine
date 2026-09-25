@@ -1,10 +1,10 @@
 """ExecutionObserver that emits Prometheus metrics + structured logs for a fan-out.
 
-``MetricsLoggingObserver`` is the **sole per-item metric emitter** for a batch fan-out:
-the engine funnels every completion through it exactly once, so counts never
-double-fire across retry/DLQ paths. It is generic over ``subsystem`` (the metric-name
-prefix) so any batch service reuses it (e.g. ``subsystem="ingestion"``). It lives in ``foundation`` (not the core-only ``execution``
-package) because it depends on the metrics + logger foundations.
+``MetricsLoggingObserver`` is the **sole per-item metric emitter** for a batch fan-out: the engine
+funnels every completion through it exactly once, so counts never double-fire across retry/DLQ paths. It
+is generic over ``subsystem`` (the metric-name prefix) so any batch service reuses it (e.g.
+``subsystem="ingestion"``). It lives in ``foundation`` (not the core-only ``execution`` package) because
+it depends on the metrics + logger foundations.
 """
 
 from __future__ import annotations

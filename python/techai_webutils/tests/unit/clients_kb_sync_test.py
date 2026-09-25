@@ -69,9 +69,9 @@ class TestPollingIngestor:
         """Test that start returns the fresh (non-terminal) job and does NOT poll (split contract).
 
         **Why this test is important:**
-          - The reattach fix requires the reconciler to see the freshly-started job_id (still
-            IN_PROGRESS) so it can persist ``running``+``job_id`` BEFORE the long poll. If ``start``
-            still blocked to terminal, that persist-before-poll ordering would be impossible.
+          - Reattaching requires the caller to see the freshly-started job_id (still IN_PROGRESS) so
+            it can persist ``running``+``job_id`` BEFORE the long poll. If ``start`` still blocked to
+            terminal, that persist-before-poll ordering would be impossible.
 
         **What it tests:**
           - ``start_ingestion_job`` returns the inner ingestor's fresh IN_PROGRESS job verbatim and
@@ -89,8 +89,8 @@ class TestPollingIngestor:
         """Test that poll_ingestion_job polls a seeded job_id until it reports COMPLETE.
 
         **Why this test is important:**
-          - This is the reattach primitive: converging an ALREADY-started job (recovered from the
-            persisted job-state, or the one the reconciler just started) to terminal without a second
+          - This is the reattach primitive: converging an ALREADY-started job (one whose job_id the
+            caller recorded earlier, or the one it just started) to terminal without a second
             StartIngestionJob that Bedrock would reject with ConflictException.
 
         **What it tests:**
@@ -147,15 +147,15 @@ class TestPollingIngestor:
 
 
 class TestStopIngestionJob:
-    """stop_ingestion_job across the backends + decorators (the watchdog's recovery call)."""
+    """stop_ingestion_job across the backends + decorators (the recovery call for a stuck job)."""
 
     @pytest.mark.asyncio
     async def test_noop_backend_records_stop_call(self) -> None:
         """Test that the stub records the stop request and returns a STOPPING job.
 
         **Why this test is important:**
-          - The dev/local path has no real Bedrock; the stub must satisfy the new stop contract so the
-            watchdog path runs offline, and record the call so a test can assert the stop happened.
+          - The dev/local path has no real Bedrock; the stub must satisfy the stop contract so a
+            caller's stop path runs offline, and record the call so a test can assert the stop happened.
 
         **What it tests:**
           - ``stop_ingestion_job`` returns a STOPPING job and appends ``(kb, ds, job_id)`` to ``stopped``.
@@ -170,8 +170,8 @@ class TestStopIngestionJob:
         """Test that PollingIngestor + RetryingIngestor delegate stop to the wrapped ingestor.
 
         **Why this test is important:**
-          - The reconciler calls stop through the fully-decorated ``polling`` stack; a decorator that
-            dropped or mis-forwarded the call would make the watchdog's stop a no-op.
+          - A caller stops a job through the fully-decorated ``polling`` stack; a decorator that
+            dropped or mis-forwarded the call would make the stop a silent no-op.
 
         **What it tests:**
           - ``PollingIngestor(RetryingIngestor(inner)).stop_ingestion_job`` awaits the inner stop with
@@ -188,11 +188,11 @@ class TestStopIngestionJob:
 
     @pytest.mark.asyncio
     async def test_retrying_ingestor_stop_is_retry_free(self) -> None:
-        """Test that RetryingIngestor does NOT retry stop_ingestion_job (the watchdog owns the backoff).
+        """Test that RetryingIngestor does NOT retry stop_ingestion_job (the caller owns the backoff).
 
         **Why this test is important:**
-          - The watchdog wraps stop in its own bounded exponential backoff; if RetryingIngestor ALSO
-            retried stop (like start/get/list), the two would compose into double-backoff. This pins stop
+          - A caller that stops stuck jobs wraps stop in its own bounded backoff; if RetryingIngestor
+            ALSO retried stop (like start/get/list), the two would compose into double-backoff. This pins stop
             as a plain pass-through so a future "consistency" edit can't silently reintroduce that.
 
         **What it tests:**
@@ -213,8 +213,7 @@ class TestSingleWriterRunner:
         """Test that the runner runs the guarded op and returns its result when the lock is free.
 
         **Why this test is important:**
-          - The composed sync (lock → poll → stub) must reach a terminal COMPLETE, the end-to-end
-            behaviour the old batcher's ``sync_once`` provided.
+          - The composed sync (lock → poll → stub) must reach a terminal COMPLETE end to end.
 
         **What it tests:**
           - run() over a PollingIngestor(stub) returns a COMPLETE job.
@@ -398,7 +397,7 @@ class TestJobFromPayload:
 
         **Why this test is important:**
           - STOPPED is a real terminal Bedrock status; mislabeling it FAILED erases the distinction
-            between a failed sync and an operator/watchdog-stopped one in metrics and logs.
+            between a failed sync and a deliberately stopped one in metrics and logs.
 
         **What it tests:**
           - A STOPPED payload yields a STOPPED state that IS terminal.

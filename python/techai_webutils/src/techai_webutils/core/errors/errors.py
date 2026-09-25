@@ -1,7 +1,7 @@
 """Structured error taxonomy matching the Go error package.
 
 Error codes map to identical gRPC status codes in both Go and Python,
-ensuring consistent error handling across the platform.
+ensuring consistent error handling across both languages.
 """
 
 from enum import StrEnum

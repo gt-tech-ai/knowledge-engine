@@ -1,6 +1,6 @@
 // Package interceptorcore holds the framework-agnostic resilience decisions
 // shared by the gRPC and Connect interceptor stacks. The two stacks keep their
-// own packages — the R3/R5 two-stack split is intentional and stays — and each
+// own packages — the two-stack split is intentional and stays — and each
 // becomes a thin adapter that translates its framework's call signature and
 // status codes to/from the primitives here. The retry classification, the
 // circuit-breaker gate, the bulkhead load-shed decision, and the timeout

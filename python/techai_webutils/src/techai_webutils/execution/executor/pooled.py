@@ -1,14 +1,14 @@
 """PooledExecutor: fan items out over a fixed pool of stateful workers built once from a factory.
 
 Where ``fan_out`` (and ``AsyncioExecutor``/``RayExecutor``) drives a *stateless* per-item mapper,
-``PooledExecutor`` drives a small pool of ``PooledWorker``s that each build their (expensive)
-per-worker context ONCE and reuse it across every item routed to them — the distributed bulk lane's
-per-worker client reuse, replacing the per-object client rebuild of the stateless-task
-path. It reuses ``fan_out`` for the driver-side concerns (bounded concurrency, per-item isolation,
-exactly-once observer, ordered ``BatchResult``) and adds only the build-once pool + round-robin
-routing on top. It carries no ``ray`` import: the Ray actor pool plugs in behind the ``WorkerFactory``
-seam (``real_ray_pool.ray_worker_factory``), so importing this module never pulls the optional Ray
-dependency — exactly mirroring the ``RayExecutor`` / ``RayRuntime`` / ``RealRayRuntime`` split.
+``PooledExecutor`` drives a small pool of ``PooledWorker``s that each build their (expensive) per-worker
+context ONCE and reuse it across every item routed to them — per-worker client reuse, replacing the
+per-object client rebuild of the stateless-task path. It reuses ``fan_out`` for the driver-side concerns
+(bounded concurrency, per-item isolation, exactly-once observer, ordered ``BatchResult``) and adds only
+the build-once pool + round-robin routing on top. It carries no ``ray`` import: the Ray actor pool plugs
+in behind the ``WorkerFactory`` seam (``real_ray_pool.ray_worker_factory``), so importing this module
+never pulls the optional Ray dependency — exactly mirroring the ``RayExecutor`` / ``RayRuntime`` /
+``RealRayRuntime`` split.
 """
 
 from __future__ import annotations

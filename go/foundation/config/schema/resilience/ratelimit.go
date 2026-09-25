@@ -2,8 +2,8 @@ package resilience
 
 import apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 
-// RateLimitConfig tunes the token-bucket rate limiter
-// (ratelimiter/token.Config), which today is frozen at Rate 100 / Burst 10.
+// RateLimitConfig tunes the token-bucket rate limiter (ratelimiter/token.Config),
+// whose own defaults are Rate 100 / Burst 10.
 type RateLimitConfig struct {
 	// Rate is the sustained events per second allowed.
 	Rate float64 `mapstructure:"rate"`

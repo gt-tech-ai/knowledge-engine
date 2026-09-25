@@ -39,7 +39,7 @@ def _add_trace_context(
 ) -> EventDict:
     """Structlog processor that injects the active OTel trace_id/span_id.
 
-    Enables log<->trace correlation in Grafana (Loki -> Tempo). No-op when there
+    Enables log<->trace correlation in the log and trace backends. No-op when there
     is no active, recording span.
     """
     ctx = otel_trace.get_current_span().get_span_context()
@@ -49,10 +49,10 @@ def _add_trace_context(
     return event_dict
 
 
-# The one sanctioned bootstrap env read in the logger: GIT_SHA is a deploy-time image
-# constant bound at import so every log line carries git_sha (Grafana → GitHub deep
-# links). A deliberate exception to reading configuration in one place
-# (ARCHITECTURE.md#configuration) rather than threaded through every service's settings (mirrors the Go zap logger's GIT_SHA read).
+# The one sanctioned bootstrap env read in the logger: GIT_SHA is a deploy-time image constant bound
+# at import so every log line carries git_sha (a link from a log line to its source commit). A
+# deliberate exception to reading configuration in one place (ARCHITECTURE.md#configuration) rather
+# than threading it through every service's settings (mirrors the Go zap logger's GIT_SHA read).
 _GIT_SHA = os.environ.get("GIT_SHA", "")
 """Deployed commit SHA (image tag) bound at import; stamped on every log for GitHub deep-links."""
 

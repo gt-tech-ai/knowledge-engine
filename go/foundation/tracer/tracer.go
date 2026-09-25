@@ -10,7 +10,7 @@
 // Example:
 //
 //	t, err := tracer.New(ctx, tracer.KindOTel,
-//	    tracer.WithServiceName("api"),
+//	    tracer.WithServiceName("my-service"),
 //	    tracer.WithEndpoint("localhost:4317"),
 //	)
 //	if err != nil {
@@ -61,8 +61,8 @@ func TraceIDFromContext(ctx context.Context) string {
 // ContextWithForcedSample returns ctx seeded with a fresh, sampled REMOTE parent span context, so a
 // subsequent Tracer.Start under a ParentBased sampler records the span regardless of the configured
 // sample ratio. It force-samples a server-created ROOT span that has no client-supplied traceparent to
-// honour — e.g. the WebSocket query root, whose browser client cannot stamp a per-frame traceparent —
-// for the endpoint-E2E telemetry proof. The ids are crypto-random so the forced trace never
+// honour — e.g. a WebSocket message handler, whose browser client cannot stamp a per-frame
+// traceparent — such as an end-to-end telemetry check. The ids are crypto-random so the forced trace never
 // collides with a real one; on the (practically impossible) rand failure it returns ctx unchanged,
 // degrading to the configured ratio rather than erroring on a request path.
 func ContextWithForcedSample(ctx context.Context) context.Context {

@@ -20,7 +20,8 @@ import pytest
 from botocore.exceptions import ClientError
 
 from techai_webutils.clients.llm.decorators import FallbackLlmProvider
-from techai_webutils.core.errors import UnavailableError
+from techai_webutils.core.errors import AppError, UnavailableError
+from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 from techai_webutils.core.interfaces.llm import LLMMessage, LLMResponse
 
 
@@ -96,6 +97,47 @@ async def test_non_retryable_error_reraises_without_fallback() -> None:
     """A non-transient error (validation 400) is re-raised and the fallback is never invoked."""
     provider = _providers(_client_error("ValidationException", 400), _response("haiku"))
     with pytest.raises(ClientError):
+        await provider.complete(_MESSAGES)
+    provider._fallback.complete.assert_not_awaited()  # noqa: SLF001 - assert the fallback was skipped
+
+
+def _coded_provider_error(code: str, status: int) -> AppError:
+    """The coded AppError a real provider raises for a botocore failure (``raise ... from exc``)."""
+    client_error = _client_error(code, status)
+    try:
+        raise botocore_error_to_app_error(client_error, "bedrock converse") from client_error
+    except AppError as err:
+        return err
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("code", "status", "falls_back"),
+    [
+        ("ThrottlingException", 429, True),
+        ("InternalServerException", 500, True),
+        ("AccessDeniedException", 403, False),
+    ],
+)
+async def test_coded_provider_error_is_classified_through_its_cause(
+    code: str, status: int, *, falls_back: bool
+) -> None:
+    """A provider's coded AppError is classified by the botocore error it wraps.
+
+    Why this test is important:
+      - The Bedrock provider translates botocore failures into a coded ``AppError`` at its boundary,
+        so the throttle/5xx a real primary raises never carries ``.response`` itself; a classifier
+        that only looks at the raised exception never falls back in production.
+
+    What it tests:
+      - A throttle or 5xx wrapped as the provider wraps it routes the request to the fallback model;
+        a wrapped non-transient error (access denied) re-raises without invoking the fallback.
+    """
+    provider = _providers(_coded_provider_error(code, status), _response("haiku"))
+    if falls_back:
+        assert (await provider.complete(_MESSAGES)).model == "haiku"
+        return
+    with pytest.raises(AppError):
         await provider.complete(_MESSAGES)
     provider._fallback.complete.assert_not_awaited()  # noqa: SLF001 - assert the fallback was skipped
 

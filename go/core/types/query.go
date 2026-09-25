@@ -71,18 +71,18 @@ type JoinTarget struct {
 // AggregateSpec describes a correlated-aggregate ORDER BY over a CHILD table: the base row
 // sorts by `(SELECT <Func>(<Column|*>) FROM Table WHERE Table.TargetKey = <base>.LocalKey [AND
 // Table.deleted_at IS NULL])`. It backs sorting a computed count/extremum that is NOT a base column —
-// a connector's Documents count (COUNT over documents), a team grant's Members count (COUNT over
-// team_members). Func is "count" (Column ignored, COUNT(*)), "max", or "min". TargetSoftDeletes adds
+// e.g. a parent's child count (COUNT over its child rows) or a group's member count (COUNT over a
+// membership table). Func is "count" (Column ignored, COUNT(*)), "max", or "min". TargetSoftDeletes adds
 // the `deleted_at IS NULL` guard so the aggregate counts only live children (matching the enrichment
 // the list displays). Like a join it never joins the base query, so scope/keyset stay intact; an
 // aggregate sort always rides the offset pager (a custom sort).
 type AggregateSpec struct {
-	// Table is the physical child table aggregated over, e.g. "documents".
+	// Table is the physical child table aggregated over, e.g. "items".
 	Table string
-	// LocalKey is the base-row column the child rows correlate to, e.g. "id" or "team_id" (a grant row
-	// whose members live in another table under that id).
+	// LocalKey is the base-row column the child rows correlate to, e.g. "id" or "group_id" (a row
+	// whose children live in another table under that id).
 	LocalKey string
-	// TargetKey is the FK column on Table referencing LocalKey, e.g. "connector_id" / "team_id".
+	// TargetKey is the FK column on Table referencing LocalKey, e.g. "parent_id" / "group_id".
 	TargetKey string
 	// Func is the aggregate function: "count" (COUNT(*), Column ignored), "max", or "min".
 	Func string
@@ -103,7 +103,7 @@ type IntervalCase struct {
 
 // IntervalSpec describes a computed timestamp-plus-interval ORDER BY: the base row sorts by
 // `BaseColumn + CASE DiscriminatorColumn WHEN v0 THEN interval0 … ELSE NULL END`, so a value derived
-// at read time from (timestamp, category) — a connector's Next Sync = last_sync_at + the schedule's
+// at read time from (timestamp, category) — e.g. a next-run time = last_run_at + the schedule's
 // interval — is sortable WITHOUT denormalizing it (the value is a pure function of two columns, so a
 // computed expression can never drift, unlike a stored copy). A row whose discriminator matches no
 // case, or whose BaseColumn is NULL, sorts as NULL. Always a custom sort → the offset pager.
@@ -169,8 +169,8 @@ type OrderField struct {
 	// the resource's join resolver.
 	Join *JoinTarget
 	// Derived, when non-nil, sorts by a COMPUTED / CORRELATED expression that is not a base column
-	// a correlated aggregate over a child table (a Documents/Members count) or a
-	// timestamp-plus-interval (a connector's Next Sync). Like Join it is stamped by KeysetColumns from
+	// a correlated aggregate over a child table (a child or member count) or a
+	// timestamp-plus-interval (a next-run time). Like Join it is stamped by KeysetColumns from
 	// the resource's derived-sort resolver and rendered by the backend (OrderDerived); always a custom
 	// sort → the offset pager (keyset stays same-table default order).
 	Derived *DerivedSort
@@ -221,10 +221,10 @@ type PageToken struct {
 // The seek predicate pairs these with the resource's ordered keyset columns
 // (the caller's sort fields, then the resource tiebreaker column, then id).
 //
-// A cursor is bound to the ACCESS SCOPE it was minted in (the workspace/clearance/org the
+// A cursor is bound to the ACCESS SCOPE it was minted in (the tenant and access restrictions the
 // store's base query applies). The Fingerprint binds only (sort ⊕ filter), NOT that scope —
 // the scope lives in the store's base query, outside the user filter — so a cursor replayed
-// against a different scope (or after the caller's clearance changed) is not rejected; it just
+// against a different scope (or after the caller's access changed) is not rejected; it just
 // seeks from a boundary row that may not belong to the new scope, which can dup/skip rows within
 // that scope (never a cross-scope leak: the base query still constrains the results). Callers MUST
 // mint a fresh cursor when the access scope changes rather than carrying one across scopes.

@@ -4,7 +4,12 @@ This module provides mixin classes that can be composed to build service-specifi
 Settings classes. Each mixin provides fields for a specific component (database,
 redis, server, etc.) and reads them from environment variables — unprefixed by default; a
 consumer's settings class sets its own ``model_config`` ``env_prefix`` (e.g. ``"MYAPP_"``) and
-passes the same prefix to ``initialize_config(env_prefix=...)``.
+passes the same prefix to ``initialize_config(env_prefix=...)`` (with or without the trailing
+underscore; the bridge exports ``MYAPP_*`` either way).
+
+Unprefixed names are shared with the whole process environment: a Kubernetes service link such as
+``REDIS_PORT=tcp://10.0.0.1:6379`` (injected for a Service named ``redis``) is read as
+``redis_port`` and fails validation at startup. Set a consumer-specific prefix in deployments.
 
 Why mixins:
   - Composable: Services can mix-and-match only the components they need
@@ -34,7 +39,8 @@ class BaseAppSettings(BaseSettings):
     must inherit from this base class to avoid MRO conflicts when composed.
 
     Configuration:
-      - env_prefix: "" — unprefixed; a consumer's settings class sets its own prefix
+      - env_prefix: "" — unprefixed; a consumer's settings class sets its own prefix (recommended:
+        bare names such as ``REDIS_PORT`` collide with ambient variables, e.g. Kubernetes service links)
       - frozen: True — settings instances are immutable after creation
       - extra: "ignore" — unknown env vars are ignored (no validation errors)
     """

@@ -126,8 +126,8 @@ type StorageClient interface {
 
 	// EnsureBucket creates the named bucket if it does not already exist,
 	// idempotently (a concurrently-created bucket is treated as success). It exists
-	// so local/dev provisioning — e.g. a seeding tool — can guarantee the
-	// document-upload path has a bucket before the first presigned PUT.
+	// so local/dev provisioning — e.g. a seeding tool — can guarantee an upload
+	// path has its bucket before the first presigned PUT.
 	EnsureBucket(ctx context.Context, bucket string) error
 }
 

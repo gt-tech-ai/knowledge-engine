@@ -3,7 +3,7 @@
 Provides BaseRepository (wrapping Store), CursorCodec for pagination,
 RepositoryBuilder for decorator composition, and error mapping.
 
-Repos implements the fourth layer in the nine-layer architecture model:
+Repos implements the fourth tier (ARCHITECTURE.md#layers-and-import-direction):
 core -> foundation -> clients -> repos -> services -> pipelines -> workflows -> controllers
 """
 

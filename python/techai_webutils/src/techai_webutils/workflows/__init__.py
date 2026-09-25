@@ -4,8 +4,8 @@ Workflows coordinate stateful operations across services, pipelines, repositorie
 and caches. Unlike pipelines (pure transformations), workflows orchestrate complex
 business processes with conditional logic, error recovery, and cross-cutting concerns.
 
-Workflows implements the seventh layer in the nine-layer architecture model:
-core → foundation → clients → repos → services → pipelines → workflows → controllers → entrypoints
+Workflows implements the seventh tier (ARCHITECTURE.md#layers-and-import-direction):
+core -> foundation -> clients -> repos -> services -> pipelines -> workflows -> controllers
 """
 
 from techai_webutils.workflows.base import BaseAsyncWorkflow, BaseWorkflow

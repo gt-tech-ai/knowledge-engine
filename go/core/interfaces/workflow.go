@@ -9,7 +9,7 @@ import "context"
 // Unlike pipelines (stateless transforms), workflows orchestrate stateful business processes
 // with conditional logic, error recovery, and cross-cutting concerns.
 //
-// Examples: Search workflow (check cache → run pipeline → cache result), ingestion workflow
+// Examples: a lookup workflow (check cache → run pipeline → cache result), ingestion workflow
 // (parse → validate → transform → index), order fulfillment (verify → charge → ship → notify).
 type Workflow[In any, Out any] interface {
 	// Execute orchestrates a multi-step business process.

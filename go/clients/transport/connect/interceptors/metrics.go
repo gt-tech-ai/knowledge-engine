@@ -70,7 +70,7 @@ func (i metricsInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 }
 
 // WrapStreamingClient is a no-op (see the type doc: client-streaming metrics are out of
-// F6's scope).
+// scope).
 func (i metricsInterceptor) WrapStreamingClient(
 	next connect.StreamingClientFunc,
 ) connect.StreamingClientFunc {

@@ -1,14 +1,14 @@
 """Server-side re-validating retrieval decorator (defense-in-depth).
 
 Wraps any ``RetrievalEngine`` and drops passages that fail any of the consumer's ``PassagePolicy``
-rules — regardless of the backend's own filtering — so a mislabeled or out-of-scope passage cannot
-leak. Built-in rules:
+rules (the contract lives in ``core.interfaces.retrieval``) — regardless of the backend's own
+filtering — so a mislabeled or out-of-scope passage cannot leak. Built-in rules:
 
 - ``MinScore``: a relevance floor.
-- ``MetadataEquals``: a passage metadata key must equal a request filter (e.g. a tenant or workspace
-  scope); a request without the filter admits nothing (fail closed).
+- ``MetadataEquals``: a passage metadata key must equal a request filter (e.g. a tenant scope); a
+  request without the filter, or with an empty value, admits nothing (fail closed).
 - ``OrdinalCeiling``: a passage label must rank at or below the caller's level on a consumer-supplied
-  ladder (e.g. document classification vs caller clearance); unknown labels fail closed.
+  ladder (e.g. a passage's sensitivity label vs the caller's access level); unknown labels fail closed.
 
 The decorator has no default rules: which scope a passage must match is the consumer's decision,
 made explicitly.
@@ -16,10 +16,11 @@ made explicitly.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
-from techai_webutils.core.interfaces.retrieval import RetrievalEngine
+from techai_webutils.core.interfaces.retrieval import PassagePolicy, RetrievalEngine
 from techai_webutils.foundation.lifecycle import DelegatingAsyncResource
 from techai_webutils.foundation.logger import get_logger
 
@@ -28,15 +29,9 @@ if TYPE_CHECKING:
 
     from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
+__all__ = ["FilteringRetrievalEngine", "MetadataEquals", "MinScore", "OrdinalCeiling", "PassagePolicy"]
+
 logger = get_logger(__name__)
-
-
-class PassagePolicy(Protocol):
-    """A rule every retrieved passage must pass to reach the caller."""
-
-    def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
-        """Return True iff ``passage`` may be returned for ``request`` (the call's filters)."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +50,8 @@ class MinScore:
 class MetadataEquals:
     """Admits passages whose metadata ``key`` equals the request's ``request_key`` (default: ``key``).
 
-    A request without the key admits nothing (fail closed), so a missing scope never widens results.
+    A request without the key, or with an empty value, admits nothing (fail closed), so a missing or
+    blank scope never widens results — not even to passages stamped with an empty value.
     """
 
     key: str
@@ -66,16 +62,17 @@ class MetadataEquals:
     def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
         """Return True iff the passage's metadata value equals the request's."""
         wanted = request.get(self.request_key or self.key)
-        return wanted is not None and passage.metadata.get(self.key) == wanted
+        return bool(wanted) and passage.metadata.get(self.key) == wanted
 
 
 @dataclass(frozen=True, slots=True)
 class OrdinalCeiling:
     """Admits passages whose ``key`` label ranks at or below the caller's ``request_key`` label.
 
-    ``ranks`` orders the labels from least to most sensitive. Both directions fail closed: an unknown
-    or missing passage label ranks above every level (denied to everyone), and an unknown or missing
-    caller level ranks as the lowest.
+    ``ranks`` orders the labels from least to most sensitive and must not be empty (an empty ladder
+    would rank every label and level alike, admitting everything). Both directions fail closed: an
+    unknown or missing passage label ranks above every level (denied to everyone), and an unknown or
+    missing caller level ranks as the lowest.
     """
 
     key: str
@@ -88,7 +85,10 @@ class OrdinalCeiling:
     """Label → rank, built once from ``ranks``."""
 
     def __post_init__(self) -> None:
-        """Index ``ranks`` once so ``admits`` is a dict lookup per passage."""
+        """Reject an empty ladder, then index ``ranks`` once so ``admits`` is a dict lookup per passage."""
+        if not self.ranks:
+            msg = "OrdinalCeiling requires at least one label in ranks (an empty ladder admits everything)"
+            raise ValueError(msg)
         object.__setattr__(self, "_order", {label: i for i, label in enumerate(self.ranks)})
 
     def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
@@ -120,14 +120,24 @@ class FilteringRetrievalEngine(DelegatingAsyncResource[RetrievalEngine], Retriev
         """
         results = await self._inner.retrieve(query, top_k=top_k, filters=filters, index_id=index_id)
         request = dict(filters or {})
-        kept = [r for r in results if all(p.admits(r, request) for p in self._policies)]
-        # Observability: a 0-result response is otherwise indistinguishable from an error. Logging the
-        # retrieved-vs-kept counts makes "nothing retrieved" vs "all filtered out" diagnosable.
+        kept: list[RetrievalResult] = []
+        dropped_by: Counter[str] = Counter()
+        for result in results:
+            rejecting = next((p for p in self._policies if not p.admits(result, request)), None)
+            if rejecting is None:
+                kept.append(result)
+            else:
+                dropped_by[type(rejecting).__name__] += 1
+        # Observability: a 0-result response is otherwise indistinguishable from an error. The
+        # retrieved-vs-kept counts separate "nothing retrieved" from "all filtered out", and dropped_by
+        # (each drop attributed to the first policy that rejected it) tells a score floor from a scope
+        # mismatch or a missing label.
         logger.info(
             "retrieval passages filtered",
             index_id=index_id,
             retrieved=len(results),
             kept=len(kept),
             dropped=len(results) - len(kept),
+            dropped_by=dict(dropped_by),
         )
         return kept

@@ -23,9 +23,9 @@ import (
 //   - Get on a mapped Ref returns a Secret revealing the mapped variable's value.
 func TestEnvSource_ResolvesMappedVariable(t *testing.T) {
 	ref := types.Ref{Env: "dev", Class: "bootstrap", Field: "client_secret"}
-	t.Setenv("VV_DEV_BOOTSTRAP_CLIENT_SECRET", "s3cr3t")
+	t.Setenv("KE_DEV_BOOTSTRAP_CLIENT_SECRET", "s3cr3t")
 
-	src := env.New(map[types.Ref]string{ref: "VV_DEV_BOOTSTRAP_CLIENT_SECRET"})
+	src := env.New(map[types.Ref]string{ref: "KE_DEV_BOOTSTRAP_CLIENT_SECRET"})
 
 	got, err := src.Get(context.Background(), ref)
 	require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestEnvSource_ResolvesMappedVariable(t *testing.T) {
 //
 // Why this test is important:
 //   - A missing credential must be distinguishable from an empty one, so a caller never
-//     injects "" believing it read a real value (the RCA's split-identity failure mode).
+//     injects "" believing it read a real value.
 //
 // What it tests:
 //   - Get on an unmapped Ref, and on a Ref mapped to an unset variable, both return
@@ -49,7 +49,7 @@ func TestEnvSource_MissingAndUnmappedAreNotFound(t *testing.T) {
 	_, err := unmapped.Get(context.Background(), ref)
 	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unmapped ref must be not-found")
 
-	unset := env.New(map[types.Ref]string{ref: "VV_DEFINITELY_UNSET_VAR_XYZ_9137"})
+	unset := env.New(map[types.Ref]string{ref: "KE_DEFINITELY_UNSET_VAR_XYZ_9137"})
 	_, err = unset.Get(context.Background(), ref)
 	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unset variable must be not-found")
 }
@@ -64,7 +64,7 @@ func TestEnvSource_MissingAndUnmappedAreNotFound(t *testing.T) {
 //   - Put returns CodeInvalidInput (unsupported) rather than succeeding silently.
 func TestEnvSource_PutIsUnsupported(t *testing.T) {
 	ref := types.Ref{Env: "dev", Class: "bootstrap", Field: "client_secret"}
-	src := env.New(map[types.Ref]string{ref: "VV_X"})
+	src := env.New(map[types.Ref]string{ref: "KE_X"})
 
 	err := src.Put(context.Background(), ref, types.NewSecret("v"))
 	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))

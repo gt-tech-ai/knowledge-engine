@@ -25,11 +25,11 @@ import (
 //   - NewFromConfig(KindEnv) returns a Source whose Get resolves the mapped variable.
 func TestNewFromConfig_EnvKindResolves(t *testing.T) {
 	ref := types.Ref{Env: "dev", Class: "bootstrap", Field: "client_secret"}
-	t.Setenv("VV_FACTORY_ENV_TEST", "from-env")
+	t.Setenv("KE_FACTORY_ENV_TEST", "from-env")
 
 	src, err := secrets.NewFromConfig(context.Background(), secrets.Config{
 		Kind:    secrets.KindEnv,
-		EnvVars: map[types.Ref]string{ref: "VV_FACTORY_ENV_TEST"},
+		EnvVars: map[types.Ref]string{ref: "KE_FACTORY_ENV_TEST"},
 	})
 	require.NoError(t, err)
 

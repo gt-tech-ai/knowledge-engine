@@ -118,8 +118,8 @@ class BedrockKnowledgeBaseIngestor(KnowledgeBaseIngestor):
 
         A botocore ``ConflictException`` — Bedrock rejecting a second start while a job is already
         STARTING/IN_PROGRESS/STOPPING for this data source (Bedrock serializes ingestion) — is mapped to
-        ``core/errors.ConflictError`` so the reconciler handles it as "a job is already running" (skip
-        this tick / reattach) rather than a raw SDK error that escapes as an ERROR-level log loop.
+        ``core/errors.ConflictError`` so the caller handles it as "a job is already running" (skip this
+        round / reattach) rather than a raw SDK error that escapes as an ERROR-level log loop.
         Other ``ClientError``s propagate unchanged to the retry/breaker stack.
         """
         client = await self._agent_client()
@@ -154,7 +154,7 @@ class BedrockKnowledgeBaseIngestor(KnowledgeBaseIngestor):
     async def stop_ingestion_job(
         self, *, knowledge_base_id: str, data_source_id: str, job_id: str
     ) -> IngestionJob:
-        """Request a stop of a Bedrock ingestion job (the watchdog's recovery for a stuck job).
+        """Request a stop of a Bedrock ingestion job (the recovery for a stuck job).
 
         A ``ConflictException`` — the job already reached a terminal state before the stop landed — is
         mapped to ``core/errors.ConflictError`` (consistent with ``start``) so the caller treats it as

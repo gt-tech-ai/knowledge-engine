@@ -16,7 +16,7 @@ class TestAsyncioExecutor:
         """Test that AsyncioExecutor.run fans every item out and returns a BatchResult.
 
         **Why this test is important:**
-          - The Executor is the seam the orchestrator + bulk job call; if run() dropped items or
+          - The Executor is the seam every batch caller uses; if run() dropped items or
             returned the wrong type, callers would silently under-process.
 
         **What it tests:**

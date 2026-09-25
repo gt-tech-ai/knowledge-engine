@@ -2,9 +2,9 @@
 // Decorators add cross-cutting concerns (logging, metrics) around any
 // interfaces.Workflow implementation without modifying it. The decorator
 // implementations live once in go/foundation/decorator; this package keeps
-// only the workflow-tier fluent builder — its wrap order (ARCHITECTURE.md#decorator-order),
-// its "workflow"
-// labels, and its recovery contract.
+// only the workflow-tier fluent builder — its wrap order
+// (ARCHITECTURE.md#decorator-order), its "workflow" labels, and its recovery
+// contract.
 package decorators
 
 import (

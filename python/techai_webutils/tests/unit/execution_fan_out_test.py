@@ -46,7 +46,7 @@ class TestFanOut:
         """Test a batch far larger than the concurrency limit stays bounded and returns ordered results.
 
         **Why this test is important:**
-          - The bulk lane fans tens of thousands of objects through one fan_out; the fixed worker pool
+          - A large batch can fan tens of thousands of objects through one fan_out; the fixed worker pool
             must keep at most `concurrency` mappers in flight for a huge batch (bounding
             driver memory to O(concurrency), not O(batch)) WITHOUT reordering the per-item results.
 

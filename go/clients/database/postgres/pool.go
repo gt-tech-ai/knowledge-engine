@@ -2,7 +2,7 @@
 // lifecycle-managed *sql.DB pool (Client) plus ORM-independent pool utilities — a
 // boot-time reachability probe (Ping) and a Prometheus pool-stats collector. It
 // depends only on database/sql and core, so it wires into any composition root
-// without pulling in Ent.
+// without pulling in an ORM.
 package postgres
 
 import (
@@ -44,14 +44,16 @@ func Check(db *sql.DB) func() error {
 
 // Ping verifies the pool can reach the database, so a bad DSN or a down server
 // surfaces as a clear boot-time error at the composition root instead of as the
-// first request's failure. Call it right after building the pool.
+// first request's failure. Call it right after building the pool. A failure is
+// coded CodeUnavailable: an unreachable database is transient, so callers that
+// classify by code (IsTransient, the retry policy) may retry it.
 func Ping(ctx context.Context, db *sql.DB) error {
 	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
 	if err := db.PingContext(pingCtx); err != nil {
 		return coreerr.Wrap(
 			err,
-			coreerr.CodeInternal,
+			coreerr.CodeUnavailable,
 			"database ping failed (check DSN and connectivity)",
 		)
 	}

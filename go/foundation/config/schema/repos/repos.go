@@ -1,8 +1,7 @@
-// Package repos is the config surface for the repository (data-access) layer
-// the cache TTL/version/key-prefix and the per-operation
-// timeout that were const in the repo decorator wiring. The retry/breaker tuning
-// the repo resilience stack uses is sourced from the schema/resilience surface
-// not duplicated here. Defaults equal today's consts. Pure data.
+// Package repos is the config surface for the repository (data-access) layer: the
+// cache TTL/version/key-prefix and the per-operation timeout of the repository
+// decorators. The retry/breaker tuning the repository resilience stack uses comes
+// from the schema/resilience surface and is not duplicated here. Pure data.
 package repos
 
 import (
@@ -13,13 +12,13 @@ import (
 
 // CachingConfig tunes the repository caching decorator.
 type CachingConfig struct {
-	// KeyPrefix namespaces cache keys (empty = no prefix, today's behavior).
+	// KeyPrefix namespaces cache keys (empty = no prefix, the default).
 	KeyPrefix string `mapstructure:"key_prefix"`
 
-	// TTL is how long a cached entity remains valid (was 5m).
+	// TTL is how long a cached entity remains valid (default 5m).
 	TTL time.Duration `mapstructure:"ttl"`
 
-	// Version namespaces cache keys so a schema change invalidates them (was 1).
+	// Version namespaces cache keys so a schema change invalidates them (default 1).
 	Version int `mapstructure:"version"`
 }
 
@@ -53,12 +52,12 @@ type Config struct {
 	// Caching tunes the repository cache decorator.
 	Caching CachingConfig `mapstructure:"caching"`
 
-	// Timeout bounds a single decorated repository operation (was 5s).
+	// Timeout bounds a single decorated repository operation (default 5s).
 	Timeout time.Duration `mapstructure:"timeout"`
 }
 
-// DefaultConfig returns defaults identical to today's repo consts (cacheTTL 5m,
-// cacheVersion 1, timeoutDuration 5s), so adoption is behavior-preserving.
+// DefaultConfig returns the repository defaults: a 5m cache TTL, cache version 1
+// and a 5s operation timeout.
 func DefaultConfig() Config {
 	return Config{
 		Caching: CachingConfig{

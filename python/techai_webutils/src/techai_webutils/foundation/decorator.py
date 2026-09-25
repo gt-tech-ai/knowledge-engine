@@ -12,7 +12,7 @@ here once instead of once per tier.
 
 The base classes are duck-typed on `execute` and do not inherit the tier's
 Pipeline/Workflow ABC; the tier subclass supplies that, so `isinstance` and
-static typing still see a Pipeline (or Workflow)..
+static typing still see a Pipeline (or Workflow).
 """
 
 from __future__ import annotations

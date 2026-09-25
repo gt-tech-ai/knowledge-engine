@@ -106,8 +106,8 @@ func recvChan[T any](t *testing.T, ch <-chan T, what string) T {
 // deliver to a subscribed channel and that PublishCount reports the subscriber count.
 //
 // Why this test is important:
-//   - PUBLISH is the broadcast primitive the WS cross-machine fan-out relies on, and its
-//     subscriber count is the signal the backplane uses to decide cluster-wide delivery.
+//   - PUBLISH is the broadcast primitive cross-replica fan-out relies on, and its
+//     subscriber count is the signal a caller uses to decide cluster-wide delivery.
 //
 // What it tests:
 //   - Publish delivers one message; PublishBatch delivers each payload; PublishCount
@@ -176,8 +176,9 @@ func (s *RedisMessagingSuite) TestPublisher_Error_Unavailable() {
 // one multiplexed subscription.
 //
 // Why this test is important:
-//   - The WS backplane registers/unregisters per-user channels on connect/disconnect
-//     over a single shared subscription; a leaked or missing channel misroutes broadcasts.
+//   - A fan-out caller registers/unregisters per-recipient channels as clients come and
+//     go over a single shared subscription; a leaked or missing channel misroutes
+//     broadcasts.
 //
 // What it tests:
 //   - After Subscribe("A") messages on A arrive; after Unsubscribe("A") + Subscribe("B"),

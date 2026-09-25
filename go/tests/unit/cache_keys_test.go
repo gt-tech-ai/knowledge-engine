@@ -13,40 +13,40 @@ import (
 // same scope, order-insensitive (a set), and rotates when any scope value changes.
 //
 // Why this test is important:
-//   - access_fp confines a cached suggestion/count to the exact access boundary it was computed
-//     under. If two materially-different scopes hashed to the SAME fingerprint, one caller could be
-//     served another's access-scoped result — a cross-tenant/clearance leak. If a changed scope did
+//   - access_fp confines a cached result to the exact access boundary it was computed under. If
+//     two materially-different scopes hashed to the SAME fingerprint, one caller could be served
+//     another's access-scoped result — a cross-tenant or cross-access-level leak. If a changed scope did
 //     NOT rotate the fingerprint, a grant/revoke would keep serving now-wrong cached entries. This
 //     is the property that makes authz-change invalidation "by key rotation."
 //
 // What it tests:
 //   - same scope → same fp; the same members in a different order → same fp (set semantics); a
-//     changed clearance and a smaller access set each → a different fp.
+//     changed access level and a smaller access set each → a different fp.
 func TestAccessFingerprint_RotatesOnScopeChange(t *testing.T) {
 	t.Parallel()
-	base := cache.AccessFingerprint("ws-1", "ws-2", "restricted")
+	base := cache.AccessFingerprint("scope-a", "scope-b", "restricted")
 	assert.Equal(
 		t,
 		base,
-		cache.AccessFingerprint("ws-1", "ws-2", "restricted"),
+		cache.AccessFingerprint("scope-a", "scope-b", "restricted"),
 		"stable for the same scope",
 	)
 	assert.Equal(
 		t,
 		base,
-		cache.AccessFingerprint("ws-2", "ws-1", "restricted"),
+		cache.AccessFingerprint("scope-b", "scope-a", "restricted"),
 		"order-insensitive (a set)",
 	)
 	assert.NotEqual(
 		t,
 		base,
-		cache.AccessFingerprint("ws-1", "ws-2", "public"),
-		"a changed clearance rotates the fp",
+		cache.AccessFingerprint("scope-a", "scope-b", "public"),
+		"a changed access level rotates the fp",
 	)
 	assert.NotEqual(
 		t,
 		base,
-		cache.AccessFingerprint("ws-1", "restricted"),
+		cache.AccessFingerprint("scope-a", "restricted"),
 		"a smaller access set rotates the fp",
 	)
 	assert.NotEmpty(t, base)
@@ -64,8 +64,7 @@ func TestAccessFingerprint_RotatesOnScopeChange(t *testing.T) {
 // What it tests:
 //   - same filter → same hash; a different filter value → a different hash; a nil (match-all) filter
 //     hashes to a stable non-empty value. (Reordered-but-equivalent composite filters DO hash
-//
-// differently — an order-preserving encoding, — a hit-rate cost, not a correctness bug.)
+//     differently — the encoding is order-preserving — a hit-rate cost, not a correctness bug.)
 func TestFilterHash_StableAndDiscriminating(t *testing.T) {
 	t.Parallel()
 	f1 := types.FilterClause{Field: "status", Operator: types.OpEq, Value: "indexed"}
@@ -150,7 +149,7 @@ func TestCountKey_GenerationRotationChangesKey(t *testing.T) {
 //     produces a distinct key rather than colliding.
 func TestSuggestKey_DiscriminatesFieldAccessPrefix(t *testing.T) {
 	t.Parallel()
-	fp := cache.AccessFingerprint("ws-1", "restricted")
+	fp := cache.AccessFingerprint("scope-a", "restricted")
 	base := cache.SuggestKey("tenant-1", "document", "status", fp, "ind", 10)
 	assert.Equal(
 		t,
@@ -174,7 +173,7 @@ func TestSuggestKey_DiscriminatesFieldAccessPrefix(t *testing.T) {
 		"document",
 		"status",
 		cache.AccessFingerprint(
-			"ws-2",
+			"scope-b",
 			"restricted",
 		),
 		"ind",

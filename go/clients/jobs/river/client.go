@@ -9,25 +9,17 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.JobEnqueuer = (*Client)(nil)
 
-// Client is a minimal River job client interface.
-// Full implementation requires pgxpool.Pool which is not available in Phase 1.
-type Client struct {
-	// pool *pgxpool.Pool // Deferred to Phase 3 when PostgreSQL is configured
-}
+// Client is a no-op JobEnqueuer: it opens no pool and queues nothing. Use
+// InsertClient to enqueue durably through River.
+type Client struct{}
 
-// NewClient creates a new River job client.
-// Phase 1: Returns stub client. Phase 3: Accept pgxpool.Pool parameter.
+// NewClient creates the no-op job client; cfg is not read.
 func NewClient(cfg Config) (*Client, error) {
-	// Phase 1: Stub implementation
-	// Phase 3: Initialize River client with PostgreSQL pool
 	return &Client{}, nil
 }
 
-// Enqueue enqueues a job for processing.
-// Phase 1: No-op stub. Phase 3: Use River to enqueue job.
+// Enqueue accepts job without queueing it and returns nil.
 func (c *Client) Enqueue(ctx context.Context, job interfaces.Job) error {
-	// Phase 1: Stub — no actual queueing
-	// Phase 3: c.river.Insert(ctx, job, nil)
 	return nil
 }
 

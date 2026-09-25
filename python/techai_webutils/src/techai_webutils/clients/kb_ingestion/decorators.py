@@ -1,6 +1,6 @@
 """KnowledgeBaseIngestor decorators: poll-to-terminal + retry-with-backoff.
 
-The batcher's poll half, decomposed into a decorator (the lock half is
+The poll half of a start → poll ingestion run, as a decorator (the single-writer half is
 ``clients/lock.SingleWriterRunner``). Both wrap a ``KnowledgeBaseIngestor`` and are themselves
 ``KnowledgeBaseIngestor``s, so they compose with the client-proxy stack
 (``LoggingProxy``/``TracingProxy``/``CircuitBreakerProxy``) at the composition root:
@@ -10,8 +10,9 @@ The batcher's poll half, decomposed into a decorator (the lock half is
         → PollingIngestor(...)         # start (fresh) + poll_ingestion_job → poll to terminal/deadline
 
 ``PollingIngestor.start_ingestion_job`` returns the FRESH job and ``poll_ingestion_job`` polls a given
-``job_id`` to terminal; the KB-sync reconciler persists ``running``+``job_id`` between the two (the
-reattach ordering F3 needs), all guarded by the ``SingleWriterRunner`` single-writer lock.
+``job_id`` to terminal; a caller can persist ``running``+``job_id`` between the two (so a restarted
+caller reattaches to the job instead of starting a conflicting one), all guarded by the
+``SingleWriterRunner`` single-writer lock.
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
 
     ``start_ingestion_job`` returns the fresh (non-terminal) job; ``poll_ingestion_job`` polls a given
     ``job_id`` via ``get_ingestion_job`` until it is terminal or the max-poll deadline is exceeded (a
-    timeout yields a ``FAILED`` ``poll_timeout`` job). Splitting start from poll lets the KB-sync
-    reconciler persist ``running``+``job_id`` before the poll and reattach to a recovered job.
+    timeout yields a ``FAILED`` ``poll_timeout`` job). Splitting start from poll lets a caller persist
+    ``running``+``job_id`` before the poll and later reattach to a job it recorded.
     ``clock`` and ``sleep`` are injectable for deterministic tests.
     """
 
@@ -71,10 +72,10 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
     async def start_ingestion_job(self, *, knowledge_base_id: str, data_source_id: str) -> IngestionJob:
         """Start a job and return the FRESH (non-terminal) handle — the poll is a separate step.
 
-        Delegates to the wrapped ingestor's ``start`` and returns immediately, so the caller (the KB-sync
-        reconciler) can persist ``running``+``job_id`` BEFORE the up-to-30-min poll — the ordering the
-        reattach fix depends on. Converge the job with ``poll_ingestion_job``; the
-        ``SingleWriterRunner`` holds the single-writer lock across the reconciler's whole start→poll thunk.
+        Delegates to the wrapped ingestor's ``start`` and returns immediately, so the caller can persist
+        ``running``+``job_id`` BEFORE the up-to-30-min poll — the ordering reattaching depends on. Converge
+        the job with ``poll_ingestion_job``; run the whole start→poll thunk under ``SingleWriterRunner``
+        so the single-writer lock is held across both.
         """
         return await self._inner.start_ingestion_job(
             knowledge_base_id=knowledge_base_id,
@@ -92,8 +93,8 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
 
         Fetches the job's current state via the wrapped ingestor, then polls to a terminal state (or a
         ``FAILED``/``poll_timeout`` job when the max-poll deadline is hit) — the same loop ``start`` used
-        to run, now callable for a job the reconciler just started OR one recovered from the persisted
-        job-state, so a second ``StartIngestionJob`` (which Bedrock rejects with ConflictException) is
+        to run, now callable for a job the caller just started OR one whose ``job_id`` it recorded
+        earlier, so a second ``StartIngestionJob`` (which Bedrock rejects with ConflictException) is
         never issued.
         """
         job = await self._inner.get_ingestion_job(
@@ -246,11 +247,12 @@ class RetryingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Knowledge
         data_source_id: str,
         job_id: str,
     ) -> IngestionJob:
-        """Delegate a stop request WITHOUT the retry wrapper — the watchdog owns the stop backoff.
+        """Delegate a stop request WITHOUT the retry wrapper — the caller owns the stop backoff.
 
         Unlike ``start``/``get``/``list`` (which wrap ``self._retry``), stop is a plain pass-through so a
-        transient stop failure surfaces to the KB-sync watchdog, whose own bounded exponential backoff is
-        the single source of stop-retry — nesting the two would compose multiplicatively.
+        transient stop failure surfaces to the caller (typically a supervisor that stops stuck jobs),
+        whose own bounded backoff is the single source of stop-retry — nesting the two would compose
+        multiplicatively.
         """
         return await self._inner.stop_ingestion_job(
             knowledge_base_id=knowledge_base_id,

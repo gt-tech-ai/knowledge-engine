@@ -18,9 +18,8 @@ import (
 // and produces correct output through the Workflow interface.
 //
 // Why this test is important:
-//   - BaseWorkflow is the foundation for all multi-step business orchestration
-//     (query execution, document ingestion); incorrect wrapping would silently
-//     skip processing steps
+//   - BaseWorkflow is the foundation for all multi-step orchestration a
+//     consumer builds; incorrect wrapping would silently skip processing steps
 //   - Validates the core Workflow interface contract that all workflow
 //     decorators depend on
 //
@@ -48,8 +47,8 @@ func TestBaseWorkflow(t *testing.T) {
 // orchestration function propagate unchanged to the caller.
 //
 // Why this test is important:
-//   - Workflow errors drive retry and dead-letter-queue logic in the ingestion
-//     worker; swallowed errors would leave documents stuck in "processing"
+//   - Workflow errors drive a worker's retry and dead-letter-queue logic;
+//     swallowed errors would leave work stuck in "processing"
 //   - Ensures error context is preserved for operator debugging and alerting
 //
 // What it tests:
@@ -77,7 +76,7 @@ func TestBaseWorkflow_ErrorPropagation(t *testing.T) {
 //
 // Why this test is important:
 //   - The logging decorator wraps every workflow stage; if it mutates results
-//     it would silently corrupt all query orchestration and ingestion outputs
+//     it would silently corrupt every workflow's output
 //
 // What it tests:
 //   - Execute through the logging decorator returns the correct output
@@ -314,8 +313,8 @@ func TestWorkflowsTimeoutDecorator_CancelsSlowOp(t *testing.T) {
 // converts panics into errors instead of crashing the process.
 //
 // Why this test is important:
-//   - A panic in a query workflow must not crash the API service and drop all
-//     in-flight WebSocket connections
+//   - A panic in a workflow must not crash the serving process and drop all
+//     in-flight requests and connections
 //   - The recovery decorator is the last safety net before the error is
 //     returned to the client
 //

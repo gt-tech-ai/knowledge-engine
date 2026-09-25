@@ -8,13 +8,15 @@ package interceptors
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"connectrpc.com/connect"
 )
 
 // HeaderMap names the gateway headers the auth interceptor reads claims from, so a
-// consumer matches whatever its gateway sets. Sub is required; an empty name leaves
-// that claim unset.
+// consumer matches whatever its gateway sets. Sub is required (NewAuthInterceptor and
+// ServerBuilder.WithAuth panic without it); any other empty name leaves that claim
+// unset.
 type HeaderMap struct {
 	// Sub carries the authenticated caller's external subject id; its absence means
 	// the request is unauthenticated.
@@ -72,10 +74,12 @@ func WithAuthClaims(
 	return context.WithValue(ctx, authContextKey{}, claims)
 }
 
-// GetAuthClaims retrieves auth claims from the context.
+// GetAuthClaims retrieves auth claims from the context. It reports false when none
+// are stored or they were cleared with a nil *AuthClaims (as the principal interceptor
+// does once it has resolved them), so ok=true always means non-nil claims.
 func GetAuthClaims(ctx context.Context) (*AuthClaims, bool) {
 	claims, ok := ctx.Value(authContextKey{}).(*AuthClaims)
-	return claims, ok
+	return claims, ok && claims != nil
 }
 
 // newStubDevClaims returns fresh synthetic claims for local dev when no gateway is
@@ -112,8 +116,20 @@ type authInterceptor struct {
 // header is absent, so local development works without a gateway. When stub is false,
 // a request without the Sub header is left unauthenticated; protected handlers must
 // call GetAuthClaims and return CodeUnauthenticated.
+//
+// It panics if headers.Sub is empty: no request could ever be authenticated, and in
+// stub mode every real caller would silently get the synthetic claims.
 func NewAuthInterceptor(stub bool, headers HeaderMap) connect.Interceptor {
+	mustHaveSubHeader(headers)
 	return authInterceptor{headers: headers, stub: stub}
+}
+
+// mustHaveSubHeader panics when headers names no subject header, failing a wiring
+// mistake at startup rather than treating every request as unauthenticated.
+func mustHaveSubHeader(headers HeaderMap) {
+	if headers.Sub == "" {
+		panic("interceptors: HeaderMap.Sub must name the gateway's subject header")
+	}
 }
 
 // WrapUnary extracts identity headers from the unary request.
@@ -147,7 +163,7 @@ func (a authInterceptor) withClaims(ctx context.Context, h http.Header) context.
 	sub := h.Get(a.headers.Sub)
 
 	if sub == "" && a.stub {
-		// Dev shortcut: no gateway, synthesize canonical dev claims.
+		// Dev shortcut: no gateway, synthesize dev claims.
 		return WithAuthClaims(ctx, newStubDevClaims())
 	}
 	if sub == "" {
@@ -167,18 +183,14 @@ func (a authInterceptor) withClaims(ctx context.Context, h http.Header) context.
 	return WithAuthClaims(ctx, claims)
 }
 
-// splitRoles splits a comma-separated roles string into a slice.
-// Empty segments are discarded.
+// splitRoles splits a comma-separated roles string into a slice, trimming the
+// whitespace around each role (gateways often join with ", "). Empty segments are
+// discarded.
 func splitRoles(s string) []string {
 	var roles []string
-	start := 0
-	for i := 0; i <= len(s); i++ {
-		if i == len(s) || s[i] == ',' {
-			role := s[start:i]
-			if role != "" {
-				roles = append(roles, role)
-			}
-			start = i + 1
+	for role := range strings.SplitSeq(s, ",") {
+		if role = strings.TrimSpace(role); role != "" {
+			roles = append(roles, role)
 		}
 	}
 	return roles

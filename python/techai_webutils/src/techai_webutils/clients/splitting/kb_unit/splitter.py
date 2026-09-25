@@ -1,4 +1,4 @@
-"""KB-unit document splitter (phase 2): split one parse into N index units.
+"""KB-unit document splitter: split one parse into N index units.
 
 A large parsed document is split into contiguous chunks each within ``max_bytes`` (the KB
 per-unit ceiling / embedding context budget), so each chunk becomes its own index unit that

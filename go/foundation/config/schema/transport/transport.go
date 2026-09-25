@@ -1,10 +1,8 @@
-// Package transport is the config surface for the edge (transport) layer
-// WebSocket/gRPC/CORS/HTTP tuning, the rate-limiter
-// toggle that finally activates the token limiter, interceptor toggles, and the
-// identity-client timeouts. Defaults preserve today's behavior (the rate limiter
-// stays disabled; CORS stays permissive), so adopting the surface is
-// behavior-preserving. Pure data (mirrors infra/S3Config); the providers convert
-// it into the server/middleware wiring.
+// Package transport is the config surface for the edge (transport) layer:
+// WebSocket, gRPC, CORS and HTTP tuning plus the rate-limiter toggle. Defaults are
+// permissive (the rate limiter is off; CORS allows all origins), so a service opts
+// into each restriction through its overlays. Pure data (mirrors infra/S3Config);
+// the consumer's providers convert it into the server/middleware wiring.
 package transport
 
 import (
@@ -13,8 +11,8 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// WSConfig tunes the WebSocket server. idle/write/ping had no bound today; these
-// add sensible defaults a deployer can tune.
+// WSConfig tunes the WebSocket server, with bounded idle, write and ping defaults a
+// deployer can tune.
 type WSConfig struct {
 	// AllowedOrigins lists the request Origins accepted on the WebSocket handshake
 	// when AllowInsecureOrigins is false. Behind a gateway (staging/prod) the
@@ -68,18 +66,18 @@ type GRPCConfig struct {
 	MaxMessageBytes int64 `mapstructure:"max_message_bytes"`
 }
 
-// CORSConfig tunes cross-origin sharing. Defaults are permissive (allow all) to
-// preserve today's behavior; the prod overlay restricts allow_origins.
+// CORSConfig tunes cross-origin sharing. Defaults are permissive (allow all); a
+// production overlay should restrict allow_origins.
 type CORSConfig struct {
 	// MaxAge is how long (seconds) browsers may cache a preflight result.
 	MaxAge string `mapstructure:"max_age"`
 
-	// AllowOrigins lists permitted origins; ["*"] allows all (today's default).
+	// AllowOrigins lists permitted origins; ["*"] allows all (the default).
 	AllowOrigins []string `mapstructure:"allow_origins"`
 }
 
-// RateLimitConfig toggles + tunes the token rate limiter, which is unwired today.
-// Enabled defaults false so activation is opt-in and behavior-preserving.
+// RateLimitConfig toggles + tunes the token rate limiter. Enabled defaults false,
+// so activation is opt-in.
 type RateLimitConfig struct {
 	// Rate is the sustained requests per second when enabled.
 	Rate float64 `mapstructure:"rate"`
@@ -87,18 +85,8 @@ type RateLimitConfig struct {
 	// Burst is the maximum request burst when enabled.
 	Burst int `mapstructure:"burst"`
 
-	// Enabled activates the rate limiter (default false — today's behavior).
+	// Enabled activates the rate limiter (default false).
 	Enabled bool `mapstructure:"enabled"`
-}
-
-// IdentityClientConfig tunes a service's client to an upstream identity service (the
-// per-request caller-context lookup).
-type IdentityClientConfig struct {
-	// Timeout bounds an identity RPC (was the hardcoded 5s).
-	Timeout time.Duration `mapstructure:"timeout"`
-
-	// CacheTTL is the resolved-context cache lifetime (0 = no client cache).
-	CacheTTL time.Duration `mapstructure:"cache_ttl"`
 }
 
 // Config is the edge-layer config surface.
@@ -115,20 +103,16 @@ type Config struct {
 	// RateLimit toggles + tunes the token rate limiter.
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 
-	// IdentityClient tunes the client to an upstream identity service.
-	IdentityClient IdentityClientConfig `mapstructure:"identity_client"`
-
-	// MaxHeaderBytes caps the HTTP request header size (was Go's 1 MiB default).
+	// MaxHeaderBytes caps the HTTP request header size (Go's own default is 1 MiB).
 	MaxHeaderBytes int `mapstructure:"max_header_bytes"`
 }
 
-// DefaultConfig returns behavior-preserving defaults: the rate limiter disabled,
-// CORS permissive, the identity timeout at today's 5s, and sensible bounds for
-// the previously-unbounded WS/HTTP knobs.
+// DefaultConfig returns permissive defaults — the rate limiter disabled and CORS
+// allowing all origins — with sensible bounds for the WS/HTTP knobs.
 func DefaultConfig() Config {
 	return Config{
 		WS: WSConfig{
-			// 5m matches the api WS server's longer idle for persistent connections.
+			// 5m suits persistent connections that idle between messages.
 			IdleTimeout:   5 * time.Minute,
 			WriteDeadline: 10 * time.Second,
 			PingInterval:  30 * time.Second,
@@ -153,10 +137,6 @@ func DefaultConfig() Config {
 			Enabled: false,
 			Rate:    100,
 			Burst:   10,
-		},
-		IdentityClient: IdentityClientConfig{
-			Timeout:  5 * time.Second,
-			CacheTTL: 0,
 		},
 		MaxHeaderBytes: 1 << 20,
 	}

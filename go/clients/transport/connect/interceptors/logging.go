@@ -11,8 +11,8 @@ import (
 )
 
 // is4xxConnectCode reports whether the Connect error code maps to an HTTP 4xx
-// status. 4xx codes represent normal client conditions and must not trigger
-// the critical-severity VVSearchServiceError alert rule.
+// status. 4xx codes represent normal client conditions and must not trip an
+// alert that fires on Error-level logs.
 func is4xxConnectCode(code connect.Code) bool {
 	switch code {
 	case connect.CodeInvalidArgument,
@@ -24,7 +24,7 @@ func is4xxConnectCode(code connect.Code) bool {
 		connect.CodeOutOfRange,
 		connect.CodeResourceExhausted,
 		// A caller that cancels/disconnects mid-request (499 client-closed-request) is a client
-		// outcome, not a server fault — log at Warn so it does not trip VVSearchServiceError.
+		// outcome, not a server fault — log at Warn so it does not trip an Error-level alert.
 		connect.CodeCanceled:
 		return true
 	}
@@ -32,8 +32,8 @@ func is4xxConnectCode(code connect.Code) bool {
 }
 
 // connectCodeToHTTPStatus maps a Connect error code to its HTTP status integer
-// per the Connect protocol specification. Used to populate the status log field
-// so the VVSearchServiceClientError Loki alert rule (status >= 400) can match.
+// per the Connect protocol specification. Used to populate the numeric status log
+// field, so a log-based alert can match on it (e.g. status >= 400).
 func connectCodeToHTTPStatus(code connect.Code) int {
 	switch code {
 	case connect.CodeInvalidArgument,
@@ -85,9 +85,9 @@ type loggingInterceptor struct {
 // line carrying that real error (not the sanitized client message) plus the procedure,
 // duration, and HTTP status.
 //
-// 4xx Connect codes (client errors) log at Warn with a numeric status field so
-// the VVSearchServiceClientError yellow alert matches them; 5xx codes log at
-// Error (with the real error_cause) to trigger the VVSearchServiceError alert.
+// 4xx Connect codes (client errors) log at Warn with a numeric status field, so a
+// client-error alert can match them; 5xx codes log at Error (with the real
+// error_cause), so a server-error alert fires only on genuine faults.
 // Successful requests log once at Info. Health probes are not Connect RPCs, so
 // they are not logged here.
 func NewLoggingInterceptor(logger interfaces.Logger) connect.Interceptor {
@@ -141,7 +141,7 @@ func (i loggingInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 }
 
 // WrapStreamingClient is a no-op (see the type doc: client-streaming logging is out of
-// F6's scope).
+// scope).
 func (i loggingInterceptor) WrapStreamingClient(
 	next connect.StreamingClientFunc,
 ) connect.StreamingClientFunc {

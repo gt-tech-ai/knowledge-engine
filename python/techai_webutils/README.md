@@ -1,3 +1,5 @@
+# techai-webutils
+
 **Development:**
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -7,18 +9,14 @@
 
 <!-- Content above this delimiter will be copied to the generated README.md file. DO NOT REMOVE THIS COMMENT, as it will cause regeneration to fail. -->
 
-## Contents
-
-- [Overview](#overview)
-
 ## Overview
 
 `techai_webutils` is the Python mirror of the knowledge-engine's Go substrate. It follows the same
 layers (`core` → `foundation` (+ `execution`) → `clients` → `repos` → `services` → `pipelines` →
 `workflows` → `controllers`) and the same rules, described in the repository's
-[ARCHITECTURE.md](../../ARCHITECTURE.md). Every swappable component is a `Kind` + a config +
-a `new_<type>_from_config` factory, so switching a backend (memory → S3, stub → Bedrock,
-asyncio → Ray) is a configuration change.
+[ARCHITECTURE.md](https://github.com/gt-tech-ai/knowledge-engine/blob/main/ARCHITECTURE.md). Every
+swappable component is a `Kind` + a config + a `new_<type>_from_config` factory, so switching a
+backend (memory → S3, stub → Bedrock, asyncio → Ray) is a configuration change.
 
 ### How to use `techai_webutils`
 
@@ -39,6 +37,21 @@ config = StorageConfig(
 storage = new_storage_from_config(config)
 ```
 
-Optional extras load only when their backend is selected, so the default install stays light.
+The base install already includes the AWS, gRPC, FastAPI, Qdrant, Redis and OpenTelemetry clients.
+The `ray`, `postgres`, `parsing` and `langdetect` extras are imported only when their backend is
+selected, so a service installs just the extras its configuration uses.
+
+Load layered YAML config (`base.yaml` → `{env}.yaml` → `secrets.yaml`) under an env prefix of
+your own, and give your settings class the same `env_prefix`:
+
+```python
+from techai_webutils.foundation.config import initialize_config
+
+initialize_config("config", env_prefix="MYAPP")
+```
+
+Set a prefix: without one, config keys are exported under bare names (`AWS_REGION`, `DEBUG`) that
+collide with ambient variables, such as the service links Kubernetes injects
+(`REDIS_PORT=tcp://…`).
 
 <!-- Content below this delimiter will be copied to the generated README.md file. DO NOT REMOVE THIS COMMENT, as it will cause regeneration to fail. -->

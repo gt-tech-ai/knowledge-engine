@@ -85,7 +85,7 @@ func (b *Builder) WithRetry(r interfaces.Retrier) *Builder {
 // WithCircuitBreaker adds a circuit breaker that trips on repeated backend
 // failures. Unlike the cache breaker it does NOT fabricate a result: when open
 // it surfaces the error (fail-closed), because fabricating acquired=true would
-// admit a duplicate query and acquired=false would wedge every pod — the caller
+// admit a duplicate operation and acquired=false would wedge every pod — the caller
 // must decide how to degrade.
 func (b *Builder) WithCircuitBreaker(cb interfaces.CircuitBreaker) *Builder {
 	b.cb = cb

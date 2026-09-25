@@ -106,6 +106,7 @@ from techai_webutils.core.interfaces.retrier import Retrier
 from techai_webutils.core.interfaces.retrieval import (
     CitationExtractor,
     IntentClassifier,
+    PassagePolicy,
     QueryRewriter,
     RetrievalEngine,
 )
@@ -158,6 +159,7 @@ __all__ = [
     "MetricGauge",
     "MetricHistogram",
     "MetricsProvider",
+    "PassagePolicy",
     "PeriodicJob",
     "Pipeline",
     "QueryRewriter",

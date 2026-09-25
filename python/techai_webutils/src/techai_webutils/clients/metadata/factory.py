@@ -25,7 +25,7 @@ class MetadataKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class MetadataConfig:
-    """Metadata-extractor configuration (resolved from ``ingestion.metadata.*``)."""
+    """Metadata-extractor configuration (the consumer maps its own config section onto it)."""
 
     kind: MetadataKind = MetadataKind.LANGDETECT
     """Selects the metadata backend (only ``langdetect`` ships today)."""

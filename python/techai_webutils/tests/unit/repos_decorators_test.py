@@ -1155,7 +1155,7 @@ class TestTracingRepositoryDecorator:
 
         **Why this test is important:**
           - An error span with no recorded error is invisible in trace-based error
-            analysis; recording it is what surfaces the failure in Tempo.
+            analysis; recording it is what surfaces the failure in the trace backend.
 
         **What it tests:**
           - A raising inner op calls span.record_error and the exception propagates.

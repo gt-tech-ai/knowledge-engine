@@ -1,9 +1,8 @@
 """Knowledge-base ingestion interface (Bedrock StartIngestionJob / GetIngestionJob model).
 
-Distinct from the retrieval-oriented ``knowledge_base.py`` (chunk/index/query): this models
-the *ingestion job* lifecycle a document-ingestion worker drives — start a sync job, then
-poll it to completion. Implementations: a no-op stub (dev, no Bedrock emulator) and a real
-Bedrock client (stage/prod), selected by a config-keyed factory.
+Distinct from the retrieval-oriented ``knowledge_base.py`` (chunk/index/query): this models the *ingestion
+job* lifecycle a caller drives — start a sync job, then poll it to completion. Implementations: a no-op stub
+(dev, no Bedrock emulator) and a real Bedrock client (stage/prod), selected by a config-keyed factory.
 """
 
 from __future__ import annotations
@@ -36,7 +35,8 @@ class IngestionJobState(StrEnum):
     """A stop was requested but the job is still winding down — NON-terminal: it still holds Bedrock's
     ingestion lock, so the poller must keep polling until it reaches STOPPED."""
     STOPPED = "STOPPED"
-    """The job was stopped (by an operator or the watchdog) and is fully wound down — terminal."""
+    """The job was stopped (by an operator or a supervisor stopping a stuck job) and is fully wound down —
+    terminal."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,11 +61,11 @@ class IngestionJob:
 
 
 POLL_TIMEOUT_ERROR = "poll_timeout"
-"""The ``IngestionJob.error`` sentinel a poller sets when its CLIENT-SIDE deadline elapses before a real terminal state.
+"""The ``IngestionJob.error`` sentinel a poller sets when its CLIENT-SIDE deadline elapses first.
 
 The job is FAILED-by-timeout, not FAILED by Bedrock, and may STILL be running server-side. Shared so the
-poller (which produces it) and the KB-sync reconciler (which must keep such a job ``running`` to reattach
-next tick, not race a conflicting start) agree on the exact value instead of duplicating a magic string.
+poller (which produces it) and a caller that tracks the job (which must keep it ``running`` and reattach
+later, not race a conflicting start) agree on the exact value instead of duplicating a magic string.
 """
 
 
@@ -73,10 +73,9 @@ next tick, not race a conflicting start) agree on the exact value instead of dup
 class KnowledgeBaseDocument:
     """One document in a KB data source, from Bedrock ``ListKnowledgeBaseDocuments``.
 
-    The reconciler matches ``s3_uri`` back to an API document (via the id embedded in the key) and
-    maps ``status`` to a terminal document status. ``status`` mirrors Bedrock's per-document status
-    verbatim (``INDEXED``, ``FAILED``, ``IN_PROGRESS``, …); ``status_reason`` carries the failure
-    detail when present.
+    A caller matches ``s3_uri`` back to its own document record and maps ``status`` to its own document
+    status. ``status`` mirrors Bedrock's per-document status verbatim (``INDEXED``, ``FAILED``,
+    ``IN_PROGRESS``, …); ``status_reason`` carries the failure detail when present.
     """
 
     s3_uri: str
@@ -126,8 +125,8 @@ class KnowledgeBaseIngestor(ManagedResource, ABC):
     ) -> IngestionJob:
         """Request a stop of an in-flight ingestion job; returns the job in its ``STOPPING`` state.
 
-        The watchdog's recovery for a genuinely-stuck job — Bedrock has no force-unlock, so a
-        wedged job must be actively stopped. STOPPING is non-terminal (the job still holds Bedrock's
+        The recovery for a genuinely-stuck job — Bedrock has no force-unlock, so a wedged job must be
+        actively stopped. STOPPING is non-terminal (the job still holds Bedrock's
         ingestion lock until it winds down to STOPPED), so the caller reattaches and polls it to STOPPED.
         """
         ...
@@ -136,10 +135,10 @@ class KnowledgeBaseIngestor(ManagedResource, ABC):
 class ReattachableIngestor(KnowledgeBaseIngestor, ABC):
     """A ``KnowledgeBaseIngestor`` that can also poll an ALREADY-started job to terminal (the reattach seam).
 
-    Composes with ``KnowledgeBaseIngestor`` (ARCHITECTURE.md#interface-composition) rather than standing alone: it adds only
-    ``poll_ingestion_job``, the capability the KB-sync reconciler needs to converge either a job it just
-    started OR one recovered from the persisted job-state without a second ``start`` that
-    Bedrock would reject with ``ConflictException``. The single implementation is ``PollingIngestor``
+    Composes with ``KnowledgeBaseIngestor`` (ARCHITECTURE.md#interface-composition) rather than standing
+    alone: it adds only ``poll_ingestion_job``, the capability a caller needs to converge either a job it
+    just started OR one whose ``job_id`` it recorded earlier, without a second ``start`` that Bedrock
+    would reject with ``ConflictException``. The single implementation is ``PollingIngestor``
     (the decorator that owns the poll loop); base ingestors stay plain ``KnowledgeBaseIngestor``.
     """
 

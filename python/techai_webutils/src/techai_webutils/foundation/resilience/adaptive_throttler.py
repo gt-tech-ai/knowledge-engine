@@ -6,7 +6,7 @@ protecting the backend from a client-side retry storm. Mirrors Go's
 
 Compose it OUTERMOST of the retry budget (Throttle -> Retry -> op): a local rejection raises
 ``ThrottledError`` before op runs, so the inner retrier never retries a shed request -- the "not
-retried" property the retry budget relies on..
+retried" property the retry budget relies on.
 """
 
 from __future__ import annotations

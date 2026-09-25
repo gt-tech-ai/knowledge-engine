@@ -36,7 +36,7 @@ type object struct {
 
 // multipart is an in-progress multipart upload. A memory backend has no presigned-part-PUT path
 // (PresignUploadPart returns a synthetic URL nothing writes to), so it carries no part bytes;
-// CompleteMultipartUpload just materializes the (empty) object so the API's multipart lifecycle
+// CompleteMultipartUpload just materializes the (empty) object so a caller's multipart lifecycle
 // builds and runs with no S3.
 type multipart struct {
 	// bucket is the destination bucket for the completed object.
@@ -191,7 +191,10 @@ func (c *Client) PresignUploadPart(
 	), nil
 }
 
-// CompleteMultipartUpload assembles the upload's registered parts (ascending) into the object.
+// CompleteMultipartUpload finalizes the upload by writing an EMPTY object at the upload's
+// bucket/key with its content type: a memory backend receives no part bytes, so parts is ignored
+// and nothing is assembled. Like S3's NoSuchUpload, an unknown upload id — or a bucket/key other
+// than the one the upload was created for — is CodeNotFound and writes nothing.
 func (c *Client) CompleteMultipartUpload(
 	_ context.Context,
 	bucket, key, uploadID string,
@@ -200,10 +203,15 @@ func (c *Client) CompleteMultipartUpload(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	up, ok := c.uploads[uploadID]
-	if !ok {
+	if !ok || up.bucket != bucket || up.key != key {
 		return apperr.New(
 			apperr.CodeNotFound,
-			fmt.Sprintf("memory storage: upload %s not found", uploadID),
+			fmt.Sprintf(
+				"memory storage: upload %s not found for %s/%s",
+				uploadID,
+				bucket,
+				key,
+			),
 		)
 	}
 	// No part bytes exist (a memory backend has no part-PUT path); materialize the empty object so

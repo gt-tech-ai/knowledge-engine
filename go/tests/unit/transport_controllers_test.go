@@ -28,7 +28,7 @@ type TestResponse struct {
 // Why this test is important:
 //   - HandlerFunc is the type alias used for all controller handlers; if the
 //     type constraint is wrong or the invocation path is broken, no HTTP
-//     handler in the API service will execute correctly
+//     handler built on it will execute correctly
 //
 // What it tests:
 //   - Handler produces the expected output from the given request input
@@ -161,8 +161,8 @@ func TestTransportMetricsDecorator(t *testing.T) {
 // panics and converts them to errors with a zero-value response.
 //
 // Why this test is important:
-//   - A panic in an HTTP handler must not crash the API service and drop all
-//     in-flight WebSocket connections; the recovery decorator is the safety net
+//   - A panic in an HTTP handler must not crash the serving process and drop all
+//     in-flight requests and connections; the recovery decorator is the safety net
 //
 // What it tests:
 //   - A panicking handler returns an error containing "panic"

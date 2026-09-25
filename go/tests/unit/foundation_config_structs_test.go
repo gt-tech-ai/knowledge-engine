@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -136,6 +137,50 @@ func TestDatabaseConfig_DSNEscapesCredentials(t *testing.T) {
 	}
 }
 
+// dsnHosts are the host spellings FuzzDatabaseConfig_DSNRoundTrip draws from: a DNS name, an
+// IPv4 address, and IPv6 addresses both bare and already bracketed (as some configs write them).
+var dsnHosts = []string{"db.example.com", "10.0.0.7", "::1", "[::1]", "2001:db8::5", "[2001:db8::5]"}
+
+// FuzzDatabaseConfig_DSNRoundTrip fuzzes the DSN encode → driver-parse round trip.
+//
+// Why this test is important:
+//   - DSN() promises every component survives the URL encoding: an IPv6 host (bare or
+//     written "[::1]"), or a user, password or database name with reserved characters, that
+//     comes back altered makes the service connect to the wrong place or fail to connect.
+//
+// What it tests:
+//   - For arbitrary user, password and database strings (non-empty, NUL-free, as Postgres
+//     requires) and each host spelling, the DSN
+//     parsed by pgx.ParseConfig (the driver's own parser) yields the configured user,
+//     password, database and port, and the host without brackets.
+func FuzzDatabaseConfig_DSNRoundTrip(f *testing.F) {
+	f.Add("svc", "p@ss:w/rd?x#y%z[0] ", "app", uint8(2))
+	f.Add("svc@acct", "pw", "my db/x?y#z%", uint8(3))
+	f.Add("u", "", "d", uint8(5))
+
+	f.Fuzz(func(t *testing.T, user, password, database string, hostIdx uint8) {
+		if user == "" || database == "" {
+			t.Skip("pgx substitutes defaults for an empty user or database")
+		}
+		if strings.ContainsRune(user+password+database, 0) {
+			t.Skip("Postgres strings cannot contain NUL")
+		}
+		host := dsnHosts[int(hostIdx)%len(dsnHosts)]
+		cfg := infra.DatabaseConfig{
+			Host: host, Port: 5432, User: user, Password: password,
+			Database: database, SSLMode: "disable",
+		}
+
+		parsed, err := pgx.ParseConfig(cfg.DSN())
+		require.NoError(t, err, "DSN %q", cfg.DSN())
+		assert.Equal(t, strings.Trim(host, "[]"), parsed.Host)
+		assert.Equal(t, uint16(5432), parsed.Port)
+		assert.Equal(t, user, parsed.User)
+		assert.Equal(t, password, parsed.Password)
+		assert.Equal(t, database, parsed.Database)
+	})
+}
+
 // TestDatabaseConfig_Validate tests that Validate returns an error for invalid configurations.
 //
 // Why this test is important:
@@ -247,7 +292,7 @@ func TestRedisConfig_Addr(t *testing.T) {
 // TestServerConfig_Defaults tests that DefaultServerConfig returns correct defaults.
 //
 // Why this test is important:
-//   - ServerConfig is used by all Go server services (identity, api)
+//   - ServerConfig is the listener config every Go server a consumer builds uses
 //   - Timeouts prevent hung requests from blocking goroutines indefinitely
 //
 // What it tests:
@@ -447,8 +492,7 @@ func TestAppConfig_DefaultAndValidate(t *testing.T) {
 //   - Missing issuer with stub=false returns an error
 //   - Missing audience with stub=false returns an error
 //   - service_stub=true with stub=false is rejected — a real deploy (end-user auth
-//
-// enforced) must not leave service-to-service auth bypassed (fail-open guard)
+//     enforced) must not leave service-to-service auth bypassed (fail-open guard)
 func TestAuthConfig_Validate(t *testing.T) {
 	t.Parallel()
 
@@ -523,10 +567,10 @@ func TestAuthConfig_Validate(t *testing.T) {
 // the service-to-service auth bypass alongside the end-user stub.
 //
 // Why this test is important:
-//   - A local dev stack must work with no service tokens provisioned; the default must
-//
-// bypass service auth (dev bypass), exactly as it bypasses end-user auth
-//   - a default that enforced service auth would break every local internal RPC
+//   - A local dev stack must work with no service tokens or identity provider
+//     provisioned; the default must bypass service auth (dev bypass), exactly as it
+//     bypasses end-user auth
+//   - A default that enforced either would break every local request
 //
 // What it tests:
 //   - DefaultAuthConfig() sets both Stub and ServiceStub to true
@@ -539,22 +583,6 @@ func TestDefaultAuthConfig_ServiceStubEnabled(t *testing.T) {
 		cfg.ServiceStub,
 		"default must enable service-auth stub for local dev",
 	)
-}
-
-// TestAuthConfig_DefaultAuthConfig tests that DefaultAuthConfig returns stub=true
-// as the safe local-dev default before an identity provider is configured.
-//
-// Why this test is important:
-//   - The default must enable stub mode so local dev works out-of-the-box without an identity provider
-//   - If the default were stub=false, every developer would need provider credentials just to run
-//
-// What it tests:
-//   - DefaultAuthConfig().Stub is true
-func TestAuthConfig_DefaultAuthConfig(t *testing.T) {
-	t.Parallel()
-
-	cfg := infra.DefaultAuthConfig()
-	assert.True(t, cfg.Stub, "DefaultAuthConfig().Stub must be true")
 }
 
 // TestLoggingConfig_Validate tests that the default LoggingConfig passes validation.
@@ -750,8 +778,8 @@ func TestS3Config_Validate_MultipartExpiry(t *testing.T) {
 // TestSQSConfig_Validate tests that the default SQSConfig passes validation.
 //
 // Why this test is important:
-//   - SQSConfig drives the async messaging pipeline (document ingestion,
-//     notifications); invalid config silently breaks all async operations
+//   - SQSConfig drives the async messaging pipeline; invalid config silently
+//     breaks all async operations
 //   - Catching misconfiguration at startup prevents silent queue starvation
 //
 // What it tests:

@@ -5,6 +5,11 @@ Base). The selected engine is always wrapped in ``FilteringRetrievalEngine`` wit
 floor plus the consumer's scope policies, so server-side re-validation applies in every environment.
 Unknown kinds fail loudly. Heavy backends are imported lazily, so the stub path never loads the AWS
 SDK or the vector clients.
+
+Push-down is explicit: a ``MetadataEquals`` scope reaches the backend only through that kind's seam
+(``filter_builder`` for Bedrock, ``store_filter_keys`` for the vector store); otherwise the backend
+returns the index-wide top_k and the policy post-filters it. The factory warns when a scope is not
+pushed down, and logs (at info) a supplied seam the selected kind does not use.
 """
 
 from __future__ import annotations
@@ -13,8 +18,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine, MinScore
+from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine, MetadataEquals, MinScore
 from techai_webutils.clients.retrieval.stub import StubRetrievalEngine
+from techai_webutils.foundation.logger import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,6 +28,8 @@ if TYPE_CHECKING:
     from techai_webutils.clients.retrieval.bedrock.engine import DocumentIdResolver, FilterBuilder
     from techai_webutils.clients.retrieval.filtering import PassagePolicy
     from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
+
+logger = get_logger(__name__)
 
 
 class RetrievalKind(StrEnum):
@@ -37,7 +45,7 @@ class RetrievalKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class RetrievalConfig:
-    """Retrieval engine configuration resolved from ``retrieval.kb.*``."""
+    """Retrieval engine configuration (the consumer maps it from its own config section)."""
 
     kind: RetrievalKind = RetrievalKind.STUB
     """Selects the engine implementation."""
@@ -56,9 +64,10 @@ class RetrievalConfig:
     reranking_model: str = ""
     """Reranker model id for the bedrock_rerank kind, e.g. "cohere.rerank-v3-5:0" (empty → no reranking)."""
     min_score: float = 0.5
-    """Relevance floor for the filtering decorator; passages below it are dropped. Backends score on
-    different scales (Bedrock's cosine scores run lower than a local vector store's), so set it per
-    engine kind."""
+    """Relevance floor for the filtering decorator; passages below it are dropped (including a stub's
+    hand-written passages). Backends score on different scales — Bedrock Knowledge Base scores run
+    lower than a local vector store's, so the 0.5 default can drop strong Bedrock matches — so set it
+    per engine kind. ``None`` is rejected (there is no per-kind default)."""
     # Local vector stack (``kind == QDRANT``): a Qdrant store fed by an Ollama embedder; ignored by the
     # stub/bedrock kinds. Hosts default to localhost.
     vector_url: str = "http://localhost:6333"
@@ -71,6 +80,12 @@ class RetrievalConfig:
     """Embedding model name requested from Ollama."""
     embedding_dimension: int = 768
     """Vector dimensionality of ``embedding_model`` (must match the Qdrant collection)."""
+
+    def __post_init__(self) -> None:
+        """Reject a non-numeric ``min_score`` (e.g. ``None``) here rather than on every retrieve."""
+        if isinstance(self.min_score, bool) or not isinstance(self.min_score, int | float):
+            msg = f"RetrievalConfig.min_score must be a number, got {self.min_score!r}"
+            raise TypeError(msg)
 
 
 def new_retrieval_engine_from_config(
@@ -88,8 +103,17 @@ def new_retrieval_engine_from_config(
     rules (e.g. ``MetadataEquals`` on its tenant key); pass an empty list only when there is no scope
     to enforce. The other seams (code, not config data) reach one kind each: ``filter_builder`` and
     ``document_id_resolver`` the Bedrock engine, ``store_filter_keys`` the vector engine's push-down,
-    ``stub_passages`` the stub's corpus.
+    ``stub_passages`` the stub's corpus. A ``MetadataEquals`` scope with no push-down seam for the
+    selected kind is logged as a warning; a seam the selected kind ignores is logged at info.
     """
+    _warn_about_seams(
+        config.kind,
+        policies,
+        filter_builder=filter_builder,
+        document_id_resolver=document_id_resolver,
+        store_filter_keys=store_filter_keys,
+        stub_passages=stub_passages,
+    )
     inner: RetrievalEngine
     if config.kind is RetrievalKind.STUB:
         inner = StubRetrievalEngine(stub_passages)
@@ -114,6 +138,57 @@ def new_retrieval_engine_from_config(
         msg = f"unknown retrieval kind: {config.kind!r}"
         raise ValueError(msg)
     return FilteringRetrievalEngine(inner, [MinScore(config.min_score), *policies])
+
+
+_SEAM_KINDS = {
+    "filter_builder": RetrievalKind.BEDROCK,
+    "document_id_resolver": RetrievalKind.BEDROCK,
+    "store_filter_keys": RetrievalKind.QDRANT,
+    "stub_passages": RetrievalKind.STUB,
+}
+"""The one kind each factory seam reaches."""
+
+
+def _warn_about_seams(
+    kind: RetrievalKind,
+    policies: Sequence[PassagePolicy],
+    *,
+    filter_builder: FilterBuilder | None,
+    document_id_resolver: DocumentIdResolver | None,
+    store_filter_keys: Sequence[str],
+    stub_passages: Sequence[RetrievalResult],
+) -> None:
+    """Log supplied seams the selected kind ignores (info), and warn about a scope not pushed down.
+
+    Seams are per kind, so flipping ``kind`` (e.g. to qdrant for local development) silently drops the
+    other kind's seams; and a ``MetadataEquals`` scope without a push-down lets the backend fill top_k
+    from every scope before the policy drops the others, starving a scope of passages.
+    """
+    supplied = {
+        "filter_builder": filter_builder is not None,
+        "document_id_resolver": document_id_resolver is not None,
+        "store_filter_keys": bool(store_filter_keys),
+        "stub_passages": bool(stub_passages),
+    }
+    unused = [name for name, given in supplied.items() if given and _SEAM_KINDS[name] is not kind]
+    if unused:
+        # Info, not warning: a composition root may pass every kind's seams so the kind can be flipped by
+        # config alone. The failure that matters (a scope left without push-down) warns below.
+        logger.info("retrieval seams unused by the selected kind", kind=str(kind), seams=unused)
+    scope_keys = [p.key for p in policies if isinstance(p, MetadataEquals)]
+    if kind is RetrievalKind.QDRANT:
+        # The vector engine pushes {k: request[k]} for each store filter key, so a scope is pushed down
+        # only when its metadata key is one of them.
+        scope_keys = [key for key in scope_keys if key not in store_filter_keys]
+    elif kind is not RetrievalKind.BEDROCK or filter_builder is not None:
+        # The stub has no backend top_k to starve; a Bedrock filter_builder is the consumer's push-down.
+        scope_keys = []
+    if scope_keys:
+        logger.warning(
+            "retrieval scope policies are not pushed down to the backend",
+            kind=str(kind),
+            scope_keys=scope_keys,
+        )
 
 
 def _build_vector_engine(config: RetrievalConfig, filter_keys: Sequence[str]) -> RetrievalEngine:

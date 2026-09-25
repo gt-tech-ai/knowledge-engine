@@ -20,8 +20,8 @@ class TestBatchResult:
         """Test that BatchResult reports counts over a mixed result set.
 
         **Why this test is important:**
-          - The fan-out engine returns a BatchResult; the orchestrator routes DLQ/retry and
-            emits metrics off these counts, so a miscount misroutes documents or corrupts metrics.
+          - The fan-out engine returns a BatchResult; a caller routes DLQ/retry and
+            emits metrics off these counts, so a miscount misroutes work items or corrupts metrics.
 
         **What it tests:**
           - total, succeeded, failed, warned, skipped, has_failures, all_passed, failed_names
@@ -63,7 +63,7 @@ class TestBatchResult:
         """Test that StepResult.ok is True only for a PASS status.
 
         **Why this test is important:**
-          - `ok` is the per-item success predicate the orchestrator reads to decide delete vs
+          - `ok` is the per-item success predicate a caller reads to decide delete vs
             redrive; a wrong value deletes a failed message (data loss) or redrives a good one.
 
         **What it tests:**

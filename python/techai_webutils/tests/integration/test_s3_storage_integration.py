@@ -111,7 +111,7 @@ async def test_list_objects_filters_by_prefix(s3_config: S3Config) -> None:
     """Test that list_objects returns only keys under the requested prefix.
 
     **Why this test is important:**
-      - Prefix listing backs per-document and per-workspace enumeration; a wrong
+      - Prefix listing backs per-document and per-tenant enumeration; a wrong
         prefix filter would leak unrelated objects or miss expected ones
 
     **What it tests:**

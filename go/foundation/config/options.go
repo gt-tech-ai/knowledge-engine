@@ -1,6 +1,9 @@
 package config
 
 import (
+	"maps"
+	"slices"
+
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
@@ -14,26 +17,10 @@ type Config struct {
 	Kind Kind
 }
 
-// ViperConfig holds Viper-specific configuration. This is a subset of
-// viper.Config, adapted for the parent config package.
-type ViperConfig struct {
-	// Schema is the consumer's root config struct whose leaf fields get derived
-	// env bindings; nil derives none.
-	Schema any
-
-	// ExtraEnv binds config keys outside Schema to env var names (key → names).
-	ExtraEnv map[string][]string
-
-	// BaseDir is the directory containing base.yaml, {env}.yaml overlays, and secrets.yaml.
-	BaseDir string
-
-	// Env is the environment name (e.g., "dev", "staging", "prod") for overlay selection.
-	Env string
-
-	// Prefix is the environment variable prefix for automatic binding; empty means
-	// unprefixed names.
-	Prefix string
-}
+// ViperConfig is the Viper backend's configuration: an alias of viper.Config, so
+// every loader field (Schema, ExtraEnv, BaseDir, Env, Prefix) is settable through
+// the factory without a hand-kept copy. See viper.Config for each field's trade-offs.
+type ViperConfig = viperloader.Config
 
 // DefaultConfig returns the default config with KindViper and sensible defaults.
 func DefaultConfig() Config {
@@ -63,17 +50,39 @@ func WithEnvironment(env string) options.Option[Config] {
 	return func(c *Config) { c.Viper.Env = env }
 }
 
+// WithEnvSelectors picks the overlay from the consumer's own env vars: the first
+// non-empty one among selectors, trimmed and lowercased (see viper.ResolveEnvFrom),
+// instead of the default APP_ENV then ENVIRONMENT. It is resolved when the option is
+// applied; none set means base.yaml alone.
+func WithEnvSelectors(selectors ...string) options.Option[Config] {
+	return func(c *Config) { c.Viper.Env = viperloader.ResolveEnvFrom(selectors...) }
+}
+
 // WithEnvPrefix sets the prefix for environment variable binding (default: none).
+// Set one: with no prefix, env vars are read by their bare names, which collide with
+// the <SVC>_PORT / <SVC>_SERVICE_HOST variables Kubernetes injects for each Service.
 func WithEnvPrefix(prefix string) options.Option[Config] {
 	return func(c *Config) { c.Viper.Prefix = prefix }
 }
 
-// WithSchema sets the consumer's root config struct used to derive env bindings.
+// WithSchema sets the consumer's root config struct (or a pointer to one) used to
+// derive env bindings. Without a schema, UnmarshalKey sees env overrides only for
+// keys present in the YAML or listed in WithExtraEnv.
 func WithSchema(root any) options.Option[Config] {
 	return func(c *Config) { c.Viper.Schema = root }
 }
 
-// WithExtraEnv binds config keys outside the schema to env var names (key → names).
+// WithExtraEnv binds config keys to env var names (key → names, first set wins),
+// for keys outside the schema or to replace a schema key's derived binding (see
+// viper.Config.ExtraEnv). Repeated calls merge: each adds its keys, and a later
+// entry for the same key replaces the earlier one. The caller's map is copied.
 func WithExtraEnv(bindings map[string][]string) options.Option[Config] {
-	return func(c *Config) { c.Viper.ExtraEnv = bindings }
+	return func(c *Config) {
+		merged := make(map[string][]string, len(c.Viper.ExtraEnv)+len(bindings))
+		maps.Copy(merged, c.Viper.ExtraEnv)
+		for key, names := range bindings {
+			merged[key] = slices.Clone(names)
+		}
+		c.Viper.ExtraEnv = merged
+	}
 }

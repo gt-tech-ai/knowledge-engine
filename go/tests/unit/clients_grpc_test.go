@@ -34,7 +34,7 @@ func TestGRPCServerFactory(t *testing.T) {
 	server := platformgrpc.NewServer(cfg)
 	require.NotNil(t, server, "expected non-nil gRPC server")
 
-	// Use the platform's RegisterHealthService helper
+	// Use the package's RegisterHealthService helper
 	platformgrpc.RegisterHealthService(server)
 
 	// Start the server
@@ -86,7 +86,7 @@ func TestGRPCClientFactory(t *testing.T) {
 	}()
 	defer server.GracefulStop()
 
-	// Use the platform's client factory
+	// Use the package's client factory
 	clientCfg := platformgrpc.DefaultClientConfig(lis.Addr().String())
 	conn, err := platformgrpc.NewClient(clientCfg)
 	require.NoError(t, err, "failed to create gRPC client")

@@ -5,15 +5,18 @@ package e2ekit_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/e2ekit"
 )
 
@@ -36,7 +39,7 @@ func jsonResponse(status int, body string) *http.Response {
 // TestTraceIDFromHeader tests extraction of the trace id from a traceresponse header.
 //
 // Why this test is important:
-//   - The whole telemetry proof keys off the trace id the API returns; a wrong parse correlates
+//   - The whole telemetry proof keys off the trace id the endpoint returns; a wrong parse correlates
 //     nothing. Malformed input must yield "" rather than a bogus id.
 //
 // What it tests:
@@ -59,11 +62,9 @@ func TestTraceIDFromHeader(t *testing.T) {
 //
 // Why this test is important:
 //   - The header is the lever that guarantees an endpoint-E2E request's trace is recorded by the
-//
-// server's ParentBased sampler and thus reaches Tempo. If the sampled flag were unset
-//
-//	or the format malformed, the server would fall back to the ratio and the trace would be dropped —
-//	the exact failure the RCA diagnosed. Random ids must not collide across concurrent runs.
+//     server's ParentBased sampler and thus reaches Tempo. If the sampled flag were unset or the
+//     format malformed, the server would fall back to the ratio and the trace could be dropped.
+//     Random ids must not collide across concurrent runs.
 //
 // What it tests:
 //   - The value matches `00-<32hex>-<16hex>-01` (sampled flag 01); TraceIDFromHeader recovers the same
@@ -145,17 +146,17 @@ func TestTelemetryClient_TraceInTempo_NotFound(t *testing.T) {
 // TestTelemetryClient_TraceSpansService tests that a trace is recognized as spanning a given service.
 //
 // Why this test is important:
-//   - The worker + retrieval telemetry proofs assert the trace actually REACHED a service (e.g. a
-//     bulk-ingest trace spanning `ingestion`), not merely that some spans exist. The check scans each
+//   - A cross-service telemetry proof asserts the trace actually REACHED a service (e.g. a trace
+//     that crossed into a downstream `worker`), not merely that some spans exist. The check scans each
 //     Tempo batch's `service.name` resource attribute; matching the wrong key/value would pass a trace
 //     that never touched the service.
 //
 // What it tests:
-//   - A trace whose batch resource carries service.name=ingestion returns true; a different service
+//   - A trace whose batch resource carries service.name=worker returns true; a different service
 //     returns false; an absent trace (404) returns false without error (so callers can poll).
 func TestTelemetryClient_TraceSpansService(t *testing.T) {
 	body := `{"batches":[{"resource":{"attributes":[` +
-		`{"key":"service.name","value":{"stringValue":"ingestion"}}]}}]}`
+		`{"key":"service.name","value":{"stringValue":"worker"}}]}}]}`
 	doer := doerFunc(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusOK, body), nil
 	})
@@ -166,13 +167,13 @@ func TestTelemetryClient_TraceSpansService(t *testing.T) {
 		"http://loki",
 	)
 
-	spans, err := c.TraceSpansService(context.Background(), "abc123", "ingestion")
+	spans, err := c.TraceSpansService(context.Background(), "abc123", "worker")
 	require.NoError(t, err)
-	assert.True(t, spans, "the trace spans service.name=ingestion")
+	assert.True(t, spans, "the trace spans service.name=worker")
 
-	other, err := c.TraceSpansService(context.Background(), "abc123", "retrieval")
+	other, err := c.TraceSpansService(context.Background(), "abc123", "gateway")
 	require.NoError(t, err)
-	assert.False(t, other, "the trace does not span service.name=retrieval")
+	assert.False(t, other, "the trace does not span service.name=gateway")
 
 	missDoer := doerFunc(func(*http.Request) (*http.Response, error) {
 		return jsonResponse(http.StatusNotFound, ``), nil
@@ -183,7 +184,7 @@ func TestTelemetryClient_TraceSpansService(t *testing.T) {
 		"http://prom",
 		"http://loki",
 	)
-	absent, err := cMiss.TraceSpansService(context.Background(), "missing", "ingestion")
+	absent, err := cMiss.TraceSpansService(context.Background(), "missing", "worker")
 	require.NoError(t, err)
 	assert.False(t, absent, "an absent trace is false, not an error (poll case)")
 }
@@ -293,4 +294,72 @@ func TestTelemetryClient_QueryError(t *testing.T) {
 
 	_, err := c.MetricValue(context.Background(), "bad{")
 	require.Error(t, err)
+}
+
+// TestPollHelpers tests the two poll loops a suite waits on: PollUntil (an async effect) and
+// PollTraceInTempo (a trace landing in Tempo).
+//
+// Why this test is important:
+//   - Every async E2E assertion waits through these loops; returning early on a miss, swallowing the
+//     last error at the deadline, or ignoring cancellation turns a real failure into a pass or a hang.
+//
+// What it tests:
+//   - PollUntil returns nil as soon as check reports true.
+//   - Past the deadline it returns CodeUnavailable: wrapping the last check error when there is one,
+//     otherwise naming what did not materialize.
+//   - A cancelled ctx stops the wait with ctx.Err().
+//   - PollTraceInTempo returns nil once Tempo holds a batch for the trace.
+func TestPollHelpers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	errCheck := errors.New("backend not ready")
+
+	t.Run("PollUntil returns once check succeeds", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		err := e2ekit.PollUntil(ctx, time.Minute, "effect", func(context.Context) (bool, error) {
+			calls++
+			return true, nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("PollUntil wraps the last error at the deadline", func(t *testing.T) {
+		t.Parallel()
+		err := e2ekit.PollUntil(ctx, 0, "effect", func(context.Context) (bool, error) {
+			return false, errCheck
+		})
+		require.ErrorIs(t, err, errCheck)
+		assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
+	})
+
+	t.Run("PollUntil names a miss at the deadline", func(t *testing.T) {
+		t.Parallel()
+		err := e2ekit.PollUntil(ctx, 0, "effect", func(context.Context) (bool, error) {
+			return false, nil
+		})
+		require.Error(t, err)
+		assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
+		assert.Contains(t, err.Error(), "effect did not materialize")
+	})
+
+	t.Run("PollUntil stops on cancellation", func(t *testing.T) {
+		t.Parallel()
+		cctx, cancel := context.WithCancel(ctx)
+		cancel()
+		err := e2ekit.PollUntil(cctx, time.Minute, "effect", func(context.Context) (bool, error) {
+			return false, nil
+		})
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("PollTraceInTempo returns once the trace lands", func(t *testing.T) {
+		t.Parallel()
+		doer := doerFunc(func(*http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusOK, `{"batches":[{}]}`), nil
+		})
+		c := e2ekit.NewTelemetryClient(doer, "http://tempo", "http://prom", "http://loki")
+		require.NoError(t, e2ekit.PollTraceInTempo(ctx, c, "abc123"))
+	})
 }

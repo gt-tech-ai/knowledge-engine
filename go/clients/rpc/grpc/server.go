@@ -1,4 +1,4 @@
-// Package grpc provides gRPC server and client factories for the platform.
+// Package grpc provides gRPC server and client factories.
 package grpc
 
 import (
@@ -27,7 +27,7 @@ type ServerConfig struct {
 	// minute with PermitWithoutStream, but gRPC's default enforcement (MinTime 5m, no
 	// pings without an active stream) is stricter than that and tears the connection
 	// down with ENHANCE_YOUR_CALM. Relaxing it here keeps long-lived idle streams
-	// (query/retrieval, WS fan-out) stable.
+	// stable.
 	KeepaliveMinTime time.Duration
 }
 
@@ -75,13 +75,12 @@ type healthServer struct {
 	grpc_health_v1.UnimplementedHealthServer
 }
 
-// Check reports the serving status of the gRPC health protocol. Phase 1 always
-// reports SERVING; Phase 3 will fold in dependency readiness.
+// Check reports the serving status of the gRPC health protocol. It always reports
+// SERVING; dependency readiness is not folded in.
 func (h *healthServer) Check(
 	ctx context.Context,
 	req *grpc_health_v1.HealthCheckRequest,
 ) (*grpc_health_v1.HealthCheckResponse, error) {
-	// Phase 1: always healthy. Phase 3 will add dependency checks.
 	return &grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,
 	}, nil

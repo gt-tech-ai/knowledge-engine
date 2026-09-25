@@ -27,7 +27,7 @@ class TestTraceContextProcessor:
           - The processor runs on every log line, including code paths with no active
             OTel span (startup, background tasks). It must stay a clean no-op there;
             emitting an all-zero or garbage trace_id would pollute logs and create
-            dead links from Loki into Tempo that resolve to no trace
+            dead log-to-trace links that resolve to no trace
 
         **What it tests:**
           - With no recording span, _add_trace_context leaves trace_id/span_id absent
@@ -42,7 +42,7 @@ class TestTraceContextProcessor:
         """Test that the configured logger renders the log message under the 'message' key.
 
         **Why this test is important:**
-          - Logs from Python and Go services land in the same Loki store and are
+          - Logs from Python and Go services land in the same log store and are
             queried by shared dashboards/alerts that key off "message". structlog's
             default is "event"; if the EventRenamer were dropped, Python logs would be
             silently un-queryable under the cross-service schema while still appearing

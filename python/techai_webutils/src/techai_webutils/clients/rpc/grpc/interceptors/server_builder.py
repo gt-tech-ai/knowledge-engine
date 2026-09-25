@@ -12,6 +12,7 @@ redundant N-per-request logging.
 
 from __future__ import annotations
 
+import hmac
 from time import perf_counter
 from typing import TYPE_CHECKING, cast
 
@@ -35,8 +36,16 @@ if TYPE_CHECKING:
     _StreamBehavior = Callable[[object, grpc.aio.ServicerContext], AsyncIterator[object]]
 
 # Recovery logs an uncaught handler exception here (the injected transport logger owns the per-request
-# info log; this is the error-level panic signal).
+# info log; this is the error-level panic signal). build() also warns here about an open server.
 _logger = get_logger(__name__)
+
+_BEARER_PREFIX = "Bearer "
+"""The scheme prefix of an ``authorization: Bearer <token>`` metadata value."""
+
+
+def _split_tokens(expected_token: str) -> tuple[str, ...]:
+    """Split a ``current[,previous]`` expected token into its non-blank tokens (a rotation window)."""
+    return tuple(token for part in expected_token.split(",") if (token := part.strip()))
 
 
 class ServerInterceptorBuilder:
@@ -57,6 +66,7 @@ class ServerInterceptorBuilder:
         """Start with every interceptor disabled; ``with_*`` methods opt each in."""
         self._auth_headers: HeaderClaimMapping | None = None
         self._service_token: str = ""
+        self._service_auth_bypassed: bool = False
         self._logger: Logger | None = None
         self._histogram: MetricHistogram | None = None
         self._executions: MetricCounter | None = None
@@ -69,9 +79,9 @@ class ServerInterceptorBuilder:
     def with_recovery(self) -> ServerInterceptorBuilder:
         """Add the recovery interceptor (outermost).
 
-        Recovers an uncaught handler exception into a logged ``INTERNAL`` abort (ARCHITECTURE.md#error-codes), instead
-        of leaking gRPC's opaque ``UNKNOWN``. An intentional abort and a client-cancellation pass
-        through unchanged.
+        Recovers an uncaught handler exception into a logged ``INTERNAL`` abort
+        (ARCHITECTURE.md#error-codes), instead of leaking gRPC's opaque ``UNKNOWN``. An intentional abort
+        and a client-cancellation pass through unchanged.
         """
         self._recovery = True
         return self
@@ -89,8 +99,8 @@ class ServerInterceptorBuilder:
     ) -> ServerInterceptorBuilder:
         """Add the metrics interceptor.
 
-        Records per-RPC duration (``histogram``), execution count, and error count around the (unary
-        or streamed) handler run.
+        Records per-RPC duration (``histogram``), execution count, and error count around the
+        (unary or streamed) handler run.
         """
         self._histogram = histogram
         self._executions = executions
@@ -101,8 +111,8 @@ class ServerInterceptorBuilder:
         """Add the tracing interceptor: continue the inbound W3C trace into a per-RPC SERVER span.
 
         ``service_name`` is the OTel instrumentation-scope name (e.g. ``"retrieval"``). The span is
-        parented on the inbound traceparent, so an upstream trace (gateway → upstream service → this service) stays a
-        single trace, and every inner client-stack span shares its trace id.
+        parented on the inbound traceparent, so an upstream trace (gateway → upstream service → this
+        service) stays a single trace, and every inner client-stack span shares its trace id.
         """
         self._tracing_service = service_name
         return self
@@ -117,18 +127,30 @@ class ServerInterceptorBuilder:
     ) -> ServerInterceptorBuilder:
         """Add service-to-service token validation (rejects callers without a valid bearer token).
 
-        An empty ``expected_token`` raises ``ValueError``: a blank secret must never silently leave the
-        service open. A local-dev bypass is explicit — pass ``allow_unauthenticated=True`` (mirroring
-        the Go builder's ``stub`` flag) and an empty token builds without the check.
+        ``expected_token`` may carry a comma-separated ``current,previous`` pair so a token rotation has
+        a window in which both are accepted (mirroring the Go static validator); blank entries are
+        ignored and tokens are compared in constant time. A token with no non-blank entry raises
+        ``ValueError``: a blank secret must never silently leave the service open. A local-dev bypass is
+        explicit — pass ``allow_unauthenticated=True`` (mirroring the Go builder's ``stub`` flag) and an
+        empty token builds without the check (``build`` logs a warning).
         """
-        if not expected_token and not allow_unauthenticated:
-            msg = "service auth requires a non-empty service token (pass allow_unauthenticated=True for local dev)"
+        tokens = _split_tokens(expected_token)
+        if not tokens and not allow_unauthenticated:
+            msg = (
+                "service auth requires a non-empty service token "
+                "(pass allow_unauthenticated=True for local dev)"
+            )
             raise ValueError(msg)
-        self._service_token = expected_token
+        self._service_token = ",".join(tokens)
+        self._service_auth_bypassed = not tokens
         return self
 
     def with_auth(self, headers: HeaderClaimMapping) -> ServerInterceptorBuilder:
-        """Add the auth-claims extraction interceptor, reading the gateway metadata keys in ``headers``."""
+        """Add the auth-claims extraction interceptor, reading the gateway metadata keys in ``headers``.
+
+        The claims are only as trustworthy as the metadata: without ``with_service_auth`` any caller
+        that reaches the server can set them, so ``build`` logs a warning in that case.
+        """
         self._auth_headers = headers
         return self
 
@@ -137,13 +159,25 @@ class ServerInterceptorBuilder:
 
         Mirrors the Go connect ``ValidateInterceptor`` — the Python gRPC servers run the same compiled
         protovalidate rules, so an inbound request that violates a rule is rejected server-side with
-        ``INVALID_ARGUMENT`` (ARCHITECTURE.md#error-codes; Go parity) instead of reaching the handler unchecked.
+        ``INVALID_ARGUMENT`` (ARCHITECTURE.md#error-codes; Go parity) instead of reaching the handler
+        unchecked.
         """
         self._validation = True
         return self
 
     def build(self) -> list[grpc.aio.ServerInterceptor]:
-        """Return the composed list of async server interceptors (outermost first)."""
+        """Return the composed list of async server interceptors (outermost first).
+
+        Logs a warning when service auth was bypassed (``allow_unauthenticated`` with no token) and when
+        auth claims are read without service auth, so an open server is visible in the logs.
+        """
+        if self._service_auth_bypassed:
+            _logger.warning("gRPC service auth bypassed (allow_unauthenticated): every caller is admitted")
+        if self._auth_headers is not None and not self._service_token:
+            _logger.warning(
+                "gRPC auth claims are read from request metadata without service auth; "
+                "any caller that reaches the server can set them"
+            )
         interceptors: list[grpc.aio.ServerInterceptor] = []
 
         if self._recovery:
@@ -219,7 +253,7 @@ class _RecoveryServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mi
 
         def wrap_stream(fn: _StreamBehavior) -> _StreamBehavior:
             async def _recovered(request: object, context: grpc.aio.ServicerContext) -> AsyncIterator[object]:
-                """Run the streaming handler, converting an uncaught panic mid-stream into an INTERNAL abort."""
+                """Run the streaming handler, turning an uncaught panic mid-stream into an INTERNAL abort."""
                 try:
                     async for item in fn(request, context):
                         yield item
@@ -350,13 +384,24 @@ class _ServiceAuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore
     """Rejects RPCs lacking a valid service-to-service bearer token.
 
     Authenticates the *calling service* so downstream claim-based authorization can trust the
-    metadata it forwards. The token rides as ``authorization: Bearer <token>``
-    (the same header clients set). Dev-bypass: an empty expected token allows all calls.
+    metadata it forwards. The token rides as ``authorization: Bearer <token>`` (the same header clients
+    set). The expected token may be a comma-separated ``current,previous`` rotation pair; the presented
+    token is compared against every accepted one with ``hmac.compare_digest`` (constant time, like Go's
+    ``subtle.ConstantTimeCompare``), so response timing does not leak the secret. Dev-bypass: an empty
+    expected token allows all calls.
     """
 
     def __init__(self, expected_token: str) -> None:
-        """Precompute the expected ``Bearer`` header value (empty disables the check)."""
-        self._expected = f"Bearer {expected_token}" if expected_token else ""
+        """Precompute the accepted tokens from ``current[,previous]`` (empty disables the check)."""
+        self._accepted = tuple(token.encode() for token in _split_tokens(expected_token))
+
+    def _authorized(self, header: str) -> bool:
+        """Return True iff ``header`` is ``Bearer <token>`` for an accepted token (constant-time compare)."""
+        if not header.startswith(_BEARER_PREFIX):
+            return False
+        presented = header.removeprefix(_BEARER_PREFIX).encode()
+        # Compare against every accepted token (no short-circuit) so timing does not reveal which matched.
+        return any([hmac.compare_digest(presented, token) for token in self._accepted])  # noqa: C419
 
     async def intercept_service(
         self,
@@ -365,10 +410,10 @@ class _ServiceAuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore
     ) -> grpc.RpcMethodHandler | None:
         """Return the real handler for authorized callers, else a handler that aborts UNAUTHENTICATED."""
         handler = await continuation(handler_call_details)
-        if not self._expected or handler is None:
+        if not self._accepted or handler is None:
             return handler
         metadata = dict(handler_call_details.invocation_metadata or [])
-        if str(metadata.get("authorization", "")) == self._expected:
+        if self._authorized(str(metadata.get("authorization", ""))):
             return handler
         return _deny_handler(handler)
 
@@ -384,9 +429,9 @@ class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[
 
     Scope: only the inbound REQUEST is validated. Unlike the Go interceptor's
     ``WithValidateResponses()``, response validation (a server-output correctness check) is a deliberate
-    non-goal — 's contract is request-only. A single-message request is validated; a
-    client-streaming request (an async iterator) is passed through untouched (the Python servers have no
-    client-streaming RPCs, so every real method is covered).
+    non-goal — this interceptor's contract is request-only. A single-message request is validated; a
+    client-streaming request (an async iterator) is passed through untouched (validating it would
+    consume the iterator before the handler could).
     """
 
     async def intercept_service(
@@ -422,13 +467,12 @@ class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[
 async def _validate_request(request: object, context: grpc.aio.ServicerContext) -> None:
     """Validate a single-message request with protovalidate; abort INVALID_ARGUMENT on violation.
 
-    A client-streaming request is an async iterator, not a proto ``Message`` — it is skipped (no such
-    RPC exists on the Python servers today, and validating an iterator would consume it before the
-    handler could).
+    A client-streaming request is an async iterator, not a proto ``Message`` — it is skipped
+    (validating an iterator would consume it before the handler could).
 
     ``protovalidate`` is imported lazily here (not at module load) so importing this module — or merely
-    building a ``ServerInterceptorBuilder`` in an SQS-only worker with no gRPC server — does not pull the
-    ~18MB compiled protovalidate/protobuf-py extension it never uses (mirrors the Bedrock lazy-import
+    building a ``ServerInterceptorBuilder`` in a process that serves no gRPC — does not pull the ~18MB
+    compiled protovalidate/protobuf-py extension it never uses (mirrors the Bedrock lazy-import
     convention). Only ``ValidationError`` is a client fault (INVALID_ARGUMENT); a ``CompilationError`` /
     ``EvaluationError`` (a server-side rule bug, surfaced lazily on first traffic) is deliberately left to
     propagate to the outer recovery interceptor, which logs it and returns INTERNAL.

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	gormadapter "github.com/gt-tech-ai/knowledge-engine/go/repos/adapters/gorm"
@@ -39,16 +40,20 @@ func TestGormAdapter_KindAndUnknown(t *testing.T) {
 // so before Start the pool is unopened and Start surfaces the unreachable host.
 //
 // Why this test is important:
-//   - The adapter is the swappable Ent sibling; a composition root relies on Liveness
-//     and Readiness reporting not-ready until Start opens the pool, and on Start failing
-//     fast when the database is unreachable rather than deferring the failure to the
-//     first query (and NOT doing I/O in the constructor).
+//   - A composition root relies on Liveness and Readiness reporting not-ready until
+//     Start opens the pool, and on Start failing fast when the database is unreachable
+//     rather than deferring the failure to the first query (and NOT doing I/O in the
+//     constructor).
+//   - A failed Start must not keep the pool: lifecycle.Manager never stops the client
+//     whose Start failed, so a retained pool leaks (one per retry) and Liveness would
+//     report a client that never connected as live.
 //
 // What it tests:
 //   - The client satisfies interfaces.Client.
 //   - NewFromConfig succeeds without dialing (no I/O); before Start, DB() is nil and
 //     Liveness/Readiness report not-started, and Stop is a safe no-op.
-//   - Start against an unreachable host returns a non-nil error.
+//   - Start against an unreachable host fails with CodeUnavailable (transient), and
+//     afterwards DB() is still nil and Liveness still fails.
 func TestGormAdapter_LifecycleUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +84,10 @@ func TestGormAdapter_LifecycleUnreachable(t *testing.T) {
 	assert.Error(t, client.Readiness(ctx), "not started → not ready")
 	assert.NoError(t, client.Stop(ctx), "Stop before Start is a no-op")
 
-	// Start dials the unreachable host and must fail fast.
-	assert.Error(t, client.Start(ctx), "Start against an unreachable host fails fast")
+	// Start dials the unreachable host and must fail fast, keeping no pool.
+	startErr := client.Start(ctx)
+	require.Error(t, startErr, "Start against an unreachable host fails fast")
+	assert.Equal(t, coreerrors.CodeUnavailable, coreerrors.Code(startErr), "an unreachable DB is transient")
+	assert.Nil(t, client.DB(), "a failed Start keeps no pool")
+	assert.Error(t, client.Liveness(ctx), "a failed Start leaves the client not live")
 }

@@ -15,8 +15,9 @@ type chain struct {
 
 // Chain composes middlewares into a single OpMiddleware applied outermost-first
 // (the first argument is the outermost layer). Each tier builds its Chain once at the
-// composition root in its documented order (ARCHITECTURE.md#decorator-order: recovery
-// outermost; Tracing → Metrics → Logging innermost). Chain() with no middlewares is a pure passthrough.
+// composition root in its documented order (ARCHITECTURE.md#decorator-order lists each
+// tier's stack; e.g. recovery outermost, with Tracing → Metrics → Logging ahead of the
+// tier's resilience layers). Chain() with no middlewares is a pure passthrough.
 func Chain(mws ...OpMiddleware) OpMiddleware {
 	// Copy so a later mutation of the caller's slice can't reorder the chain.
 	cp := make([]OpMiddleware, len(mws))

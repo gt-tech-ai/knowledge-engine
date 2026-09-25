@@ -163,6 +163,44 @@ func (s *ReplayBufferRedisSuite) TestTTLExpiresAndDelete() {
 	assert.False(s.T(), complete, "deleted buffer → gap")
 }
 
+// TestKeyPrefix tests that the buffer's Redis keys live under its configured prefix — "replay:" by
+// default — and that buffers with different prefixes don't see each other's entries.
+//
+// Why this test is important:
+//   - The prefix is the buffer's whole footprint in a shared Redis: a consumer keeps its existing key
+//     layout across an upgrade by setting it, and two buffers on one Redis must not collide.
+//
+// What it tests:
+//   - A default buffer writes replay:k and replay:k:lw; a buffer with KeyPrefix "app:replay:" writes
+//     app:replay:k and app:replay:k:lw; each replays only its own entries for the same key.
+func (s *ReplayBufferRedisSuite) TestKeyPrefix() {
+	ctx := context.Background()
+	def := s.newBuffer(100, time.Minute)
+	custom := replayredis.New(s.client, replayredis.Config{
+		MaxSize: 100, TTL: time.Minute, KeyPrefix: "app:replay:",
+	})
+	s.appendSeq(def, "k", 3)
+	require.NoError(s.T(), custom.Append(ctx, "k", "msg-8", []byte("custom-8")))
+	require.NoError(s.T(), custom.Append(ctx, "k", "msg-9", []byte("custom-9")))
+	require.NoError(s.T(), def.Prune(ctx, "k", "msg-1"))
+	require.NoError(s.T(), custom.Prune(ctx, "k", "msg-8"))
+
+	keys, err := s.client.Keys(ctx, "*").Result()
+	require.NoError(s.T(), err)
+	assert.ElementsMatch(s.T(),
+		[]string{"replay:k", "replay:k:lw", "app:replay:k", "app:replay:k:lw"}, keys)
+
+	tail, complete, err := def.ReplayAfter(ctx, "k", "msg-1")
+	require.NoError(s.T(), err)
+	assert.True(s.T(), complete)
+	assert.Equal(s.T(), []string{"msg-2", "msg-3"}, idsI(tail))
+
+	tail, complete, err = custom.ReplayAfter(ctx, "k", "msg-8")
+	require.NoError(s.T(), err)
+	assert.True(s.T(), complete)
+	assert.Equal(s.T(), []string{"msg-9"}, idsI(tail))
+}
+
 func itoaI(i int) string {
 	if i == 0 {
 		return "0"

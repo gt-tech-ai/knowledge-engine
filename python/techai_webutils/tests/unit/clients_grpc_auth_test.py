@@ -17,7 +17,7 @@ from techai_webutils.clients.rpc.grpc.interceptors.auth import (
 )
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
 """The gateway header contract these tests send."""
 
 
@@ -220,7 +220,7 @@ class TestAuthServerInterceptor:
         details = self._details(
             [
                 ("x-user-id", "u-1"),
-                ("x-org-id", "o-1"),
+                ("x-tenant-id", "o-1"),
                 ("x-roles", "admin,member"),
             ]
         )
@@ -252,7 +252,7 @@ class TestAuthServerInterceptor:
           - No claims are stored in context when x-user-id is missing
           - The continuation is still invoked with the handler call details
         """
-        details = self._details([("x-org-id", "o-1")])
+        details = self._details([("x-tenant-id", "o-1")])
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
@@ -294,3 +294,60 @@ class TestAuthServerInterceptor:
             assert get_auth_claims() is None
         finally:
             _auth_claims_var.reset(token)
+
+
+class TestHeaderClaimMapping:
+    """Validation and normalisation of the consumer's gateway header names."""
+
+    @pytest.mark.asyncio
+    async def test_normalises_header_names_to_the_lowercase_grpc_metadata_keys(self) -> None:
+        """Header names written as the gateway spells them still match gRPC's lowercase metadata keys.
+
+        **Why this test is important:**
+          - gRPC metadata keys are always lowercase. A mapping copied from gateway config
+            ("X-User-Sub") never matched, so no request ever got claims, while a Go service built from
+            the same names (case-insensitive http.Header) worked.
+
+        **What it tests:**
+          - HeaderClaimMapping(" X-User-Sub ", "X-Tenant", "X-Roles") stores the lowercase, trimmed names,
+            and an interceptor built from it (imported from the interceptors package) extracts claims from
+            lowercase metadata.
+        """
+        from techai_webutils.clients.rpc.grpc.interceptors import AuthServerInterceptor as PackageInterceptor
+        from techai_webutils.clients.rpc.grpc.interceptors import HeaderClaimMapping as PackageMapping
+
+        mapping = PackageMapping(user_id=" X-User-Sub ", tenant_id="X-Tenant", roles="X-Roles")
+        continuation = AsyncMock(return_value="handler")
+        token = _auth_claims_var.set(None)
+        try:
+            await PackageInterceptor(mapping).intercept_service(
+                continuation,
+                MagicMock(invocation_metadata=[("x-user-sub", "u-1"), ("x-tenant", "t-1"), ("x-roles", "a")]),
+            )
+
+            assert (mapping.user_id, mapping.tenant_id, mapping.roles) == (
+                "x-user-sub",
+                "x-tenant",
+                "x-roles",
+            )
+            assert get_auth_claims() == AuthClaims(user_id="u-1", tenant_id="t-1", roles=frozenset({"a"}))
+        finally:
+            _auth_claims_var.reset(token)
+
+    @pytest.mark.parametrize("field", ["user_id", "tenant_id", "roles"])
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_rejects_an_empty_or_blank_header_name(self, field: str, blank: str) -> None:
+        """A mapping with an empty or blank header name fails at construction.
+
+        **Why this test is important:**
+          - An unset config value would map a claim to the "" key: an empty user key means no request
+            ever gets claims and nothing says why; an empty tenant key stamps tenant_id="" on every claim,
+            which a scope policy could then match.
+
+        **What it tests:**
+          - Each of user_id, tenant_id and roles set to "" or whitespace raises ValueError naming it.
+        """
+        names = {"user_id": "x-sub", "tenant_id": "x-tenant", "roles": "x-roles", field: blank}
+
+        with pytest.raises(ValueError, match=field):
+            HeaderClaimMapping(**names)

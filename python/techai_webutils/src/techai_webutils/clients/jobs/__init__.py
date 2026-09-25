@@ -1,11 +1,8 @@
 """Background job infrastructure.
 
-Provides in-memory and database-backed implementations of the job interfaces
-defined in ``core/interfaces/jobs.py``. Mirrors Go's ``go/clients/jobs/``
-package backed by River.
-
-Phase 1: In-memory implementations for local development and testing.
-Phase 3: PostgreSQL-backed persistent job queue.
+Provides the in-memory implementation (local development and testing) of the job interfaces
+defined in ``core/interfaces/jobs.py``, selected by ``new_jobs_from_config``; a persistent backend
+can be added as another kind. Mirrors Go's ``go/clients/jobs/`` package (backed by River).
 """
 
 from techai_webutils.clients.jobs.builder import new_jobs_from_config

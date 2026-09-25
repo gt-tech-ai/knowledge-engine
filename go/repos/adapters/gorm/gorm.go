@@ -1,8 +1,7 @@
-// Package gorm is the GORM ORM adapter (repos/adapters/gorm): the swappable
-// sibling of repos/adapters/ent. It opens a *gorm.DB selected by Kind (lazily, in
-// Start), so a service can switch its persistence backend from Ent to GORM as a
-// composition-root wiring change rather than a rewrite. Ent is the default adapter
-// today; this establishes the GORM slot with a working, lifecycle-managed opener.
+// Package gorm is the GORM ORM adapter (repos/adapters/gorm): a lifecycle-managed
+// opener for a *gorm.DB selected by Kind (lazily, in Start), so a consumer can put
+// its repositories on GORM, or switch another persistence adapter it owns for this
+// one, as a composition-root wiring change rather than a rewrite.
 package gorm
 
 import (
@@ -45,11 +44,10 @@ type Config struct {
 	Kind Kind
 }
 
-// Client is a GORM database handle. It mirrors the Ent adapter's client so a
-// composition root can select either ORM by configuration. The pool (db) is opened
-// lazily in Start — NewFromConfig does no I/O — so the two swappable siblings share
-// the same "construct with zero I/O, dial at Start" contract as repos/adapters (and
-// the clients/database/postgres backend).
+// Client is a GORM database handle a composition root can select by configuration.
+// The pool (db) is opened lazily in Start — NewFromConfig does no I/O — the same
+// "construct with zero I/O, dial at Start" contract as the clients/database/postgres
+// backend.
 type Client struct {
 	// db is the underlying GORM connection pool. It is nil until Start opens it.
 	db *gorm.DB
@@ -80,27 +78,36 @@ func (c *Client) Close() error {
 	if c.db == nil {
 		return nil
 	}
-	sqlDB, err := c.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.Close()
+	return closePool(c.db)
 }
 
 // compile-time check: the GORM client is a lifecycle-managed, health-checkable
 // client (interfaces.Client), so a lifecycle.Manager coordinates it uniformly with
-// its Ent sibling and the other clients.
+// the other clients.
 var _ interfaces.Client = (*Client)(nil)
 
-// Start opens the connection pool and verifies it is reachable, failing fast at the
-// composition root rather than on the first query.
+// Start opens the connection pool and verifies it is reachable under ctx, failing
+// fast at the composition root rather than on the first query. A failed Start keeps
+// no pool: lifecycle.Manager never stops the client whose Start failed, so the pool
+// is closed here and DB/Liveness keep reporting not started. GORM's own automatic
+// ping is disabled so the reachability check honours ctx.
 func (c *Client) Start(ctx context.Context) error {
-	db, err := gorm.Open(postgres.Open(c.cfg.Database.DSN()), &gorm.Config{})
+	db, err := gorm.Open(
+		postgres.Open(c.cfg.Database.DSN()),
+		&gorm.Config{DisableAutomaticPing: true},
+	)
 	if err != nil {
+		if db != nil {
+			_ = closePool(db)
+		}
 		return coreerrors.Wrap(err, coreerrors.CodeInternal, "open gorm postgres")
 	}
+	if err := ping(ctx, db); err != nil {
+		_ = closePool(db)
+		return err
+	}
 	c.db = db
-	return c.Readiness(ctx)
+	return nil
 }
 
 // Stop closes the underlying connection pool.
@@ -117,15 +124,41 @@ func (c *Client) Liveness(_ context.Context) error {
 	return nil
 }
 
-// Readiness verifies the database can serve traffic (a bounded Ping); it fails until
-// Start has opened the pool.
+// Readiness verifies the database can serve traffic (a Ping bounded by ctx); it
+// fails until Start has opened the pool, and reports an unreachable database as
+// CodeUnavailable.
 func (c *Client) Readiness(ctx context.Context) error {
 	if c.db == nil {
 		return coreerrors.Internal("gorm client not started")
 	}
-	sqlDB, err := c.db.DB()
+	return ping(ctx, c.db)
+}
+
+// ping checks that db's pool reaches the database, coding a failure CodeUnavailable
+// (a down or unreachable database is transient).
+func ping(ctx context.Context, db *gorm.DB) error {
+	sqlDB, err := db.DB()
 	if err != nil {
 		return coreerrors.Wrap(err, coreerrors.CodeInternal, "gorm sql.DB")
 	}
-	return sqlDB.PingContext(ctx)
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return coreerrors.Wrap(
+			err,
+			coreerrors.CodeUnavailable,
+			"gorm postgres ping failed",
+		)
+	}
+	return nil
+}
+
+// closePool closes db's underlying *sql.DB pool.
+func closePool(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return coreerrors.Wrap(err, coreerrors.CodeInternal, "gorm sql.DB")
+	}
+	if err := sqlDB.Close(); err != nil {
+		return coreerrors.Wrap(err, coreerrors.CodeInternal, "close gorm postgres pool")
+	}
+	return nil
 }

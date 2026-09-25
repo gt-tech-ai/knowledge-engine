@@ -53,10 +53,10 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
         """Wrap unary-unary AND unary-stream handlers in a SERVER span parented on inbound context.
 
         The server-streaming case matters here: a streaming RPC (e.g. a streamed answer) is common, so
-        a unary-only interceptor would leave the whole streamed request path un-parented — each inner client span would start a
-        NEW root trace, breaking single-request correlation. Wrapping the whole streamed response in one
-        SERVER span keeps that span active across every ``yield``, so every inner client-stack span is
-        its child and shares the upstream trace id.
+        a unary-only interceptor would leave the whole streamed request path un-parented — each inner
+        client span would start a NEW root trace, breaking single-request correlation. Wrapping the whole
+        streamed response in one SERVER span keeps that span active across every ``yield``, so every
+        inner client-stack span is its child and shares the upstream trace id.
         """
         handler = await continuation(handler_call_details)
         if handler is None:
@@ -93,7 +93,7 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
             inner_stream = handler.unary_stream
 
             async def traced_stream(request: object, context: grpc.aio.ServicerContext) -> Any:  # noqa: ANN401
-                """Run the wrapped server-streaming handler inside one SERVER span held open across all yields.
+                """Run the wrapped server-streaming handler inside one SERVER span held open across yields.
 
                 The span stays current for the whole stream, so the rewrite/retrieve/citations/generate
                 client spans that fire while producing chunks are children of this one — the single

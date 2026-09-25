@@ -1,8 +1,8 @@
 """Env-aware embedding provider factory (foundation/logger ``NewFromConfig`` pattern).
 
 Selects the embedding backend from ``EmbeddingConfig.kind``: Ollama (local dev) or a deterministic
-in-process stub (``stub``, — no infra). Stage/prod embed inside the Bedrock Knowledge
-Base, so no separate provider is needed there.
+in-process stub (``stub``; no infra). A managed knowledge base that embeds server-side (e.g. Bedrock)
+needs no separate provider.
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ class EmbeddingKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class EmbeddingConfig:
-    """Embedding provider configuration (resolved from ``retrieval.embedding.*``)."""
+    """Embedding provider configuration (the consumer maps its own config section onto it)."""
 
     kind: EmbeddingKind = EmbeddingKind.OLLAMA
-    """Selects the embedding backend (only ``ollama`` ships today)."""
+    """Selects the embedding backend (``ollama`` or the in-process ``stub``)."""
     host: str = "http://localhost:11434"
     """Ollama server base URL."""
     model: str = "nomic-embed-text"
@@ -40,16 +40,15 @@ class EmbeddingConfig:
     """Per-request HTTP timeout for the embedding call. httpx defaults to 5s, but a CPU-only Ollama
     embed of a full sub-batch takes tens of seconds (and, under the KB's bounded-concurrency fan-out,
     several such calls queue at the server), so the 5s default aborts every real embed with a
-    ReadTimeout — stranding the document. This is a safety upper bound, generous because only the
-    local dev vector path uses Ollama (stage/prod embed inside Bedrock, not through this client)."""
+    ReadTimeout. This is a safety upper bound, generous because Ollama is the local-dev vector path."""
 
 
 def new_embedding_from_config(config: EmbeddingConfig) -> EmbeddingProvider:
     """Build the ``EmbeddingProvider`` selected by ``config.kind`` (Ollama). Unknown kinds fail loudly.
 
     The ``httpx.AsyncClient`` is created here and lives for the returned provider's lifetime — i.e. the
-    process, since these clients are wired once at startup (retrieval server) or in the short-lived
-    ``dev_index`` script. There is no separate teardown seam; the OS reclaims the pool on exit.
+    process, since these clients are wired once at startup (a server) or in a short-lived script.
+    There is no separate teardown seam; the OS reclaims the pool on exit.
     """
     if config.kind is EmbeddingKind.OLLAMA:
         import httpx  # noqa: PLC0415
@@ -59,7 +58,8 @@ def new_embedding_from_config(config: EmbeddingConfig) -> EmbeddingProvider:
         client = httpx.AsyncClient(base_url=config.host, timeout=config.timeout_seconds)
         return OllamaEmbeddingProvider(client, model=config.model, dimension=config.dimension)
     if config.kind is EmbeddingKind.STUB:
-        from techai_webutils.clients.embedding.stub import StubEmbeddingProvider  # noqa: PLC0415 — no httpx client
+        # Lazy import (no httpx client to build).
+        from techai_webutils.clients.embedding.stub import StubEmbeddingProvider  # noqa: PLC0415
 
         return StubEmbeddingProvider(model=config.model, dimension=config.dimension)
     msg = f"unknown embedding kind: {config.kind!r}"

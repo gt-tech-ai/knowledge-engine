@@ -42,13 +42,13 @@ _TRANSIENT_GRPC_CODES = frozenset(
 
 
 def grpc_error_to_app_error(exc: AioRpcError) -> AppError:
-    """Map a raw gRPC ``AioRpcError`` to a coded ``AppError`` at the client boundary (ARCHITECTURE.md#error-codes).
+    """Map a raw gRPC ``AioRpcError`` to a coded ``AppError`` at the client boundary.
 
-    A transient status (UNAVAILABLE / DEADLINE_EXCEEDED / RESOURCE_EXHAUSTED) becomes an ``AppError``
-    with a transient ``ErrorCode`` — so the resiliency stack (RetryProxy, which only retries a
-    transient ``AppError``) can absorb a brief endpoint flap — while every other status becomes a
-    terminal ``INTERNAL`` error carrying the gRPC cause. Without this, the SDK error escapes the retry
-    loop on the first attempt.
+    Coded per ARCHITECTURE.md#error-codes: a transient status (UNAVAILABLE / DEADLINE_EXCEEDED /
+    RESOURCE_EXHAUSTED) becomes an ``AppError`` with a transient ``ErrorCode`` — so the resiliency stack
+    (RetryProxy, which only retries a transient ``AppError``) can absorb a brief endpoint flap — while
+    every other status becomes a terminal ``INTERNAL`` error carrying the gRPC cause. Without this, the
+    SDK error escapes the retry loop on the first attempt.
     """
     status = exc.code()
     detail = exc.details() or str(exc)

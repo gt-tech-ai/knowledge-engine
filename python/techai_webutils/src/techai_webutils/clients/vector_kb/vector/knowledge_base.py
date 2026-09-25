@@ -32,12 +32,16 @@ logger = get_logger(__name__)
 # Embed + upsert one document a fixed-size sub-batch at a time, instead of embedding EVERY
 # chunk up front and doing one all-or-nothing upsert — on the CPU-Ollama path that single giant unit
 # exceeds the embed read timeout and the whole (thousands-of-chunk) document is lost and redriven from
-# zero forever. Sub-batches are processed SEQUENTIALLY, not concurrently: this KnowledgeBase is only the
-# local Ollama+Qdrant path, and Ollama is a single CPU-bound
-# backend, so concurrent embed calls do not parallelize — they make each HTTP request wait behind the
-# others and blow past its read timeout. One in-flight embed gives each call the whole backend.
+# zero forever. Sub-batches are processed SEQUENTIALLY, not concurrently: this KnowledgeBase is the
+# local Ollama+Qdrant path, and Ollama is a single CPU-bound backend, so concurrent embed calls do not
+# parallelize — they make each HTTP request wait behind the others and blow past its read timeout. One
+# in-flight embed gives each call the whole backend.
 _EMBED_SUB_BATCH = 96
 """Number of chunks embedded + upserted per sub-batch, bounding a document's per-unit embed work."""
+
+_RESERVED_ATTRIBUTE_KEYS = frozenset({"document_id", "content", "entry_id", "document_name", "chunk_index"})
+"""Metadata keys the index writes itself (the entry's id/document/content, the name and chunk index);
+an attribute with one of these names would overwrite it in the stored payload, so it is refused."""
 
 
 class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
@@ -62,16 +66,27 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
 
         Each sub-batch is embedded and upserted before the next, so peak memory is O(sub-batch) not
         O(document) and every completed sub-batch is durable. Before embedding a sub-batch its stable
-        ``{document_id}:{index}`` ids are probed against the store: a sub-batch already fully present is
-        skipped (checkpoint resume), so an at-least-once redrive — or a mid-ingest worker restart —
-        re-embeds only the sub-batches not yet fully present instead of redoing the expensive CPU
-        embedding from zero. A partially-present sub-batch is re-embedded and re-upserted (idempotent),
-        so resume is exact. ``attributes`` are stamped onto every chunk; ``document_name`` is stamped
-        for citation display, falling back to ``document_id`` when empty.
+        ``{document_id}:{index}`` ids are probed against the store: a sub-batch whose chunks are ALL
+        present with exactly the metadata this call would write is skipped (checkpoint resume), so an
+        at-least-once redrive — or a mid-ingest restart — re-embeds only what is missing instead of
+        redoing the expensive CPU embedding from zero. A sub-batch that is partially present, or stored
+        with other attributes or another name (a reclassified or renamed document), is re-embedded and
+        re-upserted (idempotent), so its stored scope always matches the latest call. ``attributes`` are
+        stamped onto every chunk; ``document_name`` is stamped for citation display, falling back to
+        ``document_id`` when empty.
+
+        Raises:
+            ValueError: An attribute is named like a key the index writes itself (``document_id``,
+                ``content``, ``entry_id``, ``document_name``, ``chunk_index``).
+
         """
+        base_metadata = dict(attributes or {})
+        if reserved := sorted(_RESERVED_ATTRIBUTE_KEYS.intersection(base_metadata)):
+            msg = f"attributes may not use the reserved metadata keys {reserved}"
+            raise ValueError(msg)
         if not chunks:
             return
-        base_metadata = dict(attributes or {})
+        name = document_name or document_id
         sub_batches = [chunks[i : i + _EMBED_SUB_BATCH] for i in range(0, len(chunks), _EMBED_SUB_BATCH)]
         total = len(sub_batches)
         logger.info("vector index: start", document_id=document_id, chunks=len(chunks), sub_batches=total)
@@ -79,7 +94,16 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
         skipped = 0
         for number, batch in enumerate(sub_batches, start=1):
             ids = [f"{document_id}:{base + offset}" for offset in range(len(batch))]
-            if await self._store.existing_ids(self._collection, ids) == set(ids):
+            # Prefer the source name so a retrieval citation displays it; fall back to the document_id
+            # when a caller passes no name.
+            metadata = [
+                {**base_metadata, "document_name": name, "chunk_index": str(base + offset)}
+                for offset in range(len(batch))
+            ]
+            stored = await self._store.stored_metadata(self._collection, ids)
+            if all(
+                stored.get(chunk_id) == expected for chunk_id, expected in zip(ids, metadata, strict=True)
+            ):
                 base += len(batch)
                 skipped += 1
                 continue
@@ -96,13 +120,7 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
                     document_id=document_id,
                     content=batch[offset],
                     embedding=embeddings[offset].embedding,
-                    metadata={
-                        **base_metadata,
-                        # Prefer the source name so a retrieval citation displays it; fall back to the
-                        # document_id when a caller passes no name.
-                        "document_name": document_name or document_id,
-                        "chunk_index": str(base + offset),
-                    },
+                    metadata=metadata[offset],
                 )
                 for offset in range(len(batch))
             ]

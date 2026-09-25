@@ -1,7 +1,7 @@
 """Tests for the retrieval engines, the config-selected factory, and the policy filter."""
 
 from typing import Any
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
@@ -98,6 +98,9 @@ class TestBedrockIndexRouting:
     async def test_uses_construction_index_when_no_per_call_id(self) -> None:
         """Without a per-call id, the construction-time knowledge base is queried.
 
+        **Why this test is important:**
+          - A single-index deployment passes no per-call id; the engine must use its configured default.
+
         **What it tests:**
           - ``retrieve(...)`` with no ``index_id`` issues Retrieve against the construction KB.
         """
@@ -127,6 +130,56 @@ class TestBedrockIndexRouting:
             await engine.retrieve("q", index_id=None)
         engine._client.retrieve.assert_not_awaited()  # noqa: SLF001
 
+    @pytest.mark.asyncio
+    async def test_raises_on_an_empty_per_call_index_even_with_a_default(self) -> None:
+        """An empty per-call index_id raises instead of quietly routing to the engine's default index.
+
+        **Why this test is important:**
+          - A per-tenant router that returns "" for an unmapped tenant must not land that tenant on the
+            shared default knowledge base; only ``None`` means "use the default".
+
+        **What it tests:**
+          - ``retrieve(..., index_id="")`` on an engine with a default raises ``InternalError`` and never
+            issues the Retrieve call.
+        """
+        from techai_webutils.core.errors import InternalError
+
+        engine = self._engine("kb-default")
+
+        with pytest.raises(InternalError, match="empty"):
+            await engine.retrieve("q", index_id="")
+        engine._client.retrieve.assert_not_awaited()  # noqa: SLF001
+
+    @pytest.mark.asyncio
+    async def test_maps_a_botocore_failure_to_a_coded_app_error(self) -> None:
+        """A Bedrock throttle from Retrieve surfaces as a transient coded AppError, not a raw ClientError.
+
+        **Why this test is important:**
+          - The retry decorator retries only transient AppErrors and the gRPC edge maps codes to statuses;
+            a raw ClientError fails on the first attempt and reports INTERNAL instead of UNAVAILABLE.
+
+        **What it tests:**
+          - A ThrottlingException from the client's retrieve raises an AppError with code UNAVAILABLE,
+            is_transient True, and the ClientError as its cause.
+        """
+        from botocore.exceptions import ClientError
+
+        from techai_webutils.core.errors import AppError, ErrorCode
+
+        engine = self._engine("kb-default")
+        throttle = ClientError(
+            {"Error": {"Code": "ThrottlingException"}, "ResponseMetadata": {"HTTPStatusCode": 429}},
+            "Retrieve",
+        )
+        engine._client.retrieve = AsyncMock(side_effect=throttle)  # noqa: SLF001
+
+        with pytest.raises(AppError) as excinfo:
+            await engine.retrieve("q")
+
+        assert excinfo.value.code is ErrorCode.UNAVAILABLE
+        assert excinfo.value.is_transient is True
+        assert excinfo.value.cause is throttle
+
 
 class TestFilteringRetrievalEngine:
     @pytest.mark.asyncio
@@ -149,18 +202,23 @@ class TestFilteringRetrievalEngine:
 
     @pytest.mark.asyncio
     async def test_min_score_drops_low_relevance_passages(self) -> None:
-        """Passages below the MinScore floor are excluded.
+        """Passages below the MinScore floor are excluded; a passage exactly at the floor is kept.
+
+        **Why this test is important:**
+          - The floor is the configured relevance cut-off; an off-by-one comparison (``>`` for ``>=``)
+            would silently drop every passage scored exactly at the configured value.
 
         **What it tests:**
-          - With MinScore(0.5), a 0.4 passage is dropped and a 0.6 passage kept.
+          - With MinScore(0.5), a 0.4 passage is dropped, and the 0.5 and 0.6 passages are kept.
         """
         engine = FilteringRetrievalEngine(
-            _inner_returning(_passage("low", 0.4), _passage("high", 0.6)), [MinScore(0.5)]
+            _inner_returning(_passage("low", 0.4), _passage("edge", 0.5), _passage("high", 0.6)),
+            [MinScore(0.5)],
         )
 
         results = await engine.retrieve("q")
 
-        assert [r.document_id for r in results] == ["high"]
+        assert [r.document_id for r in results] == ["edge", "high"]
 
     @pytest.mark.asyncio
     async def test_metadata_equals_isolates_scopes_and_fails_closed(self) -> None:
@@ -174,23 +232,33 @@ class TestFilteringRetrievalEngine:
         **What it tests:**
           - For tenant t1: the t1 passage is kept; the t2 and the unlabelled passages are dropped.
           - A request without the tenant filter keeps nothing.
+          - A request whose tenant is "" keeps nothing, even a passage stamped with tenant "".
         """
         engine = FilteringRetrievalEngine(
             _inner_returning(
-                _passage("mine", tenant="t1"), _passage("theirs", tenant="t2"), _passage("bare")
+                _passage("mine", tenant="t1"),
+                _passage("theirs", tenant="t2"),
+                _passage("bare"),
+                _passage("blank", tenant=""),
             ),
             [MetadataEquals("tenant")],
         )
 
         scoped = await engine.retrieve("q", filters={"tenant": "t1"})
         unscoped = await engine.retrieve("q")
+        blank_scope = await engine.retrieve("q", filters={"tenant": ""})
 
         assert [r.document_id for r in scoped] == ["mine"]
         assert unscoped == []
+        assert blank_scope == []
 
     @pytest.mark.asyncio
     async def test_metadata_equals_can_read_a_differently_named_request_key(self) -> None:
         """MetadataEquals compares a passage key against a request key of another name.
+
+        **Why this test is important:**
+          - A consumer's stored metadata key and its request filter key often differ (``owner`` vs
+            ``tenant``); comparing the wrong key would drop every in-scope passage or admit another's.
 
         **What it tests:**
           - MetadataEquals("owner", request_key="tenant") keeps the passage whose owner is the request's
@@ -231,9 +299,26 @@ class TestFilteringRetrievalEngine:
         assert admits("bogus", "low")
         assert not admits("bogus", "mid")
 
+    def test_ordinal_ceiling_rejects_an_empty_ladder(self) -> None:
+        """OrdinalCeiling refuses an empty ladder at construction instead of admitting everything.
+
+        **Why this test is important:**
+          - With no ranks an unknown label and an unknown caller level both rank 0, so every passage was
+            admitted (fail open) — e.g. when the ladder is loaded from config that came back empty.
+
+        **What it tests:**
+          - ``OrdinalCeiling("level", "max_level", ())`` raises ValueError naming the ranks.
+        """
+        with pytest.raises(ValueError, match="ranks"):
+            OrdinalCeiling("level", "max_level", ())
+
     @pytest.mark.asyncio
     async def test_every_policy_must_admit(self) -> None:
         """A passage survives only when every policy admits it; no policies admit everything.
+
+        **Why this test is important:**
+          - The rules are conjunctive: a passage that passes the score floor but not the scope (or the
+            reverse) must still be dropped.
 
         **What it tests:**
           - With MinScore(0.1) + MetadataEquals("tenant"): only the high-scoring passage of the
@@ -249,23 +334,110 @@ class TestFilteringRetrievalEngine:
         assert [r.document_id for r in await strict.retrieve("q", filters={"tenant": "t1"})] == ["a"]
         assert len(await open_.retrieve("q")) == 3
 
+    @pytest.mark.asyncio
+    async def test_logs_how_many_passages_each_policy_dropped(self) -> None:
+        """The filter log attributes every dropped passage to the first policy that rejected it.
 
-class TestRetrievalFactory:
-    def test_stub_kind_wraps_the_supplied_corpus_in_the_filter(self) -> None:
-        """kind=stub builds a filtering engine over a stub serving the consumer's corpus.
+        **Why this test is important:**
+          - "10 retrieved, 0 kept" is otherwise undiagnosable: it could be the score floor, a scope
+            mismatch or a missing label, and each has a different fix.
 
         **What it tests:**
-          - The engine is a FilteringRetrievalEngine whose inner is a StubRetrievalEngine.
+          - With MinScore(0.1) + MetadataEquals("tenant") over one kept, one low-score and one
+            other-tenant passage, the info log reports retrieved=3, kept=1 and
+            dropped_by={"MinScore": 1, "MetadataEquals": 1}.
         """
-        engine = new_retrieval_engine_from_config(
-            RetrievalConfig(kind=RetrievalKind.STUB), policies=[], stub_passages=[_passage("a")]
+        passages = (_passage("a", tenant="t1"), _passage("b", tenant="t2"), _passage("c", 0.05, tenant="t1"))
+        engine = FilteringRetrievalEngine(
+            _inner_returning(*passages), [MinScore(0.1), MetadataEquals("tenant")]
         )
 
-        assert isinstance(engine, FilteringRetrievalEngine)
-        assert isinstance(engine._inner, StubRetrievalEngine)  # noqa: SLF001
+        with patch("techai_webutils.clients.retrieval.filtering.logger") as mock_logger:
+            await engine.retrieve("q", filters={"tenant": "t1"})
+
+        fields = mock_logger.info.call_args.kwargs
+        assert fields["retrieved"] == 3
+        assert fields["kept"] == 1
+        assert fields["dropped_by"] == {"MinScore": 1, "MetadataEquals": 1}
+
+
+class TestRetrievalFactory:
+    def test_config_rejects_a_none_min_score(self) -> None:
+        """RetrievalConfig refuses min_score=None at construction instead of failing on every query.
+
+        **Why this test is important:**
+          - 0.1.x accepted ``None`` (a per-kind default); a consumer passing its old optional setting
+            through would build fine and then raise TypeError inside the score policy on every retrieve.
+
+        **What it tests:**
+          - ``RetrievalConfig(min_score=None)`` raises TypeError naming min_score.
+        """
+        with pytest.raises(TypeError, match="min_score"):
+            RetrievalConfig(min_score=None)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("config", "seams", "unused"),
+        [
+            (
+                RetrievalConfig(kind=RetrievalKind.STUB),
+                {"store_filter_keys": ("tenant",)},
+                ["store_filter_keys"],
+            ),
+            (
+                RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb"),
+                {"stub_passages": [_passage("a")]},
+                ["stub_passages"],
+            ),
+        ],
+        ids=["stub-ignores-store-filter-keys", "bedrock-ignores-stub-passages"],
+    )
+    def test_logs_a_seam_the_selected_kind_ignores(
+        self, config: RetrievalConfig, seams: dict[str, Any], unused: list[str]
+    ) -> None:
+        """The factory logs a supplied seam that does not apply to the selected kind.
+
+        **Why this test is important:**
+          - Each seam reaches one kind; flipping ``kind`` for local development silently drops the
+            other kind's seams, so the startup log must say which seams the selected kind ignores.
+
+        **What it tests:**
+          - A seam belonging to another kind produces an info record naming the kind and the unused seam.
+        """
+        with patch("techai_webutils.clients.retrieval.builder.logger") as mock_logger:
+            new_retrieval_engine_from_config(config, policies=[], **seams)
+
+        mock_logger.info.assert_any_call(
+            "retrieval seams unused by the selected kind", kind=str(config.kind), seams=unused
+        )
+
+    def test_warns_when_a_scope_policy_is_not_pushed_down(self) -> None:
+        """The factory warns when a MetadataEquals scope is enforced only after the backend's top_k.
+
+        **Why this test is important:**
+          - Without a push-down the backend returns the index-wide top_k and the scope policy then drops
+            the other scopes' hits, so a scope can get few or no passages although it has relevant ones.
+
+        **What it tests:**
+          - kind=bedrock with MetadataEquals("tenant") and no filter_builder warns, naming the tenant key.
+        """
+        with patch("techai_webutils.clients.retrieval.builder.logger") as mock_logger:
+            new_retrieval_engine_from_config(
+                RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb"),
+                policies=[MetadataEquals("tenant")],
+            )
+
+        mock_logger.warning.assert_any_call(
+            "retrieval scope policies are not pushed down to the backend",
+            kind="bedrock",
+            scope_keys=["tenant"],
+        )
 
     def test_bedrock_kind_wraps_bedrock_in_filter(self) -> None:
         """kind=bedrock builds a filtering engine wrapping the Bedrock engine.
+
+        **Why this test is important:**
+          - Stage/prod select the Bedrock backend by config alone; the server-side re-validation must
+            wrap it exactly as it wraps the stub.
 
         **What it tests:**
           - The engine is a FilteringRetrievalEngine whose inner is a BedrockRetrievalEngine.
@@ -281,6 +453,9 @@ class TestRetrievalFactory:
 
     def test_unknown_kind_raises(self) -> None:
         """An unknown retrieval kind fails loudly.
+
+        **Why this test is important:**
+          - A typo'd kind must stop the service at wiring, not fall through to some default backend.
 
         **What it tests:**
           - A bogus kind raises ValueError naming the kind.
@@ -344,6 +519,9 @@ class TestRetrievalFactory:
 
     def test_reranking_kind_none_disables_reranker_even_with_a_model_id(self) -> None:
         """reranking_kind=none disables the reranker regardless of a stray model id.
+
+        **Why this test is important:**
+          - The kind is the switch; a leftover model id must not quietly turn on (and bill for) reranking.
 
         **What it tests:**
           - reranking_kind=none with a model id set builds an engine with an empty reranking_model.
@@ -429,6 +607,10 @@ class TestBedrockRetrievalEngineRequest:
     async def test_filter_builder_returning_none_sends_no_filter(self) -> None:
         """A filter builder that returns None pushes no filter down.
 
+        **Why this test is important:**
+          - ``None`` is the builder's way to say "no push-down for this request"; sending it as a filter
+            would make Bedrock reject the call.
+
         **What it tests:**
           - With filter_builder=lambda f: None, the request carries no filter key.
         """
@@ -438,6 +620,10 @@ class TestBedrockRetrievalEngineRequest:
     @pytest.mark.asyncio
     async def test_hybrid_request_sets_override_search_type(self) -> None:
         """search_type=hybrid sets Retrieve's overrideSearchType=HYBRID (vector + keyword).
+
+        **Why this test is important:**
+          - Hybrid search is a config-selected precision lever; without the override Bedrock runs
+            semantic-only search.
 
         **What it tests:**
           - A hybrid engine's request carries overrideSearchType == "HYBRID".
@@ -521,16 +707,17 @@ class TestBedrockRetrieveContract:
         assert result.metadata["tenant"] == "t1"
 
     @pytest.mark.asyncio
-    async def test_default_resolver_never_guesses_a_document_id(self) -> None:
-        """Without a document_id in the metadata the id is empty; an injected resolver decides otherwise.
+    async def test_default_resolver_falls_back_to_the_source_uri(self) -> None:
+        """Without a document_id the default id is the chunk's source URI; a resolver can decide otherwise.
 
         **Why this test is important:**
-          - Object-key layouts are the consumer's; guessing an id from a key returned the wrong segment
-            (a key prefix) on a real deployment. The consumer's resolver may see the request filters.
+          - Standard Bedrock KB chunks carry no ``document_id``; an empty id loses provenance and makes
+            every citation collapse into one entry. The source URI Bedrock stamps on every chunk is a
+            stable id that guesses nothing about the consumer's object-key layout.
 
         **What it tests:**
-          - The default leaves document_id empty for a chunk with only an object key; a resolver reading
-            the key and the request's tenant returns its id.
+          - The default returns the chunk's ``x-amz-bedrock-kb-source-uri`` for a chunk with no
+            document_id; a resolver reading an object key and the request's tenant returns its own id.
         """
         [default] = await self._retrieve({"s3_key": "t1/doc-7/a.pdf"})
         [resolved] = await self._retrieve(
@@ -539,7 +726,7 @@ class TestBedrockRetrieveContract:
                 metadata["s3_key"].removeprefix(f"{filters['tenant']}/").split("/")[0]
             ),
         )
-        assert default.document_id == ""
+        assert default.document_id == "s3://docs-bucket/a/b.pdf"
         assert resolved.document_id == "doc-7"
 
     @pytest.mark.asyncio

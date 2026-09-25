@@ -1090,16 +1090,17 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 }
 
 // TestAuthInterceptor_StubMode_SynthesizesDevClaims tests that stub mode
-// synthesizes canonical dev claims when no identity headers are present.
+// synthesizes dev claims, marked synthetic, when no identity headers are present.
 //
 // Why this test is important:
 //   - Local dev has no gateway, so identity headers are never set
-//   - Stub mode must provide canonical claims so handlers can proceed in dev
-//   - The synthesized fields must use canonical header names (not X-Sub-ID etc.)
+//   - Stub mode must provide claims so handlers can proceed in dev
+//   - The Synthetic mark is what tells a principal interceptor to apply its stub
+//     principal; unmarked stub claims would be resolved as a real "stub-user" caller
 //
 // What it tests:
 //   - With stub=true and no headers, Sub/Email/Name/NickName/TenantID are non-empty
-//   - Claims are stored in context (ok=true)
+//   - Claims are stored in context (ok=true) and marked Synthetic
 func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	t.Parallel()
 
@@ -1126,7 +1127,9 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	assert.NotEmpty(t, claims.Sub, "expected non-empty Sub in stub claims")
 	assert.NotEmpty(t, claims.Email, "expected non-empty Email in stub claims")
 	assert.NotEmpty(t, claims.Name, "expected non-empty Name in stub claims")
+	assert.NotEmpty(t, claims.NickName, "expected non-empty NickName in stub claims")
 	assert.NotEmpty(t, claims.TenantID, "expected non-empty TenantID in stub claims")
+	assert.True(t, claims.Synthetic, "stub claims must be marked Synthetic")
 }
 
 // TestAuthInterceptor_StubMode_RealHeadersWin tests that when stub=true but
@@ -1136,12 +1139,15 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 // Why this test is important:
 //   - Stub mode must only fill the gap when no gateway is present; if it
 //     clobbered real gateway-injected headers, a dev request authenticated as a
-//     specific user would silently run as the canonical stub user instead,
-//     masking authorization bugs
+//     specific user would silently run as the stub user instead, masking
+//     authorization bugs
+//   - Header-derived claims marked Synthetic would hand every real caller the
+//     consumer's stub principal (a tenant and role bypass)
 //
 // What it tests:
-//   - Real X-User-Sub / X-Org-ID headers are preserved as the claim Sub/TenantID
+//   - Real subject / tenant headers are preserved as the claim Sub/TenantID
 //     rather than being overwritten by synthesized stub values
+//   - The header-derived claims are not marked Synthetic
 func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	t.Parallel()
 
@@ -1167,6 +1173,7 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "real-user-from-gateway", claims.Sub)
 	assert.Equal(t, "real-org-from-gateway", claims.TenantID)
+	assert.False(t, claims.Synthetic, "header-derived claims must not be marked Synthetic")
 }
 
 // ---------------------------------------------------------------------------
@@ -1298,9 +1305,9 @@ func TestLoggingInterceptor_UsesWithContext_Error(t *testing.T) {
 // client-error codes (4xx semantics) are logged at Warn, not Error.
 //
 // Why this test is important:
-//   - The Loki alert rule VVSearchServiceError fires on any level=error log entry.
+//   - Log-based alerting commonly fires on any level=error entry.
 //   - 4xx errors are normal client conditions (not-found, invalid-argument, etc.)
-//     and must NOT trigger the critical red alert.
+//     and must NOT trigger a server-error alert.
 //   - Only 5xx-equivalent codes (CodeInternal, CodeUnavailable) warrant Error level.
 //
 // What it tests:
@@ -1331,7 +1338,7 @@ func TestLoggingInterceptor_4xxCodeLogsAtWarn(t *testing.T) {
 //
 // Why this test is important:
 //   - CodeInternal represents unexpected server failures that operators must investigate.
-//   - These must trigger the critical red alert, unlike 4xx client errors.
+//   - These must reach Error level (and any server-error alert), unlike 4xx client errors.
 //
 // What it tests:
 //   - CodeInternal -> Error on child logger, zero Warn calls on child logger.
@@ -1358,9 +1365,8 @@ func TestLoggingInterceptor_5xxCodeLogsAtError(t *testing.T) {
 //
 // Why this test is important:
 //   - A caller that disconnects or cancels mid-request is a normal client outcome,
-//     not a server fault. Logging it at Error fires the critical VVSearchServiceError
-//     alert and inflates the error rate (the observed symptom: cancelled reads
-//     surfaced as error-level 500s across ListNotifications/ListWorkspaces).
+//     not a server fault. Logging it at Error trips server-error alerts and inflates
+//     the error rate (cancelled reads would surface as error-level 500s).
 //
 // What it tests:
 //   - CodeCanceled -> Warn on the child logger, zero Error calls.
@@ -2175,8 +2181,8 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 //     the chain would silently lose retry-amplification control.
 //
 // What it tests:
-//   - An unconfigured builder produces no handler options; a positive retry budget adds
-//     one; a zero budget adds none.
+//   - An unconfigured builder produces no handler options; a positive retry budget
+//     yields the single handler option carrying the chain; a zero budget yields none.
 func TestServerBuilder_WithRetryBudget(t *testing.T) {
 	t.Parallel()
 
@@ -2185,7 +2191,7 @@ func TestServerBuilder_WithRetryBudget(t *testing.T) {
 		interceptors.NewServerBuilder().Build(),
 		"no interceptors configured → no options",
 	)
-	assert.NotEmpty(t, interceptors.NewServerBuilder().WithRetryBudget(3).Build(),
+	assert.Len(t, interceptors.NewServerBuilder().WithRetryBudget(3).Build(), 1,
 		"WithRetryBudget alone must add the retry-budget interceptor")
 	assert.Empty(t, interceptors.NewServerBuilder().WithRetryBudget(0).Build(),
 		"a zero retry budget disables the interceptor")

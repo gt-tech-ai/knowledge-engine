@@ -6,8 +6,8 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// LockConfig selects and tunes the distributed lock that enforces one active
-// query per conversation across API replicas ('s Redis profile).
+// LockConfig selects and tunes the distributed lock that enforces at most one
+// active operation per key across service replicas.
 // The clients/lock factory reads Kind to pick a backend; TTL and RenewInterval
 // tune the lease and the Hold watchdog. Which backend you get is a config change,
 // not a code edit.

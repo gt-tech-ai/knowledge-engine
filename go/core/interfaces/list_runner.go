@@ -13,7 +13,7 @@ import (
 // It is the single per-entity adapter the generic pagination template (foundation/listquery.Run)
 // drives, so filter, sort, and keyset pagination are written ONCE in Run and every store's List is
 // just "build the scoped base, hand it to Run." A runner is constructed per request over the
-// request-scoped base query (tenant/workspace/clearance already applied); it applies the spec's
+// request-scoped base query (tenant and access scoping already applied); it applies the spec's
 // resolved predicates + order + window on top and executes. Ent has no generic query interface, so
 // the adapter is per-entity — but it is dumb and uniform (a codegen candidate).
 //

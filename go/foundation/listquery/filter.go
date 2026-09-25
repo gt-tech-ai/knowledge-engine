@@ -110,7 +110,7 @@ func ID(name string) Field { return Field{Name: name, Column: name, Type: FieldI
 
 // Map is a per-resource allow-list of filterable fields, keyed by DTO Name. Only fields
 // added to the Map may be filtered; a filter on any other field is rejected — the
-// SQL-safety boundary. Build it fluently: NewMap().Add(String("name"), ID("workspace_id"), …).
+// SQL-safety boundary. Build it fluently: NewMap().Add(String("name"), ID("owner_id"), …).
 type Map struct {
 	// fields is the allow-list of filterable fields, keyed by DTO name.
 	fields map[string]Field

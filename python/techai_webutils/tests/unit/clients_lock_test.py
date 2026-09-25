@@ -38,9 +38,9 @@ class TestInMemoryLock:
         """Test that InMemoryLock works as an async context manager and yields itself.
 
         **Why this test is important:**
-          - ``deps`` wires the lock via ``AsyncExitStack.enter_async_context``, which binds the lock
-            to ``__aenter__``'s return value; a literal no-op returning ``None`` would hand
-            ``SingleWriterRunner`` a ``None`` lock and crash on the first tick.
+          - A composition root wires the lock via ``AsyncExitStack.enter_async_context``, which binds
+            the lock to ``__aenter__``'s return value; a literal no-op returning ``None`` would hand
+            ``SingleWriterRunner`` a ``None`` lock and crash on the first run.
 
         **What it tests:**
           - ``async with InMemoryLock()`` yields the same instance, and acquire/release still work.
@@ -139,15 +139,20 @@ class TestPostgresAdvisoryLock:
 
         **Why this test is important:**
           - An empty key would make unrelated guards share one lock; an out-of-range namespace fails
-            every acquire at bind time. Both must fail at construction, not at the first tick.
+            every acquire at bind time. Both must fail at construction, not at the first acquire.
 
         **What it tests:**
-          - ``key=""`` and ``namespace=2**31`` each raise ``ValueError``.
+          - ``key=""``, ``namespace=2**31`` and ``namespace=-(2**31) - 1`` each raise ``ValueError``;
+            both int32 bounds are accepted.
         """
         with pytest.raises(ValueError, match="key"):
             PostgresAdvisoryLock(dsn="postgresql://h/db", key="", namespace=1)
         with pytest.raises(ValueError, match="namespace"):
             PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=2**31)
+        with pytest.raises(ValueError, match="namespace"):
+            PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MIN - 1)
+        PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MIN)
+        PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MAX)
 
     @pytest.mark.asyncio
     async def test_aexit_closes_the_session(self) -> None:
@@ -173,9 +178,9 @@ class TestPostgresAdvisoryLock:
         """Test entering the context does NOT connect — the session opens on first acquire.
 
         **Why this test is important:**
-          - The lock connection is entered into the worker's AsyncExitStack at startup; connecting
-            eagerly would couple the (Postgres-independent) SQS consumer's boot to Postgres
-            availability. Connecting lazily on first ``acquire()`` decouples them.
+          - The lock is entered into the caller's AsyncExitStack at startup; connecting eagerly would
+            make the whole process's boot depend on Postgres even when the rest of its work does not.
+            Connecting lazily on first ``acquire()`` decouples them.
 
         **What it tests:**
           - ``async with lock`` without calling ``acquire`` never calls ``asyncpg.connect``.
@@ -192,8 +197,8 @@ class TestPostgresAdvisoryLock:
         """Test acquire reopens the session when the held connection has been closed.
 
         **Why this test is important:**
-          - The pinned session can be reaped between 30s ticks (idle timeout / crash). Without a
-            reconnect the pod's guarded work wedges forever behind a dead socket while the loop keeps
+          - The pinned session can be reaped between acquires (idle timeout / crash). Without a
+            reconnect the pod's guarded work wedges forever behind a dead socket while the caller keeps
             logging and continuing.
 
         **What it tests:**
@@ -289,7 +294,8 @@ class TestPostgresAdvisoryLock:
             surface in the logs rather than pass silently.
 
         **What it tests:**
-          - With unlock returning ``False``, ``release`` logs the "not held" warning (and does not raise).
+          - With unlock returning ``False``, ``release`` logs the "not held" warning carrying the lock's
+            key and namespace (so a process holding several locks can tell which one), and does not raise.
         """
         conn = _mock_conn()
         conn.fetchval = AsyncMock(side_effect=[True, False])  # acquire True, unlock reports not-held
@@ -302,7 +308,10 @@ class TestPostgresAdvisoryLock:
                 await lock.acquire()
                 await lock.release()
 
-        assert mock_logger.warning.called
+        fields = mock_logger.warning.call_args.kwargs
+        assert "not held" in mock_logger.warning.call_args.args[0]
+        assert fields["key"] == "kb:ds"
+        assert fields["namespace"] == 7
 
 
 class TestLockFromConfig:
@@ -320,20 +329,55 @@ class TestLockFromConfig:
         lock = new_lock_from_config(LockConfig(kind=LockKind.MEMORY))
         assert isinstance(lock, InMemoryLock)
 
-    def test_postgres_kind_builds_postgres_lock(self) -> None:
-        """Test the factory builds the Postgres advisory lock for kind=postgres (lazy import).
+    @pytest.mark.asyncio
+    async def test_postgres_kind_locks_on_the_configured_identity(self) -> None:
+        """Test the factory-built Postgres lock uses the config's key, namespace and application name.
 
         **Why this test is important:**
-          - stage/prod select the cross-pod backend by config alone; the postgres impl (and asyncpg)
-            must load only on this path.
+          - The lock identity is (namespace, hash(key)). If the factory dropped or swapped either, old
+            and new pods would lock different ids during a rollout and both run the single-writer job;
+            the application name is how an operator finds the session in pg_stat_activity.
 
         **What it tests:**
-          - ``new_lock_from_config`` with kind=postgres returns a ``PostgresAdvisoryLock``.
+          - ``new_lock_from_config`` with kind=postgres returns a ``PostgresAdvisoryLock`` that acquires
+            ``pg_try_advisory_lock(namespace, signed crc32(key))`` on a session tagged with the configured
+            ``application_name``.
         """
         from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
 
-        lock = new_lock_from_config(LockConfig(kind=LockKind.POSTGRES, key="kb:ds", namespace=7))
+        conn = _mock_conn()
+        with patch("asyncpg.connect", AsyncMock(return_value=conn)) as connect:
+            lock = new_lock_from_config(
+                LockConfig(
+                    kind=LockKind.POSTGRES, key="kb:ds", namespace=0x4B425359, application_name="kb-sync"
+                )
+            )
+            async with lock:
+                await lock.acquire()
+
         assert isinstance(lock, PostgresAdvisoryLock)
+        _, classid, objid = conn.fetchval.await_args_list[0].args
+        assert classid == 0x4B425359
+        assert objid == struct.unpack("i", struct.pack("I", zlib.crc32(b"kb:ds")))[0]
+        assert connect.call_args.kwargs["server_settings"]["application_name"] == "kb-sync"
+
+    def test_postgres_kind_requires_an_explicit_namespace(self) -> None:
+        """Test the factory refuses a postgres lock config that leaves the namespace unset.
+
+        **Why this test is important:**
+          - The namespace is half of the lock identity. A silent default of 0 let a consumer that forgot
+            it lock a different id than its older pods (two writers at once) and share namespace 0 with
+            every other consumer that forgot it, reintroducing the key-hash collisions it prevents.
+
+        **What it tests:**
+          - ``LockConfig(kind=postgres, key=...)`` with no namespace makes ``new_lock_from_config`` raise
+            ``ValueError`` naming the namespace; the memory kind still needs none.
+        """
+        from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
+
+        with pytest.raises(ValueError, match="namespace"):
+            new_lock_from_config(LockConfig(kind=LockKind.POSTGRES, key="kb:ds"))
+        assert isinstance(new_lock_from_config(LockConfig(kind=LockKind.MEMORY)), InMemoryLock)
 
     def test_unknown_kind_raises(self) -> None:
         """Test an unrecognised lock kind fails loudly (fail-fast on misconfiguration).

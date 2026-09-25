@@ -105,7 +105,7 @@ var _ interfaces.DistributedLock = (*circuitBreakerDecorator)(nil)
 
 // circuitBreakerDecorator gates operations with a circuit breaker. When the
 // circuit is open it surfaces the error (fail-closed) and never fabricates a
-// result: a fake acquired=true would admit a duplicate query and a fake
+// result: a fake acquired=true would admit a duplicate operation and a fake
 // acquired=false would wedge every pod, so the caller must decide how to degrade.
 type circuitBreakerDecorator struct {
 	// inner is the next lock in the decorator chain.

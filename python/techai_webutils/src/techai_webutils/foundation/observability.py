@@ -2,7 +2,7 @@
 
 setup_observability() wires structured JSON logging (with OTel trace_id/span_id
 correlation and structured tracebacks) and OpenTelemetry tracing (OTLP gRPC
-export to Alloy -> Tempo). Combine with the HTTP middleware in
+export to a collector). Combine with the HTTP middleware in
 foundation.middleware.http_observability and the /metrics endpoint for full
 metrics + logs + traces coverage.
 """
@@ -48,7 +48,7 @@ def setup_observability(
         service_name: Service name used for trace resource attribution + logs.
         level: Log level.
         otlp_endpoint: OTLP collector endpoint (host:port or URL); a URL scheme is
-            stripped so the platform's "http://host:4317" convention also works.
+            stripped so an "http://host:4317"-style value also works.
         trace_sample_rate: Span sampling fraction 0.0-1.0 (parse_sample_rate above
             normalizes a raw string into this).
 
@@ -61,5 +61,5 @@ def setup_observability(
     if "://" in endpoint:
         endpoint = endpoint.split("://", 1)[1].rstrip("/")
     # configure_tracer installs the global tracer provider; spans created by the
-    # HTTP/gRPC middleware are exported to Alloy and correlated into logs.
+    # HTTP/gRPC middleware are exported to the OTLP collector and correlated into logs.
     _ = configure_tracer(service_name, otlp_endpoint=endpoint, insecure=True, sample_rate=trace_sample_rate)

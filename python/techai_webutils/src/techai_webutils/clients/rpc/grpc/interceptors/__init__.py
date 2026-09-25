@@ -3,6 +3,7 @@
 from techai_webutils.clients.rpc.grpc.interceptors.auth import (
     AuthClaims,
     AuthServerInterceptor,
+    HeaderClaimMapping,
     get_auth_claims,
 )
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
@@ -18,6 +19,7 @@ __all__ = [
     "AuthClaims",
     "AuthServerInterceptor",
     "CircuitBreakerInterceptor",
+    "HeaderClaimMapping",
     "InterceptorBuilder",
     "LoggingInterceptor",
     "MetricsInterceptor",

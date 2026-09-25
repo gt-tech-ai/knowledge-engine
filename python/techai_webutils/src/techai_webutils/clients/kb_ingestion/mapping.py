@@ -18,8 +18,9 @@ def job_from_payload(job: dict[str, object]) -> IngestionJob:
     """Map a Bedrock ``ingestionJob`` payload dict to an ``IngestionJob``.
 
     ``status`` is coerced to an ``IngestionJobState`` (whose members mirror Bedrock's six statuses
-    verbatim); an unknown or missing status falls back to ``FAILED`` (a safe terminal state). ``failureReasons`` is
-    flattened into the ``error`` string — see ``_flatten_reasons`` for the shape handling.
+    verbatim); an unknown or missing status falls back to ``FAILED`` (a safe terminal state).
+    ``failureReasons`` is flattened into the ``error`` string — see ``_flatten_reasons`` for the shape
+    handling.
     """
     status = str(job.get("status", IngestionJobState.FAILED.value))
     try:
@@ -38,12 +39,12 @@ def kb_document_from_payload(detail: dict[str, object]) -> KnowledgeBaseDocument
 
     Lifts the S3 source URI (``identifier.s3.uri``), the per-document ``status``, and ``statusReason``.
     A non-S3 (``custom``) or missing identifier degrades to an empty ``s3_uri`` — never raises — so the
-    reconciler skips it rather than crashing on an unexpected identifier shape.
+    caller can skip it rather than crash on an unexpected identifier shape.
     """
     identifier = detail.get("identifier")
     s3 = identifier.get("s3") if isinstance(identifier, dict) else None
-    # Guard the VALUE type, not just key presence: a present-but-null uri must degrade to "" (the
-    # reconciler then skips it), not become the literal string "None" via str(None).
+    # Guard the VALUE type, not just key presence: a present-but-null uri must degrade to "" (which a
+    # caller can skip), not become the literal string "None" via str(None).
     uri = s3.get("uri") if isinstance(s3, dict) else None
     s3_uri = uri if isinstance(uri, str) else ""
     return KnowledgeBaseDocument(

@@ -182,8 +182,8 @@ func setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		sampler = sdktrace.NeverSample()
 	default:
 		// ParentBased so an incoming sampled parent (a W3C traceparent with sampled=1, extracted by
-		// the TraceContext propagator) forces the span sampled — the lever the endpoint-E2E telemetry
-		// proof relies on to guarantee its one request's trace reaches Tempo without
+		// the TraceContext propagator) forces the span sampled — the lever an end-to-end telemetry
+		// check relies on to guarantee its one request's trace reaches the backend without
 		// raising the ratio for normal traffic. A ROOT span with no parent still follows the ratio.
 		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRate))
 	}

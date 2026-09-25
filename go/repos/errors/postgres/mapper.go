@@ -32,8 +32,8 @@ const (
 )
 
 // PostgreSQL error codes (Class 40 — Transaction Rollback). Reachable since the
-// native row-locking paths (SELECT … FOR UPDATE / SKIP LOCKED — the last-admin guard
-// and the outbox/notification claim txs) can abort a transaction. Both
+// native row-locking paths (SELECT … FOR UPDATE / SKIP LOCKED, e.g. a guard row or
+// an outbox claim) can abort a transaction. Both
 // are transient: the caller can retry the whole transaction and succeed.
 const (
 	// codeSerializationFailure is SQLSTATE 40001 (serialization_failure) — transient.
@@ -51,8 +51,8 @@ func MapDBError(err error) error {
 
 	// An error already classified upstream (an *AppError with a code) is returned
 	// unchanged — re-wrapping it as Internal below would bury its code. Raw driver
-	// errors are CodeUnknown here and still flow to the classification below. Kept in
-	// lockstep with the KindEnt mapper (errors/ent.MapEntError).
+	// errors are CodeUnknown here and still flow to the classification below. A
+	// consumer's own ORM mapper (a DBMapperFunc) should keep the same rule.
 	if errors.Code(err) != errors.CodeUnknown {
 		return err
 	}

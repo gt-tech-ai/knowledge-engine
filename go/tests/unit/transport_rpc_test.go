@@ -26,8 +26,8 @@ import (
 // Why this test is important:
 //   - Incorrect code mapping causes clients to apply the wrong retry/backoff
 //     strategy (e.g. retrying a 400 InvalidInput indefinitely)
-//   - The mapping is the API contract boundary between Go services and the
-//     browser/mobile SDK; a wrong code is a breaking change
+//   - The mapping is the API contract boundary between Go services and their
+//     clients; a wrong code is a breaking change
 //
 // What it tests:
 //   - NotFound maps to CodeNotFound
@@ -297,7 +297,7 @@ func TestFromRPCError_ConnectCodes(t *testing.T) {
 // domain AppError codes (Connect's CodeOf does not unwrap status.Error).
 //
 // Why this test is important:
-//   - Internal gRPC clients (e.g. retrieval) return status.Error, not
+//   - Internal gRPC clients return status.Error, not
 //     *connect.Error; without the gRPC fallback path those failures would
 //     always collapse to Internal
 //

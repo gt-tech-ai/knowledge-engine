@@ -60,9 +60,10 @@ class TestRetryTransientAsync:
         """Test that an injected sleep is used for the backoff (deterministic schedule recording).
 
         **Why this test is important:**
-          - The KB-sync watchdog reuses ``retry_transient_async`` for its stop backoff and must
-            inject a deterministic sleep so the exponential-backoff schedule is testable (not real
-            wall-clock sleeps) — keeping ONE source of truth for the backoff math (no hand-rolled loop).
+          - A caller that reuses ``retry_transient_async`` for its own backoff (e.g. stopping a stuck
+            job) must be able to inject a deterministic sleep so the exponential-backoff schedule is
+            testable (not real wall-clock sleeps) — keeping ONE source of truth for the backoff math (no
+            hand-rolled loop).
 
         **What it tests:**
           - With an injected recording sleep, a coroutine that raises transient twice then succeeds

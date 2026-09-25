@@ -6,9 +6,6 @@ import (
 )
 
 // Job represents a background job that can be enqueued for processing.
-//
-// Phase 1: Interface definition.
-// Phase 3: River job implementation with PostgreSQL-backed queue.
 type Job interface {
 	// Kind returns the job type identifier used for worker dispatch.
 	Kind() string
@@ -18,9 +15,6 @@ type Job interface {
 }
 
 // Worker processes background jobs of a specific kind.
-//
-// Phase 1: Interface definition.
-// Phase 3: River worker implementation.
 type Worker interface {
 	// Work executes a job with the given arguments.
 	Work(args map[string]interface{}) error
@@ -39,9 +33,6 @@ type PeriodicJob struct {
 }
 
 // JobEnqueuer enqueues background jobs for asynchronous processing.
-//
-// Phase 1: Interface definition.
-// Phase 3: River job enqueueing with PostgreSQL-backed queue.
 type JobEnqueuer interface {
 	// Enqueue submits a job for asynchronous processing.
 	Enqueue(ctx context.Context, job Job) error
@@ -51,18 +42,12 @@ type JobEnqueuer interface {
 }
 
 // JobScheduler schedules periodic background jobs.
-//
-// Phase 1: Interface definition.
-// Phase 3: River periodic job scheduling.
 type JobScheduler interface {
 	// Schedule adds a periodic job to the schedule at the given interval.
 	Schedule(job PeriodicJob, interval time.Duration) error
 }
 
 // WorkerRegistry registers and retrieves job workers by kind.
-//
-// Phase 1: Interface definition.
-// Phase 3: River worker registration.
 type WorkerRegistry interface {
 	// Register associates a worker with a job kind.
 	Register(kind string, worker Worker)

@@ -207,24 +207,24 @@ class TestLlmFactory:
         with pytest.raises(ValueError, match="llm kind"):
             new_llm_from_config(LlmConfig(kind="bogus"))  # type: ignore[arg-type]
 
-    def test_bedrock_with_empty_model_fails_loudly(self) -> None:
-        """Test that kind=bedrock with an empty model id fails loudly, not building a doomed provider.
+    @pytest.mark.parametrize("kind", [LlmKind.BEDROCK, LlmKind.OLLAMA])
+    def test_model_kinds_with_an_empty_model_fail_loudly(self, kind: LlmKind) -> None:
+        """Test that the bedrock and ollama kinds with no model id fail loudly instead of building a provider.
 
         **Why this test is important:**
-          - A bedrock provider constructed with no model id defers the failure to first invocation, where
-            it surfaces as an opaque Bedrock validation/AccessDenied error (the mechanism behind
-            an env that sets kind=bedrock but omits the model inheriting a guaranteed-failing default).
-            Failing at construction — like the unknown-kind guard — turns a silent misconfiguration into a
-            loud, actionable startup error.
+          - There is no built-in default model, so a config that selects bedrock or ollama but leaves the
+            model unset would otherwise defer the failure to the first request, where it surfaces as an
+            opaque Bedrock validation/AccessDenied error or an Ollama "model is required"/404. Failing at
+            construction — like the unknown-kind guard — turns that into a loud, actionable startup error.
 
         **What it tests:**
-          - new_llm_from_config(kind=BEDROCK, model="") raises ValueError naming the missing model, and so
-            does a bedrock config that sets no model at all (there is no built-in default model).
+          - new_llm_from_config(kind=<bedrock|ollama>, model="") raises ValueError naming the missing model,
+            and so does a config of that kind that sets no model at all.
         """
         with pytest.raises(ValueError, match="model"):
-            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK, model=""))
+            new_llm_from_config(LlmConfig(kind=kind, model=""))
         with pytest.raises(ValueError, match="model"):
-            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK))
+            new_llm_from_config(LlmConfig(kind=kind))
 
 
 class TestOllamaLlmProvider:

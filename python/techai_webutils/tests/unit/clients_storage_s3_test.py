@@ -58,7 +58,7 @@ class TestS3StorageClient:
 
         **Why this test is important:**
           - Existence checks prevent duplicate uploads and validate document references
-          - The API service checks existence before allowing document downloads
+          - A service checks existence before allowing a document download
           - Incorrect existence checks would cause 404 errors or allow ghost references
 
         **What it tests:**
@@ -95,7 +95,7 @@ class TestS3StorageClient:
         """Test that list_objects parses S3 response Contents into structured objects.
 
         **Why this test is important:**
-          - Workspace document listing depends on correct S3 object enumeration
+          - Listing a prefix's documents depends on correct S3 object enumeration
           - The response must be parsed into structured objects with key, size, and metadata
           - Incorrect parsing would show wrong file names or sizes in the UI
 

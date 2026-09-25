@@ -60,14 +60,14 @@ func TestStorageClient_MultipartSurface(t *testing.T) {
 		id, err := c.CreateMultipartUpload(
 			context.Background(),
 			"b",
-			"ws/doc/file.pdf",
+			"tenant/doc/file.pdf",
 			"application/pdf",
 		)
 		require.NoError(t, err)
 		assert.Equal(t, "upload-123", id)
 		require.NotNil(t, got)
 		assert.Equal(t, "application/pdf", aws.ToString(got.ContentType))
-		assert.Equal(t, "ws/doc/file.pdf", aws.ToString(got.Key))
+		assert.Equal(t, "tenant/doc/file.pdf", aws.ToString(got.Key))
 	})
 
 	t.Run("complete forwards ordered parts", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestStorageClient_MultipartSurface(t *testing.T) {
 		api.EXPECT().ListMultipartUploads(gomock.Any(), gomock.Any()).Return(
 			&awss3.ListMultipartUploadsOutput{
 				Uploads: []s3types.MultipartUpload{{
-					Key:       aws.String("ws/doc/file.pdf"),
+					Key:       aws.String("tenant/doc/file.pdf"),
 					UploadId:  aws.String("u-1"),
 					Initiated: aws.Time(initiated),
 				}},
@@ -184,7 +184,7 @@ func TestStorageClient_MultipartSurface(t *testing.T) {
 		ups, err := c.ListMultipartUploads(context.Background(), "b")
 		require.NoError(t, err)
 		require.Len(t, ups, 1)
-		assert.Equal(t, "ws/doc/file.pdf", ups[0].Key)
+		assert.Equal(t, "tenant/doc/file.pdf", ups[0].Key)
 		assert.Equal(t, "u-1", ups[0].UploadID)
 		assert.Equal(t, initiated.Format(time.RFC3339), ups[0].Initiated)
 	})

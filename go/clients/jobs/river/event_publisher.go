@@ -10,8 +10,8 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.EventPublisher = (*EventPublisher)(nil)
 
-// EventPublisher publishes events transactionally via River's outbox pattern.
-// Phase 1: Stub. Phase 3: River transactional event publishing.
+// EventPublisher is a no-op EventPublisher: it accepts events without publishing
+// them (a transactional outbox through River is not implemented).
 type EventPublisher struct {
 	// enqueuer is the job enqueuer used for transactional event publishing.
 	enqueuer interfaces.JobEnqueuer
@@ -24,17 +24,13 @@ func NewEventPublisher(enqueuer interfaces.JobEnqueuer) *EventPublisher {
 	}
 }
 
-// Publish publishes an event.
-// Phase 1: No-op. Phase 3: Transactional outbox via River.
+// Publish accepts event without publishing it and returns nil.
 func (p *EventPublisher) Publish(ctx context.Context, event events.Event) error {
-	// Phase 1: Stub — no actual publishing
-	// Phase 3: Insert event into outbox table via River transaction
 	return nil
 }
 
-// PublishBatch publishes multiple events.
+// PublishBatch calls Publish for each event, stopping at the first error.
 func (p *EventPublisher) PublishBatch(ctx context.Context, evts []events.Event) error {
-	// Phase 1: Stub
 	for _, event := range evts {
 		if err := p.Publish(ctx, event); err != nil {
 			return err

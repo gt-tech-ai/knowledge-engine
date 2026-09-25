@@ -1,8 +1,7 @@
-// Package pipelines is the config surface for the pipeline (orchestration) layer
-// the per-pipeline operation timeout and the document
-// upload multipart sizing. maxMultipartParts (S3's 10 000-part protocol ceiling)
-// is deliberately NOT a knob here — it is a protocol constant, guarded by a test.
-// Defaults equal today's consts. Pure data.
+// Package pipelines is the config surface for the pipeline (orchestration) layer:
+// the per-pipeline operation timeout and the multipart-upload sizing. S3's
+// 10 000-part protocol ceiling is deliberately NOT a knob here — it is a protocol
+// constant, guarded by a test. Pure data.
 package pipelines
 
 import (
@@ -14,11 +13,11 @@ import (
 // UploadConfig tunes the multipart-upload sizing.
 type UploadConfig struct {
 	// MultipartThresholdBytes is the size at/above which an upload uses the
-	// browser-direct multipart path (was 20 MiB).
+	// browser-direct multipart path (default 20 MiB).
 	MultipartThresholdBytes int64 `mapstructure:"multipart_threshold_bytes"`
 
 	// MultipartPartSizeBytes is the fixed size of every multipart part except the
-	// last (was 16 MiB).
+	// last (default 16 MiB).
 	MultipartPartSizeBytes int64 `mapstructure:"multipart_part_size_bytes"`
 }
 
@@ -27,14 +26,13 @@ type Config struct {
 	// Upload tunes the multipart-upload sizing.
 	Upload UploadConfig `mapstructure:"upload"`
 
-	// Timeout is the per-pipeline operation timeout (0 = no timeout, today's
-	// behavior — the pipeline builder's WithTimeout support that no app sets yet).
+	// Timeout is the per-pipeline operation timeout, applied through the pipeline
+	// builder's WithTimeout (0 = no timeout, the default).
 	Timeout time.Duration `mapstructure:"timeout"`
 }
 
-// DefaultConfig returns defaults identical to today's upload consts
-// (MultipartThresholdBytes 20 MiB, MultipartPartSizeBytes 16 MiB) and no
-// per-pipeline timeout, so adoption is behavior-preserving.
+// DefaultConfig returns the pipeline defaults: MultipartThresholdBytes 20 MiB,
+// MultipartPartSizeBytes 16 MiB and no per-pipeline timeout.
 func DefaultConfig() Config {
 	return Config{
 		Upload: UploadConfig{

@@ -2,7 +2,7 @@
 
 There is no Bedrock LLM locally, so dev runs this stub: it echoes the last user message so
 the query rewriter (passthrough) and the streaming generator both produce deterministic,
-inspectable output without AWS. Selected by config (``retrieval.llm.kind = stub``).
+inspectable output without AWS. Selected by config (``LlmConfig.kind = stub``).
 """
 
 from __future__ import annotations

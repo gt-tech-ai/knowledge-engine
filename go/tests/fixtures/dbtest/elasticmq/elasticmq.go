@@ -56,6 +56,9 @@ func NewTestElasticMQ(ctx context.Context) (*TestElasticMQ, error) {
 		},
 	)
 	if err != nil {
+		// A failed start (e.g. a readiness timeout) can still leave a container behind;
+		// TerminateContainer is nil-safe.
+		_ = testcontainers.TerminateContainer(container)
 		return nil, coreerr.Wrap(
 			err,
 			coreerr.CodeInternal,

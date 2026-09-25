@@ -33,8 +33,7 @@ import (
 //   - Close returns nil error
 func TestRiverJobClient_Stub(t *testing.T) {
 	t.Parallel()
-	// Phase 1: Test stub implementation (no-op behavior)
-	// Phase 3 will test with real pgx pool
+	// The client is a no-op stand-in: no pool, nothing queued.
 
 	client, err := jobs.NewClient(
 		jobs.KindRiver,
@@ -97,7 +96,7 @@ func TestRiverJobClient_InterfaceCompliance(t *testing.T) {
 func TestWorkerRegistry(t *testing.T) {
 	t.Parallel()
 
-	// Test worker registry (fully functional in Phase 1)
+	// The worker registry is a working in-memory registry.
 	registry := jobs.NewWorkerRegistry()
 	require.NotNil(t, registry, "expected non-nil worker registry")
 
@@ -129,7 +128,7 @@ func TestWorkerRegistry(t *testing.T) {
 func TestPeriodicJobScheduler_Stub(t *testing.T) {
 	t.Parallel()
 
-	// Phase 1: Test stub implementation
+	// The scheduler is a no-op stand-in.
 	scheduler := jobs.NewScheduler()
 	require.NotNil(t, scheduler, "expected non-nil periodic scheduler")
 
@@ -157,7 +156,7 @@ func TestPeriodicJobScheduler_Stub(t *testing.T) {
 func TestEventPublisher_Stub(t *testing.T) {
 	t.Parallel()
 
-	// Phase 1: Test stub implementation
+	// The client is a no-op stand-in.
 	client, err := jobs.NewClient(
 		jobs.KindRiver,
 		jobs.WithDatabaseURL("postgres://localhost/test"),

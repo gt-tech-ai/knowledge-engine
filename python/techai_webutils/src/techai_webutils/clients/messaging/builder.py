@@ -39,11 +39,13 @@ class MessagingConfig:
 def new_messaging_from_config(config: MessagingConfig) -> MessagePublisher:
     """Build the ``MessagePublisher`` selected by ``config.kind`` (heavy backend imported lazily)."""
     if config.kind is MessagingKind.SQS:
-        from techai_webutils.clients.messaging.sqs.sqs_publisher import SQSPublisher  # noqa: PLC0415 — lazy: skip aiobotocore until selected
+        # Lazy import: skip aiobotocore until selected.
+        from techai_webutils.clients.messaging.sqs.sqs_publisher import SQSPublisher  # noqa: PLC0415
 
         return SQSPublisher(config.sqs)
     if config.kind is MessagingKind.MEMORY:
-        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemoryPublisher  # noqa: PLC0415 — lazy, and no SDK to load
+        # Lazy import (and no SDK to load).
+        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemoryPublisher  # noqa: PLC0415
 
         return InMemoryPublisher(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"
@@ -53,11 +55,13 @@ def new_messaging_from_config(config: MessagingConfig) -> MessagePublisher:
 def new_messaging_subscriber_from_config(config: MessagingConfig) -> MessageConsumer:
     """Build the ``MessageConsumer`` selected by ``config.kind`` (heavy backend imported lazily)."""
     if config.kind is MessagingKind.SQS:
-        from techai_webutils.clients.messaging.sqs.sqs_subscriber import SQSSubscriber  # noqa: PLC0415 — lazy: skip aiobotocore until selected
+        # Lazy import: skip aiobotocore until selected.
+        from techai_webutils.clients.messaging.sqs.sqs_subscriber import SQSSubscriber  # noqa: PLC0415
 
         return SQSSubscriber(config.sqs)
     if config.kind is MessagingKind.MEMORY:
-        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemorySubscriber  # noqa: PLC0415 — lazy, and no SDK to load
+        # Lazy import (and no SDK to load).
+        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemorySubscriber  # noqa: PLC0415
 
         return InMemorySubscriber(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"

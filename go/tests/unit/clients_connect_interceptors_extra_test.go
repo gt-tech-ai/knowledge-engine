@@ -18,8 +18,8 @@ import (
 // Error.
 //
 // Why this test is important:
-//   - The Loki alert rules key off log level: 4xx client conditions must NOT fire the
-//     critical VVSearchServiceError (Error-level) alert, while genuine 5xx faults must.
+//   - Log-based alert rules key off log level: 4xx client conditions must NOT fire an
+//     Error-level alert, while genuine 5xx faults must.
 //     A miscategorized code either pages on-call for a bad request or hides a real
 //     outage.
 //
@@ -46,7 +46,7 @@ func TestLoggingInterceptor_StatusCodeMapping(t *testing.T) {
 		{connect.CodeDeadlineExceeded, false},
 		{connect.CodeInternal, false},
 		// 499 client-closed-request: the caller cancelled/disconnected — a client outcome, logged at
-		// Warn so it does not fire the critical VVSearchServiceError alert.
+		// Warn so it does not fire an Error-level alert.
 		{connect.CodeCanceled, true},
 	}
 	for _, tc := range cases {
@@ -104,13 +104,13 @@ func TestAuthInterceptor_StreamingClientIsNoOp(t *testing.T) {
 //     not fall through to the handler.
 //
 // What it tests:
-//   - A resolver error makes WrapStreamingHandler return the error with its Connect code
-//     and never invoke the wrapped handler.
+//   - A resolver error makes WrapStreamingHandler return the error with its own
+//     (non-default) Connect code and never invoke the wrapped handler.
 func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	failing := func(context.Context, *interceptors.AuthClaims) (string, error) {
-		return "", connect.NewError(connect.CodeUnavailable, stderrors.New("identity down"))
+		return "", connect.NewError(connect.CodePermissionDenied, stderrors.New("not a member"))
 	}
 	claims := &interceptors.AuthClaims{Sub: "sub-1", TenantID: "tenant-1"} // non-synthetic
 
@@ -123,7 +123,7 @@ func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 	)
 	err := handler(interceptors.WithAuthClaims(context.Background(), claims), nil)
 	require.Error(t, err)
-	assert.Equal(t, connect.CodeUnavailable, connect.CodeOf(err))
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	assert.False(t, called, "the streaming handler must not run when resolution fails")
 }
 

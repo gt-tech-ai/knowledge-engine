@@ -12,8 +12,8 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// StaticTokenValidator validates a bearer token against a per-caller token map
-// (Phase 1), satisfying the core interfaces.ServiceTokenValidator strategy.
+// StaticTokenValidator validates a bearer token against a per-caller token map,
+// satisfying the core interfaces.ServiceTokenValidator strategy.
 // Each caller may carry a current and a previous token — a zero-downtime rotation
 // window — and comparisons are constant-time to avoid timing oracles.
 type StaticTokenValidator struct {

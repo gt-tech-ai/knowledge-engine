@@ -184,6 +184,7 @@ linters:
         # ── Layer 4: services/ must not import layers 5+ ──
         services-no-upper-layers:
           files:
+            - "**/go/services/*.go"
             - "**/go/services/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/pipelines"
@@ -236,6 +237,7 @@ linters:
         # ── go/helpers is a leaf utility: must not import other layers ──
         helpers-is-leaf:
           files:
+            - "**/go/helpers/*.go"
             - "**/go/helpers/**/*.go"
           deny:
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/core"
@@ -254,7 +256,7 @@ linters:
               desc: "go/helpers/ is a leaf utility; must not import other layers"
             - pkg: "github.com/gt-tech-ai/knowledge-engine/go/workflows"
               desc: "go/helpers/ is a leaf utility; must not import other layers"
-            - pkg: "github.com/gt-tech-ai/knowledge-engine/go/controllers"
+            - pkg: "github.com/gt-tech-ai/knowledge-engine/go/transport"
               desc: "go/helpers/ is a leaf utility; must not import other layers"
 
   exclusions:

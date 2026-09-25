@@ -1,6 +1,6 @@
 """S3 backend for the storage client — the concrete ``aiobotocore``-backed impl.
 
-Backend subpackage of ``clients/storage`` (shape): the tier root's
+Backend subpackage of ``clients/storage``: the tier root's
 ``builder.py`` selects this backend. ``StorageKind`` + a ``memory`` stub land in
 .
 """

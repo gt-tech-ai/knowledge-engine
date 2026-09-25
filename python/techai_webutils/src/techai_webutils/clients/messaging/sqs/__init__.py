@@ -1,6 +1,6 @@
 """SQS backend for the messaging client — publisher + subscriber (aiobotocore).
 
-Backend subpackage of ``clients/messaging`` (shape): the tier root's
+Backend subpackage of ``clients/messaging``: the tier root's
 ``builder.py`` selects this backend. ``MessagingKind`` + a ``memory`` stub land in
 .
 """

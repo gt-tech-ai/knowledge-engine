@@ -22,7 +22,7 @@ import (
 //
 // Why this test is important:
 //   - Runtime credentials live in a single JSON secret per class (e.g.
-//     example-app/<env>/e2e/config); reading the wrong field, or failing to parse the JSON,
+//     app/<env>/e2e/config); reading the wrong field, or failing to parse the JSON,
 //     hands the caller the wrong credential.
 //
 // What it tests:
@@ -38,7 +38,7 @@ func TestAWSSMSource_GetExtractsJSONField(t *testing.T) {
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
-		ref: {SecretID: "example-app/staging/e2e/config", Field: "client_secret"},
+		ref: {SecretID: "app/staging/e2e/config", Field: "client_secret"},
 	})
 
 	got, err := src.Get(context.Background(), ref)
@@ -64,7 +64,7 @@ func TestAWSSMSource_MissingFieldIsNotFound(t *testing.T) {
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
-		ref: {SecretID: "example-app/staging/e2e/config", Field: "client_secret"},
+		ref: {SecretID: "app/staging/e2e/config", Field: "client_secret"},
 	})
 
 	_, err := src.Get(context.Background(), ref)
@@ -89,7 +89,7 @@ func TestAWSSMSource_SDKErrorIsUpstream(t *testing.T) {
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
-		ref: {SecretID: "example-app/staging/e2e/config", Field: "client_secret"},
+		ref: {SecretID: "app/staging/e2e/config", Field: "client_secret"},
 	})
 
 	_, err := src.Get(context.Background(), ref)
@@ -111,7 +111,7 @@ func TestAWSSMSource_PutIsUnsupported(t *testing.T) {
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
-		ref: {SecretID: "example-app/staging/e2e/config", Field: "client_secret"},
+		ref: {SecretID: "app/staging/e2e/config", Field: "client_secret"},
 	})
 
 	err := src.Put(context.Background(), ref, types.NewSecret("v"))

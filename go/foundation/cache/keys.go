@@ -10,7 +10,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// keySeparator joins key parts. NUL cannot appear in an identifier, uuid, or clearance string, so
+// keySeparator joins key parts. NUL cannot appear in an identifier, uuid, or access-level string, so
 // distinct part tuples can never run together to forge the same joined string (a collision).
 const keySeparator = "\x00"
 
@@ -23,8 +23,8 @@ func hashParts(parts ...string) string {
 }
 
 // AccessFingerprint hashes an access SCOPE — the exact resolved-context values the query's authz
-// predicate applies (e.g. the accessible-workspace-set + clearance, or an org id) — into a compact
-// fingerprint. It is order-insensitive (the scope is a set: the parts are sorted first),
+// predicate applies (e.g. the set of accessible group ids plus an access level, or a tenant id) —
+// into a compact fingerprint. It is order-insensitive (the scope is a set: the parts are sorted first),
 // so the same access hashes equally regardless of argument order, and ANY change to the scope
 // rotates the fingerprint — which is how an authz change invalidates cached entries (by key
 // rotation, never reach-in). The caller MUST pass the same values the WHERE clause applies (never

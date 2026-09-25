@@ -3,18 +3,18 @@
 These tests exercise the thin external-dependency wrappers (Redis cache, SQS
 publisher/subscriber, S3 storage client) against REAL services started on demand
 via testcontainers — the Python parity to ``go/tests/integration/``. They are
-the combined-gate counterpart to the unit-gate carve-outs in ``pyproject.toml``:
-the unit suite excludes these wrappers (their uncovered lines are real network
-calls); this suite covers them end-to-end against live dependencies.
+the counterpart to the unit-gate carve-outs in ``pyproject.toml``: the unit suite
+excludes these wrappers (their uncovered lines are real network calls); this suite
+covers them end-to-end against live dependencies.
 
-Containers use the SAME images the platform deploys locally (``redis:7-alpine``,
-``softwaremill/elasticmq`` for SQS, Chainguard's MinIO for S3) so layers are already
-pulled and behavior matches runtime.
+Containers use common upstream images (``redis:7-alpine``, ``softwaremill/elasticmq``
+for SQS, Chainguard's MinIO for S3, ``postgres:16-alpine``).
 
 All tests are marked ``integration`` and require a Docker daemon. When Docker is
 unavailable the whole suite is SKIPPED (not failed), so a developer without Docker
-still gets a green local run; CI provides a daemon and the combined coverage gate
-enforces that these wrapper paths stay covered.
+still gets a green local run; the CI integration job provides a daemon (it runs with
+``--cov-fail-under=0``; the combined coverage gate in ``.coveragerc.combined`` is an
+optional local check).
 """
 
 from __future__ import annotations
@@ -37,8 +37,9 @@ from techai_webutils.clients.cache.types import FailureMode
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
 
-# Pinned images, so the integration suite tests against fixed dependency versions (and reuses
-# already-pulled layers).
+# Container images. ElasticMQ is pinned to a release tag and MinIO by digest; redis:7-alpine (and
+# postgres:16-alpine below) are floating major-version tags, so a new upstream 7.x/16.x image can
+# change behaviour between runs.
 _REDIS_IMAGE = "redis:7-alpine"
 _ELASTICMQ_IMAGE = "softwaremill/elasticmq:1.6.6"
 # MinIO no longer publishes images: Chainguard's free build, pinned by digest (the Go
@@ -47,7 +48,7 @@ _MINIO_IMAGE = (
     "cgr.dev/chainguard/minio:latest@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
 )
 
-# MinIO root credentials (match the compose defaults). ElasticMQ ignores creds.
+# MinIO root credentials (MinIO's well-known local defaults). ElasticMQ ignores creds.
 _MINIO_USER = "minioadmin"
 _MINIO_PASSWORD = "minioadmin"  # noqa: S105
 
@@ -210,8 +211,7 @@ async def s3_config(minio_endpoint: str) -> S3Config:
 
 # --------------------------------------------------------------------------- #
 # Postgres advisory-lock integration (real Postgres via testcontainers).        #
-# Postgres image + credentials mirror the platform (docker-compose             #
-# ``postgres:16-alpine``).                                                       #
+# ``postgres:16-alpine`` with throwaway test credentials.                        #
 # --------------------------------------------------------------------------- #
 
 _POSTGRES_IMAGE = "postgres:16-alpine"
@@ -270,10 +270,10 @@ def ray_cluster(request: pytest.FixtureRequest) -> object:
     Module-scoped so the two integration tests share a single ``ray.init``/``ray.shutdown`` (cluster
     spin-up dominates the runtime) rather than paying it twice. Ray workers are separate processes
     that cannot import a pytest-loaded test module by name, so the mapper/worker factory must be
-    shipped *by value* via cloudpickle — the same requirement 's bulk code meets by living in
-    an installed package. (This module is skipped where the optional ``ray`` extra is absent — e.g. the
-    CI integration job, via the ``importorskip`` in the requesting test module — and, when the extra IS
-    installed, unless ``RAY_INTEGRATION`` is set, so it adds nothing to the CI or default-local
+    shipped *by value* via cloudpickle — the same requirement production mappers meet by living in
+    an installed package. (The requesting test module skips itself unless ``RAY_INTEGRATION`` is set —
+    ray itself is importable in CI, since the dev dependency group pins it — and also via
+    ``importorskip`` where ray is not installed at all, so it adds nothing to the CI or default-local
     pipeline.)
 
     ``request.module`` is the requesting test module (where the picklable mappers/workers are defined),

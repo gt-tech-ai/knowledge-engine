@@ -53,8 +53,9 @@ func (p *Publisher) Publish(ctx context.Context, topic string, payload []byte) e
 
 // PublishCount sends payload to topic via PUBLISH and returns the number of
 // subscribers that received it — the PUBLISH reply. A count of 0 means no subscriber
-// was listening (the message was dropped, at-most-once). It is the delivery signal
-// the WS backplane uses to decide whether a user is connected anywhere in the cluster.
+// was listening (the message was dropped, at-most-once). A caller fanning out to
+// per-recipient channels uses it to tell whether any replica currently has a
+// subscriber for that recipient.
 func (p *Publisher) PublishCount(
 	ctx context.Context,
 	topic string,

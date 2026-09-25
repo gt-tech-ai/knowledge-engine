@@ -11,6 +11,11 @@ import (
 // order: recovery -> retry budget -> rate limit -> bulkhead -> metrics -> tracing
 // -> logging -> service auth -> auth -> caller-supplied (WithInterceptors: the
 // consumer's principal and tenant-scope interceptors) -> validate.
+//
+// The retry budget spans the whole request, and load shedding sits early so it
+// rejects before the request does any work. Service auth authenticates the CALLING
+// SERVICE on internal mounts and runs before end-user auth; caller-supplied
+// interceptors follow auth so the claims are present.
 type ServerBuilder struct {
 	// serviceValidator validates the caller's service-to-service bearer token (WithServiceAuth).
 	serviceValidator interfaces.ServiceTokenValidator
@@ -94,8 +99,10 @@ func (b *ServerBuilder) WithLogging(logger interfaces.Logger) *ServerBuilder {
 
 // WithAuth enables the auth-header extraction interceptor, reading claims from the
 // gateway headers named in headers. stub must be true only in local dev, where the
-// interceptor synthesizes dev claims when no gateway is present.
+// interceptor synthesizes dev claims when no gateway is present. It panics if
+// headers.Sub is empty (see NewAuthInterceptor).
 func (b *ServerBuilder) WithAuth(stub bool, headers HeaderMap) *ServerBuilder {
+	mustHaveSubHeader(headers)
 	b.auth = true
 	b.authStub = stub
 	b.authHeaders = headers
@@ -105,8 +112,14 @@ func (b *ServerBuilder) WithAuth(stub bool, headers HeaderMap) *ServerBuilder {
 // WithInterceptors appends caller-supplied interceptors, run after auth (so they see
 // the authenticated claims) and before validation — the slot for the consumer's
 // principal (NewPrincipalInterceptor) and tenant-scope (NewTenantScopeInterceptor)
-// interceptors, in the order given.
+// interceptors, in the order given (repeated calls append). It panics on a nil
+// interceptor, which would otherwise fail when the chain is built or first used.
 func (b *ServerBuilder) WithInterceptors(extra ...connect.Interceptor) *ServerBuilder {
+	for _, ic := range extra {
+		if ic == nil {
+			panic("interceptors: WithInterceptors requires non-nil interceptors")
+		}
+	}
 	b.extra = append(b.extra, extra...)
 	return b
 }
@@ -143,18 +156,11 @@ func (b *ServerBuilder) WithRetryBudget(maxRetries int32) *ServerBuilder {
 	return b
 }
 
-// Build assembles the interceptor chain in canonical server order and returns
-// handler options ready for use with generated Connect service constructors.
-// Returns nil if no interceptors are configured.
+// Build assembles the interceptor chain in canonical server order (see ServerBuilder)
+// and returns handler options ready for use with generated Connect service
+// constructors. Returns nil if no interceptors are configured.
 func (b *ServerBuilder) Build() []connect.HandlerOption {
 	var chain []connect.Interceptor
-
-	// Order: recovery → budget → rate limit → bulkhead → metrics → tracing →
-	// logging → service auth → auth → caller-supplied → validate
-	// (caller-supplied interceptors follow auth so claims are present; service auth authenticates
-	// the CALLING SERVICE on internal mounts and runs before end-user auth; the budget
-	// spans the whole request and load shedding is early so it rejects before the
-	// request does any work).
 	if b.recovery && b.logger != nil {
 		chain = append(chain, RecoveryInterceptor(b.logger))
 	}

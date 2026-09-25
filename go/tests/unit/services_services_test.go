@@ -162,7 +162,7 @@ func TestServiceDecorator_TimeoutAllOperations(t *testing.T) {
 // operations to the underlying repository.
 //
 // Why this test is important:
-//   - BaseService is the foundation for all domain services in the platform
+//   - BaseService is the foundation for every domain service built on the engine
 //   - Correct delegation ensures the service layer does not introduce data corruption
 //   - Validates the service-to-repository wiring that every service depends on
 //
@@ -207,8 +207,8 @@ func TestBaseService_CRUD(t *testing.T) {
 // the underlying repository.
 //
 // Why this test is important:
-//   - Paginated listing is used by every collection endpoint in the API
-//   - Incorrect delegation would break document, workspace, and member listing
+//   - Paginated listing backs every collection endpoint a consumer exposes
+//   - Incorrect delegation would break every paginated listing
 //   - Validates that pagination parameters are passed through correctly
 //
 // What it tests:
@@ -379,7 +379,7 @@ func TestServiceDecorator_AuthBlocksList(t *testing.T) {
 // prevents Create when auth fails.
 //
 // Why this test is important:
-//   - Unauthorized creation would allow data injection into other tenants' workspaces
+//   - Unauthorized creation would allow data injection into other tenants' data
 //   - Validates that authorization is enforced before any write operation reaches the store
 //   - Ensures resource creation is gated by tenant-scoped permissions
 //
@@ -591,11 +591,10 @@ func TestServiceDecorator_LoggingErrorPaths(t *testing.T) {
 // logged at Debug level, not Error level.
 //
 // Why this test is important:
-//   - The Loki alert VVSearchServiceError fires on any level=error log.
-//   - Service errors propagated from 4xx repository conditions must not trigger
-//     the critical red alert.
-//   - Debug-level failure logs appear in dev (level=debug) and are suppressed in
-//     staging/prod (level=info), which is the intended behavior.
+//   - Alerting on level=error logs is common; service errors propagated from
+//     4xx repository conditions must not trigger such an alert.
+//   - Debug-level failure logs appear where the level is debug and are
+//     suppressed at info, which is the intended behavior.
 //
 // What it tests:
 //   - Get failure -> Debug logged, zero Error calls.

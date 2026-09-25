@@ -70,7 +70,7 @@ func (s *RedisLockSuite) key(label string) string {
 //
 // Why this test is important:
 //   - Cross-pod exclusion is the feature's reason to exist; if both pods'
-//     Acquire "won", two replicas would run the same conversation's query.
+//     Acquire "won", two replicas would run the same guarded operation.
 //
 // What it tests:
 //   - First Acquire wins with a non-empty token; the second on the same key
@@ -134,7 +134,7 @@ func (s *RedisLockSuite) TestAcquire_ConcurrentSingleWinner() {
 //
 // Why this test is important:
 //   - TTL auto-expiry is the only thing that frees a lock held by a dead pod;
-//     without it a crash would wedge a conversation forever. A mock can't prove
+//     without it a crash would wedge the resource forever. A mock can't prove
 //     real Redis expiry.
 //
 // What it tests:
@@ -161,7 +161,7 @@ func (s *RedisLockSuite) TestAcquire_TTLExpiryFreesCrashedHolder() {
 //
 // Why this test is important:
 //   - Fencing is what stops a slow/previous holder from freeing a lock a new
-//     holder now owns and admitting a third query.
+//     holder now owns and admitting a third operation.
 //
 // What it tests:
 //   - Release with a foreign token leaves the key held; the holder's token frees it.
@@ -192,7 +192,7 @@ func (s *RedisLockSuite) TestRelease_TokenFencedOnLiveKey() {
 // Why this test is important:
 //   - This is the raison d'être of compare-then-DEL over a bare DEL. A→expire,
 //     B→acquire, then A's late Release must be a no-op; a bare DEL would free
-//     B's live lock and admit a duplicate query — the ABA hazard.
+//     B's live lock and admit a duplicate operation — the ABA hazard.
 //
 // What it tests:
 //   - After A's lease expires and B re-acquires a new token, A's Release with
@@ -233,8 +233,8 @@ func (s *RedisLockSuite) TestRelease_StaleTokenAfterExpiry_ABA() {
 // expired reports held=false without error.
 //
 // Why this test is important:
-//   - Hold's watchdog treats held=false as "lease lost" and cancels the query.
-//     A false-positive Renew after expiry would let a pod keep streaming under a
+//   - Hold's watchdog treats held=false as "lease lost" and cancels the operation.
+//     A false-positive Renew after expiry would let a pod keep working under a
 //     lock it no longer owns.
 //
 // What it tests:
@@ -264,9 +264,9 @@ func (s *RedisLockSuite) TestRenew_AfterExpiryReportsLost() {
 // outlives the base TTL.
 //
 // Why this test is important:
-//   - A query can outlast the base TTL; the watchdog's periodic Renew is what
+//   - An operation can outlast the base TTL; the watchdog's periodic Renew is what
 //     keeps the lock held meanwhile. If Renew didn't extend, the lock would
-//     expire mid-query and admit a duplicate.
+//     expire mid-operation and admit a duplicate.
 //
 // What it tests:
 //   - With Renew called before expiry, the key stays held past the base TTL (a

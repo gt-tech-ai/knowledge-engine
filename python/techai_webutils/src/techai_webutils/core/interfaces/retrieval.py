@@ -1,8 +1,9 @@
 """Retrieval pipeline interfaces."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from techai_webutils.core.interfaces.lifecycle import ManagedResource
 
@@ -62,7 +63,7 @@ class HistoryTurn:
     """A prior conversation turn, role-tagged for query rewriting + answer generation.
 
     ``role`` is ``"user"`` or ``"assistant"``; system turns are never carried as history
-    (they are injected separately by the prompt strategies —).
+    (the prompt strategies inject them separately).
     """
 
     role: str
@@ -85,20 +86,28 @@ class RetrievalEngine(ManagedResource, ABC):
     ) -> list[RetrievalResult]:
         """Retrieve relevant document chunks for a query.
 
-        ``filters`` is the caller's request scope (e.g. a tenant or clearance level); a backend may
-        push some of it down, and ``FilteringRetrievalEngine`` policies re-validate against it.
+        ``filters`` is the caller's request scope (e.g. a tenant or the caller's access level); a backend
+        may push some of it down, and ``FilteringRetrievalEngine`` policies re-validate against it.
         ``index_id`` selects the index to query per call (e.g. a knowledge base per tenant); ``None``
         uses the engine's construction-time index. An engine constructed with no default index and
         called with ``None`` must fail loudly, not silently fall back.
         """
 
 
-class CitationExtractor(ABC):
-    """Abstract citation extractor for identifying source references.
+class PassagePolicy(Protocol):
+    """A rule every retrieved passage must pass to reach the caller (``FilteringRetrievalEngine``).
 
-    Phase 1: Chunk-level citations with document metadata.
-    Phase 2+: Sentence-level citations, page number extraction, quote highlighting.
+    Consumers implement it for their own scope rules; ``clients/retrieval/filtering`` ships
+    ``MinScore``, ``MetadataEquals`` and ``OrdinalCeiling``.
     """
+
+    def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
+        """Return True iff ``passage`` may be returned for ``request`` (the call's filters)."""
+        ...
+
+
+class CitationExtractor(ABC):
+    """Abstract citation extractor for identifying source references (chunk-level, with document metadata)."""
 
     @abstractmethod
     async def extract(self, answer: str, sources: list[RetrievalResult]) -> list[Citation]:
@@ -106,11 +115,7 @@ class CitationExtractor(ABC):
 
 
 class QueryRewriter(ABC):
-    """Abstract query rewriter for improving retrieval quality.
-
-    Phase 1: Simple expansion with synonyms.
-    Phase 2+: LLM-powered rewriting, multi-query generation, HyDE.
-    """
+    """Abstract query rewriter for improving retrieval quality (e.g. expansion or LLM rewriting)."""
 
     @abstractmethod
     async def rewrite(self, query: str, history: Sequence[HistoryTurn] | None = None) -> list[str]:
@@ -118,11 +123,7 @@ class QueryRewriter(ABC):
 
 
 class IntentClassifier(ABC):
-    """Abstract intent classifier for understanding query purpose.
-
-    Phase 1: Rule-based classification.
-    Phase 2+: LLM-powered classification, multi-label support.
-    """
+    """Abstract intent classifier for understanding query purpose."""
 
     @abstractmethod
     async def classify(self, query: str) -> QueryIntent:
@@ -132,8 +133,7 @@ class IntentClassifier(ABC):
 class AnswerGenerator(ABC):
     """Abstract answer generator: retrieved passages + query -> a cited answer (RAG generate step).
 
-    Phase 1: single-pass generation with inline citation markers, streaming + unary.
-    Phase 2+: multi-step reasoning, tool use, structured output.
+    Generation is single-pass with inline citation markers, streaming or unary.
     """
 
     @abstractmethod

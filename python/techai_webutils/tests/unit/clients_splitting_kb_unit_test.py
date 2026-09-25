@@ -1,4 +1,4 @@
-"""Tests for the kb_unit document splitter (phase 2) + the ``splitter_from_config`` factory.
+"""Tests for the kb_unit document splitter + the ``splitter_from_config`` factory.
 
 Why these tests matter: the splitter turns one large parse into N index units. A wrong
 page range breaks citation provenance, an over-max chunk breaks the KB per-file limit,

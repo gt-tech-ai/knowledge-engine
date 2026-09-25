@@ -13,7 +13,8 @@ import (
 // FanOut runs fn for each item in items with bounded concurrency.
 //
 // Each invocation is isolated: a panic in fn is recovered and converted to
-// StepResult{Status: Fail, Detail: stack} rather than crashing the process. fn returning a Fail result is passed through unchanged.
+// StepResult{Status: Fail, Detail: stack} rather than crashing the process. fn
+// returning a Fail result is passed through unchanged.
 //
 // Context cancellation (via gctx derived from ctx) stops items that have not
 // yet acquired a worker slot; items already running continue until fn returns.
@@ -45,9 +46,9 @@ func FanOut[T any](
 
 	// Acquire a worker slot BEFORE spawning each goroutine so at most numWorkers
 	// goroutines are ever live at once — a 10k-item fan-out holds ≤numWorkers
-	// goroutines, not 10k blocked on the semaphore. On cancellation we stop spawning and mark the
-	// remaining items
-	// (the tail loop below) as cancelled, so every item still gets a result.
+	// goroutines, not 10k blocked on the semaphore. On cancellation we stop
+	// spawning and mark the remaining items (the tail loop below) as cancelled, so
+	// every item still gets a result.
 	i := 0
 spawnLoop:
 	for ; i < len(items); i++ {

@@ -44,7 +44,7 @@ class TestRayExecutor:
         """Test that RayExecutor.run submits every item and aggregates a BatchResult.
 
         **Why this test is important:**
-          - The bulk job sees only the Executor; if run() dropped items or skipped a submit, work
+          - A batch caller sees only the Executor; if run() dropped items or skipped a submit, work
             would be silently under-processed on the cluster.
 
         **What it tests:**
@@ -64,7 +64,7 @@ class TestRayExecutor:
 
         **Why this test is important:**
           - A remote worker crash (RayTaskError) must not abort the batch; one poison document
-            failing the whole bulk run would defeat partial-failure tolerance.
+            failing the whole batch would defeat partial-failure tolerance.
 
         **What it tests:**
           - When submit raises for one item, that item FAILs and the rest PASS (fan_out isolation).
@@ -88,8 +88,8 @@ class TestRayExecutor:
         """Test that RayExecutor never has more than ``concurrency`` submits in flight.
 
         **Why this test is important:**
-          - The concurrency bound is what keeps a bulk run from flooding the Ray cluster (and the
-            downstream KB) with unbounded in-flight tasks.
+          - The concurrency bound is what keeps a large batch from flooding the Ray cluster (and any
+            downstream service) with unbounded in-flight tasks.
 
         **What it tests:**
           - With concurrency=2 over 6 items, peak simultaneous submits never exceeds 2.

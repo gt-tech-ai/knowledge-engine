@@ -39,8 +39,8 @@ def retry_transient_async(
     ``max_attempts`` bounds the total attempts (including the first try); ``base_delay``
     and ``max_delay`` (seconds) bound the exponential-with-jitter backoff. Permanent
     errors are re-raised without retry. ``sleep`` (optional) overrides the coroutine used
-    to wait between attempts — inject a deterministic recorder in tests / callers (e.g. the
-    KB-sync watchdog) that need to control or record the backoff schedule; the default is
+    to wait between attempts — inject a deterministic recorder in tests / callers (e.g. a
+    supervisor retrying a job stop) that need to control or record the backoff schedule; the default is
     tenacity's normal async sleep, so the behavior is unchanged when it is omitted.
     """
 

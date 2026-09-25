@@ -9,14 +9,14 @@ vector-store point ids (``{document_id}:{index}``) stay stable.
 from __future__ import annotations
 
 # Default chunk size (characters). Chosen to mirror a Bedrock KB's FIXED_SIZE chunking at
-# chunk_max_tokens = 512, so the local vector path
-# indexes at the SAME granularity prod retrieves against — the earlier 800 (~166 tokens) over-chunked
-# ~3x, which both tripled local Ollama embed cost (one vector per chunk) and made dev retrieval a
-# poor proxy for prod. ~2048 chars ≈ 512 tokens (~4 chars/token) and stays under nomic-embed-text's
-# 2048-token context. Local-only: prod (Bedrock) chunks server-side and never calls chunk_text. The
-# caller may override per document.
+# chunk_max_tokens = 512, so the local vector path indexes at the same granularity as a managed
+# knowledge base using that setting — a smaller size (e.g. 800 chars, ~166 tokens) over-chunks ~3x,
+# which multiplies local embed cost (one vector per chunk) and makes local retrieval a poor proxy.
+# ~2048 chars ≈ 512 tokens (~4 chars/token) and stays under nomic-embed-text's 2048-token context.
+# A managed knowledge base that chunks server-side never calls chunk_text. The caller may override
+# per document.
 _DEFAULT_MAX_CHARS = 2048
-"""Default chunk size (chars) mirroring the prod Bedrock KB's ~512-token FIXED_SIZE chunking."""
+"""Default chunk size (chars) mirroring a Bedrock KB's ~512-token FIXED_SIZE chunking."""
 
 
 def chunk_text(text: str, max_chars: int = _DEFAULT_MAX_CHARS) -> list[str]:

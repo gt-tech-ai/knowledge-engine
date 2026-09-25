@@ -16,8 +16,9 @@ import (
 // Used by CLI commands that need simple function-to-result wrapping
 // without the full Job discover/map/execute lifecycle.
 //
-// interface-composition exemption — execution-engine primitive: a single Execute(ctx) → StepResult unit of work,
-// not an id-CRUD data-access surface, so it embeds no foundation generic.
+// interface-composition exemption — execution-engine primitive: a single
+// Execute(ctx) → StepResult unit of work, not an id-CRUD data-access surface, so it
+// embeds no foundation generic.
 type Step interface {
 	// Execute runs the step and returns its result.
 	Execute(ctx context.Context) types.StepResult

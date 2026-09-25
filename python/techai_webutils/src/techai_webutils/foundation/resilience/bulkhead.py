@@ -2,7 +2,7 @@
 
 Two backends implement the ``Bulkhead`` ABC from core/interfaces: ``SemaphoreBulkhead`` (a
 fixed-size ``asyncio.Semaphore``) and ``AdaptiveBulkhead`` (a self-tuning AIMD limit that shrinks
-under latency and recovers —). ``bulkhead_from_config`` selects between them by
+under latency and recovers). ``bulkhead_from_config`` selects between them by
 ``BulkheadKind``, mirroring Go's ``bulkhead.NewFromConfig`` (KindChannel / KindAdaptive).
 """
 
@@ -112,7 +112,7 @@ class AdaptiveBulkhead(Bulkhead):
     The limit adjusts to observed latency: a sample slower than ``rtt_threshold_seconds`` -- or a
     failed op, a load-shed signal -- multiplicatively decreases the limit; a fast, successful
     sample additively increases it up to ``max_concurrent``. Mirrors Go's
-    ``foundation/resilience/bulkhead/adaptive``..
+    ``foundation/resilience/bulkhead/adaptive``.
     """
 
     def __init__(

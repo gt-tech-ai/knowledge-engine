@@ -19,11 +19,7 @@ class EmbeddingResult:
 
 
 class EmbeddingProvider(ManagedResource, ABC):
-    """Abstract embedding provider for converting text to vector embeddings.
-
-    Phase 1: Single model embedding with batch support.
-    Phase 2+: Multi-model support, caching, rate limiting, fallback providers.
-    """
+    """Abstract embedding provider for converting text to vector embeddings."""
 
     @abstractmethod
     async def embed(self, text: str) -> EmbeddingResult:

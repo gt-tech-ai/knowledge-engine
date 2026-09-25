@@ -4,7 +4,6 @@
 //   - Error classify: unknown error code HTTP mapping
 //   - Error: Is with non-AppError, Code extraction, Ingestion constructor
 //   - Zap: ZapFields with stack/details, LogErrors, Errors, detailsObject
-//   - Events: Metadata() on all event types, ParseEvent edge cases
 //   - Types: type aliases
 package unit_test
 

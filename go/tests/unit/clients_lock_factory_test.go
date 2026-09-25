@@ -85,7 +85,7 @@ func TestLockFactory_Validation(t *testing.T) {
 // Why this test is important:
 //   - This is the seam the caller consumes: acquire → run under held → release.
 //     release must both cancel the held context and release the underlying lock,
-//     or a finished query would leave its conversation locked.
+//     or a finished operation would leave its resource locked.
 //
 // What it tests:
 //   - Hold returns acquired=true and an un-cancelled held context; after
@@ -112,9 +112,9 @@ func TestHold_AcquiresThenReleaseCancels(t *testing.T) {
 // not release a lock it never took.
 //
 // Why this test is important:
-//   - If the key is already held, the caller rejects the query with
-//     "query_in_progress"; Hold must signal that without touching the lock owned
-//     by another pod.
+//   - If the key is already held, the caller rejects the operation as already
+//     in progress; Hold must signal that without touching the lock owned by
+//     another pod.
 //
 // What it tests:
 //   - When Acquire returns acquired=false, Hold returns acquired=false, nil, and
@@ -137,9 +137,9 @@ func TestHold_NotAcquired(t *testing.T) {
 // release.
 //
 // Why this test is important:
-//   - A query can outlast the base TTL; the watchdog's periodic Renew is what
-//     keeps the lock held meanwhile. If Hold never renewed, a long query would
-//     lose its lock mid-flight and a second pod could start a competing query.
+//   - An operation can outlast the base TTL; the watchdog's periodic Renew is what
+//     keeps the lock held meanwhile. If Hold never renewed, a long operation would
+//     lose its lock mid-flight and a second pod could start a competing one.
 //
 // What it tests:
 //   - With a short interval, Renew is called at least once and the held context
@@ -166,13 +166,13 @@ func TestHold_RenewsPeriodicallyWhileHeld(t *testing.T) {
 }
 
 // TestHold_LeaseLostCancelsHeld tests the correctness guarantee at the heart of
-// the single-active-query guard: if the watchdog's Renew reports the lease lost,
-// the held context is cancelled so the in-flight query stops.
+// the single-active-operation guard: if the watchdog's Renew reports the lease
+// lost, the held context is cancelled so the in-flight operation stops.
 //
 // Why this test is important:
 //   - Without this, a pod whose lease expired (or was taken over) would keep
-//     streaming a conversation's answer while a second pod runs a competing
-//     query — two active queries, the exact failure the guard prevents.
+//     running the guarded operation while a second pod runs a competing one —
+//     two active operations, the exact failure the guard prevents.
 //
 // What it tests:
 //   - With a short renew interval and a mock Renew that returns held=false, the

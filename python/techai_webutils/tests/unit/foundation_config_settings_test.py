@@ -241,7 +241,7 @@ def test_mixin_composition_with_env_vars(monkeypatch: pytest.MonkeyPatch) -> Non
     assert settings.redis_host == "redis-override"
 
 
-def test_base_search_settings_has_correct_model_config() -> None:
+def test_base_app_settings_has_correct_model_config() -> None:
     """Test that BaseAppSettings centralizes the env_prefix, frozen, and extra policy.
 
     **Why this test is important:**

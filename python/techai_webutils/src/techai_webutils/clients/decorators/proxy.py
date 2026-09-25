@@ -53,7 +53,7 @@ class LoggingProxy:
     """
 
     def __init__(self, wrapped: object, logger_name: str) -> None:
-        """Wrap ``wrapped`` and log its calls as structured events via the structlog logger ``logger_name``."""
+        """Wrap ``wrapped``, logging its calls as structured events via the structlog ``logger_name``."""
         self._wrapped = wrapped
         # Exemption from "inject the logger" (ARCHITECTURE.md#dependency-injection): unlike Go's injected
         # ``interfaces.Logger``, the Python foundation's logging is structlog configured ONCE at the
@@ -406,7 +406,8 @@ class ClientStackConfig:
     """Gates the whole stack; False returns the bare client (backwards-compatible)."""
 
     timeout_seconds: float | None = 30.0
-    """Bounds each async call, in seconds; None/0 disables the timeout layer (keeps a deliberate long timeout)."""
+    """Bounds each async call, in seconds; None/0 disables the timeout layer (keeps a deliberate long
+    timeout)."""
 
     retry_enabled: bool = False
     """Opts into the Retry layer (off by default so it never doubles up with an SDK retry authority)."""
@@ -430,7 +431,7 @@ def new_client_stack_from_config(
     Applies, outermost → innermost,
     ``Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging`` — the Python
     analog of the Go clients/decorators stack. The Tracing layer opens a per-call span,
-    so latency is visible in Tempo; unlike the Go stack this composer does **not** yet
+    so latency is visible in the trace backend; unlike the Go stack this composer does **not** yet
     emit explicit Prometheus ``client_operations_total``/``client_errors_total``/
     ``client_operation_duration_seconds`` counters (span-derived RED metrics require a
     spanmetrics connector in the collector). Reaching that metric parity is future work.

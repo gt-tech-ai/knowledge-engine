@@ -1,4 +1,4 @@
-"""Jobs client builder — ``new_jobs_from_config`` (shape).
+"""Jobs client builder — ``new_jobs_from_config``.
 
 The tier-root factory: selects a job-queue backend by ``JobKind`` and returns the
 ``JobEnqueuer`` interface, mirroring Go ``jobs.NewFromConfig``. The in-memory

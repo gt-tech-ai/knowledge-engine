@@ -2,7 +2,7 @@
 
 Unit tests use the stub backend; this proves a dead letter actually lands on a real
 SQS-compatible queue with its payload + reason attribute intact — the durable poison
-sink the orchestrator relies on for permanent failures.
+sink a consumer relies on for permanent failures.
 """
 
 from __future__ import annotations

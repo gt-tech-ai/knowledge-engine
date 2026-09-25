@@ -7,9 +7,6 @@ import (
 
 // Cache is the generic caching interface.
 // T = value type.
-//
-// Phase 1: Simple get/set/delete with TTL.
-// Phase 2+: Cache invalidation patterns, cache-aside with singleflight, warm-up.
 type Cache[T any] interface {
 	// Get retrieves a value by key. Returns (zero-value, false) if not found or expired.
 	Get(ctx context.Context, key string) (T, bool)

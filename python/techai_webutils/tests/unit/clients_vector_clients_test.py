@@ -40,10 +40,14 @@ def _mock_client(
     return client
 
 
-def _retrieved_point(entry_id: str) -> object:
-    """A retrieved-point stub whose ``id`` is the deterministic Qdrant point id of ``entry_id``."""
+def _retrieved_point(entry_id: str, **metadata: str) -> object:
+    """A retrieved point whose ``id`` is the deterministic Qdrant point id of ``entry_id``.
+
+    Its payload carries the store's own keys plus ``metadata``, as ``QdrantVectorStore.upsert`` writes it.
+    """
     point = MagicMock()
     point.id = str(uuid.uuid5(uuid.NAMESPACE_URL, entry_id))
+    point.payload = {"entry_id": entry_id, "document_id": "d1", "content": "text", **metadata}
     return point
 
 
@@ -53,7 +57,7 @@ class TestQdrantVectorStore:
         """upsert ensures the collection (cosine+dim) then upserts points carrying the metadata payload.
 
         Why this test is important:
-          - The whole retrieval path depends on the payload (workspace_id/document_name/…) being written;
+          - The whole retrieval path depends on the payload (tenant/document_name/…) being written;
             missing keys silently break filtering + citations downstream.
 
         What it tests:
@@ -71,7 +75,7 @@ class TestQdrantVectorStore:
                     document_id="d1",
                     content="chunk text",
                     embedding=[0.1, 0.2, 0.3],
-                    metadata={"workspace_id": "ws", "document_name": "Doc"},
+                    metadata={"tenant": "t1", "document_name": "Doc"},
                 ),
             ],
         )
@@ -82,7 +86,7 @@ class TestQdrantVectorStore:
         # Qdrant point id is the deterministic UUID of the entry id; the raw id is kept in the payload.
         assert points[0].id == str(uuid.uuid5(uuid.NAMESPACE_URL, "p1"))
         assert points[0].payload["entry_id"] == "p1"
-        assert points[0].payload["workspace_id"] == "ws"
+        assert points[0].payload["tenant"] == "t1"
         assert points[0].payload["document_name"] == "Doc"
         assert points[0].payload["document_id"] == "d1"
         assert points[0].payload["content"] == "chunk text"
@@ -92,7 +96,7 @@ class TestQdrantVectorStore:
         """Concurrent first-time upserts create the collection exactly once (no TOCTOU race).
 
         Why this test is important:
-          - The ingestion worker fans out at ingestion_concurrency; without serializing the lazy create,
+          - An indexer that fans out concurrent upserts would, without serializing the lazy create, have
             two coroutines both see the collection missing and both create it — the loser errors
             "already exists" and fails an otherwise-good document.
 
@@ -111,10 +115,9 @@ class TestQdrantVectorStore:
         """A cross-process create race (409 "already exists") is swallowed when the collection now exists.
 
         Why this test is important:
-          - The per-instance asyncio lock only serializes ONE worker process; the ingestion runs several
-            (small + large lanes, plus Ray workers), so a first-time bulk sync can still race
-            create_collection across processes. The loser gets a 409 and, without tolerating it, fails an
-            otherwise-good document — the exact bug seen indexing a fresh connector-sync batch.
+          - The per-instance asyncio lock only serializes ONE process; several indexing processes can
+            still race create_collection on a first-time upsert. The loser gets a 409 and, without
+            tolerating it, fails an otherwise-good document.
 
         What it tests:
           - create_collection raises (the 409); on re-check the collection exists → upsert completes with
@@ -153,17 +156,17 @@ class TestQdrantVectorStore:
             await store.upsert("docs", [entry])
 
     @pytest.mark.asyncio
-    async def test_search_filters_by_workspace_and_maps_payload(self) -> None:
-        """search applies a workspace filter and maps each hit's payload into VectorSearchResult.metadata.
+    async def test_search_filters_by_scope_and_maps_payload(self) -> None:
+        """search applies a payload scope filter and maps each hit's payload into VectorSearchResult.metadata.
 
         Why this test is important:
-          - Without the workspace filter, dev queries leak across workspaces; without the payload→metadata
-            mapping, FilteringRetrievalEngine drops every result.
+          - Without the pushed-down scope filter, queries mix scopes (e.g. tenants) before the policy
+            filter; without the payload→metadata mapping, FilteringRetrievalEngine drops every result.
 
         What it tests:
           - query_points is called with a non-None query_filter; the result carries document_id, the
             *semantic* chunk id (payload entry_id, not the opaque point UUID), content, score, and the
-            payload metadata (workspace_id, document_name) with the promoted keys excluded.
+            payload metadata (tenant, document_name) with the promoted keys excluded.
         """
         hit = MagicMock()
         hit.id = str(uuid.uuid5(uuid.NAMESPACE_URL, "d1:3"))  # the opaque Qdrant point id (a UUID)
@@ -172,14 +175,14 @@ class TestQdrantVectorStore:
             "entry_id": "d1:3",  # the original semantic chunk id
             "document_id": "d1",
             "content": "the chunk",
-            "workspace_id": "ws",
+            "tenant": "t1",
             "document_name": "Doc",
             "page_number": "4",
         }
         client = _mock_client([hit])
         store = QdrantVectorStore(client, dimension=3)
 
-        results = await store.search("docs", [0.1, 0.2, 0.3], top_k=5, filters={"workspace_id": "ws"})
+        results = await store.search("docs", [0.1, 0.2, 0.3], top_k=5, filters={"tenant": "t1"})
 
         client.query_points.assert_awaited_once()
         assert client.query_points.call_args.kwargs["query_filter"] is not None
@@ -191,7 +194,7 @@ class TestQdrantVectorStore:
         assert r.chunk_id == "d1:3"
         assert r.content == "the chunk"
         assert r.score == pytest.approx(0.91)
-        assert r.metadata["workspace_id"] == "ws"
+        assert r.metadata["tenant"] == "t1"
         assert r.metadata["document_name"] == "Doc"
         assert r.metadata["page_number"] == "4"
         # Keys promoted to top-level fields are not duplicated in metadata.
@@ -254,6 +257,33 @@ class TestQdrantVectorStore:
         assert set(retrieved_ids) == {
             str(uuid.uuid5(uuid.NAMESPACE_URL, raw)) for raw in ("d1:0", "d1:1", "d1:2")
         }
+
+    @pytest.mark.asyncio
+    async def test_stored_metadata_returns_each_present_points_metadata(self) -> None:
+        """stored_metadata reports, per present raw id, the metadata stored with it (not the store's keys).
+
+        Why this test is important:
+          - The incremental indexer skips a sub-batch only when every chunk is present WITH the metadata
+            it would write; returning the wrong payload slice would either skip a reclassified chunk
+            (keeping its old scope) or re-embed everything on every redrive.
+
+        What it tests:
+          - With d1:0 stored as {tenant: t1, chunk_index: 0} and d1:1 absent, stored_metadata returns
+            exactly {"d1:0": {"tenant": "t1", "chunk_index": "0"}}, fetched with the payload and without
+            vectors; a missing collection returns {} without a retrieve.
+        """
+        client = _mock_client(retrieved=[_retrieved_point("d1:0", tenant="t1", chunk_index="0")])
+        store = QdrantVectorStore(client, dimension=3)
+
+        stored = await store.stored_metadata("docs", ["d1:0", "d1:1"])
+
+        assert stored == {"d1:0": {"tenant": "t1", "chunk_index": "0"}}
+        assert client.retrieve.call_args.kwargs["with_payload"] is True
+        assert client.retrieve.call_args.kwargs["with_vectors"] is False
+
+        missing = _mock_client(exists=False)
+        assert await QdrantVectorStore(missing, dimension=3).stored_metadata("docs", ["d1:0"]) == {}
+        missing.retrieve.assert_not_awaited()
 
     def test_dimension_exposed(self) -> None:
         """The store exposes its collection dimension (single source of truth vs the embedder)."""

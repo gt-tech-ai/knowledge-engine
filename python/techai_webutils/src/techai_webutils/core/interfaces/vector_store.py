@@ -39,11 +39,7 @@ class VectorEntry:
 
 
 class VectorStore(ManagedResource, ABC):
-    """Abstract vector store for embedding storage and similarity search.
-
-    Phase 1: Basic upsert/search/delete operations.
-    Phase 2+: Batch operations, filtered search, hybrid search, index management.
-    """
+    """Abstract vector store for embedding storage and similarity search (upsert/search/delete)."""
 
     @property
     @abstractmethod
@@ -76,12 +72,25 @@ class VectorStore(ManagedResource, ABC):
     async def count_by_document(self, collection: str, document_id: str) -> int:
         """Count the stored vector entries for a specific document (0 if none/collection absent)."""
 
-    async def existing_ids(self, collection: str, ids: list[str]) -> set[str]:  # noqa: ARG002
-        """Return the subset of ``ids`` already stored in ``collection`` (checkpoint/resume probe).
+    async def existing_ids(self, collection: str, ids: list[str]) -> set[str]:
+        """Return the subset of ``ids`` already stored in ``collection`` (an existence probe).
 
-        Concrete default: ``set()``. A store with no cheap existence probe reports "nothing indexed",
-        so an incremental indexer just re-embeds every chunk (idempotent upsert — correct, only not
-        resumable). Stores that CAN answer cheaply (e.g. Qdrant ``retrieve`` by id) override this so an
-        at-least-once redrive skips the sub-batches already upserted instead of re-embedding them.
+        Derived from ``stored_metadata``, so a store answers both probes by overriding that one.
         """
-        return set()
+        return set(await self.stored_metadata(collection, ids))
+
+    async def stored_metadata(
+        self,
+        collection: str,  # noqa: ARG002 - the default stores nothing to look up
+        ids: list[str],  # noqa: ARG002
+    ) -> dict[str, dict[str, str]]:
+        """Return ``{id: stored metadata}`` for the subset of ``ids`` already stored in ``collection``.
+
+        The metadata is what the entry was upserted with (``VectorEntry.metadata``), without the
+        entry's own ``id``/``document_id``/``content``. Concrete default: ``{}``. A store with no cheap
+        probe reports "nothing indexed", so an incremental indexer just re-embeds every chunk
+        (idempotent upsert — correct, only not resumable). Stores that CAN answer cheaply (e.g. Qdrant
+        ``retrieve`` by id) override this so an at-least-once redrive skips the sub-batches already
+        upserted with the same metadata instead of re-embedding them.
+        """
+        return {}

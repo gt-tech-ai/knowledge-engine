@@ -2,8 +2,8 @@
 
 ``PostgresAdvisoryLock`` owns ONE pinned asyncpg session and maps the ``DistributedLock`` protocol
 onto session-scoped ``pg_try_advisory_lock`` / ``pg_advisory_unlock``. The session is opened lazily on
-first ``acquire`` (so a Postgres blip at pod boot cannot down the Postgres-independent SQS consumer)
-and held for the pod's life; if the pod dies the session drops and Postgres releases the lock
+first ``acquire`` (so a Postgres blip at startup cannot fail the rest of the process's work) and held
+for the process's life; if the process dies the session drops and Postgres releases the lock
 automatically (no TTL). The lock is a two-int ``(classid, objid)`` — the caller's ``namespace`` plus a
 signed-int32-folded crc32 of the caller's ``key``.
 
@@ -39,22 +39,24 @@ _CONNECTION_ERRORS = (
 )
 """asyncpg error types treated as transient (mapped to UnavailableError for retry/circuit-breaker)."""
 
-# Connection-level server settings for the lock session:
-#   - application_name tags the session so it is identifiable in pg_stat_activity.
+# Connection-level server settings for the lock session (the per-instance application_name, which tags
+# the session in pg_stat_activity, is added in the constructor):
 #   - Server-side TCP keepalives stop a middlebox (NAT / ELB / RDS proxy) from silently reaping the
-#     long, idle session mid-poll — which would look like a crash and auto-release the lock.
-#     Budget: probe after 60s idle (> the 30s tick, < typical middlebox timeouts), then 4 probes 15s
-#     apart, so a dead peer is detected within ~120s.
-_SERVER_SETTINGS = {
-    "application_name": "advisory-lock",
+#     long, idle session between acquires — which would look like a crash and auto-release the lock.
+#     Budget: probe after 60s idle (< typical middlebox timeouts), then 4 probes 15s apart, so a dead
+#     peer is detected within ~120s.
+_KEEPALIVE_SETTINGS = {
     "tcp_keepalives_idle": "60",
     "tcp_keepalives_interval": "15",
     "tcp_keepalives_count": "4",
 }
-"""Connection-level Postgres settings for the lock session (application name + TCP keepalives)."""
+"""Connection-level Postgres TCP keepalive settings for the lock session."""
+
+DEFAULT_APPLICATION_NAME = "advisory-lock"
+"""The ``application_name`` a lock session reports when the caller names none."""
 
 # The advisory-lock SQL is trivial and non-blocking; a query that outlasts this means a wedged session
-# (caught as a transient error → the session is discarded and the next tick reconnects).
+# (caught as a transient error → the session is discarded and the next acquire reconnects).
 _COMMAND_TIMEOUT_SECONDS = 10.0
 """Per-command timeout, in seconds; a query outlasting it signals a wedged session (transient)."""
 
@@ -74,10 +76,14 @@ class PostgresAdvisoryLock:
     session is not expected.
     """
 
-    def __init__(self, *, dsn: str, key: str, namespace: int) -> None:
+    def __init__(
+        self, *, dsn: str, key: str, namespace: int, application_name: str = DEFAULT_APPLICATION_NAME
+    ) -> None:
         """Bind the connection DSN and derive the (namespace, hash(key)) advisory-lock key.
 
         ``namespace`` must fit a signed int32 (Postgres ``pg_try_advisory_lock(int, int)``).
+        ``application_name`` tags the session in ``pg_stat_activity``; the lock's log lines carry its
+        key and namespace, so a process holding several locks can tell them apart.
         """
         if not key:
             msg = "PostgresAdvisoryLock requires a non-empty key"
@@ -86,8 +92,10 @@ class PostgresAdvisoryLock:
             msg = f"PostgresAdvisoryLock namespace {namespace} does not fit a signed int32"
             raise ValueError(msg)
         self._dsn = dsn
+        self._key = key
         self._classid = namespace
         self._objid = _to_signed_int32(zlib.crc32(key.encode()))
+        self._server_settings = {**_KEEPALIVE_SETTINGS, "application_name": application_name}
         self._conn: asyncpg.Connection | None = None
 
     async def __aenter__(self) -> Self:
@@ -123,19 +131,21 @@ class PostgresAdvisoryLock:
             try:
                 conn.terminate()
             except Exception:  # best-effort teardown must never mask the caller's error
-                logger.warning("advisory-lock session terminate failed (ignored)")
+                logger.warning(
+                    "advisory-lock session terminate failed (ignored)", key=self._key, namespace=self._classid
+                )
 
     async def _ensure_connection(self) -> asyncpg.Connection:
         """Return the pinned session, opening (or reopening) it as needed.
 
         Lazily connects on first use, and reconnects when a previously-opened session has been closed
-        (idle-reaped or crashed) so a dead socket cannot wedge the guarded work until a pod restart.
+        (idle-reaped or crashed) so a dead socket cannot wedge the guarded work until a restart.
         """
         conn = self._conn
         if conn is None or conn.is_closed():
             conn = await asyncpg.connect(
                 self._dsn,
-                server_settings=_SERVER_SETTINGS,
+                server_settings=self._server_settings,
                 command_timeout=_COMMAND_TIMEOUT_SECONDS,
             )
             self._conn = conn
@@ -171,10 +181,19 @@ class PostgresAdvisoryLock:
         try:
             unlocked = await conn.fetchval("SELECT pg_advisory_unlock($1, $2)", self._classid, self._objid)
         except _CONNECTION_ERRORS as err:
-            logger.warning("advisory-lock release on a broken session ignored: %s", err)
+            logger.warning(
+                "advisory-lock release on a broken session ignored",
+                error=str(err),
+                key=self._key,
+                namespace=self._classid,
+            )
             self._discard_connection()
         else:
             if unlocked is False:
                 # A false result means this session did not hold the lock — a single-writer anomaly
                 # (e.g. the session was reset mid-hold). Nothing to undo here, but it must be visible.
-                logger.warning("advisory-lock release found the lock not held by this session")
+                logger.warning(
+                    "advisory-lock release found the lock not held by this session",
+                    key=self._key,
+                    namespace=self._classid,
+                )

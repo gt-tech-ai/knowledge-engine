@@ -1,7 +1,6 @@
 package unit_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,10 +11,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
 
-// TestProvideServerConfig tests that a Wire provider can load ServerConfig from YAML.
+// TestProvideServerConfig tests that a config provider can load ServerConfig from YAML.
 //
 // Why this test is important:
-//   - Wire providers are the DI entry point for all services
+//   - Config providers at the composition root feed every service its settings
 //   - Must produce valid, validated config structs
 //   - Must respect environment variable overrides
 //
@@ -28,25 +27,23 @@ func TestProvideServerConfig(t *testing.T) {
 
 	// Arrange: Create temp config directory with server config
 	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "base.yaml")
-	err := os.WriteFile(configFile, []byte(`
+	writeFile(t, filepath.Join(tmpDir, "base.yaml"), `
 server:
-  identity:
+  http:
     host: "0.0.0.0"
     port: 8090
     read_timeout: 30s
     read_header_timeout: 10s
     write_timeout: 30s
     idle_timeout: 120s
-`), 0o644)
-	require.NoError(t, err, "write config")
+`)
 
-	// Act: Simulate Wire provider behavior (identity service path)
+	// Act: Simulate a provider loading one server's section
 	loader, err := config.New(config.KindViper, config.WithBaseDir(tmpDir))
 	require.NoError(t, err, "config.New")
 
 	var serverCfg infra.ServerConfig
-	require.NoError(t, loader.UnmarshalKey("server.identity", &serverCfg), "UnmarshalKey")
+	require.NoError(t, loader.UnmarshalKey("server.http", &serverCfg), "UnmarshalKey")
 
 	// Assert: Config loaded correctly
 	assert.Equal(t, "0.0.0.0", serverCfg.Host)
@@ -60,7 +57,7 @@ server:
 // TestProvideServerConfig_ValidationFailure tests that validation catches zero port.
 //
 // Why this test is important:
-//   - Wire providers must validate configs before returning
+//   - Config providers must validate configs before returning
 //   - Invalid configs should cause startup failures, not runtime crashes
 //
 // What it tests:
@@ -83,11 +80,11 @@ func TestProvideServerConfig_ValidationFailure(t *testing.T) {
 	assert.ErrorContains(t, err, "server.port is required (got 0)")
 }
 
-// TestProvideDatabaseConfig tests that Wire provider can load DatabaseConfig.
+// TestProvideDatabaseConfig tests that a config provider can load DatabaseConfig.
 //
 // Why this test is important:
-//   - Database config is used by identity, api, and migration services
-//   - Must support legacy env var names (DB_HOST, etc.)
+//   - Every service that talks to Postgres loads this section; a decode or DSN
+//     mistake breaks every connection
 //
 // What it tests:
 //   - UnmarshalKey extracts database config
@@ -97,8 +94,7 @@ func TestProvideDatabaseConfig(t *testing.T) {
 
 	// Arrange
 	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "base.yaml")
-	err := os.WriteFile(configFile, []byte(`
+	writeFile(t, filepath.Join(tmpDir, "base.yaml"), `
 database:
   host: localhost
   port: 5432
@@ -106,8 +102,7 @@ database:
   password: dev_password
   database: knowledge_engine
   sslmode: disable
-`), 0o644)
-	require.NoError(t, err, "write config")
+`)
 
 	// Act
 	loader, err := config.New(config.KindViper, config.WithBaseDir(tmpDir))
@@ -129,10 +124,11 @@ database:
 	require.NoError(t, dbCfg.Validate(), "Validate must pass for valid config")
 }
 
-// TestProvideRedisConfig tests that Wire provider can load RedisConfig.
+// TestProvideRedisConfig tests that a config provider can load RedisConfig.
 //
 // Why this test is important:
-//   - Redis config is used by API service for caching
+//   - Services that cache in Redis load this section; a wrong Addr() misroutes every
+//     cache call
 //
 // What it tests:
 //   - UnmarshalKey extracts redis config
@@ -142,15 +138,13 @@ func TestProvideRedisConfig(t *testing.T) {
 
 	// Arrange
 	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "base.yaml")
-	err := os.WriteFile(configFile, []byte(`
+	writeFile(t, filepath.Join(tmpDir, "base.yaml"), `
 redis:
   host: localhost
   port: 6379
   password: ""
   db: 0
-`), 0o644)
-	require.NoError(t, err, "write config")
+`)
 
 	// Act
 	loader, err := config.New(config.KindViper, config.WithBaseDir(tmpDir))
@@ -166,43 +160,4 @@ redis:
 
 	// Validate should pass
 	require.NoError(t, redisCfg.Validate(), "Validate must pass for valid config")
-}
-
-// TestProvideConfig_EnvVarOverride tests that env vars override YAML values.
-//
-// Why this test is important:
-//   - 12-factor app: environment variables must take precedence
-//   - Legacy env vars (DB_HOST) must work alongside the prefixed names
-//
-// What it tests:
-//   - MYAPP_DATABASE_HOST overrides YAML database.host
-//   - Legacy DB_HOST also overrides YAML database.host
-func TestProvideConfig_EnvVarOverride(t *testing.T) {
-	// Note: Cannot use t.Parallel() with t.Setenv()
-
-	// Arrange
-	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "base.yaml")
-	err := os.WriteFile(configFile, []byte(`
-database:
-  host: localhost
-  port: 5432
-  user: app
-  password: dev_password
-  database: knowledge_engine
-  sslmode: disable
-`), 0o644)
-	require.NoError(t, err, "write config")
-
-	// Set env var override
-	t.Setenv("MYAPP_DATABASE_HOST", "prod-db.example.com")
-
-	// Act
-	loader := loadWithSchema(t, tmpDir)
-
-	var dbCfg infra.DatabaseConfig
-	require.NoError(t, loader.UnmarshalKey("database", &dbCfg), "UnmarshalKey")
-
-	// Assert: Env var overrode YAML value
-	assert.Equal(t, "prod-db.example.com", dbCfg.Host, "env var override failed")
 }

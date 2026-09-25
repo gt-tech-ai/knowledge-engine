@@ -10,15 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestLayerConfigDefaults_MatchConsts tests that the stores/repos config
-// defaults equal today's scattered consts, so adopting the surface is
-// behavior-preserving.
+// TestLayerConfigDefaults_MatchConsts tests the stores/repos config defaults.
 //
 // Why this test is important:
-//   - The whole point of the layer configs is to replace consts with a config surface
-//     without changing behavior at default values; a wrong default would silently
-//     shift page sizes or cache TTLs the moment the providers wire
-//     these in.
+//   - The layer configs replace constants with a config surface; a wrong default would
+//     silently shift page sizes or cache TTLs the moment a provider wires them in.
 //
 // What it tests:
 //   - The documented default page size (20) and cap (1000), and the cache TTL (5m) +

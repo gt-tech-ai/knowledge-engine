@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/database/postgres"
+	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics"
 )
 
@@ -88,16 +89,20 @@ func TestCheck_ClosedPoolErrors(t *testing.T) {
 	assert.Error(t, check(), "a closed pool must make the readiness check fail")
 }
 
-// TestPingDB_BadDSNFailsFast tests that PingDB surfaces a clear, wrapped error
-// when the database is unreachable.
+// TestPingDB_BadDSNFailsFast tests that Ping surfaces a clear, wrapped error
+// when the database is unreachable, coded as transient.
 //
 // Why this test is important:
-//   - PingDB is the boot-time fail-fast; a bad DSN or down server must
-//     produce a clear error at the composition root, not a silent first-request
-//     failure.
+//   - Ping is the boot-time fail-fast and the readiness probe; a bad DSN or down
+//     server must produce a clear error at the composition root, not a silent
+//     first-request failure.
+//   - An unreachable database is transient: coded CodeUnavailable, a caller that
+//     classifies by code (IsTransient, the retry policy) retries it instead of
+//     treating a DB blip as permanent.
 //
 // What it tests:
-//   - PingDB against an unreachable port returns an error naming the ping failure.
+//   - Ping against an unreachable port returns an error naming the ping failure,
+//     coded CodeUnavailable.
 func TestPingDB_BadDSNFailsFast(t *testing.T) {
 	t.Parallel()
 
@@ -109,4 +114,5 @@ func TestPingDB_BadDSNFailsFast(t *testing.T) {
 	err = postgres.Ping(context.Background(), db)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "database ping failed")
+	assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err), "an unreachable DB is transient")
 }

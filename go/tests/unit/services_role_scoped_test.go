@@ -53,7 +53,7 @@ func (r *roleScopedCRUDServiceRepo) Delete(_ context.Context, _ string) error {
 //
 // Why this test is important:
 //   - CRUDNoListService is the service-tier decorator for a resource whose
-//     collection is not listable (e.g. identity users). It carries the
+//     collection is not listable (e.g. one addressed only by id). It carries the
 //     recovery/observability/timeout stack without embedding a List it would panic
 //     on; a broken delegation would silently serve wrong data or drop a write.
 //

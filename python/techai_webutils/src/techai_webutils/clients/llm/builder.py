@@ -51,9 +51,19 @@ class LlmConfig:
 
 
 def new_llm_from_config(config: LlmConfig) -> LLMProvider:
-    """Build the LLMProvider selected by ``config.kind`` (stub, ollama, or bedrock)."""
+    """Build the LLMProvider selected by ``config.kind`` (stub, ollama, or bedrock).
+
+    The ollama and bedrock kinds require ``config.model`` (``ValueError`` when empty): there is no
+    built-in default, and a provider with no model would only fail on its first request.
+    """
     if config.kind is LlmKind.STUB:
         return StubLlmProvider()
+    if config.kind in (LlmKind.OLLAMA, LlmKind.BEDROCK) and not config.model:
+        # A provider with no model id defers failure to first invocation, where it surfaces as an opaque
+        # Bedrock validation/AccessDenied error or an Ollama "model is required"/404. Fail loudly at
+        # construction instead — the same loud-misconfiguration contract as the unknown-kind guard below.
+        msg = f"{config.kind} llm kind requires a model id, got empty"
+        raise ValueError(msg)
     if config.kind is LlmKind.OLLAMA:
         # Lazy import: httpx client + provider are only built for the local Ollama path. The model must
         # be an Ollama chat model (e.g. "llama3.2") — config sets it.
@@ -64,12 +74,6 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
         client = httpx.AsyncClient(base_url=config.host, timeout=config.timeout_seconds)
         return OllamaLlmProvider(client, config.model)
     if config.kind is LlmKind.BEDROCK:
-        # A bedrock provider with no model id defers failure to first invocation, where it surfaces as
-        # an opaque Bedrock validation/AccessDenied error. Fail loudly at construction instead
-        # — the same loud-misconfiguration contract as the unknown-kind guard below.
-        if not config.model:
-            msg = "bedrock llm kind requires a model id, got empty"
-            raise ValueError(msg)
         # Lazy import: keep aiobotocore off the dev/stub path (loaded only in stage/prod).
         from techai_webutils.clients.llm.bedrock import BedrockLlmProvider  # noqa: PLC0415
 

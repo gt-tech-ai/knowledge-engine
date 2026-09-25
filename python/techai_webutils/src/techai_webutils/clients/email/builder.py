@@ -32,7 +32,7 @@ class EmailKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class EmailConfig:
-    """Email transport configuration resolved from the notification settings."""
+    """Email transport configuration (the consumer maps its own config section onto it)."""
 
     kind: EmailKind = EmailKind.NOOP
     """Selects the transport backend."""
@@ -55,11 +55,13 @@ def new_email_from_config(config: EmailConfig) -> EmailSender:
     degrading to the no-op sender.
     """
     if config.kind is EmailKind.SES:
-        from techai_webutils.clients.email.ses import SesEmailSender  # noqa: PLC0415 — lazy: skip aiobotocore off the SES path
+        # Lazy import: skip aiobotocore off the SES path.
+        from techai_webutils.clients.email.ses import SesEmailSender  # noqa: PLC0415
 
         return SesEmailSender(region=config.region, from_address=config.from_address)
     if config.kind is EmailKind.SMTP:
-        from techai_webutils.clients.email.smtp import SmtpEmailSender  # noqa: PLC0415 — lazy: skip aiosmtplib off the SMTP path
+        # Lazy import: skip aiosmtplib off the SMTP path.
+        from techai_webutils.clients.email.smtp import SmtpEmailSender  # noqa: PLC0415
 
         return SmtpEmailSender(host=config.smtp_host, port=config.smtp_port, from_address=config.from_address)
     if config.kind is EmailKind.NOOP:

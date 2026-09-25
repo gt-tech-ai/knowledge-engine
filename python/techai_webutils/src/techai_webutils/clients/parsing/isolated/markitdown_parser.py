@@ -106,8 +106,7 @@ class MarkItDownParser:
 
         Mostly-ASCII text with occasional multibyte characters (smart quotes, accents) decodes instead
         of tripping MarkItDown's 'ascii' charset autodetect (guessed from the first 4 KiB), which failed
-        such documents deep in the file (RCA 2026-09-08). Genuinely-invalid bytes are sanitized
-        (replaced) and retried.
+        such documents deep in the file. Genuinely-invalid bytes are sanitized (replaced) and retried.
         """
         from markitdown import StreamInfo  # noqa: PLC0415 — lazy: the parent never loads markitdown
 

@@ -1,8 +1,8 @@
 // Package workers is the shared config surface for background workers: the common
 // tunables (name, telemetry, relay and sweep cadences, batching) plus the
 // sweep-timing cross-field invariant, so every worker inherits the typed-field +
-// Validate shape. Pure data; the worker's composition root converts it into its
-// runtime knobs.
+// Validate shape. Pure data; the consumer's worker composition root converts it into
+// its runtime knobs.
 package workers
 
 import (
@@ -12,9 +12,10 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// Config holds the shared worker tunables. Sweep-timing fields default to zero
-// for workers that run no sweeps; a sweeping worker sets them and
-// Validate enforces the cross-field invariant against the multipart presign expiry.
+// Config holds the shared worker tunables. DefaultConfig seeds non-zero sweep
+// cadences and TTLs; a worker that runs no sweeps ignores them (or zeroes them).
+// Validate enforces the cross-field invariant against the multipart presign expiry
+// only for the non-zero sweep TTLs.
 type Config struct {
 	// ServiceName is the worker's name for telemetry + structured logging.
 	ServiceName string `mapstructure:"service_name"`

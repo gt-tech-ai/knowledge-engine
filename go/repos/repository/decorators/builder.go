@@ -11,7 +11,8 @@ import (
 
 // Builder constructs a decorated repository using the fluent API pattern.
 // Each With* method enables a decorator; Build applies them inside-out:
-// base -> caching -> retry -> circuitBreaker -> timeout -> logging -> metrics -> tracing (tracing is outermost).
+// base -> caching -> retry -> circuitBreaker -> timeout -> logging -> metrics ->
+// tracing (tracing is outermost).
 type Builder[T any, P any, ID comparable] struct {
 	// base is the underlying repository implementation to decorate.
 	base interfaces.Repository[T, P, ID]
@@ -169,7 +170,8 @@ func (b *Builder[T, P, ID]) Build() interfaces.DecoratedRepository[T, P, ID] {
 		repo = &timeoutDecorator[T, P, ID]{inner: repo, timeout: b.timeout}
 	}
 	// Observability trio, innermost → outermost: Logging → Metrics → Tracing, so the
-	// composed nesting is Tracing → Metrics → Logging (Logging innermost) per ARCHITECTURE.md#decorator-order.
+	// composed nesting is Tracing → Metrics → Logging (Logging innermost) per
+	// ARCHITECTURE.md#decorator-order.
 	if b.logger != nil {
 		repo = &loggingDecorator[T, P, ID]{inner: repo, logger: b.logger, name: b.name}
 	}

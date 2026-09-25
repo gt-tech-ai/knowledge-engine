@@ -66,18 +66,23 @@ def wrap_handler(inner: MessageHandler, deps: EventStackDeps) -> MessageHandler:
     """
     key_of: Callable[[Message], str] = deps.key_of or (lambda m: m.id)
 
+    def start(msg: Message) -> Awaitable[None]:
+        """Start one handle attempt, bounded by the optional timeout."""
+        if deps.timeout_seconds and deps.timeout_seconds > 0:
+            return with_timeout(inner(msg), deps.timeout_seconds)
+        return inner(msg)
+
     async def attempt(msg: Message) -> None:
-        """Run one handle attempt under the optional timeout + circuit breaker."""
-        run: Awaitable[None] = (
-            with_timeout(inner(msg), deps.timeout_seconds)
-            if deps.timeout_seconds and deps.timeout_seconds > 0
-            else inner(msg)
-        )
+        """Run one handle attempt under the optional timeout + circuit breaker.
+
+        The handler coroutine is created only once the breaker admits the call, so an open breaker
+        fails fast without leaving an un-awaited coroutine behind.
+        """
         if deps.circuit_breaker is not None:
             with deps.circuit_breaker:
-                await run
+                await start(msg)
         else:
-            await run
+            await start(msg)
 
     runner: MessageHandler = attempt
     if deps.retry_max_attempts > 1:

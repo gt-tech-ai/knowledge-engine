@@ -40,8 +40,8 @@ async def test_publish_then_receive_roundtrip(sqs_config: SQSConfig) -> None:
     """Test that a published message is received with its payload and topic intact.
 
     **Why this test is important:**
-      - Publish->consume is the backbone of the event-driven ingestion/notification
-        pipelines; a serialization or attribute-mapping bug here breaks every async
+      - Publish->consume is the backbone of any event-driven pipeline built on these
+        clients; a serialization or attribute-mapping bug here breaks every async
         workflow and cannot be caught by mocking the broker away
 
     **What it tests:**

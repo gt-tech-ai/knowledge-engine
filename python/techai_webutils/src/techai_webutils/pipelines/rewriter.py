@@ -31,10 +31,10 @@ class LlmQueryRewriter(QueryRewriter):
     """Rewrites follow-up questions into standalone queries via an LLM + an injected prompt strategy."""
 
     def __init__(self, llm: LLMProvider, prompt: RewritePrompt, config: LLMConfig | None = None) -> None:
-        """Bind the LLM provider, the (product-specific) rewrite prompt, and the per-call decoding config.
+        """Bind the LLM provider, the consumer-supplied rewrite prompt, and the per-call decoding config.
 
-        ``config`` carries the decoding dials from ``retrieval.llm.*`` — a low temperature
-        keeps the rewrite deterministic; ``None`` lets the provider apply its defaults.
+        ``config`` carries the decoding dials from the consumer's config — a low temperature keeps the
+        rewrite deterministic; ``None`` lets the provider apply its defaults.
         """
         self._llm = llm
         self._prompt = prompt

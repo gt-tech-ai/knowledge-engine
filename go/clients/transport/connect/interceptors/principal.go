@@ -2,14 +2,24 @@ package interceptors
 
 import (
 	"context"
+	"reflect"
 
 	"connectrpc.com/connect"
 
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
+// errPrincipalResolution is the client-facing message for every failed principal
+// resolution; the Connect code carries the classification and the real cause goes
+// to the request's error sink, so resolver text (often a database error) never
+// reaches the client.
+const errPrincipalResolution = "principal resolution failed"
+
 // PrincipalResolver resolves an authenticated caller's claims into the consumer's
-// principal type P — its own authorization model (roles, memberships, grants).
+// principal type P — its own authorization model (roles, memberships, grants). An
+// error should carry a core/errors code (or be a *connect.Error); a nil principal
+// with a nil error rejects the caller as unauthenticated.
 type PrincipalResolver[P any] func(ctx context.Context, claims *AuthClaims) (P, error)
 
 // principalKey is the private context key for a principal of type P; each P gets
@@ -45,15 +55,23 @@ type principalInterceptor[P any] struct {
 //   - no AuthClaims (unauthenticated/public request) → pass through
 //   - synthetic claims and a non-nil stub → the stub principal, no resolve call; real
 //     claims always resolve, so a caller behind the gateway never gets the stub identity
-//   - otherwise → resolve; an error fails the request CLOSED, keeping its Connect code
-//     (an uncoded error becomes Unavailable, so a transient outage stays retryable)
+//   - otherwise → resolve; an error fails the request CLOSED. A *connect.Error keeps its
+//     code, a core/errors code maps to its Connect code (FORBIDDEN → PermissionDenied,
+//     UNAUTHORIZED → Unauthenticated, NOT_FOUND → NotFound, …), and an uncoded error
+//     becomes Unavailable, so a transient outage stays retryable. The client sees only a
+//     generic message; the real error is captured for the request log (core/errctx).
+//   - a nil principal (from resolve or the stub) → CodeUnauthenticated
 //
-// The raw AuthClaims are cleared from the context handed downstream, so handlers read
-// the resolved principal rather than unresolved claims.
+// The raw AuthClaims are cleared from the context handed downstream (GetAuthClaims then
+// reports none), so handlers read the resolved principal rather than unresolved claims.
+// It panics if resolve is nil, so a wiring mistake fails at startup, not per request.
 func NewPrincipalInterceptor[P any](
 	resolve PrincipalResolver[P],
 	stub func(claims *AuthClaims) P,
 ) connect.Interceptor {
+	if resolve == nil {
+		panic("interceptors: NewPrincipalInterceptor requires a non-nil resolver")
+	}
 	return principalInterceptor[P]{resolve: resolve, stub: stub}
 }
 
@@ -91,25 +109,77 @@ func (i principalInterceptor[P]) WrapStreamingHandler(
 
 // withPrincipal resolves the caller's principal and returns a context carrying it,
 // with the raw AuthClaims cleared.
-func (i principalInterceptor[P]) withPrincipal(ctx context.Context) (context.Context, error) {
+func (i principalInterceptor[P]) withPrincipal(
+	ctx context.Context,
+) (context.Context, error) {
 	claims, ok := GetAuthClaims(ctx)
 	ctx = WithAuthClaims(ctx, nil) // Clear raw claims so none leak downstream unresolved.
-	if !ok || claims == nil {
+	if !ok {
 		return ctx, nil
 	}
+	var principal P
 	if i.stub != nil && claims.Synthetic {
-		return WithPrincipal(ctx, i.stub(claims)), nil
-	}
-	principal, err := i.resolve(ctx, claims)
-	if err != nil {
-		code := connect.CodeOf(err)
-		if code == connect.CodeUnknown {
-			code = connect.CodeUnavailable
+		principal = i.stub(claims)
+	} else {
+		resolved, err := i.resolve(ctx, claims)
+		if err != nil {
+			return ctx, resolveError(ctx, err, resolveErrorCode(err))
 		}
-		return ctx, connect.NewError(
-			code,
-			errors.Wrap(err, errors.CodeInternal, "resolve identity"),
-		)
+		principal = resolved
+	}
+	if isNilPrincipal(principal) {
+		cause := errors.Unauthorized("principal resolver returned a nil principal")
+		return ctx, resolveError(ctx, cause, connect.CodeUnauthenticated)
 	}
 	return WithPrincipal(ctx, principal), nil
+}
+
+// resolveError captures err as the request's real error (for the access log) and
+// returns the sanitized client-facing Connect error carrying code.
+func resolveError(ctx context.Context, err error, code connect.Code) error {
+	errctx.Capture(ctx, err)
+	return connect.NewError(code, errors.Sentinel(errPrincipalResolution))
+}
+
+// resolveErrorCode classifies a resolver error from its code, never its message: a
+// *connect.Error keeps its code, a core/errors code maps to the matching Connect code,
+// and an uncoded error is Unavailable (treated as transient).
+func resolveErrorCode(err error) connect.Code {
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) {
+		return connectErr.Code()
+	}
+	switch errors.Code(err) {
+	case errors.CodeUnknown, errors.CodeUnavailable, errors.CodeUpstream:
+		return connect.CodeUnavailable
+	case errors.CodeNotFound:
+		return connect.CodeNotFound
+	case errors.CodeInvalidInput:
+		return connect.CodeInvalidArgument
+	case errors.CodeConflict:
+		return connect.CodeAlreadyExists
+	case errors.CodeUnauthorized:
+		return connect.CodeUnauthenticated
+	case errors.CodeForbidden:
+		return connect.CodePermissionDenied
+	case errors.CodeTimeout:
+		return connect.CodeDeadlineExceeded
+	case errors.CodeCanceled:
+		return connect.CodeCanceled
+	default:
+		return connect.CodeInternal
+	}
+}
+
+// isNilPrincipal reports whether p is a nil value of a nillable kind (pointer,
+// interface, map, slice, func, chan), which must never be stored as a principal.
+func isNilPrincipal[P any](p P) bool {
+	v := reflect.ValueOf(&p).Elem()
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice,
+		reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

@@ -12,7 +12,7 @@ import (
 //
 // ⚠️ This is NOT interchangeable with [CountToInt32]. Use Int32OrPanic only when the value cannot
 // legitimately exceed int32; for counts that CAN be large (document/word/page counts), use CountToInt32,
-// which clamps instead of crashing. It is generic so both int (api/ws) and int64 callers share it.
+// which clamps instead of crashing. It is generic so both int and int64 callers share it.
 func Int32OrPanic[T ~int | ~int32 | ~int64](n T) int32 {
 	if int64(n) > math.MaxInt32 || int64(n) < math.MinInt32 {
 		panic(fmt.Sprintf("value '%d' out of int32 range", n))
@@ -22,7 +22,7 @@ func Int32OrPanic[T ~int | ~int32 | ~int64](n T) int32 {
 
 // CountToInt32 clamps a non-negative count into the int32 range used by proto count fields. Unlike
 // [Int32OrPanic] it NEVER panics — it is the policy for counts that can legitimately be large
-// (document/word/page/passage counts, notification unread counts), where clamping to MaxInt32 degrades
+// (document/word/page/passage counts, unread-item counts), where clamping to MaxInt32 degrades
 // a displayed number rather than crashing the request. A negative count clamps to 0.
 func CountToInt32(n int64) int32 {
 	if n < 0 {

@@ -22,7 +22,7 @@ from techai_webutils.core.interfaces.vector_store import (
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from qdrant_client import AsyncQdrantClient
 
@@ -72,11 +72,11 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
                         ),
                     )
                 except Exception:
-                    # The asyncio lock only serializes THIS process; the ingestion runs multiple worker
-                    # processes/lanes (small + large + any Ray workers), so a first-time bulk sync can
-                    # still race create_collection across processes — the loser gets a 409 "already
-                    # exists". Re-check: if the collection now exists another worker won the race and we
-                    # are done (idempotent create); otherwise the failure is real, so re-raise.
+                    # The asyncio lock only serializes THIS process; several processes (e.g. multiple
+                    # indexing workers) can still race create_collection on a first-time upsert — the
+                    # loser gets a 409 "already exists". Re-check: if the collection now exists another
+                    # process won the race and we are done (idempotent create); otherwise the failure
+                    # is real, so re-raise.
                     if not await self._client.collection_exists(collection):
                         raise
             self._ensured.add(collection)
@@ -106,7 +106,7 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
         top_k: int = 10,
         filters: dict[str, str] | None = None,
     ) -> list[VectorSearchResult]:
-        """Vector-search ``collection``; ``filters`` become an exact-match payload filter (e.g. a tenant key)."""
+        """Vector-search ``collection``; ``filters`` become an exact-match payload filter (e.g. a tenant)."""
         query_filter = None
         if filters:
             query_filter = models.Filter(
@@ -142,24 +142,29 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
         result = await self._client.count(collection, count_filter=_document_filter(document_id), exact=True)
         return result.count
 
-    async def existing_ids(self, collection: str, ids: Sequence[str]) -> set[str]:
-        """Return the subset of ``ids`` already stored (an id-retrieve for checkpoint/resume).
+    async def stored_metadata(self, collection: str, ids: Sequence[str]) -> dict[str, dict[str, str]]:
+        """Return ``{raw id: stored metadata}`` for the ``ids`` already stored (a checkpoint/resume probe).
 
-        Maps each raw id to its deterministic Qdrant point id, retrieves those points (no payload or
-        vectors — an existence probe, not a read), and reports the raw ids whose point is present; empty
-        when the collection does not exist yet. Lets the incremental indexer skip the sub-batches already
-        upserted on a redrive instead of re-embedding them (the expensive CPU step).
+        Maps each raw id to its deterministic Qdrant point id and retrieves those points with their
+        payload (no vectors), reporting each present point's payload minus the keys promoted to entry
+        fields; empty when the collection does not exist yet. Lets the incremental indexer skip the
+        sub-batches already upserted with the same metadata on a redrive instead of re-embedding them
+        (the expensive CPU step), while a chunk stored with other metadata is rewritten.
         """
         if not ids or not await self._client.collection_exists(collection):
-            return set()
+            return {}
         by_point_id = {_point_id(raw): raw for raw in ids}
         points = await self._client.retrieve(
             collection,
             ids=list(by_point_id),
-            with_payload=False,
+            with_payload=True,
             with_vectors=False,
         )
-        return {by_point_id[str(point.id)] for point in points if str(point.id) in by_point_id}
+        return {
+            by_point_id[str(point.id)]: _metadata(point.payload or {})
+            for point in points
+            if str(point.id) in by_point_id
+        }
 
 
 def _point_id(raw_id: str) -> str:
@@ -180,6 +185,11 @@ _PROMOTED_PAYLOAD_KEYS = frozenset({"content", "document_id", "entry_id"})
 """Payload keys promoted to top-level VectorSearchResult fields (excluded from the metadata dict)."""
 
 
+def _metadata(payload: Mapping[str, object]) -> dict[str, str]:
+    """Return a point payload's metadata: every key not promoted to an entry field, stringified."""
+    return {key: str(value) for key, value in payload.items() if key not in _PROMOTED_PAYLOAD_KEYS}
+
+
 def _to_result(point: models.ScoredPoint) -> VectorSearchResult:
     """Map a Qdrant hit into a VectorSearchResult; payload keys not promoted to fields become metadata."""
     payload = point.payload or {}
@@ -190,5 +200,5 @@ def _to_result(point: models.ScoredPoint) -> VectorSearchResult:
         chunk_id=str(payload.get("entry_id", point.id)),
         content=str(payload.get("content", "")),
         score=float(point.score),
-        metadata={key: str(value) for key, value in payload.items() if key not in _PROMOTED_PAYLOAD_KEYS},
+        metadata=_metadata(payload),
     )

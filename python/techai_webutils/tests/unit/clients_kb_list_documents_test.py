@@ -23,27 +23,27 @@ class TestKbDocumentFromPayload:
         """Test that an S3-identified document detail maps to its uri + status + reason.
 
         **Why this test is important:**
-          - This is the pure mapping the reconciler depends on to match a KB document back to an API
-            document; a wrong field would silently break every status write-back.
+          - This is the pure mapping a caller depends on to match a KB document back to its own
+            document record; a wrong field would silently break every status write-back.
 
         **What it tests:**
           - identifier.s3.uri, status, and statusReason are lifted verbatim onto KnowledgeBaseDocument.
         """
         detail = {
             "status": "INDEXED",
-            "identifier": {"dataSourceType": "S3", "s3": {"uri": "s3://b/ws/doc/f.pdf"}},
+            "identifier": {"dataSourceType": "S3", "s3": {"uri": "s3://b/docs/f.pdf"}},
             "statusReason": "",
         }
         assert kb_document_from_payload(detail) == KnowledgeBaseDocument(
-            s3_uri="s3://b/ws/doc/f.pdf", status="INDEXED", status_reason=""
+            s3_uri="s3://b/docs/f.pdf", status="INDEXED", status_reason=""
         )
 
     def test_non_s3_or_missing_identifier_yields_empty_uri(self) -> None:
         """Test that a non-S3 / missing identifier degrades to an empty uri, never raising.
 
         **Why this test is important:**
-          - The reconciler skips documents whose uri it cannot parse; the mapper must not crash
-            on a custom/foreign identifier shape, it must hand back an empty uri to be skipped.
+          - A caller skips documents whose uri it cannot parse; the mapper must not crash on a
+            custom/foreign identifier shape, it must hand back an empty uri to be skipped.
 
         **What it tests:**
           - A detail with a non-S3 identifier (and one with no identifier) maps to s3_uri == "".
@@ -62,7 +62,7 @@ class TestBedrockListDocuments:
 
         **Why this test is important:**
           - A KB data source can hold thousands of documents across many pages; stopping after page
-            one would leave the reconciler blind to most documents' terminal status.
+            one would leave the caller blind to most documents' terminal status.
 
         **What it tests:**
           - Two response pages (nextToken then none) yield all three KnowledgeBaseDocuments, and the
@@ -106,7 +106,7 @@ class TestDecoratorDelegation:
 
         **Why this test is important:**
           - list_documents is an abstract method on KnowledgeBaseIngestor; if either decorator failed
-            to implement it, ``_build_kb_sync`` would raise TypeError at construction — the
+            to implement it, composing the stack would raise TypeError at construction — the
             composed stack must build and delegate the call to the wrapped ingestor.
 
         **What it tests:**

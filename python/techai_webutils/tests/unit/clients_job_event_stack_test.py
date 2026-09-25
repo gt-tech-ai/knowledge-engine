@@ -26,7 +26,7 @@ class _NotLeader:
 
 
 def _message(message_id: str = "m1") -> Message:
-    """Build a minimal ``document.uploaded``-shaped message for the stack tests."""
+    """Build a minimal message (id, topic, payload) for the stack tests."""
     return Message(id=message_id, topic="t", payload=b"x")
 
 
@@ -116,3 +116,48 @@ async def test_wrap_job_leader_gating() -> None:
 
     await wrap_job(leader_job, JobStackDeps(leader=AlwaysLeader()))()
     assert leader_calls == 1, "the leader runs the job once"
+
+
+@pytest.mark.asyncio
+async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler() -> None:
+    """With the circuit breaker open, the handler is not even called (no orphaned coroutine).
+
+    Why this test is important:
+        - The attempt used to build the handler coroutine before entering the breaker; when the breaker
+          was open it raised first, so every message left an un-awaited coroutine behind (a
+          "coroutine was never awaited" RuntimeWarning and a leaked frame per message while open).
+
+    What it tests:
+        - After one failure opens a threshold-1 breaker, the next message raises CircuitOpenError, the
+          handler callable is not invoked again, and no "never awaited" RuntimeWarning is emitted.
+    """
+    import gc
+    import warnings
+
+    from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+
+    calls = 0
+
+    async def failing() -> None:
+        raise UnavailableError("downstream down")
+
+    def inner(_msg: Message) -> object:
+        nonlocal calls
+        calls += 1
+        return failing()
+
+    handler = wrap_handler(
+        inner,  # type: ignore[arg-type]
+        EventStackDeps(circuit_breaker=CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)),
+    )
+    with pytest.raises(UnavailableError):
+        await handler(_message("m1"))  # opens the breaker
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(CircuitOpenError):
+            await handler(_message("m2"))
+        gc.collect()
+
+    assert calls == 1
+    assert not [w for w in caught if "never awaited" in str(w.message)]

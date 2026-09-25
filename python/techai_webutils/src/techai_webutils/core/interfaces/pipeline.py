@@ -17,9 +17,6 @@ class Pipeline[In, Out](ABC):
     state or orchestrate multiple services.
 
     Examples: CPU-bound NLP processing, document parsing, ETL transformations.
-
-    Phase 1: Single-stage execute with error handling.
-    Phase 2+: Composable multi-stage pipelines, streaming support.
     """
 
     @abstractmethod

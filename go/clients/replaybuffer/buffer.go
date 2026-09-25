@@ -53,6 +53,9 @@ type Config struct {
 
 	// Name labels the buffer in metrics, spans, and logs (default "replaybuffer").
 	Name string
+	// KeyPrefix namespaces the redis backend's keys (empty uses redis.DefaultKeyPrefix, "replay:");
+	// ignored for KindMemory.
+	KeyPrefix string
 
 	// Kind selects the backend (memory | redis).
 	Kind Kind
@@ -91,7 +94,11 @@ func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer
 				"replay redis kind requires a redis client",
 			)
 		}
-		base = bufredis.New(client, bufredis.Config{MaxSize: cfg.MaxSize, TTL: cfg.TTL})
+		base = bufredis.New(client, bufredis.Config{
+			MaxSize:   cfg.MaxSize,
+			TTL:       cfg.TTL,
+			KeyPrefix: cfg.KeyPrefix,
+		})
 	default:
 		return nil, errors.New(
 			errors.CodeInvalidInput,

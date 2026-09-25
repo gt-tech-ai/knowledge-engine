@@ -28,7 +28,7 @@ class SplitterKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class SplitterConfig:
-    """Document-splitter configuration (resolved from ``ingestion.splitter.*``)."""
+    """Document-splitter configuration (the consumer maps its own config section onto it)."""
 
     kind: SplitterKind = SplitterKind.KB_UNIT
     """Selects the split backend (only ``kb_unit`` ships today)."""

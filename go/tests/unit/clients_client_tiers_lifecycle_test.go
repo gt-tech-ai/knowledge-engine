@@ -3,13 +3,11 @@ package unit_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	redispkg "github.com/gt-tech-ai/knowledge-engine/go/clients/cache/redis"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/database"
 	dbpostgres "github.com/gt-tech-ai/knowledge-engine/go/clients/database/postgres"
 	riverpkg "github.com/gt-tech-ai/knowledge-engine/go/clients/jobs/river"
@@ -218,30 +216,6 @@ func TestPostgresBackend_StartUnreachable(t *testing.T) {
 		SSLMode:  "disable",
 	})
 	assert.Error(t, c.Start(context.Background()))
-}
-
-// TestRedisBackend_LifecycleUnreachable tests the Redis cache's lifecycle contract:
-// the pool is created eagerly (so Liveness passes) but connectivity is only proven
-// on Start/Readiness, which fail against an unreachable server.
-//
-// Why this test is important:
-//   - Liveness (pool exists) and Readiness (server reachable) must answer different
-//     questions so Kubernetes restarts vs. deroutes correctly.
-//
-// What it tests:
-//   - Liveness passes (pool constructed); Start and Readiness error against a
-//     refused address; Stop closes cleanly.
-func TestRedisBackend_LifecycleUnreachable(t *testing.T) {
-	t.Parallel()
-
-	cache := redispkg.New(&redispkg.Config{Addr: "127.0.0.1:1", OpTimeout: time.Second})
-	lc, ok := any(cache).(interfaces.Client)
-	require.True(t, ok)
-
-	assert.NoError(t, lc.Liveness(context.Background()), "the pool is constructed by New")
-	assert.Error(t, lc.Start(context.Background()), "a refused address fails the Ping")
-	assert.Error(t, lc.Readiness(context.Background()))
-	assert.NoError(t, lc.Stop(context.Background()))
 }
 
 // TestRiverEnqueuer_LifecycleNoOps tests that the River enqueuer satisfies the

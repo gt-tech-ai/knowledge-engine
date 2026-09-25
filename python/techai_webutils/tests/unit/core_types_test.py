@@ -26,7 +26,7 @@ class TestID:
         """Test that is_empty reports True for a zero-value ID.
 
         **Why this test is important:**
-          - An empty ID is the platform's "unset/missing entity" sentinel; code branches
+          - An empty ID is the library's "unset/missing entity" sentinel; code branches
             on it instead of comparing against magic strings scattered across services
           - If is_empty mis-reported an empty ID as populated, downstream lookups would
             run against an absent key and silently return wrong-tenant or no data
@@ -86,7 +86,7 @@ class TestOption:
         """Test that some(v) yields a present Option carrying that value.
 
         **Why this test is important:**
-          - Option is the platform's explicit "value may be absent" type, mirroring Go's
+          - Option is the library's explicit "value may be absent" type, mirroring Go's
             (value, ok) idiom; the get() contract is what lets callers branch safely
             instead of relying on None ambiguity (where None is itself a valid value)
           - If some() returned valid=False or dropped the value, every present-value
@@ -428,7 +428,7 @@ class TestTimestamps:
         """Test that soft_delete marks the entity deleted by stamping deleted_at.
 
         **Why this test is important:**
-          - Soft delete is how the platform removes records while preserving them for audit
+          - Soft delete is how a repository removes records while preserving them for audit
             and recovery; if it failed to set deleted_at, "deleted" data would keep surfacing
             in results — a data-leak and compliance risk
           - is_deleted is derived from deleted_at, so this verifies the flag and the timestamp

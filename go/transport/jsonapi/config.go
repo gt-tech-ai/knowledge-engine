@@ -6,16 +6,17 @@
 // Vanguard, rewriting response bodies into {data, meta, links, errors} and
 // validating/unwrapping the inbound {data:{type,attributes}} request envelope.
 //
-// The transformation is driven by the generated operation-keyed route table:
-// each REST RPC classifies into a Role, and the
-// middleware transforms by role rather than re-guessing method/path/data-presence.
+// The transformation is driven by an operation-keyed route table the consumer
+// supplies (typically generated from its API definitions): each REST RPC
+// classifies into a Role, and the middleware transforms by role rather than
+// re-guessing method/path/data-presence.
 package jsonapi
 
 import "strings"
 
-// Role is the JSON:API operation role a REST route classifies into. It mirrors
-// the build-side classifier and is emitted into the generated
-// runtime route table; the middleware switches on it.
+// Role is the JSON:API operation role a REST route classifies into. The
+// consumer's route table (typically emitted by its code generator) tags each
+// route with one; the middleware switches on it.
 type Role string
 
 // The JSON:API operation roles. Every REST route carries exactly one.
@@ -34,16 +35,15 @@ const (
 	RoleAction Role = "ACTION"
 )
 
-// RouteEntry is one operation-keyed row of the generated route table: an HTTP
-// binding (method + path template) tagged with its JSON:API Role and the response
-// resource keys. It is the single generated contract the middleware consumes;
-// the generated per-service tables (gen/go/jsonapi/<service>/routes.go) are
-// literals of this type.
+// RouteEntry is one operation-keyed row of the route table: an HTTP binding
+// (method + path template) tagged with its JSON:API Role and the response
+// resource keys. It is the single contract the middleware consumes; a
+// consumer's route table (hand-written or generated) is a slice of this type.
 type RouteEntry struct {
 	// Method is the upper-case HTTP verb (GET/POST/PUT/PATCH/DELETE).
 	Method string
 	// PathTemplate is the raw google.api.http path template, base path included
-	// (e.g. "/api/v1/workspaces/{workspace_id}/documents/{document_id}"). A
+	// (e.g. "/api/v1/widgets/{widget_id}/parts/{part_id}"). A
 	// "{param}" segment is a wildcard when matching a concrete request path.
 	PathTemplate string
 	// Role is the JSON:API operation role driving the transform.

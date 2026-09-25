@@ -24,8 +24,8 @@ class TestGrpcErrorToAppError:
 
         **Why this test is important:**
           - RetryProxy only retries a transient ``AppError``; a raw ``AioRpcError`` escapes the retry
-            loop (the KB-sync UNAVAILABLE incident). The boundary must classify these as transient so
-            every InternalService client (document-status, ingestion-job-state) gets a retryable error.
+            loop on the first attempt. The boundary must classify these as transient so every gRPC
+            client wrapped with it gets a retryable error.
 
         **What it tests:**
           - Each transient gRPC status yields an ``AppError`` with ``is_transient`` True (never the raw error).
@@ -62,8 +62,8 @@ class TestWrapGrpcErrors:
 
         **Why this test is important:**
           - Client methods raise raw ``AioRpcError`` from the stub; the decorator is what turns that
-            into the coded ``AppError`` the resiliency stack understands — the shared mechanism both
-            InternalService clients rely on.
+            into the coded ``AppError`` the resiliency stack understands — the shared mechanism every
+            wrapped gRPC client relies on.
 
         **What it tests:**
           - A decorated coroutine raising ``AioRpcError(UNAVAILABLE)`` instead raises a transient

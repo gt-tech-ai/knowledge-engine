@@ -150,7 +150,7 @@ func TestStorageClient_NotFoundMapping(t *testing.T) {
 //
 // Why this test is important:
 //   - Content-type detection on download depends on Stat reading HeadObject metadata;
-//     a wrong field mapping silently loses the MIME type ingestion relies on
+//     a wrong field mapping silently loses the MIME type a reader relies on
 //
 // What it tests:
 //   - ContentType, Size, and Key from HeadObject are mapped onto the StorageObject
@@ -587,8 +587,8 @@ func TestStorageClient_Delete_CallsDeleteObject(t *testing.T) {
 // back to the caller on success.
 //
 // Why this test is important:
-//   - Download is the read path for retrieval/ingestion; if it drops or mis-wires the
-//     body the document content is silently lost
+//   - Download is the object read path; if it drops or mis-wires the body the
+//     object's content is silently lost
 //
 // What it tests:
 //   - A successful GetObject returns its body stream unchanged
@@ -640,7 +640,8 @@ func TestStorageClient_NotFound_SmithyAPIErrorCode(t *testing.T) {
 // through a real (offline) presign client built by NewFromConfig.
 //
 // Why this test is important:
-//   - Presigned URLs enable direct browser↔storage transfer, bypassing the API service;
+//   - Presigned URLs enable direct browser↔storage transfer, bypassing the caller's
+//     service;
 //     a broken presigner or wrong expiry wiring blocks uploads/downloads. Presigning is
 //     a local signing operation, so it is unit-testable without any S3 round-trip.
 //
@@ -846,7 +847,8 @@ func TestStorageClient_PresignPutURL_SignsContentTypeAndHost(t *testing.T) {
 // EnsureBucket over the injected S3 seam.
 //
 // Why this test is important:
-//   - The seed CLI calls EnsureBucket so the document-upload path has a bucket; it
+//   - A provisioning tool calls EnsureBucket so a bucket exists before anything
+//     writes to it; it
 //     must not re-create an existing bucket, must create a missing one, and must
 //     treat the already-owned/exists race as success — otherwise seeding is flaky
 //     or errors, and uploads fail with NoSuchBucket.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
 import pytest
@@ -19,7 +19,7 @@ from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import Tracing
 from techai_webutils.clients.transport.grpc.server import GracefulServer, ServerConfig
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
 """The gateway header contract these tests configure."""
 
 
@@ -61,31 +61,34 @@ class TestServerInterceptorBuilder:
         """with_auth(headers=...) builds an auth interceptor that reads the consumer's metadata keys.
 
         **Why this test is important:**
-          - Services build their interceptor stack through this builder; a header mapping it drops
-            would leave every builder-built server on the default header contract.
+          - Services build their interceptor stack through this builder; a mapping it dropped or
+            only partly forwarded would leave builder-built servers without claims (or with the wrong
+            tenant or roles).
 
         **What it tests:**
-          - The built interceptor extracts the user id from the custom ``x-sub`` key.
+          - The built interceptor extracts the user id, tenant id and roles from the custom ``x-sub``,
+            ``x-tenant`` and ``x-groups`` keys.
         """
         from techai_webutils.clients.rpc.grpc.interceptors.auth import (
-            HeaderClaimMapping,
+            AuthClaims,
             _auth_claims_var,
             get_auth_claims,
         )
 
         [interceptor] = (
             ServerInterceptorBuilder()
-            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-roles"))
+            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-groups"))
             .build()
         )
         token = _auth_claims_var.set(None)
         try:
             await interceptor.intercept_service(
-                AsyncMock(return_value="handler"), MagicMock(invocation_metadata=[("x-sub", "u-1")])
+                AsyncMock(return_value="handler"),
+                MagicMock(invocation_metadata=[("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]),
             )
-            claims = get_auth_claims()
-            assert claims is not None
-            assert claims.user_id == "u-1"
+            assert get_auth_claims() == AuthClaims(
+                user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
+            )
         finally:
             _auth_claims_var.reset(token)
 
@@ -447,8 +450,8 @@ class TestServiceAuthInterceptor:
         """Test that a missing/incorrect token is rejected with UNAUTHENTICATED.
 
         **Why this test is important:**
-          - This is the security boundary: a rogue in-cluster caller forging clearance must be
-            rejected before the handler (and its clearance-filtered data) runs.
+          - This is the security boundary: a rogue in-cluster caller forging identity headers must be
+            rejected before the handler (and the data its claims would scope) runs.
 
         **What it tests:**
           - A wrong token yields a substitute handler (not the real one), and invoking it aborts
@@ -486,6 +489,61 @@ class TestServiceAuthInterceptor:
             ServerInterceptorBuilder().with_service_auth("")
         bypass = ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).build()
         assert not any(isinstance(i, _ServiceAuthServerInterceptor) for i in bypass)
+
+    @pytest.mark.asyncio
+    async def test_accepts_the_current_and_previous_token_of_a_rotation_pair(self) -> None:
+        """A comma-separated {current,previous} expected token admits both during a rotation window.
+
+        **Why this test is important:**
+          - Rotating the shared service token without downtime needs a window where callers still on the
+            old token and callers already on the new one both pass, as the Go static validator allows.
+            Blank entries must not become an accepted empty token.
+
+        **What it tests:**
+          - with_service_auth("new-token, old-token") admits "Bearer new-token" and "Bearer old-token",
+            denies a wrong token, the whole comma string and a missing header; with_service_auth(" , ")
+            raises ValueError like an empty token.
+        """
+        [interceptor] = ServerInterceptorBuilder().with_service_auth("new-token, old-token").build()
+        handler = self._handler()
+
+        async def outcome(metadata: list[tuple[str, str]]) -> bool:
+            result = await interceptor.intercept_service(
+                AsyncMock(return_value=handler), self._details(metadata)
+            )
+            return result is handler
+
+        assert await outcome([("authorization", "Bearer new-token")])
+        assert await outcome([("authorization", "Bearer old-token")])
+        assert not await outcome([("authorization", "Bearer wrong")])
+        assert not await outcome([("authorization", "Bearer new-token, old-token")])
+        assert not await outcome([])
+        with pytest.raises(ValueError, match="service token"):
+            ServerInterceptorBuilder().with_service_auth(" , ")
+
+    def test_build_warns_when_service_auth_is_bypassed_or_claims_are_unauthenticated(self) -> None:
+        """Building an open server, or claims readable by any caller, logs a warning.
+
+        **Why this test is important:**
+          - A local-dev bypass that leaks into a deployment leaves the service open, and with_auth
+            without service auth trusts identity metadata any caller can set; neither was visible
+            anywhere.
+
+        **What it tests:**
+          - with_service_auth("", allow_unauthenticated=True) + with_auth warns about both; a server with
+            a real token and with_auth warns about neither.
+        """
+        with patch("techai_webutils.clients.rpc.grpc.interceptors.server_builder._logger") as mock_logger:
+            ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).with_auth(
+                _HEADERS
+            ).build()
+            open_warnings = [c.args[0] for c in mock_logger.warning.call_args_list]
+            mock_logger.reset_mock()
+            ServerInterceptorBuilder().with_service_auth("secret").with_auth(_HEADERS).build()
+
+        assert any("bypassed" in message for message in open_warnings)
+        assert any("without service auth" in message for message in open_warnings)
+        mock_logger.warning.assert_not_called()
 
 
 class TestServerInterceptorBuilderFullStack:

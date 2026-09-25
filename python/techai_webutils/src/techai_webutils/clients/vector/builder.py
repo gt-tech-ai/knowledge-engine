@@ -1,4 +1,4 @@
-"""Vector-store factory — Kind + Config + ``new_vector_store_from_config`` (shape).
+"""Vector-store factory — Kind + Config + ``new_vector_store_from_config``.
 
 Mirrors the env-aware logger factory: a ``StrEnum`` Kind selects the backend, a frozen ``Config``
 carries the connection settings, and ``new_vector_store_from_config`` lazily imports the heavy backend
@@ -26,7 +26,7 @@ class VectorStoreKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class VectorStoreConfig:
-    """Vector-store connection settings (resolved from ``retrieval.vector.*``)."""
+    """Vector-store connection settings (the consumer maps its own config section onto it)."""
 
     kind: VectorStoreKind = VectorStoreKind.QDRANT
     """Selects the vector-store backend (only ``qdrant`` ships today)."""
@@ -42,8 +42,8 @@ def new_vector_store_from_config(config: VectorStoreConfig) -> VectorStore:
     """Build the ``VectorStore`` selected by ``config.kind`` (heavy backend imported lazily).
 
     The ``AsyncQdrantClient`` is created here and lives for the returned store's lifetime — i.e. the
-    process, since the store is wired once at startup (retrieval server) or in the short-lived
-    ``dev_index`` script. There is no separate teardown seam; the OS reclaims the connection on exit.
+    process, since the store is wired once at startup (a server) or in a short-lived script. There is
+    no separate teardown seam; the OS reclaims the connection on exit.
     """
     if config.kind is VectorStoreKind.QDRANT:
         from qdrant_client import AsyncQdrantClient  # noqa: PLC0415
@@ -56,7 +56,8 @@ def new_vector_store_from_config(config: VectorStoreConfig) -> VectorStore:
         client = AsyncQdrantClient(url=config.url, check_compatibility=False)
         return QdrantVectorStore(client, dimension=config.dimension)
     if config.kind is VectorStoreKind.STUB:
-        from techai_webutils.clients.vector.stub import StubVectorStore  # noqa: PLC0415 — no qdrant-client to load
+        # Lazy import (no qdrant-client to load).
+        from techai_webutils.clients.vector.stub import StubVectorStore  # noqa: PLC0415
 
         return StubVectorStore(dimension=config.dimension)
     msg = f"unknown vector store kind: {config.kind!r}"

@@ -11,10 +11,10 @@ class TestSQSConfigClientKwargs:
     Why this test is important:
       - Every SQS client (publisher, subscriber, DLQ backend, per-app adapters) builds its
         aiobotocore ``create_client`` kwargs from here. base.yaml defaults the endpoint to
-        ``http://localhost:9324`` and creds to ``local`` (dev ElasticMQ); staging/prod blank
-        them so the client uses the regional AWS endpoint + IRSA. aiobotocore rejects an
+        ``http://localhost:9324`` and creds to ``local`` (dev ElasticMQ); cloud environments
+        blank them so the client uses the regional AWS endpoint + IRSA. aiobotocore rejects an
         empty-string ``endpoint_url`` outright (``ValueError: Invalid endpoint:``), which
-        crashed the cloud ingestion worker on startup — so the empty -> None collapse is the
+        crashes a service on startup — so the empty -> None collapse is the
         single guard that keeps a blanked config from taking down the service.
 
     What it tests:

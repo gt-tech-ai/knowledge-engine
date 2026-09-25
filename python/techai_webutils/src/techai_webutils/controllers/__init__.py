@@ -4,7 +4,7 @@ Controllers are the transport layer between external requests (HTTP, gRPC, WebSo
 and internal business logic (workflows, services). They deserialize requests, delegate
 to workflows, and serialize responses.
 
-Controllers implements the eighth layer in the nine-layer architecture model:
+Controllers implements the eighth tier (ARCHITECTURE.md#layers-and-import-direction):
 core -> foundation -> clients -> repos -> services -> pipelines -> workflows -> controllers
 """
 

@@ -2,7 +2,7 @@
 
 The default ``Hedger`` backends. Mirrors Go's ``foundation/resilience/hedge``. Hedging
 duplicates load and is only safe for idempotent/read-only operations, so it is DISABLED by
-default and opted into per read path via configuration (``HedgeKind.DELAY``)..
+default and opted into per read path via configuration (``HedgeKind.DELAY``).
 
 Unlike the Go primitive (whose ``func() error`` op cannot be cancelled), the asyncio backend
 genuinely cancels the loser attempt once the first responder returns.

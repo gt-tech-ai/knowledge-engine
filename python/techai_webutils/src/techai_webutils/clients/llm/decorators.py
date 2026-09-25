@@ -11,7 +11,7 @@ _total`` so the fallback rate is observable.
 from __future__ import annotations
 
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from prometheus_client import Counter
 
@@ -48,15 +48,34 @@ _UNAVAILABLE_MSG = "knowledge_service_unavailable"
 """Error message raised when both primary and fallback fail (maps to gRPC UNAVAILABLE / HTTP 503)."""
 
 
+def _botocore_response(exc: BaseException) -> dict[str, Any] | None:
+    """Return the botocore-shaped ``response`` dict on ``exc`` or along its cause chain, else ``None``.
+
+    Providers translate SDK failures into a coded ``AppError`` at their boundary (``raise ... from
+    exc``, with the SDK error also kept as ``AppError.cause``), so the ``response`` usually sits on a
+    cause, not on the raised exception itself.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        response = getattr(current, "response", None)
+        if isinstance(response, dict):
+            return cast("dict[str, Any]", response)
+        current = current.__cause__ or getattr(current, "cause", None)
+    return None
+
+
 def _classify(exc: Exception) -> str | None:
     """Classify a provider error as ``"throttle"`` / ``"error"`` (fall back), or ``None`` (re-raise).
 
     Duck-types botocore's ``ClientError.response`` (``{"Error": {"Code"}, "ResponseMetadata":
-    {"HTTPStatusCode"}}``) so the decorator neither imports botocore at module load nor couples tests
-    to it. An exception without that shape is not a Bedrock transient error and is re-raised.
+    {"HTTPStatusCode"}}``), looked up on the error or the SDK error it wraps (``_botocore_response``),
+    so the decorator neither imports botocore at module load nor couples tests to it. An error with no
+    such response in its chain is not a Bedrock transient error and is re-raised.
     """
-    response = getattr(exc, "response", None)
-    if not isinstance(response, dict):
+    response = _botocore_response(exc)
+    if response is None:
         return None
     code = str(response.get("Error", {}).get("Code", ""))
     status = int(response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0) or 0)

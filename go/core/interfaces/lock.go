@@ -3,12 +3,12 @@ package interfaces
 import "context"
 
 // DistributedLock is a keyed, token-fenced, best-effort mutual-exclusion
-// primitive: it lets one holder claim a string key across processes so that
-// "one active query per conversation" holds across API replicas ('s
-// Redis-backed profile — high-cardinality, short-held, best-effort; the sibling
-// of the Postgres advisory lock used for ingestion's long single-writer).
+// primitive: it lets one holder claim a string key across processes, so that
+// "at most one active operation per key" holds across service replicas
+// (high-cardinality, short-held, best-effort; a Postgres advisory lock suits a
+// long-running single writer instead).
 //
-// It is the seam a single-active-query guard depends on;
+// It is the seam a single-active-operation guard depends on;
 // callers depend on this interface, never a concrete backend. Backends:
 // clients/lock/local (in-process, dev/single-replica) and clients/lock/redis
 // (cross-pod, staging/prod), selected by config via clients/lock.NewFromConfig.
@@ -40,7 +40,7 @@ type DistributedLock interface {
 
 // Locker is the consumer-facing lock seam: a DistributedLock plus Hold, the
 // managed acquire-with-renewal-watchdog helper. clients/lock.NewFromConfig
-// returns a Locker, and a single-active-query guard depends on this interface.
+// returns a Locker, and a single-active-operation guard depends on this interface.
 //
 // Hold is declared here rather than on DistributedLock so the primitive backend
 // contract stays minimal (interface-segregation): each backend implements only

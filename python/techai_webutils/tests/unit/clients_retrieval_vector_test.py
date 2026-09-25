@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -100,6 +100,35 @@ class TestVectorRetrievalEngine:
         assert r.chunk_content == "the retrieved chunk"
         assert r.metadata["tenant"] == "t1"
 
+    @pytest.mark.asyncio
+    async def test_retrieve_warns_when_index_id_names_another_collection(self) -> None:
+        """A per-call index_id the single-collection engine cannot honour is logged, not silently dropped.
+
+        Why this test is important:
+          - The interface treats index_id as routing (e.g. an index per tenant). This engine reads one
+            collection, so a consumer relying on index_id for isolation would otherwise query the shared
+            collection with no signal at all.
+
+        What it tests:
+          - retrieve(index_id="tenant-b-index") still searches "documents" and logs a warning naming both;
+            index_id equal to the collection (or None) logs nothing.
+        """
+        embedder, store = _embedder(), _store([_hit()])
+        engine = VectorRetrievalEngine(embedder, store, collection="documents")
+
+        with patch("techai_webutils.clients.retrieval.vector.engine.logger") as mock_logger:
+            await engine.retrieve("q", index_id="documents")
+            await engine.retrieve("q")
+            mock_logger.warning.assert_not_called()
+            await engine.retrieve("q", index_id="tenant-b-index")
+
+        mock_logger.warning.assert_called_once_with(
+            "vector retrieval ignores a per-call index_id; it reads one collection",
+            index_id="tenant-b-index",
+            collection="documents",
+        )
+        assert store.search.call_args.args[0] == "documents"
+
     def test_dimension_mismatch_fails_loudly(self) -> None:
         """A drifted embedder/store dimension raises at construction (single source of truth)."""
         with pytest.raises(ValueError, match="dimension"):
@@ -107,17 +136,42 @@ class TestVectorRetrievalEngine:
 
 
 class TestQdrantFactoryBranch:
-    def test_from_config_qdrant_builds_filtered_vector_engine(self) -> None:
-        """new_retrieval_engine_from_config(kind=qdrant) builds a FilteringRetrievalEngine over the vector engine."""
-        engine = new_retrieval_engine_from_config(
-            RetrievalConfig(
-                kind=RetrievalKind.QDRANT,
-                vector_url="http://qdrant:6333",
-                vector_collection="documents",
-                embedding_host="http://ollama:11434",
-                embedding_model="nomic-embed-text",
-                embedding_dimension=768,
-            ),
-            policies=[],
+    @pytest.mark.asyncio
+    async def test_from_config_qdrant_pushes_the_store_filter_keys_down(self) -> None:
+        """The qdrant factory branch builds a filtered vector engine that pushes store_filter_keys down.
+
+        Why this test is important:
+          - store_filter_keys is the only way a factory-built vector engine pushes a scope to Qdrant; if
+            the factory stopped forwarding it, the index-wide top_k would be post-filtered and a scope
+            would lose its passages with the suite still green.
+
+        What it tests:
+          - With store_filter_keys=("tenant",) and a request carrying tenant + max_level, the store is
+            searched in the configured collection with exactly {"tenant": "t1"}, and the passage survives
+            the MetadataEquals("tenant") policy.
+        """
+        embedder, store = _embedder(dimension=768), _store([_hit()], dimension=768)
+        config = RetrievalConfig(
+            kind=RetrievalKind.QDRANT,
+            min_score=0.0,
+            vector_url="http://qdrant:6333",
+            vector_collection="documents",
+            embedding_host="http://ollama:11434",
+            embedding_model="nomic-embed-text",
+            embedding_dimension=768,
         )
+        with patch(
+            "techai_webutils.clients.vector.composition.build_embedder_and_store",
+            return_value=(embedder, store),
+        ) as build:
+            engine = new_retrieval_engine_from_config(
+                config, policies=[MetadataEquals("tenant")], store_filter_keys=("tenant",)
+            )
+
+        results = await engine.retrieve("q", filters={"tenant": "t1", "max_level": "high"})
+
         assert isinstance(engine, FilteringRetrievalEngine)
+        assert build.call_args.kwargs["collection"] == "documents"
+        assert store.search.call_args.args[0] == "documents"
+        assert store.search.call_args.kwargs["filters"] == {"tenant": "t1"}
+        assert [r.document_id for r in results] == ["doc-1"]

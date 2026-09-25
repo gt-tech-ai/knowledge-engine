@@ -18,8 +18,8 @@ import (
 //
 // Why this test is important:
 //   - The whole point of the lock is single-holder exclusion; if a second
-//     Acquire on a held key also "won", two WebSocket pods would run the same
-//     conversation's query concurrently — the exact failure the lock prevents.
+//     Acquire on a held key also "won", two replicas would run the same
+//     guarded operation concurrently — the exact failure the lock prevents.
 //
 // What it tests:
 //   - The first Acquire returns a non-empty token + acquired=true; a second
@@ -29,12 +29,12 @@ func TestLocalLock_Acquire_Contention(t *testing.T) {
 	l := local.New()
 	ctx := context.Background()
 
-	tok, ok, err := l.Acquire(ctx, "conv:1:lock")
+	tok, ok, err := l.Acquire(ctx, "resource:1:lock")
 	require.NoError(t, err)
 	require.True(t, ok, "first Acquire should win")
 	require.NotEmpty(t, tok, "winner should receive a fencing token")
 
-	tok2, ok2, err := l.Acquire(ctx, "conv:1:lock")
+	tok2, ok2, err := l.Acquire(ctx, "resource:1:lock")
 	require.NoError(t, err)
 	assert.False(t, ok2, "second Acquire on a held key must lose")
 	assert.Empty(t, tok2, "loser must not receive a token")
@@ -46,7 +46,7 @@ func TestLocalLock_Acquire_Contention(t *testing.T) {
 // Why this test is important:
 //   - Fencing prevents a stale/previous holder from releasing a lock a new
 //     holder now owns. Without it, a late Release from holder A could free
-//     holder B's active lock and admit a third query.
+//     holder B's active lock and admit a third operation.
 //
 // What it tests:
 //   - Release with a foreign token leaves the key held; Release with the
@@ -76,7 +76,7 @@ func TestLocalLock_Release_TokenFenced(t *testing.T) {
 //
 // Why this test is important:
 //   - Hold's watchdog calls Renew to keep a lease alive and treats held=false
-//     as "lease lost" (it then cancels the in-flight query). A wrong Renew
+//     as "lease lost" (it then cancels the in-flight operation). A wrong Renew
 //     result either drops a valid lock or hides a lost one.
 //
 // What it tests:
@@ -113,7 +113,7 @@ func TestLocalLock_Renew(t *testing.T) {
 // contend and each Acquire mints a distinct token.
 //
 // Why this test is important:
-//   - Locks are keyed per conversation; two different conversations must both
+//   - Locks are keyed per resource; two different resources must both
 //     acquire, and their tokens must differ so one's Release can never free the
 //     other.
 //
@@ -124,9 +124,9 @@ func TestLocalLock_DistinctKeys_Independent(t *testing.T) {
 	l := local.New()
 	ctx := context.Background()
 
-	tokA, okA, err := l.Acquire(ctx, "conv:a:lock")
+	tokA, okA, err := l.Acquire(ctx, "resource:a:lock")
 	require.NoError(t, err)
-	tokB, okB, err := l.Acquire(ctx, "conv:b:lock")
+	tokB, okB, err := l.Acquire(ctx, "resource:b:lock")
 	require.NoError(t, err)
 
 	assert.True(t, okA, "key a should acquire")

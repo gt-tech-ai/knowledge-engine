@@ -34,6 +34,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/oteltracer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // ---------------------------------------------------------------------------
@@ -358,7 +362,7 @@ func TestNoopMetrics_GaugeMultipleLabels(t *testing.T) {
 	g.Set(100.0, "api", "us-east-1")
 	g.Inc("api", "us-east-1")
 	g.Dec("api", "us-east-1")
-	g.Set(0.0, "identity", "eu-west-1")
+	g.Set(0.0, "billing", "eu-west-1")
 }
 
 // TestNoopMetrics_HandlerReturns404 tests that the noop metrics handler returns
@@ -1095,91 +1099,105 @@ func TestOTelTracer_NewAndShutdown(t *testing.T) {
 	require.NoError(t, tr.Shutdown(ctx), "Shutdown")
 }
 
-// TestOTelTracer_StartAndEnd tests creating and ending spans through the OTel
-// tracer, exercising all Span interface methods.
+// TestOTelTracer_SpanConversions tests that the OTel tracer's spans translate the
+// foundation span vocabulary (attributes, statuses, errors, kinds) into OTel correctly.
 //
 // Why this test is important:
-//   - Span operations (SetAttribute, RecordError, SetStatus) are called on
-//     every request; if any method panics, the entire request fails
-//   - The toOTelAttribute converter handles multiple Go types; all paths must
-//     work
+//   - Span attributes, statuses and kinds are set on every request; a broken converter
+//     silently mislabels traces (a failed call shown as OK, a server span shown as
+//     internal) and corrupts trace search and service graphs.
+//   - The spans are read through OTel's ReadOnlySpan view and never ended, so nothing is
+//     queued for export: the test needs no collector and opens no connection.
 //
 // What it tests:
-//   - Start returns a non-nil context and span
-//   - SetAttribute handles string, int, float, bool, int64, and struct values
-//   - RecordError attaches an error event to the span
-//   - SetStatus handles OK, Error, and Unset statuses
-//   - End completes the span without panic
-func TestOTelTracer_StartAndEnd(t *testing.T) {
+//   - SetAttribute maps string, int, int64, float64 and bool to the matching OTel types
+//     and an unsupported type to an empty string.
+//   - RecordError adds one "exception" event; SetStatus maps Error (with its
+//     description), OK and Unset to the OTel codes.
+//   - WithSpanKind maps Server, Client, Producer, Consumer and Internal to the OTel kinds.
+func TestOTelTracer_SpanConversions(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cfg := oteltracer.Config{
+	tr, err := oteltracer.New(ctx, oteltracer.Config{
 		ServiceName: "test-service-spans",
 		Endpoint:    "localhost:4317",
 		SampleRate:  1.0,
 		Insecure:    true,
+	})
+	require.NoError(t, err, "oteltracer.New")
+	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
+
+	// readOnly starts a span and returns it with OTel's read-only view of it.
+	readOnly := func(opts ...interfaces.SpanOption) (interfaces.Span, sdktrace.ReadOnlySpan) {
+		spanCtx, span := tr.Start(ctx, "test-operation", opts...)
+		ro, ok := oteltrace.SpanFromContext(spanCtx).(sdktrace.ReadOnlySpan)
+		require.True(t, ok, "a sampled span must be readable")
+		return span, ro
 	}
 
-	tr, err := oteltracer.New(ctx, cfg)
-	require.NoError(t, err, "oteltracer.New")
-	defer func() { _ = tr.Shutdown(ctx) }()
-
-	spanCtx, span := tr.Start(ctx, "test-operation")
-	require.NotNil(t, spanCtx, "expected non-nil context from Start")
-	require.NotNil(t, span, "expected non-nil span from Start")
-
+	span, ro := readOnly()
 	span.SetAttribute("user.id", "abc-123")
 	span.SetAttribute("count", 42)
+	span.SetAttribute("data", int64(1000))
 	span.SetAttribute("score", 3.14)
 	span.SetAttribute("active", true)
-	span.SetAttribute("data", int64(1000))
-	span.SetAttribute("complex", struct{}{}) // default case in toOTelAttribute
+	span.SetAttribute("complex", struct{}{})
 	span.RecordError(errors.New("test error"))
-	span.SetStatus(interfaces.SpanStatusOK, "success")
 	span.SetStatus(interfaces.SpanStatusError, "failed")
+	assert.ElementsMatch(t, []attribute.KeyValue{
+		attribute.String("user.id", "abc-123"),
+		attribute.Int("count", 42),
+		attribute.Int64("data", 1000),
+		attribute.Float64("score", 3.14),
+		attribute.Bool("active", true),
+		attribute.String("complex", ""),
+	}, ro.Attributes())
+	require.Len(t, ro.Events(), 1)
+	assert.Equal(t, "exception", ro.Events()[0].Name)
+	assert.Equal(t, sdktrace.Status{Code: codes.Error, Description: "failed"}, ro.Status())
+
+	span, ro = readOnly()
+	span.SetStatus(interfaces.SpanStatusOK, "")
+	assert.Equal(t, codes.Ok, ro.Status().Code)
+	span, ro = readOnly()
 	span.SetStatus(interfaces.SpanStatusUnset, "")
-	span.End()
+	assert.Equal(t, codes.Unset, ro.Status().Code)
+
+	for kind, want := range map[interfaces.SpanKind]oteltrace.SpanKind{
+		interfaces.SpanKindServer:   oteltrace.SpanKindServer,
+		interfaces.SpanKindClient:   oteltrace.SpanKindClient,
+		interfaces.SpanKindProducer: oteltrace.SpanKindProducer,
+		interfaces.SpanKindConsumer: oteltrace.SpanKindConsumer,
+		interfaces.SpanKindInternal: oteltrace.SpanKindInternal,
+	} {
+		_, ro = readOnly(interfaces.WithSpanKind(kind))
+		assert.Equal(t, want, ro.SpanKind(), "span kind %v", kind)
+	}
 }
 
-// TestOTelTracer_SpanKinds tests creating spans with various span kinds,
-// exercising the toOTelSpanKind conversion function.
+// TestOTelTracer_EndUnsampledSpan tests that ending a span completes without panic.
 //
 // Why this test is important:
-//   - Span kind (Server, Client, Producer, Consumer, Internal) determines how
-//     tracing backends visualize and aggregate spans; wrong kinds corrupt
-//     service dependency graphs
+//   - Every instrumented operation ends its span; End must be safe on the common
+//     unsampled path. The span is unsampled, so nothing is exported and no collector
+//     connection is opened.
 //
 // What it tests:
-//   - Spans with Server, Client, Producer, Consumer, and Internal kinds are
-//     created and ended without error
-func TestOTelTracer_SpanKinds(t *testing.T) {
+//   - A span from a tracer with SampleRate 0 is non-recording, and End returns normally.
+func TestOTelTracer_EndUnsampledSpan(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cfg := oteltracer.Config{
-		ServiceName: "test-service-kinds",
-		Endpoint:    "localhost:4317",
-		SampleRate:  1.0,
-		Insecure:    true,
-	}
-
-	tr, err := oteltracer.New(ctx, cfg)
+	tr, err := oteltracer.New(ctx, oteltracer.Config{
+		ServiceName: "test-service-end", Endpoint: "localhost:4317", Insecure: true,
+	})
 	require.NoError(t, err, "oteltracer.New")
-	defer func() { _ = tr.Shutdown(ctx) }()
+	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
 
-	kinds := []interfaces.SpanKind{
-		interfaces.SpanKindServer,
-		interfaces.SpanKindClient,
-		interfaces.SpanKindProducer,
-		interfaces.SpanKindConsumer,
-		interfaces.SpanKindInternal,
-	}
-
-	for _, kind := range kinds {
-		_, span := tr.Start(ctx, "test-op", interfaces.WithSpanKind(kind))
-		span.End()
-	}
+	spanCtx, span := tr.Start(ctx, "unsampled")
+	assert.False(t, oteltrace.SpanFromContext(spanCtx).IsRecording(), "SampleRate 0 must not record")
+	assert.NotPanics(t, span.End)
 }
 
 // TestOTelTracer_SampleRates tests tracer creation with different sample rates
@@ -1242,8 +1260,8 @@ func TestOTelTracer_SecureMode(t *testing.T) {
 // covering the success path of NewFromConfig.
 //
 // Why this test is important:
-//   - NewFromConfig is the primary constructor used in Wire-injected services;
-//     it must work with fully specified config structs from YAML/env
+//   - NewFromConfig is the primary constructor a composition root calls; it must
+//     work with fully specified config structs from YAML/env
 //
 // What it tests:
 //   - NewFromConfig with KindOTel default config returns a non-nil Tracer

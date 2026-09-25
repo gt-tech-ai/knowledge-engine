@@ -13,9 +13,6 @@ import (
 //
 // Services wrap repositories with business rules, authorization, validation,
 // event publishing, and caching.
-//
-// Phase 1: Basic CRUD with hooks.
-// Phase 2+: Batch operations, complex workflows, saga orchestration.
 type Service[T any, P any, ID comparable] interface {
 	// Reader provides Get (retrieve by id).
 	Reader[T, ID]

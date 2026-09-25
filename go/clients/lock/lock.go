@@ -18,11 +18,10 @@
 // (resilience: retry, circuit-breaker, timeout; observability: logging,
 // metrics, tracing), wired by NewFromConfig from the Config collaborators.
 //
-// Scope boundary: this package ships the interfaces, both backends, the
-// factory, the decorator stack, the generated mocks, and Hold. The
-// composition-root provider (config + shared redis client +
-// observability/resilience deps → Locker) and the query-workflow call site are
-// out of scope here; no provider reads lock config yet.
+// Scope boundary: this package ships both backends, the factory, the decorator
+// stack, and Hold. Wiring them (config + shared redis client +
+// observability/resilience deps → Locker) and choosing the call sites and key
+// names belong to the consumer's composition root.
 package lock
 
 import (

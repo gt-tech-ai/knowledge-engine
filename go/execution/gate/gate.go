@@ -19,8 +19,9 @@ import (
 // the concrete workflow type directly; future gate-producing workflows implement
 // this interface to signal intent.
 //
-// interface-composition exemption — execution-engine primitive: a single Gate() → *Gate producer contract,
-// not an id-CRUD data-access surface, so it embeds no foundation generic.
+// interface-composition exemption — execution-engine primitive: a single
+// Gate() → *Gate producer contract, not an id-CRUD data-access surface, so it
+// embeds no foundation generic.
 type GateFactory interface {
 	// Gate builds and returns the composed *Gate.
 	Gate() *Gate

@@ -63,7 +63,9 @@ func (c S3Config) EffectiveMultipartPresignExpiry() time.Duration {
 	return 4 * c.PresignExpiry
 }
 
-// DefaultS3Config returns an S3Config with defaults for local MinIO.
+// DefaultS3Config returns an S3Config with defaults for local MinIO. Bucket is left
+// empty — the consumer supplies it — so the defaults alone fail Validate until a
+// bucket is set.
 func DefaultS3Config() S3Config {
 	return S3Config{
 		Kind:                   "minio",

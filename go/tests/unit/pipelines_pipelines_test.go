@@ -19,9 +19,8 @@ import (
 // produces correct output through the Pipeline interface.
 //
 // Why this test is important:
-//   - BasePipeline is the foundation for all data transformation steps in the
-//     ingestion flow; incorrect wrapping would corrupt document parsing and
-//     text extraction pipelines
+//   - BasePipeline is the foundation for every data-transformation pipeline a
+//     consumer builds; incorrect wrapping would corrupt each stage's output
 //   - Validates the core Pipeline interface contract that all pipeline
 //     decorators depend on
 //
@@ -49,9 +48,9 @@ func TestBasePipeline(t *testing.T) {
 // transform function propagate unchanged to the caller.
 //
 // Why this test is important:
-//   - Pipeline errors drive document status transitions (e.g. marking
-//     ingestion as failed); swallowed errors would leave documents in a
-//     perpetual "processing" state
+//   - Pipeline errors drive a caller's status transitions (e.g. marking a job
+//     as failed); swallowed errors would leave work in a perpetual
+//     "processing" state
 //   - Ensures error context is preserved for operator debugging and alerting
 //
 // What it tests:
@@ -79,7 +78,7 @@ func TestBasePipeline_ErrorPropagation(t *testing.T) {
 //
 // Why this test is important:
 //   - The logging decorator wraps every pipeline stage; if it mutates results
-//     it would silently corrupt all ingestion and retrieval outputs
+//     it would silently corrupt every pipeline's output
 //
 // What it tests:
 //   - Execute through the logging decorator returns the correct output
@@ -108,8 +107,8 @@ func TestPipelinesLoggingDecorator(t *testing.T) {
 // through the logging decorator.
 //
 // Why this test is important:
-//   - The decorator must not swallow errors; doing so would hide ingestion
-//     failures from callers that update document status on error
+//   - The decorator must not swallow errors; doing so would hide pipeline
+//     failures from callers that update status on error
 //
 // What it tests:
 //   - Execute returns the exact error produced by the inner pipeline
@@ -374,7 +373,7 @@ func TestPipelinesRecoveryDecorator_PassesThroughNormal(t *testing.T) {
 //
 // Why this test is important:
 //   - Recovery must only catch panics, not normal errors; swallowing errors
-//     would hide processing failures from the ingestion worker
+//     would hide processing failures from the caller
 //
 // What it tests:
 //   - Execute returns the exact error from the inner pipeline
@@ -476,7 +475,7 @@ func TestNewBasePipeline_NilPanics(t *testing.T) {
 //
 // Why this test is important:
 //   - The tracing decorator must be transparent on the happy path; any mutation
-//     would corrupt the data flowing through the ingestion pipeline
+//     would corrupt the data flowing through the pipeline
 //   - WithTracing is the only un-covered branch in the builder; this test
 //     ensures spans are created and ended for each execution
 //
@@ -502,7 +501,7 @@ func TestPipelineDecorator_WithTracing_HappyPath(t *testing.T) {
 // Why this test is important:
 //   - The tracing decorator must call span.RecordError and span.SetStatus on
 //     failure so errors appear in distributed traces
-//   - Swallowing the error would hide failures from the ingestion operator
+//   - Swallowing the error would hide failures from the operator
 //
 // What it tests:
 //   - Execute propagates the inner pipeline error to the caller

@@ -1,7 +1,7 @@
 """Unit tests for resilience patterns.
 
 This file tests that the retry decorator, circuit breaker, and async timeout
-wrapper behave correctly under failure conditions, ensuring the platform
+wrapper behave correctly under failure conditions, ensuring a service
 degrades gracefully and recovers automatically.
 
 # Test Coverage

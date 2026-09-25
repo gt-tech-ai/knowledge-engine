@@ -28,20 +28,33 @@ def _embedder(dimension: int = 3) -> EmbeddingProvider:
     return embedder
 
 
-def _store(count: int = 0, dimension: int = 3, present: set[str] | None = None) -> VectorStore:
+def _store(
+    count: int = 0, dimension: int = 3, stored: dict[str, dict[str, str]] | None = None
+) -> VectorStore:
     """Mock VectorStore: upsert/delete_by_document + count_by_document returning `count`.
 
-    ``existing_ids`` reports the checkpoint set (``present``, default empty) intersected with the
-    queried ids, so a test can pre-declare which chunk ids are already indexed to drive the resume path.
+    ``stored_metadata`` reports the checkpoint map (``stored``: chunk id -> stored metadata, default
+    empty) restricted to the queried ids, so a test can pre-declare which chunk ids are already indexed,
+    and with which metadata, to drive the resume path.
     """
-    already = present or set()
+    already = stored or {}
     store = MagicMock(spec=VectorStore)
     store.dimension = dimension
     store.upsert = AsyncMock()
     store.delete_by_document = AsyncMock()
     store.count_by_document = AsyncMock(return_value=count)
-    store.existing_ids = AsyncMock(side_effect=lambda _collection, ids: {i for i in ids if i in already})
+    store.stored_metadata = AsyncMock(
+        side_effect=lambda _collection, ids: {i: already[i] for i in ids if i in already}
+    )
     return store
+
+
+def _indexed(document_id: str, indexes: range, **attributes: str) -> dict[str, dict[str, str]]:
+    """The stored metadata of chunks ``indexes`` of a document indexed with ``attributes`` and no name."""
+    return {
+        f"{document_id}:{i}": {**attributes, "document_name": document_id, "chunk_index": str(i)}
+        for i in indexes
+    }
 
 
 class TestVectorKnowledgeBase:
@@ -100,13 +113,12 @@ class TestVectorKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_index_document_empty_document_name_falls_back_to_id(self) -> None:
-        """An EXPLICIT empty document_name (an ingestion event with no file_name) falls back to the id.
+        """An EXPLICIT empty document_name (e.g. a source with no file name) falls back to the id.
 
         Why this test is important:
-          - ``DocumentUploadedEvent.file_name`` defaults to "" when the upload message omits it
-            (``events.parse_document_uploaded``), and the ingestion job threads that value straight
-            through as ``document_name``. This pins the ``document_name or document_id`` fallback for the
-            empty-string case (not just an omitted arg), so a citation never renders a blank source label.
+          - A caller often threads an optional source name straight through, passing "" when it has
+            none. This pins the ``document_name or document_id`` fallback for the empty-string case (not
+            just an omitted arg), so a citation never renders a blank source label.
 
         What it tests:
           - index_document(document_name="") stamps the document_id onto each chunk's ``document_name``.
@@ -121,7 +133,14 @@ class TestVectorKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_index_document_empty_chunks_is_a_noop(self) -> None:
-        """Indexing zero chunks embeds nothing and upserts nothing."""
+        """Indexing zero chunks embeds nothing and upserts nothing.
+
+        Why this test is important:
+          - An empty parse must not call the embedder with an empty batch or write an empty upsert.
+
+        What it tests:
+          - index_document("doc-1", []) awaits neither embed_batch nor upsert.
+        """
         embedder, store = _embedder(), _store()
         kb = VectorKnowledgeBase(embedder, store, "documents")
         await kb.index_document("doc-1", [])
@@ -164,11 +183,12 @@ class TestVectorKnowledgeBase:
             a sub-batch skippable when every id in it is already present.
 
         What it tests:
-          - With the first sub-batch (doc-1:0..95) already present, a 150-chunk re-index embeds and
-            upserts ONLY the second sub-batch (the 54 remaining chunks), leaving the done work untouched.
+          - With the first sub-batch (doc-1:0..95) already stored with the same metadata, a 150-chunk
+            re-index embeds and upserts ONLY the second sub-batch (the 54 remaining chunks), leaving the
+            done work untouched.
         """
         embedder = _embedder()
-        store = _store(present={f"doc-1:{i}" for i in range(96)})
+        store = _store(stored=_indexed("doc-1", range(96)))
         kb = VectorKnowledgeBase(embedder, store, "documents")
         chunks = [f"chunk-{i}" for i in range(150)]
 
@@ -178,6 +198,72 @@ class TestVectorKnowledgeBase:
         store.upsert.assert_awaited_once()
         upserted_ids = [e.id for e in store.upsert.call_args.args[1]]
         assert upserted_ids == [f"doc-1:{i}" for i in range(96, 150)]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("stored", "reindex"),
+        [
+            (_indexed("doc-1", range(150), level="public"), {"attributes": {"level": "restricted"}}),
+            (_indexed("doc-1", range(150), level="public", tenant="t1"), {"attributes": {"level": "public"}}),
+            (
+                _indexed("doc-1", range(150), level="public"),
+                {"attributes": {"level": "public"}, "document_name": "a.pdf"},
+            ),
+        ],
+        ids=["changed-attribute", "removed-attribute", "changed-document-name"],
+    )
+    async def test_index_document_rewrites_sub_batches_whose_stored_metadata_differs(
+        self, stored: dict[str, dict[str, str]], reindex: dict[str, object]
+    ) -> None:
+        """Re-indexing a present document with other attributes or name rewrites every chunk's metadata.
+
+        Why this test is important:
+          - Attributes carry the consumer's scope (tenant, sensitivity label). If resume skipped chunks
+            that are present but stamped with the old scope, a reclassified document would keep serving
+            its old label — e.g. restricted content still admitted to public callers.
+
+        What it tests:
+          - With all 150 chunks stored under different metadata (a changed attribute, an attribute the
+            new call no longer sets, or another document name), a re-index embeds and upserts both
+            sub-batches, and the upserted entries carry exactly the new metadata.
+        """
+        embedder, store = _embedder(), _store(stored=stored)
+        kb = VectorKnowledgeBase(embedder, store, "documents")
+
+        await kb.index_document("doc-1", [f"chunk-{i}" for i in range(150)], **reindex)  # type: ignore[arg-type]
+
+        assert embedder.embed_batch.await_count == 2
+        entries = [e for call in store.upsert.call_args_list for e in call.args[1]]
+        assert [e.id for e in entries] == [f"doc-1:{i}" for i in range(150)]
+        expected_name = str(reindex.get("document_name", "doc-1"))
+        assert entries[5].metadata == {
+            **reindex["attributes"],  # type: ignore[dict-item]
+            "document_name": expected_name,
+            "chunk_index": "5",
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("key", ["document_id", "content", "entry_id", "document_name", "chunk_index"])
+    async def test_index_document_rejects_attributes_that_shadow_reserved_keys(self, key: str) -> None:
+        """An attribute named like a key the index writes itself is refused before anything is embedded.
+
+        Why this test is important:
+          - Attributes are spread into the stored payload; one named ``document_id`` would overwrite the
+            payload id, so remove_document/get_document_status would match nothing and orphan the
+            points, and one named ``content`` would replace the chunk text.
+
+        What it tests:
+          - index_document(attributes={<reserved>: "x"}) raises ValueError naming the key and neither
+            embeds nor upserts.
+        """
+        embedder, store = _embedder(), _store()
+        kb = VectorKnowledgeBase(embedder, store, "documents")
+
+        with pytest.raises(ValueError, match=key):
+            await kb.index_document("doc-1", ["a chunk"], attributes={key: "x"})
+
+        embedder.embed_batch.assert_not_awaited()
+        store.upsert.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_get_document_status_ready_when_points_exist_else_none(self) -> None:
@@ -202,7 +288,15 @@ class TestVectorKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_remove_document_deletes_by_document(self) -> None:
-        """remove_document deletes every chunk of the document from the store."""
+        """remove_document deletes every chunk of the document from the store.
+
+        Why this test is important:
+          - A removed document must stop being retrievable; deleting by id list would miss chunks the
+            caller no longer knows about.
+
+        What it tests:
+          - remove_document("doc-1") awaits delete_by_document on the KB's collection with "doc-1".
+        """
         store = _store()
         kb = VectorKnowledgeBase(_embedder(), store, "documents")
         await kb.remove_document("doc-1")

@@ -33,7 +33,7 @@ async def _wrap(handler_fn: AsyncMock) -> grpc.RpcMethodHandler:
     return await _ValidatingServerInterceptor().intercept_service(AsyncMock(return_value=real), _details())
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-org-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
 """The gateway header contract these tests configure."""
 
 

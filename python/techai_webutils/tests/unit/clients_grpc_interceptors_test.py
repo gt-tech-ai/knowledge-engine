@@ -245,7 +245,7 @@ class TestLoggingInterceptor:
           - The gRPC client interceptor is the Python client-seam analog of the Go decorators:
             its per-call debug log must be JSON on the canonical schema (trace-correlatable,
             timed), not a printf ``%s`` stdlib line — otherwise the outbound-RPC stage is
-            invisible to Loki ``| json`` and un-timeable.
+            invisible to JSON log queries and un-timeable.
 
         **What it tests:**
           - The call is returned unchanged and a structured 'grpc client call complete' line

@@ -108,8 +108,8 @@ class TestLoggingProxy:
             JSON on the canonical schema, so a single request is followable across services and
             each stage's latency is legible. The prior implementation logged through the stdlib
             logger with printf ``%s`` args ("calling Foo.bar"), producing UNSTRUCTURED lines with
-            no ``duration_ms`` and no trace ids — which broke Loki ``| json`` parsing and left
-            half the retrieval log unstructured.
+            no ``duration_ms`` and no trace ids — which broke JSON log parsing and left half
+            the log unstructured.
 
         **What it tests:**
           - Every emitted line is valid JSON, and the completion line carries ``client``,

@@ -38,20 +38,20 @@ func TestStringToStringMapHookFunc(t *testing.T) {
 		{
 			name: "well-formed entries with a rotation pair preserved",
 			from: strType, to: mapType,
-			in:   "ingestion=icur,iprev;notification=ntok",
-			want: map[string]string{"ingestion": "icur,iprev", "notification": "ntok"},
+			in:   "reports=rcur,rprev;orders=otok",
+			want: map[string]string{"reports": "rcur,rprev", "orders": "otok"},
 		},
 		{
 			name: "whitespace around entries and keys/values is trimmed",
 			from: strType, to: mapType,
-			in:   " api = atok ; ingestion = itok ",
-			want: map[string]string{"api": "atok", "ingestion": "itok"},
+			in:   " orders = otok ; reports = rtok ",
+			want: map[string]string{"orders": "otok", "reports": "rtok"},
 		},
 		{
 			name: "empty and malformed (no '=') entries are skipped",
 			from: strType, to: mapType,
-			in:   "api=atok;;garbage;=noKey;noValue=",
-			want: map[string]string{"api": "atok", "": "noKey", "noValue": ""},
+			in:   "orders=otok;;garbage;=noKey;noValue=",
+			want: map[string]string{"orders": "otok", "": "noKey", "noValue": ""},
 		},
 		{
 			name: "empty string yields an empty non-nil map",

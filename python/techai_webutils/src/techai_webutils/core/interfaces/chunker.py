@@ -14,7 +14,7 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class Chunker(Protocol):
-    """Split document text into retrieval-sized chunks for embedding (structure-aware backends are future Kinds)."""
+    """Split document text into retrieval-sized chunks for embedding (one backend per Kind)."""
 
     def chunk(self, text: str) -> list[str]:
         """Return the non-empty, size-bounded chunks of ``text`` (deterministic — reproducible indexing)."""

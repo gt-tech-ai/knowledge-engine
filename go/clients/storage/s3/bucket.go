@@ -15,8 +15,8 @@ import (
 // idempotently: it probes with HeadBucket, creates the bucket when absent, and
 // tolerates the already-exists/already-owned races so concurrent callers both
 // succeed. It exists so local/dev provisioning — e.g. a seeding tool —
-// can guarantee the document-upload path has a bucket to write to, rather than
-// surfacing NoSuchBucket only on the first presigned PUT.
+// can guarantee a bucket exists before anything writes to it, rather than
+// surfacing NoSuchBucket only on the first write.
 func (c *s3Client) EnsureBucket(ctx context.Context, bucket string) error {
 	if _, err := c.api.HeadBucket(
 		ctx, &s3.HeadBucketInput{Bucket: aws.String(bucket)},

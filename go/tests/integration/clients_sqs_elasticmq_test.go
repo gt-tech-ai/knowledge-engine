@@ -18,7 +18,7 @@ import (
 	testsuite "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite"
 )
 
-const emqTestQueue = "document-upload"
+const emqTestQueue = "test-events"
 
 // SQSElasticMQSuite runs the real AWS-SDK SQS publisher against a real ElasticMQ.
 type SQSElasticMQSuite struct {
@@ -89,7 +89,7 @@ func (s *SQSElasticMQSuite) TestPublish_RoundTrip() {
 	)
 	s.Require().NoError(err)
 
-	const body = `{"event":"document.uploaded","id":"abc"}`
+	const body = `{"event":"widget.created","id":"abc"}`
 	s.Require().NoError(pub.Publish(context.Background(), emqTestQueue, []byte(body)))
 
 	url, err := s.raw.GetQueueUrl(

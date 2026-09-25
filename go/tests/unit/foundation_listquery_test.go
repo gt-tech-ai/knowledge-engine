@@ -41,7 +41,7 @@ func TestFilterMap_LookupAndColumn(t *testing.T) {
 
 	m := listquery.NewMap().Add(
 		listquery.String("name"),
-		listquery.ID("workspace_id").WithColumn("workspace_uuid"),
+		listquery.ID("owner_id").WithColumn("owner_uuid"),
 		listquery.Time("created_at"),
 	)
 
@@ -50,9 +50,9 @@ func TestFilterMap_LookupAndColumn(t *testing.T) {
 	assert.Equal(t, "name", f.Column, "Column defaults to Name")
 	assert.Equal(t, listquery.FieldString, f.Type)
 
-	f, ok = m.Lookup("workspace_id")
+	f, ok = m.Lookup("owner_id")
 	require.True(t, ok)
-	assert.Equal(t, "workspace_uuid", f.Column, "WithColumn overrides the default column")
+	assert.Equal(t, "owner_uuid", f.Column, "WithColumn overrides the default column")
 	assert.Equal(t, listquery.FieldID, f.Type)
 
 	_, ok = m.Lookup("secret")

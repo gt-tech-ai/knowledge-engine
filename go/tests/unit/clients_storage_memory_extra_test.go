@@ -12,20 +12,25 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
 // TestStorageMemory_ErrorPaths tests the in-memory storage client's guard branches:
-// a body read failure on Upload and completing an unknown multipart upload.
+// a body read failure on Upload, completing an unknown multipart upload, and
+// completing an upload under a bucket/key other than the one it was created for.
 //
 // Why this test is important:
 //   - The memory backend stands in for S3 in dev/test; if it swallowed a body read
-//     error or completed a non-existent upload, tests would pass against behavior the
-//     real S3 client rejects, hiding upload/multipart wiring bugs.
+//     error, completed a non-existent upload, or completed an upload at whatever
+//     location the caller named, tests would pass against behavior the real S3
+//     client rejects (NoSuchUpload), hiding upload/multipart wiring bugs.
 //
 // What it tests:
 //   - Upload surfaces a reader error; CompleteMultipartUpload on an unknown upload id
 //     returns a not-found error.
+//   - CompleteMultipartUpload with a key that does not match the upload returns
+//     CodeNotFound and writes no object at that key.
 func TestStorageMemory_ErrorPaths(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -36,6 +41,14 @@ func TestStorageMemory_ErrorPaths(t *testing.T) {
 
 	err = c.CompleteMultipartUpload(ctx, "b", "k", "no-such-upload", nil)
 	require.Error(t, err, "completing an unknown upload id must be a not-found error")
+
+	id, err := c.CreateMultipartUpload(ctx, "b", "intended", "application/octet-stream")
+	require.NoError(t, err)
+	err = c.CompleteMultipartUpload(ctx, "b", "elsewhere", id, nil)
+	require.Equal(t, coreerrors.CodeNotFound, coreerrors.Code(err), "a mismatched key is not the upload: %v", err)
+	exists, err := c.Exists(ctx, "b", "elsewhere")
+	require.NoError(t, err)
+	require.False(t, exists, "a mismatched complete must not write an object")
 }
 
 // TestStorageClient_Exists_ReturnsTrueWhenPresent tests that Exists reports true when

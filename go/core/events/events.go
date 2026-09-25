@@ -28,8 +28,8 @@ type EventMetadata struct {
 	// OccurredAt is the timestamp when the event occurred.
 	OccurredAt time.Time `json:"occurred_at"`
 
-	// OrgID is the tenant (organization) the event belongs to.
-	OrgID string `json:"org_id"`
+	// TenantID is the tenant the event belongs to.
+	TenantID string `json:"tenant_id"`
 
 	// UserID is the user who triggered the event, if applicable.
 	UserID string `json:"user_id,omitempty"`

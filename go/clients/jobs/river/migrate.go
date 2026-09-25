@@ -13,13 +13,12 @@ import (
 // Migrate applies River's own database schema (the river_job, river_leader, …
 // tables the River runtime requires) to the database at databaseURL.
 //
-// River's tables are infrastructure River owns, not Ent-managed entities, so they
-// are applied with River's native migrator rather than the Ent/Atlas migration
-// directory — keeping them out of an Ent/Atlas drift check (which diffs the Ent
-// schema against the Atlas migrations and would otherwise report perpetual drift
-// for the non-Ent river_* tables). A River runtime cannot start until these
-// tables exist, so a deployment's migration step invokes Migrate after the
-// schema apply.
+// River's tables are infrastructure River owns, not part of the caller's own
+// schema, so they are applied with River's native migrator rather than the
+// caller's schema-migration tool — keeping them out of that tool's drift check,
+// which would otherwise report the river_* tables as perpetual drift. A River
+// runtime cannot start until these tables exist, so a deployment's migration step
+// invokes Migrate after its own schema apply.
 //
 // Migrate is idempotent: re-running it is a no-op once the schema is current.
 func Migrate(ctx context.Context, databaseURL string) error {

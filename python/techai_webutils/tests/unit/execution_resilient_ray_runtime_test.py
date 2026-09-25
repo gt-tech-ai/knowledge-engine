@@ -32,8 +32,8 @@ class TestResilientRayRuntime:
 
         **Why this test is important:**
           - The head's per-connection Ray Client server intermittently times out on a cold connect; if
-            warm_up did not retry, a pod's first bulk batch would fail — the exact staging symptom this
-            decorator exists to remove.
+            warm_up did not retry, a pod's first batch would fail — the exact symptom this decorator
+            exists to remove.
 
         **What it tests:**
           - With the inner runtime failing the first two connects and succeeding on the third, warm_up

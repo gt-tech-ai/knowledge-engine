@@ -47,8 +47,11 @@ class LockConfig:
     """libpq sslmode for the lock connection (``disable`` in dev; ``require``/``verify-*`` on RDS)."""
     key: str = ""
     """What the lock guards (e.g. one resource id); hashed into the advisory-lock key."""
-    namespace: int = 0
-    """Signed-int32 namespace for the advisory lock, separating this lock class from others."""
+    namespace: int | None = None
+    """Signed-int32 namespace for the advisory lock, separating this lock class from others. Required
+    for the postgres kind (it is half of the lock identity, so it has no default); unused by memory."""
+    application_name: str = "advisory-lock"
+    """Postgres ``application_name`` tagging the lock session in ``pg_stat_activity`` (postgres only)."""
 
 
 def _postgres_dsn(config: LockConfig) -> str:
@@ -64,10 +67,17 @@ def _postgres_dsn(config: LockConfig) -> str:
 
 
 def new_lock_from_config(config: LockConfig) -> ManagedLock:
-    """Build the ``DistributedLock`` backend selected by ``config.kind`` (memory or postgres)."""
+    """Build the ``DistributedLock`` backend selected by ``config.kind`` (memory or postgres).
+
+    The postgres kind requires ``config.namespace`` (``ValueError`` when unset) and a non-empty
+    ``config.key``: both make up the advisory-lock identity, so neither may silently default.
+    """
     if config.kind is LockKind.MEMORY:
         return InMemoryLock()
     if config.kind is LockKind.POSTGRES:
+        if config.namespace is None:
+            msg = "postgres lock kind requires LockConfig.namespace (it is half of the lock identity)"
+            raise ValueError(msg)
         # Lazy import: keep asyncpg off the dev/memory path (loaded only in stage/prod).
         from techai_webutils.clients.lock.postgres import PostgresAdvisoryLock  # noqa: PLC0415
 
@@ -75,6 +85,7 @@ def new_lock_from_config(config: LockConfig) -> ManagedLock:
             dsn=_postgres_dsn(config),
             key=config.key,
             namespace=config.namespace,
+            application_name=config.application_name,
         )
     msg = f"unknown lock kind: {config.kind!r}"
     raise ValueError(msg)

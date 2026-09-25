@@ -9,8 +9,9 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.WorkerRegistry = (*WorkerRegistry)(nil)
 
-// WorkerRegistry registers job workers.
-// Phase 1: Stub. Phase 3: River worker registration.
+// WorkerRegistry is an in-memory registry of job workers keyed by job kind, safe
+// for concurrent use. River's own worker registration goes through
+// RuntimeConfig.Workers.
 type WorkerRegistry struct {
 	// workers maps job kind strings to their Worker implementations.
 	workers map[string]interfaces.Worker

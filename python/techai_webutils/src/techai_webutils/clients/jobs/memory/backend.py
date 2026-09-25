@@ -1,8 +1,8 @@
 """In-memory job queue implementation for development and testing.
 
 Provides implementations of ``JobEnqueuer``, ``JobScheduler``, and
-``WorkerRegistry`` that process jobs in-memory. Matches Go's Phase 1 stub
-implementations in ``go/clients/jobs/river/``.
+``WorkerRegistry`` that process jobs in-memory. Matches Go's stub implementations in
+``go/clients/jobs/river/``.
 """
 
 from __future__ import annotations

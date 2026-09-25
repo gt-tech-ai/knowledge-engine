@@ -541,8 +541,9 @@ func sampledSpanContext() oteltrace.SpanContext {
 // Why this test is important:
 //   - Without on-the-wire injection a client span is created but never propagated,
 //     so the callee starts a new, disconnected trace and a single request fragments
-//     into one trace per service. The regression that this guards (retrieval running
-//     on its own trace, not the API's) is exactly what broke cross-service correlation.
+//     into one trace per service. The regression this guards (a callee running on
+//     its own trace, not its caller's) is exactly what breaks cross-service
+//     correlation.
 //
 // What it tests:
 //   - After the interceptor runs, the invoker's context carries a W3C `traceparent`
@@ -578,12 +579,12 @@ func TestGRPCTracingClientInterceptor_InjectsTraceparent(t *testing.T) {
 
 // TestGRPCTracingStreamClientInterceptor_InjectsTraceparent tests that the STREAM
 // client tracing interceptor propagates the active trace over the wire — the path
-// that matters for server-streaming RPCs such as a streamed query.
+// that matters for server-streaming RPCs.
 //
 // Why this test is important:
-//   - The retrieval query is server-streaming, so only the stream interceptor is on
-//     its path; if injection were added to the unary interceptor alone (as it first
-//     was), retrieval would still start a disconnected trace.
+//   - A server-streaming RPC has only the stream interceptor on its path; if
+//     injection were added to the unary interceptor alone (as it first was), a
+//     streaming callee would still start a disconnected trace.
 //
 // What it tests:
 //   - After the stream interceptor runs, the streamer's context carries a W3C

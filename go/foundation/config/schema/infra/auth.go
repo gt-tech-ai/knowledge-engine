@@ -25,16 +25,17 @@ type AuthConfig struct {
 	// OIDC holds the identity-provider parameters used when Stub is false.
 	OIDC OIDCConfig `mapstructure:"oidc"`
 
-	// ServiceTokens maps a calling service name to its service-to-service bearer token
-	// The internal WithServiceAuth interceptor validates the caller's
-	// `authorization: Bearer <token>` against this per-caller map, so the server records
-	// which service called (audit) and can enforce least privilege. Empty in local dev
-	// (ServiceStub bypasses validation); provisioned per caller by the
-	// deployment (e.g. from a secret store). A value may carry a comma-separated {current,previous} pair to allow a
-	// zero-downtime rotation window. The deploy delivers the whole map as one flat
-	// "caller=token;caller=token" env var (a Kubernetes secretKeyRef can only carry a
-	// scalar); the loader's StringToStringMapHookFunc decodes that into the map. Entries are
-	// ";"-separated so a value's rotation-pair "," is preserved (e.g. "ingestion=cur,prev").
+	// ServiceTokens maps a calling service name to its service-to-service bearer
+	// token. The internal WithServiceAuth interceptor validates the caller's
+	// `authorization: Bearer <token>` against this per-caller map, so the server
+	// records which service called (audit) and can enforce least privilege. Empty in
+	// local dev (ServiceStub bypasses validation); provisioned per caller by the
+	// deployment (e.g. from a secret store). A value may carry a comma-separated
+	// {current,previous} pair to allow a zero-downtime rotation window. The deploy
+	// delivers the whole map as one flat "caller=token;caller=token" env var (a
+	// Kubernetes secretKeyRef can only carry a scalar); the loader's
+	// StringToStringMapHookFunc decodes that into the map. Entries are ";"-separated
+	// so a value's rotation-pair "," is preserved (e.g. "reports=cur,prev").
 	ServiceTokens map[string]string `mapstructure:"service_tokens" envalias:"SERVICE_AUTH_TOKENS"`
 
 	// ServiceToken is THIS service's own outgoing service-to-service credential — the

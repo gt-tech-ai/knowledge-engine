@@ -33,7 +33,7 @@ func TestListQueryFieldBuilders(t *testing.T) {
 		{"float", listquery.Float("score"), listquery.FieldFloat},
 		{"bool", listquery.Bool("active"), listquery.FieldBool},
 		{"time", listquery.Time("created_at"), listquery.FieldTime},
-		{"id", listquery.ID("workspace_id"), listquery.FieldID},
+		{"id", listquery.ID("owner_id"), listquery.FieldID},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

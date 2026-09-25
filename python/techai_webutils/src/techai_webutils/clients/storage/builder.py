@@ -40,11 +40,13 @@ class StorageConfig:
 def new_storage_from_config(config: StorageConfig) -> StorageClient:
     """Build the ``StorageClient`` selected by ``config.kind`` (heavy backend imported lazily)."""
     if config.kind is StorageKind.S3:
-        from techai_webutils.clients.storage.s3.s3_client import S3StorageClient  # noqa: PLC0415 — lazy: skip aiobotocore until selected
+        # Lazy import: skip aiobotocore until selected.
+        from techai_webutils.clients.storage.s3.s3_client import S3StorageClient  # noqa: PLC0415
 
         return S3StorageClient(config.s3)
     if config.kind is StorageKind.MEMORY:
-        from techai_webutils.clients.storage.memory import InMemoryStorageClient  # noqa: PLC0415 — lazy, and no SDK to load
+        # Lazy import (and no SDK to load).
+        from techai_webutils.clients.storage.memory import InMemoryStorageClient  # noqa: PLC0415
 
         return InMemoryStorageClient()
     msg = f"unknown storage kind: {config.kind!r}"

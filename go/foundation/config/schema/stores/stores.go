@@ -1,8 +1,7 @@
-// Package stores is the config surface for the data (stores) layer
-// the page-size cap + per-resource default page sizes that were
-// scattered consts, so a deployer can tune pagination without a rebuild. Defaults
-// equal today's consts, so adoption is behavior-preserving. Pure data (mirrors
-// infra/S3Config), converted to the store call args by the provider.
+// Package stores is the config surface for the data (stores) layer: the page-size
+// cap, the per-resource default page sizes and the list-query caches, so a deployer
+// can tune pagination without a rebuild. Pure data (mirrors infra/S3Config),
+// converted to the store call args by the consumer's provider.
 package stores
 
 import (
@@ -62,10 +61,8 @@ type Config struct {
 	ListHardCap int `mapstructure:"list_hard_cap"`
 }
 
-// DefaultConfig returns defaults identical to today's scattered store consts, so
-// adopting the config surface with no overlay is behavior-preserving. MaxPageSize
-// defaults to 1000 — the cap that bounds a previously-unbounded client LIMIT
-// without affecting any normal request.
+// DefaultConfig returns the store defaults. MaxPageSize defaults to 1000 — a cap
+// that bounds a client-supplied LIMIT without affecting any normal request.
 func DefaultConfig() Config {
 	return Config{
 		MaxPageSize:     1000,

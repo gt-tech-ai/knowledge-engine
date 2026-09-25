@@ -29,7 +29,7 @@ class ChunkerKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ChunkerConfig:
-    """Chunker configuration (resolved from ``ingestion.chunker.*``)."""
+    """Chunker configuration (the consumer maps its own config section onto it)."""
 
     kind: ChunkerKind = ChunkerKind.FIXED
     """Selects the chunk backend (only ``fixed`` ships today)."""

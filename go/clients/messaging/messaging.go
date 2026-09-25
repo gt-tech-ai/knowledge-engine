@@ -37,12 +37,13 @@ const (
 	// distributed deployments with AWS infrastructure.
 	KindSQS Kind = iota
 
-	// KindMemory uses an in-process broker (dev/test/all-stubs; no external broker) —.
+	// KindMemory uses an in-process broker (dev/test/all-stubs; no external broker).
 	KindMemory
 
 	// KindRedis uses Redis Pub/Sub (fire-and-forget broadcast + dynamic SUBSCRIBE/
 	// PSUBSCRIBE). Its go-redis client is injected via WithRedisClient (shared with
-	// the cache tier), not built from config — the WS cross-machine fan-out backend.
+	// the cache tier), not built from config — the backend for cross-replica fan-out
+	// (e.g. pushing a message to whichever replica holds a client connection).
 	KindRedis
 )
 
@@ -62,9 +63,9 @@ func (k Kind) String() string {
 
 // ParseKind maps a config kind string ("sqs" | "memory" | "redis") to its Kind,
 // failing loudly on an unknown value. It is the messaging-tier bridge a composition
-// root uses to select a backend from configuration (ARCHITECTURE.md#swappable-components);
-// the backend config
-// (e.g. the injected Redis client) is still supplied separately via options.
+// root uses to select a backend from configuration
+// (ARCHITECTURE.md#swappable-components); the backend config (e.g. the injected Redis
+// client) is still supplied separately via options.
 func ParseKind(s string) (Kind, error) {
 	switch s {
 	case "sqs":

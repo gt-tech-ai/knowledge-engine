@@ -10,15 +10,15 @@ import (
 )
 
 // This file provides role-scoped decorated repositories — the counterpart of
-// TxSafeInsertRepository for read-only and list-less resources (Phase 2).
-// Each type embeds only the role interfaces its resource honors and decorates every
-// method through the SAME unified op-decoration seam the custom-op path uses
-// (repository.OpChain + decorate.Exec), so the seven ordered
-// cross-cutting bodies (ARCHITECTURE.md#decorator-order) live in exactly one place and are never re-implemented per
-// role. Unlike the full-CRUD builder these deliberately omit the read-through
-// caching decorator: caching is a passthrough for the op-decoration chain (see
-// OpChain), so a narrowed repository behaves like a decorated custom op — the
-// resilience + observability stack, minus the transparent single-entity cache.
+// TxSafeInsertRepository for read-only and list-less resources. Each type embeds
+// only the role interfaces its resource honors and decorates every method through
+// the SAME unified op-decoration seam the custom-op path uses (repository.OpChain +
+// decorate.Exec), so the six ordered cross-cutting bodies
+// (ARCHITECTURE.md#decorator-order) live in exactly one place and are never
+// re-implemented per role. Unlike the full-CRUD builder these deliberately omit the
+// read-through caching decorator: caching is a passthrough for the op-decoration
+// chain (see OpChain), so a narrowed repository behaves like a decorated custom op —
+// the resilience + observability stack, minus the transparent single-entity cache.
 
 // ---------------------------------------------------------------------------
 // Read-only (Reader + Lister + Exister)
@@ -26,8 +26,8 @@ import (
 
 // ReadListExistStore is the read-only persistence surface a read-only decorated
 // repository wraps: Get + List + Exists, with no write role. It is the store seam
-// for a resource whose writes are owned elsewhere (e.g. the api
-// notification-preference read model — identity owns the writes).
+// for a resource whose writes are owned elsewhere (e.g. a read model another
+// service writes).
 type ReadListExistStore[T any, P any, ID comparable] interface {
 	// Reader contributes Get (read by id).
 	interfaces.Reader[T, ID]
@@ -40,7 +40,7 @@ type ReadListExistStore[T any, P any, ID comparable] interface {
 // ReadListExistRepository is a resilience+observability-decorated read-only
 // repository (Reader + Lister + Exister). Every operation runs through the shared
 // OpChain (tracing → metrics → logging → timeout → circuit-breaker → retry) via
-// decorate.Exec, so a read-only resource gets the platform stack without embedding
+// decorate.Exec, so a read-only resource gets the shared stack without embedding
 // (and panicking) the write methods it does not support.
 type ReadListExistRepository[T any, P any, ID comparable] struct {
 	// store is the underlying read-only persistence seam.
@@ -106,7 +106,7 @@ func (r ReadListExistRepository[T, P, ID]) Exists(
 // CRUDNoListStore is the list-less full-write persistence surface a list-less
 // decorated repository wraps: Get + Create + Update + Delete + Exists, with no
 // List. It is the store seam for a keyed resource with no listable collection
-// (e.g. identity users, addressed only by id / external id).
+// (e.g. one addressed only by id or an external id).
 type CRUDNoListStore[T any, ID comparable] interface {
 	// Reader contributes Get (read by id).
 	interfaces.Reader[T, ID]

@@ -13,8 +13,7 @@ import (
 
 // remoteSampledParent returns a context carrying a REMOTE parent span context with the sampled
 // trace-flag set — the shape the W3C `traceparent` header produces after propagation.TraceContext
-// extracts it on an incoming request (the exact path the endpoint-E2E client's force-sampled header
-// triggers in production).
+// extracts it on an incoming request (the path a client's force-sampled header triggers).
 func remoteSampledParent(t *testing.T) context.Context {
 	t.Helper()
 	tid, err := oteltrace.TraceIDFromHex("0123456789abcdef0123456789abcdef")
@@ -34,11 +33,11 @@ func remoteSampledParent(t *testing.T) context.Context {
 // parent is sampled, even at an effectively-zero sample rate.
 //
 // Why this test is important:
-//   - The endpoint-E2E telemetry proof sends a `traceparent` with the sampled flag so the
-//     one E2E request is force-sampled and its trace lands in Tempo, while normal traffic keeps the
-//     configured ratio. That only works if the sampler is ParentBased (honors the parent's decision).
-//     With a bare TraceIDRatioBased sampler the parent flag is ignored and the E2E trace is dropped at
-//     staging's 0.5 rate — the bug diagnosed in the RCA (trace not found in Tempo within 20s).
+//   - A caller (e.g. an end-to-end telemetry check) sends a `traceparent` with the sampled flag so
+//     its one request is force-sampled and its trace reaches the backend, while normal traffic keeps
+//     the configured ratio. That only works if the sampler is ParentBased (honors the parent's
+//     decision); with a bare TraceIDRatioBased sampler the parent flag is ignored and the trace is
+//     dropped at the configured ratio.
 //
 // What it tests:
 //   - Given a fractional sample rate so small the ratio would reject every root, a span started under
@@ -57,8 +56,9 @@ func TestTracer_HonorsSampledParent(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tr.Shutdown(context.Background()) })
 
-	retCtx, span := tr.Start(remoteSampledParent(t), "child")
-	defer span.End()
+	// The sampled span is deliberately never ended: ending it would queue it for export
+	// to the collector at Shutdown (a network dial and a 30s retry in a unit test).
+	retCtx, _ := tr.Start(remoteSampledParent(t), "child")
 
 	assert.True(
 		t,
@@ -71,9 +71,9 @@ func TestTracer_HonorsSampledParent(t *testing.T) {
 // configured sample ratio — the ParentBased wrap must not change normal production sampling.
 //
 // Why this test is important:
-//   - The fix for the E2E telemetry bug only forces sampling for a request that arrives WITH a sampled
-//     parent. Production traffic (a root span, no parent) must keep sampling at the configured ratio,
-//     not jump to always-on, or staging trace volume/cost regresses. This guards that invariant.
+//   - The ParentBased wrap only forces sampling for a request that arrives WITH a sampled parent.
+//     Production traffic (a root span, no parent) must keep sampling at the configured ratio, not
+//     jump to always-on, or trace volume and cost regress. This guards that invariant.
 //
 // What it tests:
 //   - Given an effectively-zero sample rate and NO parent, a root span is not sampled (the ratio still
@@ -104,12 +104,10 @@ func TestTracer_RootSpanKeepsRatio(t *testing.T) {
 // an effectively-zero ratio, and carries a trace id.
 //
 // Why this test is important:
-//   - This is the server-side force-sample lever for a root span that has no client traceparent to
-//
-// honour — the WebSocket query root. Without it, the E2E query trace is dropped at
-//
-//	staging's ratio and query.spec's Tempo assertion fails (the RCA's Finding 2, WS sub-case). It
-//	must produce a sampled, non-empty trace the client can then correlate in Tempo.
+//   - This is the server-side force-sample lever for a root span that has no client traceparent
+//     to honour (e.g. a WebSocket message handler). Without it, such a trace is dropped at the
+//     configured ratio. It must produce a sampled, non-empty trace the client can then correlate
+//     in the tracing backend.
 //
 // What it tests:
 //   - A span started from the forced context is sampled (ParentBased honours the seeded sampled remote

@@ -9,20 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTransportDefaults_BehaviorPreserving tests that the transport config
-// defaults preserve today's behavior: the rate limiter stays disabled, CORS
-// stays permissive, and the identity timeout stays 5s.
+// TestTransportDefaults_Permissive tests that the transport config defaults are
+// permissive until a service opts in: the rate limiter stays disabled and CORS
+// stays open.
 //
 // Why this test is important:
-//   - adds a broad edge-config surface; the whole point is
-//     behavior-preserving-until-tuned. If the rate limiter defaulted enabled, or
-//     CORS defaulted restrictive, adopting the surface would silently break every
-//     deployment (429s / blocked origins) before any overlay opted in.
+//   - A broad edge-config surface must not restrict anything by default. If the rate
+//     limiter defaulted enabled, or CORS defaulted restrictive, adopting the surface
+//     would silently break every deployment (429s / blocked origins) before any
+//     overlay opted in.
 //
 // What it tests:
-//   - RateLimit.Enabled is false, CORS.AllowOrigins is ["*"], and the identity
-//     client timeout is 5s in DefaultConfig().
-func TestTransportDefaults_BehaviorPreserving(t *testing.T) {
+//   - RateLimit.Enabled is false, CORS.AllowOrigins is ["*"], WS.IdleTimeout is 5m,
+//     and the defaults validate.
+func TestTransportDefaults_Permissive(t *testing.T) {
 	t.Parallel()
 
 	c := transport.DefaultConfig()
@@ -33,18 +33,7 @@ func TestTransportDefaults_BehaviorPreserving(t *testing.T) {
 		c.CORS.AllowOrigins,
 		"CORS must stay permissive by default",
 	)
-	assert.Equal(
-		t,
-		5*time.Second,
-		c.IdentityClient.Timeout,
-		"identity timeout must stay 5s",
-	)
-	assert.Equal(
-		t,
-		5*time.Minute,
-		c.WS.IdleTimeout,
-		"WS idle must stay 5m (the api WS server value)",
-	)
+	assert.Equal(t, 5*time.Minute, c.WS.IdleTimeout, "WS idle must default to 5m")
 	require.NoError(t, c.Validate(), "the defaults must validate")
 }
 

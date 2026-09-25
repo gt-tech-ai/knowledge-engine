@@ -95,8 +95,8 @@ class TestMarkItDownParser:
         **Why this test is important:**
           - MarkItDown guesses the charset from a file's first 4096 bytes; a document that is almost
             entirely ASCII with an occasional smart quote / accent (every real prose document) was
-            misdetected as 'ascii' and strict-decoded, failing ingestion deep in the file
-            (RCA 2026-09-08). Forcing UTF-8 must fix it.
+            misdetected as 'ascii' and strict-decoded, failing ingestion deep in the file. Forcing
+            UTF-8 must fix it.
 
         **What it tests:**
           - 5000 ASCII bytes followed by a UTF-8 smart-quoted phrase parses ok and the phrase survives.
@@ -123,11 +123,11 @@ class TestMarkItDownParser:
         assert "readable text after" in result.markdown_content
 
     def test_streaming_path_forces_utf8(self, tmp_path: Path) -> None:
-        """Test that the streaming (large-lane) path also forces UTF-8.
+        """Test that the streaming (large-file) path also forces UTF-8.
 
         **Why this test is important:**
-          - Large connector-synced documents take the streaming ``parse_path`` lane; the same charset
-            fix must apply there so a large mostly-ASCII book with smart quotes/accents isn't failed.
+          - Large documents take the streaming ``parse_path`` route; the same charset fix must apply
+            there so a large mostly-ASCII book with smart quotes/accents isn't failed.
 
         **What it tests:**
           - A file with a multibyte character past 4 KiB parses ok via parse_path and the text survives.

@@ -13,9 +13,6 @@ import (
 // from Reader/Lister/Writer/Deleter/Exister so a resource can depend on only the
 // roles it uses.
 // T = entity type, P = query/filter params, ID = identifier type.
-//
-// Phase 1: Basic CRUD + list with pagination.
-// Phase 2+: Will add batch operations, streaming, soft-delete recovery.
 type Repository[T any, P any, ID comparable] interface {
 	// Reader provides Get (retrieve by id).
 	Reader[T, ID]

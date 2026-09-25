@@ -134,8 +134,8 @@ func TestResilienceValidate_RemainingBranches(t *testing.T) {
 // Why this test is important:
 //   - The repo/pipeline/domain/store/edge/worker surfaces are tuned per environment;
 //     the guards not hit by the existing tests (a negative cache TTL/version/timeout,
-//     a non-positive multipart size, a zero bulk count, the reconciler page-size
-//     invariants, an enabled-but-zero rate-limit burst, a negative header cap, a
+//     a non-positive multipart size, a zero bulk count, the pending-cohort bounds,
+//     an enabled-but-zero rate-limit burst, a negative header cap, a
 //     negative worker port/batch, the orphan-grace sweep invariant) each protect a
 //     distinct silently-broken configuration and must fail loudly at load.
 //

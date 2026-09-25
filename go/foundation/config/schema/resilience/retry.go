@@ -32,8 +32,8 @@ type RetryConfig struct {
 	MaxRetries int `mapstructure:"max_retries"`
 }
 
-// DefaultRetryConfig returns defaults identical to retry.DefaultConfig(), so
-// adopting the config surface with no overlay preserves today's behavior.
+// DefaultRetryConfig returns defaults identical to retry.DefaultConfig(), so the
+// config surface with no overlay matches the retry package's own defaults.
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxRetries:      3,

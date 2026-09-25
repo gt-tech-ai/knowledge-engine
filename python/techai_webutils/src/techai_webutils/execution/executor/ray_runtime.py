@@ -36,7 +36,7 @@ class RayRuntime(Protocol):
     async def warm_up(self) -> None:
         """Eagerly establish the cluster connection (idempotent).
 
-        Called once at bulk-consumer startup so the first live batch never pays the cold-connect cost;
+        Called once at the caller's startup so the first live batch never pays the cold-connect cost;
         ``submit`` also connects lazily. The cold-connect can be flaky, so the resilience decorator
         (``ResilientRayRuntime``) retries this with backoff — the concrete runtime just connects once.
         """

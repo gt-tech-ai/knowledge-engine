@@ -14,6 +14,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -117,31 +118,29 @@ server:
 }
 
 // TestConfig_StoragePublicEndpointEnvOverride tests that MYAPP_STORAGE_S3_PUBLIC_ENDPOINT
-// binds to storage.s3.public_endpoint.
+// reaches the unmarshaled storage.s3 section when the key is in no YAML file.
 //
 // Why this test is important:
-//   - The presign public-endpoint fix only takes effect if the env var is bound; each
-//     storage.s3.* key needs an explicit BindEnv, and an unbound key silently ignores the
-//     override so browser uploads keep the unreachable in-cluster host. This guards the wiring.
+//   - A presigned URL must use the browser-reachable public endpoint; the value usually
+//     comes only from the environment. Without the schema-derived binding UnmarshalKey
+//     ignores it and uploads keep the unreachable in-cluster host.
 //
 // What it tests:
-//   - MYAPP_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
+//   - With base.yaml setting only storage.s3.bucket, MYAPP_STORAGE_S3_PUBLIC_ENDPOINT
+//     sets S3Config.PublicEndpoint through UnmarshalKey("storage.s3").
 func TestConfig_StoragePublicEndpointEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
 storage:
   s3:
-    public_endpoint: ""
+    bucket: uploads
 `)
 	t.Setenv("MYAPP_STORAGE_S3_PUBLIC_ENDPOINT", "http://localhost:9000")
 
-	cfg := loadWithSchema(t, dir)
-	assert.Equal(
-		t,
-		"http://localhost:9000",
-		cfg.GetString("storage.s3.public_endpoint"),
-		"MYAPP_STORAGE_S3_PUBLIC_ENDPOINT must bind to storage.s3.public_endpoint",
-	)
+	var s3 infra.S3Config
+	require.NoError(t, loadWithSchema(t, dir).UnmarshalKey("storage.s3", &s3))
+	assert.Equal(t, "http://localhost:9000", s3.PublicEndpoint,
+		"MYAPP_STORAGE_S3_PUBLIC_ENDPOINT must bind to storage.s3.public_endpoint")
 }
 
 // TestConfig_MissingBaseConfig tests that the loader does not error when no
@@ -417,8 +416,9 @@ database:
 //     the YAML's region and endpoint in staging/prod.
 //
 // What it tests:
-//   - With base.yaml messaging.sqs.region=us-east-1, MYAPP_MESSAGING_SQS_REGION and the
-//     SQS_ENDPOINT alias override the unmarshalled values.
+//   - With base.yaml setting only messaging.sqs.endpoint, MYAPP_MESSAGING_SQS_REGION (key
+//     absent from the YAML) and the SQS_ENDPOINT alias (overriding the YAML) reach the
+//     unmarshaled section.
 //
 // NOTE: t.Setenv panics under t.Parallel, so this test is intentionally serial.
 func TestConfig_MessagingSQSEnvOverride(t *testing.T) {
@@ -427,7 +427,6 @@ func TestConfig_MessagingSQSEnvOverride(t *testing.T) {
 messaging:
   sqs:
     endpoint: http://localhost:9324
-    region: us-east-1
 `)
 	t.Setenv("MYAPP_MESSAGING_SQS_REGION", "eu-west-1")
 	t.Setenv("SQS_ENDPOINT", "https://sqs.eu-west-1.amazonaws.example")
@@ -436,7 +435,7 @@ messaging:
 
 	var sqsCfg infra.SQSConfig
 	require.NoError(t, cfg.UnmarshalKey("messaging.sqs", &sqsCfg), "UnmarshalKey")
-	assert.Equal(t, "eu-west-1", sqsCfg.Region, "MYAPP_MESSAGING_SQS_REGION must override the YAML")
+	assert.Equal(t, "eu-west-1", sqsCfg.Region, "MYAPP_MESSAGING_SQS_REGION must bind the absent key")
 	assert.Equal(t, "https://sqs.eu-west-1.amazonaws.example", sqsCfg.Endpoint,
 		"SQS_ENDPOINT must override the YAML")
 }
@@ -458,7 +457,7 @@ func TestConfig_UnmarshalKeyWithDuration(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
 server:
-  identity:
+  http:
     host: "0.0.0.0"
     port: 8090
     read_timeout: 30s
@@ -471,17 +470,17 @@ server:
 	require.NoError(t, err, "New")
 
 	var serverCfg struct {
-		Identity struct {
+		HTTP struct {
 			Host         string        `mapstructure:"host"`
 			Port         int           `mapstructure:"port"`
 			ReadTimeout  time.Duration `mapstructure:"read_timeout"`
 			WriteTimeout time.Duration `mapstructure:"write_timeout"`
-		} `mapstructure:"identity"`
+		} `mapstructure:"http"`
 	}
 	require.NoError(t, cfg.UnmarshalKey("server", &serverCfg), "UnmarshalKey")
 
-	assert.Equal(t, 30*time.Second, serverCfg.Identity.ReadTimeout)
-	assert.Equal(t, 60*time.Second, serverCfg.Identity.WriteTimeout)
+	assert.Equal(t, 30*time.Second, serverCfg.HTTP.ReadTimeout)
+	assert.Equal(t, 60*time.Second, serverCfg.HTTP.WriteTimeout)
 }
 
 // TestConfig_LegacyEnvVarOverride tests that legacy env var names (DB_HOST, REDIS_HOST)
@@ -583,24 +582,36 @@ func TestConfigBuilder_ConfigToOptions(t *testing.T) {
 //
 // Why this test is important:
 //   - Functional options are the public API for config customization; each one
-//     must correctly set its target field
+//     must set its target field, and repeated WithExtraEnv calls (one per module)
+//     must accumulate rather than drop earlier bindings
 //
 // What it tests:
-//   - WithBaseDir sets Viper.BaseDir
-//   - WithEnvironment sets Viper.Env
-//   - WithEnvPrefix sets Viper.Prefix
+//   - WithBaseDir, WithEnvironment, WithEnvPrefix and WithSchema set their fields
+//   - Two WithExtraEnv calls merge (a later entry for the same key replaces it), and
+//     the caller's map is not aliased
 func TestConfigBuilder_WithOptions(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	cfg, err := config.New(
-		config.KindViper,
-		config.WithBaseDir(dir),
+	root := &consumerRoot{}
+	first := map[string][]string{"a.key": {"A_KEY"}, "shared": {"OLD"}}
+	cfg := config.DefaultConfig()
+	options.ApplyOptions(&cfg,
+		config.WithBaseDir("/etc/app"),
 		config.WithEnvironment("staging"),
 		config.WithEnvPrefix("MYAPP"),
+		config.WithSchema(root),
+		config.WithExtraEnv(first),
+		config.WithExtraEnv(map[string][]string{"b.key": {"B_KEY"}, "shared": {"NEW"}}),
 	)
-	require.NoError(t, err, "New")
-	require.NotNil(t, cfg, "expected non-nil config loader")
+
+	assert.Equal(t, "/etc/app", cfg.Viper.BaseDir)
+	assert.Equal(t, "staging", cfg.Viper.Env)
+	assert.Equal(t, "MYAPP", cfg.Viper.Prefix)
+	assert.Same(t, root, cfg.Viper.Schema)
+	assert.Equal(t, map[string][]string{
+		"a.key": {"A_KEY"}, "b.key": {"B_KEY"}, "shared": {"NEW"},
+	}, cfg.Viper.ExtraEnv, "WithExtraEnv calls must merge")
+	assert.Equal(t, []string{"OLD"}, first["shared"], "the caller's map must not be modified")
 }
 
 // TestConfig_EnvOverlayMergeError tests that the loader returns an error when
@@ -609,7 +620,6 @@ func TestConfigBuilder_WithOptions(t *testing.T) {
 // Why this test is important:
 //   - A corrupted or syntactically invalid overlay must not silently produce
 //     empty config; it must fail loudly at startup
-//   - Covers the MergeInConfig error branch at loader.go line 83
 //
 // What it tests:
 //   - Load returns a non-nil error mentioning the env config merge failure
@@ -637,7 +647,6 @@ server:
 // Why this test is important:
 //   - A corrupted secrets file must fail startup rather than silently dropping
 //     all secret values
-//   - Covers the MergeInConfig error branch at loader.go line 93
 //
 // What it tests:
 //   - Load returns a non-nil error mentioning the secrets merge failure
@@ -663,7 +672,6 @@ server:
 //     is entirely missing (e.g., config file lacks "redis:" block), the service
 //     must get a clear error rather than a zero-value struct that produces
 //     silent runtime failures.
-//   - Covers the Sub() nil-return branch at loader.go line 182
 //
 // What it tests:
 //   - UnmarshalKey("nonexistent", &target) returns a non-nil error
@@ -700,7 +708,6 @@ server:
 // Why this test is important:
 //   - NewFromConfig is the lower-level factory; it must reject invalid Kind
 //     values to prevent nil-pointer panics from uninitialized backends.
-//   - Covers the default branch at config.go line 78 (NewFromConfig)
 //
 // What it tests:
 //   - NewFromConfig with Kind(99) returns a non-nil error
@@ -721,44 +728,48 @@ func TestConfigBuilder_NewFromConfigUnknownKind(t *testing.T) {
 	)
 }
 
-// TestConfig_EnvSelectorFallsBackToAppEnv tests that the default loader selects the
-// overlay from APP_ENV.
+// TestConfig_DefaultEnvSelectors tests which env vars the default loader reads to pick
+// the overlay: APP_ENV first, then ENVIRONMENT, and nothing else.
 //
 // Why this test is important:
 //   - Deployments declare their environment via APP_ENV / ENVIRONMENT; if the default
-//     loader ignored it, a staging pod would silently run on base.yaml alone —
-//     localhost queues and stubbed auth — with no error.
+//     loader ignored them, a staging pod would silently run on base.yaml alone. If it
+//     read them in the wrong order, a platform setting ENVIRONMENT=production beside
+//     APP_ENV=staging would load the production overlay.
 //
 // What it tests:
-//   - With APP_ENV=staging, the staging overlay wins: messaging.sqs.endpoint is
-//     blanked (real-AWS SQS), not base's localhost URL
+//   - APP_ENV wins over ENVIRONMENT when both are set.
+//   - ENVIRONMENT is the fallback when APP_ENV is empty.
+//   - An unrelated variable (MYAPP_ENV) selects nothing: base.yaml alone.
 //
 // NOTE: t.Setenv panics in parallel tests - must NOT call t.Parallel().
-func TestConfig_EnvSelectorFallsBackToAppEnv(t *testing.T) {
+func TestConfig_DefaultEnvSelectors(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "base.yaml"), `
-messaging:
-  sqs:
-    endpoint: "http://localhost:9324"
-`)
-	writeFile(t, filepath.Join(dir, "staging.yaml"), `
-messaging:
-  sqs:
-    endpoint: ""
-`)
-	// SQS_ENDPOINT unset so the YAML value stands.
-	t.Setenv("ENVIRONMENT", "")
+	writeFile(t, filepath.Join(dir, "base.yaml"), "tier: base\n")
+	writeFile(t, filepath.Join(dir, "staging.yaml"), "tier: staging\n")
+	writeFile(t, filepath.Join(dir, "production.yaml"), "tier: production\n")
+	tier := func() string {
+		cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
+		require.NoError(t, err, "New")
+		return cfg.GetString("tier")
+	}
+
+	t.Setenv("MYAPP_ENV", "")
 	t.Setenv("APP_ENV", "staging")
+	t.Setenv("ENVIRONMENT", "production")
+	assert.Equal(t, "staging", tier(), "APP_ENV must win over ENVIRONMENT")
 
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir))
+	t.Setenv("APP_ENV", "")
+	assert.Equal(t, "production", tier(), "ENVIRONMENT is the fallback")
+
+	t.Setenv("ENVIRONMENT", "")
+	t.Setenv("MYAPP_ENV", "staging")
+	assert.Equal(t, "base", tier(), "a variable outside the default selectors must not select an overlay")
+
+	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir),
+		config.WithEnvSelectors("MYAPP_ENV", "APP_ENV"))
 	require.NoError(t, err, "New")
-
-	assert.Equal(
-		t,
-		"",
-		cfg.GetString("messaging.sqs.endpoint"),
-		"APP_ENV=staging must select staging.yaml (endpoint blanked for real AWS)",
-	)
+	assert.Equal(t, "staging", cfg.GetString("tier"), "WithEnvSelectors must pick the consumer's selector")
 }
 
 // TestConfig_OverlayDeepMergesQueuesMap tests that an env overlay overriding a
@@ -811,38 +822,6 @@ messaging:
 	)
 }
 
-// writeFile is a test helper that writes content to path, failing the test on
-// error.
-// TestConfig_CustomPrefixOwnsDerivedEnvBindings tests that a caller's env prefix, not a
-// built-in one, names the env vars derived from the schema.
-//
-// Why this test is important:
-//   - A consumer that sets its own prefix must control which env vars override its config;
-//     an env var under someone else's prefix silently changing a value is a config leak.
-//
-// What it tests:
-//   - With prefix MYAPP, MYAPP_STORAGE_S3_PUBLIC_ENDPOINT overrides storage.s3.public_endpoint.
-//   - With prefix MYAPP, OTHERAPP_STORAGE_S3_BUCKET does NOT override storage.s3.bucket.
-func TestConfig_CustomPrefixOwnsDerivedEnvBindings(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "base.yaml"), `
-storage:
-  s3:
-    public_endpoint: from-yaml
-    bucket: from-yaml
-`)
-	t.Setenv("MYAPP_STORAGE_S3_PUBLIC_ENDPOINT", "from-myapp-env")
-	t.Setenv("OTHERAPP_STORAGE_S3_BUCKET", "from-other-env")
-
-	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir), config.WithEnvPrefix("MYAPP"))
-	require.NoError(t, err, "New")
-
-	assert.Equal(t, "from-myapp-env", cfg.GetString("storage.s3.public_endpoint"),
-		"the caller's prefix must name the derived env var")
-	assert.Equal(t, "from-yaml", cfg.GetString("storage.s3.bucket"),
-		"an env var under a different prefix must not bind")
-}
-
 // consumerRoot is a consumer-owned config root, standing in for an application's own schema.
 type consumerRoot struct {
 	Widget struct {
@@ -860,17 +839,11 @@ type consumerRoot struct {
 //
 // What it tests:
 //   - With WithSchema, the consumer's envalias (WIDGET_SIZE) binds and unmarshals.
-//   - With WithSchema, the default schema's aliases (S3_BUCKET) no longer bind.
 //   - WithExtraEnv binds a non-struct key (feature.flag) to FEATURE_FLAG.
 func TestConfig_ConsumerSchemaAndExtraEnv(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "base.yaml"), `
-storage:
-  s3:
-    bucket: from-yaml
-`)
+	writeFile(t, filepath.Join(dir, "base.yaml"), "feature:\n  other: x\n")
 	t.Setenv("WIDGET_SIZE", "7")
-	t.Setenv("S3_BUCKET", "from-alias")
 	t.Setenv("FEATURE_FLAG", "on")
 
 	cfg, err := config.New(
@@ -885,8 +858,6 @@ storage:
 	var root consumerRoot
 	require.NoError(t, cfg.Unmarshal(&root), "Unmarshal")
 	assert.Equal(t, 7, root.Widget.Size, "the consumer schema's envalias must bind")
-	assert.Equal(t, "from-yaml", cfg.GetString("storage.s3.bucket"),
-		"the default schema's aliases must not bind when a consumer schema is given")
 	assert.Equal(t, "on", cfg.GetString("feature.flag"), "ExtraEnv must bind the key")
 }
 
@@ -898,9 +869,15 @@ storage:
 //     variable names a deployment uses to declare its environment.
 //
 // What it tests:
-//   - The first non-empty selector wins, trimmed and lowercased.
+//   - The first non-empty selector wins, trimmed and lowercased, even when a later
+//     selector is also set.
 //   - No selector set resolves to "" (base config only).
 func TestConfig_ResolveEnvFrom(t *testing.T) {
+	t.Setenv("MYAPP_ENV", "Prod")
+	t.Setenv("APP_ENV", "dev")
+	assert.Equal(t, "prod", viperloader.ResolveEnvFrom("MYAPP_ENV", "APP_ENV"),
+		"the first set selector must win")
+
 	t.Setenv("MYAPP_ENV", "")
 	t.Setenv("APP_ENV", " Staging ")
 	assert.Equal(t, "staging", viperloader.ResolveEnvFrom("MYAPP_ENV", "APP_ENV"))
@@ -909,6 +886,8 @@ func TestConfig_ResolveEnvFrom(t *testing.T) {
 	assert.Empty(t, viperloader.ResolveEnvFrom("MYAPP_ENV", "APP_ENV"))
 }
 
+// writeFile is a test helper that writes content to path, failing the test on
+// error.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	err := os.WriteFile(path, []byte(content), 0o644)

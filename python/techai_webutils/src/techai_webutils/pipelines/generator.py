@@ -36,10 +36,10 @@ class ResponseGenerator(AnswerGenerator):
     """Generates a cited answer from a query + retrieved passages via an LLM + an injected prompt."""
 
     def __init__(self, llm: LLMProvider, prompt: GenerationPrompt, config: LLMConfig | None = None) -> None:
-        """Bind the LLM provider, the (product-specific) generation prompt, and the per-call decoding config.
+        """Bind the LLM provider, the consumer-supplied generation prompt, and the per-call decoding config.
 
-        ``config`` carries the max_tokens/temperature/top_p the composition root resolves from
-        ``retrieval.llm.*``; ``None`` lets the provider apply its conservative defaults.
+        ``config`` carries the max_tokens/temperature/top_p the composition root resolves from the
+        consumer's config; ``None`` lets the provider apply its conservative defaults.
         """
         self._llm = llm
         self._prompt = prompt
@@ -51,7 +51,7 @@ class ResponseGenerator(AnswerGenerator):
         passages: list[RetrievalResult],
         history: Sequence[HistoryTurn] | None = None,
     ) -> AsyncIterator[str]:
-        """Stream the generated answer token-by-token (history passed to the prompt as non-citable context)."""
+        """Stream the generated answer token-by-token (history reaches the prompt as non-citable context)."""
         iterator = await self._llm.stream(self._prompt.messages(query, passages, history or ()), self._config)
         async for delta in iterator:
             yield delta

@@ -2,6 +2,7 @@ package interceptors
 
 import (
 	"context"
+	"slices"
 
 	"connectrpc.com/connect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -11,7 +12,13 @@ import (
 )
 
 // TenantExtractor returns the request's resolved tenant id, or false when none is
-// resolved (a public or unauthenticated request).
+// resolved (a public or unauthenticated request). The nil UUID also counts as no
+// tenant.
+//
+// Read the tenant from the resolved principal (PrincipalFrom) and register the
+// tenant-scope interceptor after the principal interceptor: the principal interceptor
+// clears the raw AuthClaims, so an extractor reading GetAuthClaims after it never sees
+// a tenant.
 type TenantExtractor func(ctx context.Context) (uuid.UUID, bool)
 
 // TenantStamper returns ctx scoped to tenant for one persistence mechanism — e.g.
@@ -28,7 +35,11 @@ func StampTenantContext(ctx context.Context, tenant uuid.UUID) context.Context {
 // (GUC) name to the tenant id through Ent's sql.WithVar: Ent emits SET before each
 // statement, which drives a Row-Level Security policy reading
 // current_setting(name, true) (leak-safe on reads: Ent RESETs the pooled conn).
+// It panics if name is empty.
 func SessionVarStamper(name string) TenantStamper {
+	if name == "" {
+		panic("interceptors: SessionVarStamper requires a session variable name")
+	}
 	return func(ctx context.Context, tenant uuid.UUID) context.Context {
 		return entsql.WithVar(ctx, name, tenant.String())
 	}
@@ -46,13 +57,29 @@ type tenantScopeInterceptor struct {
 // NewTenantScopeInterceptor returns an interceptor that stamps the tenant resolved
 // by extract onto each request with every stamper. It must run after whatever
 // resolves the tenant (typically the principal interceptor). A request with no
-// resolved tenant passes through unstamped, so tenant-scoped data access downstream
-// fails closed while non-tenant access is unaffected.
+// resolved tenant (or the nil UUID) passes through unstamped, so tenant-scoped data
+// access downstream fails closed while non-tenant access is unaffected; the
+// interceptor itself neither rejects nor logs it.
+//
+// It panics if extract is nil, no stamper is given or a stamper is nil, so a wiring
+// mistake fails at startup instead of leaving every request unscoped. The stampers are
+// copied, so the caller may reuse its slice.
 func NewTenantScopeInterceptor(
 	extract TenantExtractor,
 	stampers ...TenantStamper,
 ) connect.Interceptor {
-	return tenantScopeInterceptor{extract: extract, stampers: stampers}
+	if extract == nil {
+		panic("interceptors: NewTenantScopeInterceptor requires a non-nil extractor")
+	}
+	if len(stampers) == 0 {
+		panic("interceptors: NewTenantScopeInterceptor requires at least one stamper")
+	}
+	for _, s := range stampers {
+		if s == nil {
+			panic("interceptors: NewTenantScopeInterceptor requires non-nil stampers")
+		}
+	}
+	return tenantScopeInterceptor{extract: extract, stampers: slices.Clone(stampers)}
 }
 
 // WrapUnary stamps the tenant on the unary request context.
@@ -80,10 +107,10 @@ func (i tenantScopeInterceptor) WrapStreamingHandler(
 }
 
 // stamp applies every stamper for the extracted tenant, or returns ctx unchanged
-// when none is resolved.
+// when none is resolved or the tenant is the nil UUID.
 func (i tenantScopeInterceptor) stamp(ctx context.Context) context.Context {
 	tenant, ok := i.extract(ctx)
-	if !ok {
+	if !ok || tenant == uuid.Nil {
 		return ctx
 	}
 	for _, s := range i.stampers {

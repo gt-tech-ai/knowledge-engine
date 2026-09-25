@@ -248,7 +248,9 @@ func RunStream[T any](
 // client_operations_total / client_errors_total count attempts (not logical ops), and
 // each failed attempt is logged at Debug — this is an INNER seam, so its failure log is
 // suppressed in staging/prod (level=info); only the outermost recovery/transport seam
-// logs Error there (ARCHITECTURE.md#decorator-order; the same rule holds for every stack).
+// logs Error there (ARCHITECTURE.md#decorators: the rule covers the client, repository,
+// service, pipeline and workflow stacks; the lock and replay-buffer loggers still log
+// at Error).
 func (s *Stack) record(
 	ctx context.Context,
 	op string,

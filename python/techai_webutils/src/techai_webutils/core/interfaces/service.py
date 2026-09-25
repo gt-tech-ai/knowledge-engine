@@ -14,8 +14,7 @@ class BaseService(ABC):
     """Base class for service implementations.
 
     Provides standard lifecycle hooks and health check interface.
-    All Python service entry points (ingestion, retrieval, notification)
-    should inherit from this class.
+    A consumer's Python service entry points should inherit from this class.
     """
 
     def __init__(self, name: str) -> None:

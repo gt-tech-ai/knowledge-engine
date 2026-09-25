@@ -18,9 +18,6 @@ class Workflow[In, Out](ABC):
 
     Examples: Cache-aside pattern (check cache → compute → store), order fulfillment
     (verify → charge → ship → notify).
-
-    Phase 1: Single-execution orchestration with error handling.
-    Phase 2+: Long-running workflows, saga patterns, state machines.
     """
 
     @abstractmethod

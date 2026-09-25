@@ -9,9 +9,9 @@ class TestS3ConfigClientKwargs:
     """S3Config.client_kwargs normalizes empty endpoint/creds to None.
 
     Why this test is important:
-      - The ingestion worker downloads documents through the S3 client. base.yaml defaults
-        the endpoint to ``http://localhost:9000`` + ``minioadmin`` creds (dev MinIO);
-        staging/prod blank them so the client uses the regional AWS endpoint + IRSA. Passing
+      - A service downloads objects through the S3 client. A local config defaults the
+        endpoint to ``http://localhost:9000`` + ``minioadmin`` creds (dev MinIO); cloud
+        environments blank them so the client uses the regional AWS endpoint + IRSA. Passing
         empty creds straight through would try to authenticate with ``""`` against real AWS.
         The empty -> None collapse is what routes a blanked config to the default (IRSA)
         credential chain. Mirrors SQSConfig.client_kwargs.

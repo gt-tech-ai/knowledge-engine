@@ -19,7 +19,7 @@ import (
 // token to the calling service's identity and rejects unknown/empty tokens.
 //
 // Why this test is important:
-//   - The per-caller map (Phase 1) is what gives the internal surface an audited
+//   - The per-caller map is what gives the internal surface an audited
 //     caller identity + least-privilege — a validator that returned only a bool would
 //     lose the "which service called" signal the design exists to provide
 //   - An empty or unknown token must never resolve to a caller (fail-closed)
@@ -29,17 +29,17 @@ import (
 func TestStaticTokenValidator_PerCaller(t *testing.T) {
 	t.Parallel()
 	v := interceptors.NewStaticTokenValidator(map[string]string{
-		"ingestion": "tok-ingestion",
-		"api":       "tok-api",
+		"reports": "tok-reports",
+		"orders":  "tok-orders",
 	})
 
-	caller, ok := v.Validate("tok-ingestion")
+	caller, ok := v.Validate("tok-reports")
 	assert.True(t, ok)
-	assert.Equal(t, "ingestion", caller)
+	assert.Equal(t, "reports", caller)
 
-	caller, ok = v.Validate("tok-api")
+	caller, ok = v.Validate("tok-orders")
 	assert.True(t, ok)
-	assert.Equal(t, "api", caller)
+	assert.Equal(t, "orders", caller)
 
 	_, ok = v.Validate("tok-wrong")
 	assert.False(t, ok, "an unknown token must not resolve to any caller")
@@ -62,16 +62,16 @@ func TestStaticTokenValidator_PerCaller(t *testing.T) {
 func TestStaticTokenValidator_DualTokenWindow(t *testing.T) {
 	t.Parallel()
 	v := interceptors.NewStaticTokenValidator(map[string]string{
-		"ingestion": "tok-new, tok-old",
+		"reports": "tok-new, tok-old",
 	})
 
 	caller, ok := v.Validate("tok-new")
 	require.True(t, ok)
-	assert.Equal(t, "ingestion", caller)
+	assert.Equal(t, "reports", caller)
 
 	caller, ok = v.Validate("tok-old")
 	require.True(t, ok, "the previous token must still be accepted during rotation")
-	assert.Equal(t, "ingestion", caller)
+	assert.Equal(t, "reports", caller)
 
 	_, ok = v.Validate("tok-unrelated")
 	assert.False(t, ok)
@@ -93,33 +93,29 @@ func TestStaticTokenValidator_EmptyMapRejectsAll(t *testing.T) {
 	_, ok := empty.Validate("anything")
 	assert.False(t, ok)
 
-	blank := interceptors.NewStaticTokenValidator(map[string]string{"ingestion": "  , "})
+	blank := interceptors.NewStaticTokenValidator(map[string]string{"reports": "  , "})
 	_, ok = blank.Validate("anything")
 	assert.False(t, ok, "a caller with only blank tokens must be dropped")
 }
 
 // Compile-time assertion that StaticTokenValidator implements the core
-// interfaces.ServiceTokenValidator Strategy seam (Phase 2 swaps the impl behind it).
+// interfaces.ServiceTokenValidator Strategy seam (another validator can replace it).
 var _ interfaces.ServiceTokenValidator = interceptors.NewStaticTokenValidator(nil)
 
 // TestServerBuilder_WithServiceAuth tests that the server builder wires the
 // service-to-service auth interceptor into the assembled internal chain.
 //
 // Why this test is important:
-//   - WithServiceAuth is how the internal (non-gateway) mounts opt into caller authentication
-//
-// if Build dropped it the internal surface would stay unauthenticated (the
-//
-//	F1/F2 gap). Its placement (after logging, before the end-user auth interceptor) is
-//	enforced by Build()'s source and proven behaviorally by the interceptor tests above
-//	plus the internal-server integration test — the connect chain is opaque to a
-//	structural order assertion, so order is a behavioral guarantee, not a unit assertion.
+//   - WithServiceAuth is how the internal (non-gateway) mounts opt into caller
+//     authentication; if Build dropped it the internal surface would stay
+//     unauthenticated. Its placement (after logging, before the end-user auth
+//     interceptor) is fixed by Build; the interceptor tests below prove its behaviour.
 //
 // What it tests:
 //   - a bare builder adds no options; adding WithServiceAuth alone makes Build non-empty
 func TestServerBuilder_WithServiceAuth(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"api": "tok-api"})
+	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
 	assert.Empty(t, interceptors.NewServerBuilder().Build(),
 		"no interceptors configured → no options")
 	assert.NotEmpty(t,
@@ -145,7 +141,7 @@ func bearerReq(token string) connect.AnyRequest {
 // caller identity on the context; a missing or wrong token is rejected fail-closed.
 //
 // Why this test is important:
-//   - This is the F1/F2 fix: without server-side validation any network-reachable actor
+//   - Without server-side validation any network-reachable actor
 //     drives the internal RPCs; the interceptor must reject an unauthenticated caller
 //     BEFORE the handler runs, and expose WHICH service called for audit/authz
 //
@@ -154,7 +150,7 @@ func bearerReq(token string) connect.AnyRequest {
 //     CodeUnauthenticated and the handler never runs
 func TestServiceAuthInterceptor_Unary(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"api": "tok-api"})
+	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
 	interceptor := interceptors.NewServiceAuthInterceptor(
 		validator,
 		false,
@@ -175,13 +171,13 @@ func TestServiceAuthInterceptor_Unary(t *testing.T) {
 			next,
 		)(
 			context.Background(),
-			bearerReq("tok-api"),
+			bearerReq("tok-orders"),
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.True(t, ran, "handler must run for an authenticated caller")
 		assert.True(t, gotOK)
-		assert.Equal(t, "api", gotCaller)
+		assert.Equal(t, "orders", gotCaller)
 	})
 
 	for _, tc := range []struct {
@@ -225,7 +221,7 @@ func TestServiceAuthInterceptor_Unary(t *testing.T) {
 //   - audit=true + no token → handler runs (admitted), no error
 func TestServiceAuthInterceptor_StubAndAudit(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"api": "tok-api"})
+	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
 
 	t.Run("stub bypass admits with synthetic caller", func(t *testing.T) {
 		t.Parallel()
@@ -270,7 +266,7 @@ func TestServiceAuthInterceptor_StubAndAudit(t *testing.T) {
 
 // TestServiceAuthInterceptor_Streaming tests that the interceptor also guards
 // server-streaming RPCs (Connect applies a unary interceptor only to unary calls, so a
-// unary-only guard would leave streams unauthenticated — the F6 class of gap).
+// unary-only guard would leave streams unauthenticated).
 //
 // Why this test is important:
 //   - The internal surface includes streaming RPCs; a missing bearer token must reject a
@@ -281,7 +277,7 @@ func TestServiceAuthInterceptor_StubAndAudit(t *testing.T) {
 //     a valid token admits the stream with the caller on the context
 func TestServiceAuthInterceptor_Streaming(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"api": "tok-api"})
+	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
 	interceptor := interceptors.NewServiceAuthInterceptor(
 		validator,
 		false,
@@ -298,7 +294,7 @@ func TestServiceAuthInterceptor_Streaming(t *testing.T) {
 		conn.EXPECT().RequestHeader().Return(header).AnyTimes()
 		conn.EXPECT().
 			Spec().
-			Return(connect.Spec{Procedure: "/internalapi.v1.IdentityService/Resolve"}).
+			Return(connect.Spec{Procedure: "/test.v1.Probe/Do"}).
 			AnyTimes()
 		return conn
 	}
@@ -327,9 +323,9 @@ func TestServiceAuthInterceptor_Streaming(t *testing.T) {
 			next,
 		)(
 			context.Background(),
-			newConn("tok-api"),
+			newConn("tok-orders"),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, "api", caller)
+		assert.Equal(t, "orders", caller)
 	})
 }

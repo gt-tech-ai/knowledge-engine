@@ -62,5 +62,5 @@ class LangdetectMetadataExtractor:
     """The ``langdetect`` ``MetadataExtractor`` backend — format/counts + langdetect language detection."""
 
     def extract(self, parsed: ParsedDocument, *, extracted_at: str) -> DocumentMetadata:
-        """Return the metadata for ``parsed``, stamping ``extracted_at`` (delegates to ``extract_metadata``)."""
+        """Return the metadata for ``parsed`` with ``extracted_at`` stamped (via ``extract_metadata``)."""
         return extract_metadata(parsed, extracted_at=extracted_at)

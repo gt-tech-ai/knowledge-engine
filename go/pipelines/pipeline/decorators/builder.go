@@ -2,9 +2,9 @@
 // Decorators add cross-cutting concerns (logging, metrics) around any
 // interfaces.Pipeline implementation without modifying it. The decorator
 // implementations live once in go/foundation/decorator; this package keeps
-// only the pipeline-tier fluent builder — its wrap order (ARCHITECTURE.md#decorator-order),
-// its "pipeline"
-// labels, and its coded-error recovery contract.
+// only the pipeline-tier fluent builder — its wrap order
+// (ARCHITECTURE.md#decorator-order), its "pipeline" labels, and its coded-error
+// recovery contract.
 package decorators
 
 import (

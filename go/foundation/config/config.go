@@ -71,13 +71,7 @@ func New(kind Kind, opts ...options.Option[Config]) (interfaces.ConfigLoader, er
 func NewFromConfig(cfg Config) (interfaces.ConfigLoader, error) {
 	switch cfg.Kind {
 	case KindViper:
-		loader := viperloader.New(viperloader.Config{
-			BaseDir:  cfg.Viper.BaseDir,
-			Env:      cfg.Viper.Env,
-			Prefix:   cfg.Viper.Prefix,
-			Schema:   cfg.Viper.Schema,
-			ExtraEnv: cfg.Viper.ExtraEnv,
-		})
+		loader := viperloader.New(cfg.Viper)
 		if err := loader.Load(); err != nil {
 			return nil, err
 		}

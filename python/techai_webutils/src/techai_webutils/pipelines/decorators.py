@@ -294,7 +294,7 @@ class AsyncPipelineBuilder[In, Out]:
         return self
 
     def build(self) -> AsyncPipeline[In, Out]:
-        """Build the decorated async pipeline (base -> timeout -> metrics -> tracing -> logging -> recovery)."""
+        """Build the decorated async pipeline (base → timeout → metrics → tracing → logging → recovery)."""
         p: AsyncPipeline[In, Out] = self._base
 
         if self._timeout is not None:

@@ -2,7 +2,7 @@
 
 These are the shared, dependency-free contracts a ``DocumentParser`` backend produces
 (``techai_webutils.core.interfaces.parser``). They live in this shared library — not an app — so any
-deployable (an ingestion worker, a stand-alone parse service) programs against
+deployable (a document-processing service, a stand-alone parse service) programs against
 the same DTO, exactly like Go's ``go/core`` types. Frozen ``slots`` dataclasses of scalars/lists
 so a boundary DTO is "a queue message waiting to happen" (extraction-ready).
 """
