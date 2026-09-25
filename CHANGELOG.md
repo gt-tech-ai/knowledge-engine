@@ -194,9 +194,10 @@ Python:
   seams `policies`, `filter_builder`, `document_id_resolver`, `store_filter_keys` and
   `stub_passages`; `StubRetrievalEngine(passages)`; `VectorRetrievalEngine(..., filter_keys=...)`;
   `wrap_retrieval_engine(inner, config, policies=...)`, which gives a consumer's own engine the
-  factory's filtering (score floor, then the policies). `clients.retrieval` and `clients.retrieval.bedrock` export their public API (including
-  `FilterBuilder`, `DocumentIdResolver`, `metadata_document_id` and `SOURCE_URI_KEY`) without
-  importing the AWS or Qdrant SDKs.
+  factory's filtering (score floor, then the policies). `clients.retrieval` and
+  `clients.retrieval.bedrock` export their public API (including `FilterBuilder`,
+  `DocumentIdResolver`, `metadata_document_id` and `SOURCE_URI_KEY`) without importing the AWS or
+  Qdrant SDKs.
 - Python citations: `Citation.attributes` and `PassageCitationExtractor(attribute_keys=...)`.
 - Python gRPC: `HeaderClaimMapping` (header names trimmed and lowercased, a blank name raises
   `ValueError`; exported from `clients.rpc.grpc.interceptors`) and `AuthServerInterceptor(headers)`.
