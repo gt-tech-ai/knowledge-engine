@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -27,14 +28,42 @@ type CmdResult = interfaces.CmdResult
 // Compile-time interface compliance check.
 var _ interfaces.CommandRunner = (*Runner)(nil)
 
-// Runner implements CommandRunner using real command execution with inherited
-// stdout/stderr so terminal output flows directly to the user.
-type Runner struct{}
+// Runner implements CommandRunner using real command execution. Run and RunWithEnv
+// stream the child's stdout/stderr to the configured writers (WithOutput) — by
+// default the process's os.Stdout/os.Stderr as they are at Run time, so terminal
+// output flows directly to the user.
+type Runner struct {
+	// stdout receives a streamed child's stdout; nil means os.Stdout at Run time.
+	stdout io.Writer
 
-// NewRunner creates a Runner for real command execution.
-func NewRunner() *Runner { return &Runner{} }
+	// stderr receives a streamed child's stderr; nil means os.Stderr at Run time.
+	stderr io.Writer
+}
 
-// Run executes a command with inherited stdout/stderr.
+// RunnerOption configures a Runner at construction.
+type RunnerOption func(*Runner)
+
+// WithOutput streams a child's stdout to stdout and its stderr to stderr instead of
+// the process's own stdio — for a caller that owns the process stdout (a stdio
+// protocol server) or captures output. A nil writer keeps that stream's default.
+// The buffered calls (RunBuffered*) capture into their result and are unaffected.
+func WithOutput(stdout, stderr io.Writer) RunnerOption {
+	return func(r *Runner) {
+		r.stdout = stdout
+		r.stderr = stderr
+	}
+}
+
+// NewRunner creates a Runner for real command execution, configured by opts.
+func NewRunner(opts ...RunnerOption) *Runner {
+	r := &Runner{}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
+}
+
+// Run executes a command, streaming its stdout/stderr to the runner's writers.
 func (d *Runner) Run(ctx context.Context, dir, name string, args ...string) error {
 	return d.runWithEnv(ctx, dir, nil, name, args...)
 }
@@ -135,6 +164,24 @@ func (d *Runner) RequireTool(name, installHint string) error {
 	return apperr.NotFound(msg)
 }
 
+// stdoutWriter returns the configured stdout, or os.Stdout resolved now — lazily, so
+// a runner built before os.Stdout is reassigned follows the reassignment.
+func (d *Runner) stdoutWriter() io.Writer {
+	if d.stdout != nil {
+		return d.stdout
+	}
+	return os.Stdout
+}
+
+// stderrWriter returns the configured stderr, or os.Stderr resolved now (see
+// stdoutWriter).
+func (d *Runner) stderrWriter() io.Writer {
+	if d.stderr != nil {
+		return d.stderr
+	}
+	return os.Stderr
+}
+
 // runWithEnv is the shared implementation for Run and RunWithEnv.
 func (d *Runner) runWithEnv(
 	ctx context.Context,
@@ -149,8 +196,8 @@ func (d *Runner) runWithEnv(
 		args...,
 	) //nolint:gosec // caller-controlled args
 	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = d.stdoutWriter()
+	cmd.Stderr = d.stderrWriter()
 	cmd.Env = append(os.Environ(), extraEnv...)
 	configureProcessGroup(cmd)
 

@@ -1,9 +1,14 @@
 package unit_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,4 +188,89 @@ func TestBufferingRunner(t *testing.T) {
 		t,
 		replayEnv.RunWithEnv(context.Background(), "", []string{"A=b"}, "x"),
 	)
+}
+
+// captureProcessStdio swaps os.Stdout and os.Stderr for pipes until the returned
+// function is called, which restores them and returns what each pipe received. The
+// originals are also restored in t.Cleanup, so a failing assertion never leaks the swap.
+// Callers must not be parallel: the process stdio is global.
+func captureProcessStdio(t *testing.T) func() (stdout, stderr string) {
+	t.Helper()
+	oldOut, oldErr := os.Stdout, os.Stderr
+	outR, outW, err := os.Pipe()
+	require.NoError(t, err)
+	errR, errW, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout, os.Stderr = outW, errW
+	restore := func() { os.Stdout, os.Stderr = oldOut, oldErr }
+	t.Cleanup(restore)
+	return func() (string, string) {
+		restore()
+		require.NoError(t, outW.Close())
+		require.NoError(t, errW.Close())
+		gotOut, err := io.ReadAll(outR)
+		require.NoError(t, err)
+		gotErr, err := io.ReadAll(errR)
+		require.NoError(t, err)
+		return string(gotOut), string(gotErr)
+	}
+}
+
+// TestRunner_WritesChildOutputToInjectedWriters tests that a Runner built with
+// WithOutput streams a child's stdout and stderr to the injected writers.
+//
+// Why this test is important:
+//   - A front-end that owns the process stdout (a stdio protocol server) cannot let a
+//     child process write there; injecting the writers is how it runs tools safely.
+//   - The builder decorators sit between callers and the runner, so the writers must
+//     survive the full decorator chain.
+//
+// What it tests:
+//   - A child's stdout lands in the injected stdout writer and its stderr in the
+//     injected stderr writer, directly and through NewBuilder(...).Build() with every
+//     decorator, and nothing reaches the process's own stdout or stderr.
+func TestRunner_WritesChildOutputToInjectedWriters(t *testing.T) {
+	// Not parallel: swaps the process stdio.
+	ctx := context.Background()
+	var out, errOut bytes.Buffer
+	r := system.NewRunner(system.WithOutput(&out, &errOut))
+	decorated := system.NewBuilder(r).
+		WithLogging(func(string, ...any) {}).
+		WithTimeout(time.Minute).
+		WithDryRun(false).
+		Build()
+	stop := captureProcessStdio(t)
+
+	require.NoError(t, r.Run(ctx, "", "go", "env", "GOVERSION"))
+	direct := out.String()
+	require.Error(t, r.Run(ctx, "", "go", "definitely-not-a-subcommand"))
+	require.NoError(t, decorated.Run(ctx, "", "go", "env", "GOVERSION"))
+	procOut, procErr := stop()
+
+	assert.Contains(t, direct, "go1.")
+	assert.Equal(t, 2, strings.Count(out.String(), "go1."), "decorated run reaches the injected stdout")
+	assert.NotEmpty(t, errOut.String())
+	assert.Empty(t, procOut)
+	assert.Empty(t, procErr)
+}
+
+// TestRunner_DefaultsToProcessStdio tests that a Runner built without options
+// streams a child's output to the process's stdout, as it always has.
+//
+// Why this test is important:
+//   - Every existing caller relies on tool output reaching the terminal; the writer
+//     option must not change behavior for callers that don't pass it.
+//
+// What it tests:
+//   - NewRunner() streams a child's stdout to os.Stdout as it is at Run time — so a
+//     runner built before os.Stdout is reassigned still follows it.
+func TestRunner_DefaultsToProcessStdio(t *testing.T) {
+	// Not parallel: swaps the process stdio.
+	r := system.NewRunner()
+	stop := captureProcessStdio(t)
+
+	require.NoError(t, r.Run(context.Background(), "", "go", "env", "GOVERSION"))
+	procOut, _ := stop()
+
+	assert.Contains(t, procOut, "go1.")
 }

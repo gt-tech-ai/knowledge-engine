@@ -4,6 +4,15 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/). Go and Python (`techai-webutils`) ship together from one tag.
 
+## [Unreleased]
+
+### Added
+
+- Go: `system.WithOutput(stdout, stderr)` (a `system.RunnerOption` for `system.NewRunner`) streams a
+  child's output to injected writers instead of the process stdio, for callers that own the process
+  stdout. Without it the runner keeps writing to `os.Stdout` / `os.Stderr`, resolved at run time.
+  `BufferingRunner`'s terminal replay still writes to the process stdio.
+
 ## [0.2.0] - 2026-09-25
 
 0.2.0 makes the library product-agnostic: everything one consumer's product needed (its event
