@@ -26,6 +26,9 @@ are pure domain objects.
 Run with: pytest tests/python/core/test_errors.py
 """
 
+import re
+from pathlib import Path
+
 from techai_webutils.core.errors.errors import (
     AppError,
     ConflictError,
@@ -79,6 +82,11 @@ class TestAppError:
           - INTERNAL maps to gRPC 13
           - TIMEOUT maps to gRPC 4
           - UNAVAILABLE maps to gRPC 14
+          - UNKNOWN maps to gRPC 2 (the default)
+          - CANCELED maps to gRPC 1
+          - INGESTION_ERROR maps to gRPC 13 (Go Sanitize default)
+          - QUALITY_FAILED maps to gRPC 13 (Go Sanitize default)
+          - UPSTREAM maps to gRPC 14
         """
         mapping = {
             ErrorCode.NOT_FOUND: 5,
@@ -89,6 +97,11 @@ class TestAppError:
             ErrorCode.INTERNAL: 13,
             ErrorCode.TIMEOUT: 4,
             ErrorCode.UNAVAILABLE: 14,
+            ErrorCode.UNKNOWN: 2,
+            ErrorCode.CANCELED: 1,
+            ErrorCode.INGESTION_ERROR: 13,
+            ErrorCode.QUALITY_FAILED: 13,
+            ErrorCode.UPSTREAM: 14,
         }
         for code, expected_grpc in mapping.items():
             err = AppError(code, "test")
@@ -113,6 +126,8 @@ class TestAppError:
           - INTERNAL maps to HTTP 500
           - TIMEOUT maps to HTTP 504
           - UNAVAILABLE maps to HTTP 503
+          - UPSTREAM maps to HTTP 502
+          - UNKNOWN, CANCELED, INGESTION_ERROR, QUALITY_FAILED map to HTTP 500 (the default)
         """
         mapping = {
             ErrorCode.NOT_FOUND: 404,
@@ -123,6 +138,11 @@ class TestAppError:
             ErrorCode.INTERNAL: 500,
             ErrorCode.TIMEOUT: 504,
             ErrorCode.UNAVAILABLE: 503,
+            ErrorCode.UPSTREAM: 502,
+            ErrorCode.UNKNOWN: 500,
+            ErrorCode.CANCELED: 500,
+            ErrorCode.INGESTION_ERROR: 500,
+            ErrorCode.QUALITY_FAILED: 500,
         }
         for code, expected_http in mapping.items():
             err = AppError(code, "test")
@@ -327,20 +347,22 @@ class TestConvenienceErrors:
         assert err.code == ErrorCode.UNAVAILABLE
 
     def test_ingestion_error(self):
-        """Test that IngestionError uses INTERNAL code and includes document context.
+        """Test that IngestionError uses INGESTION_ERROR code and includes document context.
 
         **Why this test is important:**
           - Ingestion errors must carry document_id and stage for pipeline debugging
           - Failed documents need to be identified for retry or dead-letter processing
           - Stage information enables pinpointing which pipeline step failed
+          - The dedicated INGESTION_ERROR code (matching Go's CodeIngestion) keeps pipeline
+            failures distinguishable from generic internal errors across the wire
 
         **What it tests:**
-          - err.code is ErrorCode.INTERNAL
+          - err.code is ErrorCode.INGESTION_ERROR
           - err.details contains document_id
           - err.details contains stage
         """
         err = IngestionError("parse failed", document_id="doc-1", stage="parsing")
-        assert err.code == ErrorCode.INTERNAL
+        assert err.code == ErrorCode.INGESTION_ERROR
         assert err.details["document_id"] == "doc-1"
         assert err.details["stage"] == "parsing"
 
@@ -374,3 +396,26 @@ class TestErrorCodeValues:
         assert ErrorCode.INTERNAL.value == "INTERNAL"
         assert ErrorCode.TIMEOUT.value == "TIMEOUT"
         assert ErrorCode.UNAVAILABLE.value == "UNAVAILABLE"
+
+
+class TestGoParity:
+    """Test suite pinning the Python ErrorCode set to the Go source of truth."""
+
+    def test_error_code_set_matches_go(self):
+        """Test that the Python ErrorCode value set equals the Go ErrorCode constant set.
+
+        **Why this test is important:**
+          - Error codes are serialized over the wire between Python and Go services; a code
+            defined on only one side causes silent routing/parsing failures across the boundary.
+          - Parsing the Go source directly pins Python to the single source of truth, so adding a
+            Go code without its Python counterpart (or vice versa) fails CI instead of drifting.
+
+        **What it tests:**
+          - The set of string values declared in ``go/core/errors/errors.go`` equals
+            ``{c.value for c in ErrorCode}``.
+        """
+        go_errors = Path(__file__).resolve().parents[4] / "go" / "core" / "errors" / "errors.go"
+        source = go_errors.read_text(encoding="utf-8")
+        go_values = set(re.findall(r'Code\w+ +ErrorCode += +"(\w+)"', source))
+        assert go_values, f"no ErrorCode constants parsed from {go_errors}"
+        assert go_values == {c.value for c in ErrorCode}

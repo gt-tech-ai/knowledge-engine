@@ -26,6 +26,16 @@ class ErrorCode(StrEnum):
     """Operation exceeded its deadline (HTTP 504 / gRPC DEADLINE_EXCEEDED); transient, retryable."""
     UNAVAILABLE = "UNAVAILABLE"
     """Dependency temporarily unreachable (HTTP 503 / gRPC UNAVAILABLE); transient, retryable."""
+    UNKNOWN = "UNKNOWN"
+    """Fallback for errors that are not AppErrors or carry no code (HTTP 500 / gRPC UNKNOWN)."""
+    CANCELED = "CANCELED"
+    """Operation canceled by the caller (HTTP 500 / gRPC CANCELLED)."""
+    INGESTION_ERROR = "INGESTION_ERROR"
+    """Failure in the document ingestion pipeline (HTTP 500 / gRPC INTERNAL)."""
+    QUALITY_FAILED = "QUALITY_FAILED"
+    """Quality gate failed (HTTP 500 / gRPC INTERNAL)."""
+    UPSTREAM = "UPSTREAM"
+    """Failure originating in an upstream dependency (HTTP 502 / gRPC UNAVAILABLE)."""
 
 
 # gRPC status code mapping (matches Go's ToGRPCStatus)
@@ -38,8 +48,15 @@ _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL: 13,  # INTERNAL
     ErrorCode.TIMEOUT: 4,  # DEADLINE_EXCEEDED
     ErrorCode.UNAVAILABLE: 14,  # UNAVAILABLE
+    ErrorCode.CANCELED: 1,  # CANCELLED (Go transport/rpc Sanitize)
+    ErrorCode.INGESTION_ERROR: 13,  # INTERNAL (Go Sanitize default)
+    ErrorCode.QUALITY_FAILED: 13,  # INTERNAL (Go Sanitize default)
+    ErrorCode.UPSTREAM: 14,  # UNAVAILABLE (Go transport/rpc Sanitize)
 }
-"""Maps each ErrorCode to its canonical gRPC status code (matches Go's ToGRPCStatus)."""
+"""Maps each ErrorCode to its canonical gRPC status code (matches Go's ToGRPCStatus).
+
+UNKNOWN is not listed; it rides the UNKNOWN (2) default below, matching Go's inbound mapping.
+"""
 
 # HTTP status code mapping (matches Go's ToHTTPStatus)
 _HTTP_STATUS_MAP: dict[ErrorCode, int] = {
@@ -51,8 +68,13 @@ _HTTP_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL: 500,
     ErrorCode.TIMEOUT: 504,
     ErrorCode.UNAVAILABLE: 503,
+    ErrorCode.UPSTREAM: 502,  # BadGateway (Go classify.go ToHTTPStatus)
 }
-"""Maps each ErrorCode to its canonical HTTP status code (matches Go's ToHTTPStatus)."""
+"""Maps each ErrorCode to its canonical HTTP status code (matches Go's ToHTTPStatus).
+
+UNKNOWN, CANCELED, INGESTION_ERROR and QUALITY_FAILED ride the 500 default below, matching
+Go's classify.go ToHTTPStatus default (StatusInternalServerError).
+"""
 
 
 class AppError(Exception):
@@ -194,4 +216,4 @@ class IngestionError(AppError):
             details["document_id"] = document_id
         if stage:
             details["stage"] = stage
-        super().__init__(ErrorCode.INTERNAL, message, details=details, cause=cause)
+        super().__init__(ErrorCode.INGESTION_ERROR, message, details=details, cause=cause)

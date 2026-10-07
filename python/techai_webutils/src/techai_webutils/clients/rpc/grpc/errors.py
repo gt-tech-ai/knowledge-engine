@@ -22,8 +22,14 @@ _CODE_MAP: dict[ErrorCode, grpc.StatusCode] = {
     ErrorCode.TIMEOUT: grpc.StatusCode.DEADLINE_EXCEEDED,
     ErrorCode.UNAVAILABLE: grpc.StatusCode.UNAVAILABLE,
     ErrorCode.INTERNAL: grpc.StatusCode.INTERNAL,
+    ErrorCode.CANCELED: grpc.StatusCode.CANCELLED,
+    ErrorCode.UPSTREAM: grpc.StatusCode.UNAVAILABLE,
 }
-"""Maps each domain ``ErrorCode`` to the gRPC status code returned to clients."""
+"""Maps each domain ``ErrorCode`` to the gRPC status code returned to clients.
+
+UNKNOWN, INGESTION_ERROR and QUALITY_FAILED are not listed; they ride the INTERNAL default in
+``to_grpc_status``, matching Go's ``Sanitize`` default (``connect.CodeInternal``).
+"""
 
 
 def to_grpc_status(err: Exception, logger: Logger | None = None) -> tuple[grpc.StatusCode, str]:
