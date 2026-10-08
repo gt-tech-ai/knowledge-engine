@@ -1,7 +1,7 @@
 """Base controller for shared handler utilities.
 
 Provides BaseController with error formatting and response helpers.
-Mirrors Go's ``controllers/controller.go``.
+Mirrors Go's ``go/transport/rest/controller.go``.
 """
 
 from __future__ import annotations

@@ -255,3 +255,23 @@ class TestToGrpcStatus:
         code, msg = to_grpc_status(AppError(ErrorCode.QUALITY_FAILED, "gate internal detail"))
         assert code == grpc.StatusCode.INTERNAL
         assert msg == "internal error"
+
+    def test_both_grpc_maps_agree_for_every_code(self) -> None:
+        """Test that the core and clients gRPC mappings return the same status for every ErrorCode.
+
+        **Why this test is important:**
+          - Two independent domain-to-gRPC maps exist (core ``AppError.grpc_status`` and this
+            module's ``to_grpc_status``); if they disagree, a code's wire status depends on which
+            path ran
+          - Pinning agreement for every code stops the two maps from silently drifting apart
+
+        **What it tests:**
+          - For each ErrorCode, the integer from ``AppError.grpc_status`` equals the integer of the
+            ``grpc.StatusCode`` returned by ``to_grpc_status``
+        """
+        for code in ErrorCode:
+            core_int = AppError(code, "x").grpc_status
+            clients_status, _ = to_grpc_status(AppError(code, "x"))
+            assert core_int == int(clients_status.value[0]), (
+                f"{code}: core gRPC {core_int} != clients gRPC {int(clients_status.value[0])}"
+            )

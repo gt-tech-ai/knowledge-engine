@@ -223,18 +223,20 @@ class TestGRPCMapping:
         err = UnavailableError()
         assert to_grpc_status(err) == 14
 
-    def test_non_app_error_maps_to_2(self) -> None:
-        """Test that to_grpc_status returns 2 (UNKNOWN) for non-AppError exceptions.
+    def test_non_app_error_maps_to_internal(self) -> None:
+        """Test that to_grpc_status returns 13 (INTERNAL) for a non-AppError exception.
 
         **Why this test is important:**
-          - Unrecognized errors must not leak internal details to clients
-          - UNKNOWN status triggers generic error handling in client code
-          - Defensive default prevents information disclosure vulnerabilities
+          - A plain error has no code; Go's Sanitize maps Code(err)=CodeUnknown through its default
+            to connect.CodeInternal, so the Python edge must sanitize it to INTERNAL for parity
+          - This keeps every "unknown" path consistent (AppError.grpc_status fallback,
+            AppError(UNKNOWN).grpc_status, and the clients gRPC mapper all return INTERNAL)
+          - INTERNAL still hides the raw detail from clients, preventing information disclosure
 
         **What it tests:**
-          - to_grpc_status(RuntimeError) returns 2
+          - to_grpc_status(RuntimeError) returns 13 (INTERNAL)
         """
-        assert to_grpc_status(RuntimeError("oops")) == 2
+        assert to_grpc_status(RuntimeError("oops")) == 13
 
 
 class TestHTTPMapping:

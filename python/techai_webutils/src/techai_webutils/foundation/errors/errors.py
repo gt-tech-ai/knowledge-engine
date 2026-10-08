@@ -64,12 +64,14 @@ def to_grpc_status(err: BaseException) -> int:
         err: The exception to map.
 
     Returns:
-        gRPC status code integer. Returns 2 (UNKNOWN) for non-AppError.
+        gRPC status code integer. Returns 13 (INTERNAL) for a non-AppError.
 
     """
     if isinstance(err, AppError):
         return err.grpc_status
-    return 2  # UNKNOWN
+    # A plain error has no code; Go's Sanitize maps Code(err)=CodeUnknown through its default to
+    # connect.CodeInternal, so a non-AppError sanitizes to INTERNAL (not UNKNOWN) at the edge.
+    return 13  # INTERNAL
 
 
 def to_http_status(err: BaseException) -> int:

@@ -375,7 +375,7 @@ class TestErrorCodeValues:
     """Test suite for ErrorCode string value parity with Go constants."""
 
     def test_code_values(self):
-        """Test that all ErrorCode string values match Go-compatible uppercase constants.
+        """Test that the original eight ErrorCode string values are the exact Go constants.
 
         **Why this test is important:**
           - Error codes are serialized over the wire between Python and Go services
@@ -383,6 +383,9 @@ class TestErrorCodeValues:
           - These values are used in gRPC metadata and SQS message attributes
 
         **What it tests:**
+          - Each of the eight long-standing codes has its exact Go string value (the full
+            13-code set equality with the Go source is enforced by
+            ``TestGoParity.test_error_code_set_matches_go``)
           - NOT_FOUND.value equals "NOT_FOUND"
           - INVALID_INPUT.value equals "INVALID_INPUT"
           - UNAUTHORIZED.value equals "UNAUTHORIZED"

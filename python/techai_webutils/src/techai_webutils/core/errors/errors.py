@@ -27,7 +27,7 @@ class ErrorCode(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
     """Dependency temporarily unreachable (HTTP 503 / gRPC UNAVAILABLE); transient, retryable."""
     UNKNOWN = "UNKNOWN"
-    """Fallback for errors that are not AppErrors or carry no code (HTTP 500 / gRPC UNKNOWN)."""
+    """Fallback for errors that are not AppErrors or carry no code (HTTP 500 / gRPC INTERNAL; message hidden at both edges)."""
     CANCELED = "CANCELED"
     """Operation canceled by the caller (HTTP 500 / gRPC CANCELLED)."""
     INGESTION_ERROR = "INGESTION_ERROR"

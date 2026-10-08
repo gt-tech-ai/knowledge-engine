@@ -6,6 +6,35 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-08
+
+Python (`techai-webutils`) reaches error-code parity with the Go `errors` package and matches Go's
+transport-edge sanitization. No Go changes.
+
+### Added
+
+- `ErrorCode` gains the five members that previously existed only in Go, completing the shared set:
+  `UNKNOWN`, `CANCELED`, `INGESTION_ERROR`, `QUALITY_FAILED`, and `UPSTREAM`. Their transport
+  statuses mirror Go: `UPSTREAM` is HTTP 502 / gRPC `UNAVAILABLE`, `CANCELED` is gRPC `CANCELLED`,
+  and `UNKNOWN` / `INGESTION_ERROR` / `QUALITY_FAILED` are HTTP 500 / gRPC `INTERNAL`. On the gRPC
+  edge `UPSTREAM` and `CANCELED` return the fixed client-safe messages "upstream service
+  unavailable" and "request canceled" (the raw text is not forwarded), as Go's `Sanitize` does.
+
+### Changed
+
+- `IngestionError.code` is now `ErrorCode.INGESTION_ERROR` (was `ErrorCode.INTERNAL`). Because the
+  REST edge (`BaseController.write_error`) hides the message only for `INTERNAL` and `UNKNOWN`
+  (matching Go's `WriteError`), an `IngestionError`'s `message` and `details` now reach HTTP
+  clients, where at 0.3.0 they were hidden; on the gRPC edge it is still reported as `INTERNAL`
+  with a generic message. Migration: put any provider or exception text that must not reach a
+  client in the error's `cause`, not its `message`.
+- `BaseController.write_error` now also hides the message for `UNKNOWN`, not only `INTERNAL`,
+  matching Go's `WriteError`.
+- The unknown-fallback gRPC status is now `13` (`INTERNAL`) instead of `2` (`UNKNOWN`):
+  `AppError.grpc_status` for an unmapped code, `AppError(ErrorCode.UNKNOWN).grpc_status`, and
+  `foundation.errors.to_grpc_status` for a non-`AppError` all return `INTERNAL`, matching Go's
+  `Sanitize` default.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added
