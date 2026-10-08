@@ -26,9 +26,19 @@ class ErrorCode(StrEnum):
     """Operation exceeded its deadline (HTTP 504 / gRPC DEADLINE_EXCEEDED); transient, retryable."""
     UNAVAILABLE = "UNAVAILABLE"
     """Dependency temporarily unreachable (HTTP 503 / gRPC UNAVAILABLE); transient, retryable."""
+    UNKNOWN = "UNKNOWN"
+    """Fallback for errors that are not AppErrors or carry no code (HTTP 500 / gRPC INTERNAL; message hidden at both edges)."""
+    CANCELED = "CANCELED"
+    """Operation canceled by the caller (HTTP 500 / gRPC CANCELLED)."""
+    INGESTION_ERROR = "INGESTION_ERROR"
+    """Failure in the document ingestion pipeline (HTTP 500 / gRPC INTERNAL)."""
+    QUALITY_FAILED = "QUALITY_FAILED"
+    """Quality gate failed (HTTP 500 / gRPC INTERNAL)."""
+    UPSTREAM = "UPSTREAM"
+    """Failure originating in an upstream dependency (HTTP 502 / gRPC UNAVAILABLE)."""
 
 
-# gRPC status code mapping (matches Go's ToGRPCStatus)
+# gRPC status code mapping (mirrors Go's Sanitize in go/transport/rpc/errors.go)
 _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 5,  # NOT_FOUND
     ErrorCode.INVALID_INPUT: 3,  # INVALID_ARGUMENT
@@ -38,8 +48,17 @@ _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL: 13,  # INTERNAL
     ErrorCode.TIMEOUT: 4,  # DEADLINE_EXCEEDED
     ErrorCode.UNAVAILABLE: 14,  # UNAVAILABLE
+    ErrorCode.UNKNOWN: 13,  # INTERNAL (Go Sanitize maps CodeUnknown to CodeInternal via its default)
+    ErrorCode.CANCELED: 1,  # CANCELLED (Go Sanitize)
+    ErrorCode.INGESTION_ERROR: 13,  # INTERNAL (Go Sanitize default)
+    ErrorCode.QUALITY_FAILED: 13,  # INTERNAL (Go Sanitize default)
+    ErrorCode.UPSTREAM: 14,  # UNAVAILABLE (Go Sanitize)
 }
-"""Maps each ErrorCode to its canonical gRPC status code (matches Go's ToGRPCStatus)."""
+"""Maps each ErrorCode to its gRPC status code (mirrors Go's Sanitize in go/transport/rpc/errors.go).
+
+Every ErrorCode is listed explicitly; the ``grpc_status`` fallback below is only a defensive guard
+for a future, unmapped code (it returns INTERNAL, mirroring Go's Sanitize default).
+"""
 
 # HTTP status code mapping (matches Go's ToHTTPStatus)
 _HTTP_STATUS_MAP: dict[ErrorCode, int] = {
@@ -51,8 +70,13 @@ _HTTP_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL: 500,
     ErrorCode.TIMEOUT: 504,
     ErrorCode.UNAVAILABLE: 503,
+    ErrorCode.UPSTREAM: 502,  # BadGateway (Go classify.go ToHTTPStatus)
 }
-"""Maps each ErrorCode to its canonical HTTP status code (matches Go's ToHTTPStatus)."""
+"""Maps each ErrorCode to its canonical HTTP status code (matches Go's ToHTTPStatus).
+
+UNKNOWN, CANCELED, INGESTION_ERROR and QUALITY_FAILED ride the 500 default below, matching
+Go's classify.go ToHTTPStatus default (StatusInternalServerError).
+"""
 
 
 class AppError(Exception):
@@ -75,7 +99,7 @@ class AppError(Exception):
     @property
     def grpc_status(self) -> int:
         """Return the corresponding gRPC status code."""
-        return _GRPC_STATUS_MAP.get(self.code, 2)  # UNKNOWN
+        return _GRPC_STATUS_MAP.get(self.code, 13)  # INTERNAL (Go Sanitize default; all codes are mapped)
 
     @property
     def http_status(self) -> int:
@@ -194,4 +218,4 @@ class IngestionError(AppError):
             details["document_id"] = document_id
         if stage:
             details["stage"] = stage
-        super().__init__(ErrorCode.INTERNAL, message, details=details, cause=cause)
+        super().__init__(ErrorCode.INGESTION_ERROR, message, details=details, cause=cause)

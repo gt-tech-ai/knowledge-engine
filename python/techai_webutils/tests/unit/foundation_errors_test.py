@@ -25,6 +25,8 @@ Run with: pytest tests/python/test_foundation/test_errors.py
 """
 
 from techai_webutils.core.errors.errors import (
+    AppError,
+    ErrorCode,
     IngestionError,
     InternalError,
     NotFoundError,
@@ -112,6 +114,69 @@ class TestErrorClassification:
         """
         assert classify_error(ValueError("bad")) == "unknown"
 
+    def test_ingestion_error_is_internal(self) -> None:
+        """Test that classify_error returns 'internal' for an IngestionError.
+
+        **Why this test is important:**
+          - An ingestion-pipeline failure is a server-side failure operators must see, not a
+            client error or a retryable blip
+          - Pinning the category stops the INGESTION_ERROR code from silently drifting to "unknown"
+
+        **What it tests:**
+          - classify_error(IngestionError) returns "internal"
+        """
+        assert classify_error(IngestionError("parse failed", document_id="d1")) == "internal"
+
+    def test_quality_failed_is_internal(self) -> None:
+        """Test that classify_error returns 'internal' for a QUALITY_FAILED error.
+
+        **Why this test is important:**
+          - A failed quality gate is a server-side failure requiring investigation
+          - Pinning the category prevents QUALITY_FAILED from drifting to "unknown"
+
+        **What it tests:**
+          - classify_error(AppError(QUALITY_FAILED)) returns "internal"
+        """
+        assert classify_error(AppError(ErrorCode.QUALITY_FAILED, "gate failed")) == "internal"
+
+    def test_upstream_is_internal_and_non_transient(self) -> None:
+        """Test that classify_error returns 'internal' (not 'transient') for an UPSTREAM error.
+
+        **Why this test is important:**
+          - UPSTREAM is deliberately non-transient: Go's classify.go IsTransient omits it, so it is
+            surfaced for investigation rather than silently retried, even though it maps to gRPC
+            UNAVAILABLE on the wire
+          - Classifying it as "transient" would wrongly trigger retry loops on a dependency failure
+
+        **What it tests:**
+          - classify_error(AppError(UPSTREAM)) returns "internal" (and therefore not "transient")
+        """
+        assert classify_error(AppError(ErrorCode.UPSTREAM, "dep down")) == "internal"
+
+    def test_unknown_code_is_unknown(self) -> None:
+        """Test that classify_error returns 'unknown' for the UNKNOWN code.
+
+        **Why this test is important:**
+          - UNKNOWN is the explicit fallback code; Go classifies it neither transient nor permanent
+          - The catch-all category is the honest home for an unclassifiable error
+
+        **What it tests:**
+          - classify_error(AppError(UNKNOWN)) returns "unknown"
+        """
+        assert classify_error(AppError(ErrorCode.UNKNOWN, "no code")) == "unknown"
+
+    def test_canceled_is_unknown(self) -> None:
+        """Test that classify_error returns 'unknown' for a CANCELED error.
+
+        **Why this test is important:**
+          - A caller-initiated cancellation is neither transient nor permanent in Go's classify.go,
+            so it falls to the catch-all category rather than being retried or treated as a bug
+
+        **What it tests:**
+          - classify_error(AppError(CANCELED)) returns "unknown"
+        """
+        assert classify_error(AppError(ErrorCode.CANCELED, "canceled")) == "unknown"
+
 
 class TestGRPCMapping:
     """Test suite for to_grpc_status mapping function."""
@@ -158,18 +223,20 @@ class TestGRPCMapping:
         err = UnavailableError()
         assert to_grpc_status(err) == 14
 
-    def test_non_app_error_maps_to_2(self) -> None:
-        """Test that to_grpc_status returns 2 (UNKNOWN) for non-AppError exceptions.
+    def test_non_app_error_maps_to_internal(self) -> None:
+        """Test that to_grpc_status returns 13 (INTERNAL) for a non-AppError exception.
 
         **Why this test is important:**
-          - Unrecognized errors must not leak internal details to clients
-          - UNKNOWN status triggers generic error handling in client code
-          - Defensive default prevents information disclosure vulnerabilities
+          - A plain error has no code; Go's Sanitize maps Code(err)=CodeUnknown through its default
+            to connect.CodeInternal, so the Python edge must sanitize it to INTERNAL for parity
+          - This keeps every "unknown" path consistent (AppError.grpc_status fallback,
+            AppError(UNKNOWN).grpc_status, and the clients gRPC mapper all return INTERNAL)
+          - INTERNAL still hides the raw detail from clients, preventing information disclosure
 
         **What it tests:**
-          - to_grpc_status(RuntimeError) returns 2
+          - to_grpc_status(RuntimeError) returns 13 (INTERNAL)
         """
-        assert to_grpc_status(RuntimeError("oops")) == 2
+        assert to_grpc_status(RuntimeError("oops")) == 13
 
 
 class TestHTTPMapping:

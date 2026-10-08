@@ -1,7 +1,7 @@
 """Base controller for shared handler utilities.
 
 Provides BaseController with error formatting and response helpers.
-Mirrors Go's ``controllers/controller.go``.
+Mirrors Go's ``go/transport/rest/controller.go``.
 """
 
 from __future__ import annotations
@@ -24,8 +24,13 @@ class ErrorResponse:
 
 
 # Error codes whose messages should not be exposed to clients
-_INTERNAL_CODES = frozenset({ErrorCode.INTERNAL})
-"""Error codes whose messages are hidden from clients (only a generic message is returned)."""
+_INTERNAL_CODES = frozenset({ErrorCode.INTERNAL, ErrorCode.UNKNOWN})
+"""Error codes whose messages are hidden from clients (only a generic message is returned).
+
+Mirrors Go's ``WriteError`` in ``go/transport/rest/controller.go``, which hides the message for
+``CodeInternal`` and ``CodeUnknown`` only; every other code (INGESTION_ERROR, QUALITY_FAILED,
+UPSTREAM, NOT_FOUND, ...) exposes its message as both ``error`` and ``details``.
+"""
 
 
 def map_error_to_http_status(err: Exception) -> int:

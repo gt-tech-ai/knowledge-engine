@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from techai_webutils.clients.rpc.grpc.errors import to_grpc_status
 from techai_webutils.core.errors.errors import (
+    AppError,
     ConflictError,
+    ErrorCode,
     ForbiddenError,
     InternalError,
     InvalidInputError,
@@ -176,3 +178,100 @@ class TestToGrpcStatus:
         code, msg = to_grpc_status(RuntimeError("crash"))
         assert code == grpc.StatusCode.INTERNAL
         assert msg == "internal error"
+
+    def test_canceled_returns_fixed_message(self) -> None:
+        """Test that CANCELED maps to gRPC CANCELLED with a fixed, provider-free message.
+
+        **Why this test is important:**
+          - Go's Sanitize returns the fixed string "request canceled" for CodeCanceled precisely to
+            strip any implementation detail; the Python mapper must do the same, not leak err.message
+          - A cancellation often carries low-level context text that must not reach a client
+
+        **What it tests:**
+          - The status code is CANCELLED
+          - The message is the fixed "request canceled", not the raw error text
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.CANCELED, "ctx deadline internal detail"))
+        assert code == grpc.StatusCode.CANCELLED
+        assert msg == "request canceled"
+
+    def test_upstream_returns_fixed_message(self) -> None:
+        """Test that UPSTREAM maps to gRPC UNAVAILABLE with a fixed, provider-free message.
+
+        **Why this test is important:**
+          - An upstream failure's raw text is provider output (SDK error, 5xx body) that must be
+            stripped; Go's Sanitize returns the fixed "upstream service unavailable" for CodeUpstream
+          - Leaking the raw upstream text would expose implementation detail to API consumers
+
+        **What it tests:**
+          - The status code is UNAVAILABLE
+          - The message is the fixed "upstream service unavailable", not the raw provider text
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.UPSTREAM, "bedrock raw 500 body"))
+        assert code == grpc.StatusCode.UNAVAILABLE
+        assert msg == "upstream service unavailable"
+
+    def test_unknown_is_hidden_as_internal(self) -> None:
+        """Test that UNKNOWN is reported as INTERNAL with the generic message.
+
+        **Why this test is important:**
+          - Go's Sanitize maps CodeUnknown to CodeInternal via its default, hiding the message
+          - An unknown-coded error has no client-safe message, so its text must never be exposed
+
+        **What it tests:**
+          - The status code is INTERNAL
+          - The message is the generic "internal error", not the raw text
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.UNKNOWN, "raw db text"))
+        assert code == grpc.StatusCode.INTERNAL
+        assert msg == "internal error"
+
+    def test_ingestion_error_is_hidden_as_internal(self) -> None:
+        """Test that INGESTION_ERROR is reported as INTERNAL with the generic message.
+
+        **Why this test is important:**
+          - Go's Sanitize has no dedicated case for CodeIngestion, so it rides the Internal default
+          - Pipeline-failure text (parser stack traces, document internals) must not reach a client
+
+        **What it tests:**
+          - The status code is INTERNAL
+          - The message is the generic "internal error", not the raw pipeline detail
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.INGESTION_ERROR, "parser stack trace"))
+        assert code == grpc.StatusCode.INTERNAL
+        assert msg == "internal error"
+
+    def test_quality_failed_is_hidden_as_internal(self) -> None:
+        """Test that QUALITY_FAILED is reported as INTERNAL with the generic message.
+
+        **Why this test is important:**
+          - Go's Sanitize has no dedicated case for CodeQualityFailed, so it rides the Internal default
+          - Quality-gate internals must not be exposed to an API consumer
+
+        **What it tests:**
+          - The status code is INTERNAL
+          - The message is the generic "internal error", not the raw gate detail
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.QUALITY_FAILED, "gate internal detail"))
+        assert code == grpc.StatusCode.INTERNAL
+        assert msg == "internal error"
+
+    def test_both_grpc_maps_agree_for_every_code(self) -> None:
+        """Test that the core and clients gRPC mappings return the same status for every ErrorCode.
+
+        **Why this test is important:**
+          - Two independent domain-to-gRPC maps exist (core ``AppError.grpc_status`` and this
+            module's ``to_grpc_status``); if they disagree, a code's wire status depends on which
+            path ran
+          - Pinning agreement for every code stops the two maps from silently drifting apart
+
+        **What it tests:**
+          - For each ErrorCode, the integer from ``AppError.grpc_status`` equals the integer of the
+            ``grpc.StatusCode`` returned by ``to_grpc_status``
+        """
+        for code in ErrorCode:
+            core_int = AppError(code, "x").grpc_status
+            clients_status, _ = to_grpc_status(AppError(code, "x"))
+            assert core_int == int(clients_status.value[0]), (
+                f"{code}: core gRPC {core_int} != clients gRPC {int(clients_status.value[0])}"
+            )
