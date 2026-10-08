@@ -82,11 +82,12 @@ class TestAppError:
           - INTERNAL maps to gRPC 13
           - TIMEOUT maps to gRPC 4
           - UNAVAILABLE maps to gRPC 14
-          - UNKNOWN maps to gRPC 2 (the default)
+          - UNKNOWN maps to gRPC 13 (INTERNAL; Go Sanitize maps CodeUnknown to CodeInternal)
           - CANCELED maps to gRPC 1
           - INGESTION_ERROR maps to gRPC 13 (Go Sanitize default)
           - QUALITY_FAILED maps to gRPC 13 (Go Sanitize default)
           - UPSTREAM maps to gRPC 14
+          - every ErrorCode is covered, so a future code must be given a decided status
         """
         mapping = {
             ErrorCode.NOT_FOUND: 5,
@@ -97,12 +98,13 @@ class TestAppError:
             ErrorCode.INTERNAL: 13,
             ErrorCode.TIMEOUT: 4,
             ErrorCode.UNAVAILABLE: 14,
-            ErrorCode.UNKNOWN: 2,
+            ErrorCode.UNKNOWN: 13,
             ErrorCode.CANCELED: 1,
             ErrorCode.INGESTION_ERROR: 13,
             ErrorCode.QUALITY_FAILED: 13,
             ErrorCode.UPSTREAM: 14,
         }
+        assert set(mapping) == set(ErrorCode)
         for code, expected_grpc in mapping.items():
             err = AppError(code, "test")
             assert err.grpc_status == expected_grpc, (
@@ -128,6 +130,7 @@ class TestAppError:
           - UNAVAILABLE maps to HTTP 503
           - UPSTREAM maps to HTTP 502
           - UNKNOWN, CANCELED, INGESTION_ERROR, QUALITY_FAILED map to HTTP 500 (the default)
+          - every ErrorCode is covered, so a future code must be given a decided status
         """
         mapping = {
             ErrorCode.NOT_FOUND: 404,
@@ -144,6 +147,7 @@ class TestAppError:
             ErrorCode.INGESTION_ERROR: 500,
             ErrorCode.QUALITY_FAILED: 500,
         }
+        assert set(mapping) == set(ErrorCode)
         for code, expected_http in mapping.items():
             err = AppError(code, "test")
             assert err.http_status == expected_http, (
@@ -411,11 +415,20 @@ class TestGoParity:
             Go code without its Python counterpart (or vice versa) fails CI instead of drifting.
 
         **What it tests:**
-          - The set of string values declared in ``go/core/errors/errors.go`` equals
-            ``{c.value for c in ErrorCode}``.
+          - The set of string values declared across the non-test ``go/core/errors/*.go`` files
+            equals ``{c.value for c in ErrorCode}``.
         """
-        go_errors = Path(__file__).resolve().parents[4] / "go" / "core" / "errors" / "errors.go"
-        source = go_errors.read_text(encoding="utf-8")
-        go_values = set(re.findall(r'Code\w+ +ErrorCode += +"(\w+)"', source))
-        assert go_values, f"no ErrorCode constants parsed from {go_errors}"
+        go_errors_dir = Path(__file__).resolve().parents[4] / "go" / "core" / "errors"
+        go_files = [p for p in go_errors_dir.glob("*.go") if not p.name.endswith("_test.go")]
+        assert go_files, f"no Go source files found under {go_errors_dir}"
+        # Match both declaration forms: `CodeX ErrorCode = "X"` and `CodeX = ErrorCode("X")`.
+        pattern = re.compile(r'Code\w+ +(?:ErrorCode += +"(\w+)"|= +ErrorCode\("(\w+)"\))')
+        go_values = {
+            value
+            for p in go_files
+            for match in pattern.finditer(p.read_text(encoding="utf-8"))
+            for value in match.groups()
+            if value is not None
+        }
+        assert go_values, f"no ErrorCode constants parsed from {go_errors_dir}"
         assert go_values == {c.value for c in ErrorCode}

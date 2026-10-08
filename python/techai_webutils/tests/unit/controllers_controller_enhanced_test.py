@@ -3,7 +3,9 @@
 from techai_webutils.controllers.base import BaseController, ErrorResponse, map_error_to_http_status
 from techai_webutils.controllers.decorators import HandlerBuilder
 from techai_webutils.core.errors.errors import (
+    AppError,
     ConflictError,
+    ErrorCode,
     ForbiddenError,
     InternalError,
     InvalidInputError,
@@ -254,6 +256,67 @@ class TestBaseControllerEnhanced:
         assert result["status"] == 500
         data = result["data"]
         assert data["error"] == "internal server error"  # type: ignore[index]
+
+    def test_write_error_unknown_code_hides_message(self) -> None:
+        """Test that an UNKNOWN-coded AppError hides its message from clients.
+
+        **Why this test is important:**
+          - Go's WriteError hides the message for BOTH CodeInternal and CodeUnknown; an
+            UNKNOWN-coded error has no client-safe message and may carry raw internal text
+          - Exposing it would be an information-disclosure leak (CWE-209) -- the release blocker
+            this test guards against
+
+        **What it tests:**
+          - Response status is 500
+          - Error message is the generic 'internal server error', NOT the raw "raw db text"
+          - Details field is empty
+        """
+        ctrl = BaseController()
+        result = ctrl.write_error(AppError(ErrorCode.UNKNOWN, "raw db text"))
+        assert result["status"] == 500
+        data = result["data"]
+        assert data["error"] == "internal server error"  # type: ignore[index]
+        assert "raw db text" not in data["error"]  # type: ignore[index]
+        assert data["details"] == ""  # type: ignore[index]
+
+    def test_write_error_ingestion_exposes_message(self) -> None:
+        """Test that an INGESTION_ERROR exposes its message (matching Go's WriteError).
+
+        **Why this test is important:**
+          - Go's WriteError exposes the message for every code except Internal/Unknown, so
+            INGESTION_ERROR details reach the client; the Python edge must match Go exactly
+          - Hiding it here would diverge from Go and drop actionable pipeline context
+
+        **What it tests:**
+          - Response status is 500
+          - The message "parser detail" IS present in both error and details
+          - Error code is 'INGESTION_ERROR'
+        """
+        ctrl = BaseController()
+        result = ctrl.write_error(AppError(ErrorCode.INGESTION_ERROR, "parser detail"))
+        assert result["status"] == 500
+        data = result["data"]
+        assert data["error"] == "parser detail"  # type: ignore[index]
+        assert data["details"] == "parser detail"  # type: ignore[index]
+        assert data["code"] == "INGESTION_ERROR"  # type: ignore[index]
+
+    def test_write_error_quality_failed_exposes_message(self) -> None:
+        """Test that a QUALITY_FAILED error exposes its message (matching Go's WriteError).
+
+        **Why this test is important:**
+          - QUALITY_FAILED is not an Internal/Unknown code, so Go's WriteError exposes its message
+          - The client needs the gate detail to understand why the request was rejected
+
+        **What it tests:**
+          - The message "gate detail" IS present in both error and details
+          - Error code is 'QUALITY_FAILED'
+        """
+        ctrl = BaseController()
+        result = ctrl.write_error(AppError(ErrorCode.QUALITY_FAILED, "gate detail"))
+        data = result["data"]
+        assert data["error"] == "gate detail"  # type: ignore[index]
+        assert data["details"] == "gate detail"  # type: ignore[index]
+        assert data["code"] == "QUALITY_FAILED"  # type: ignore[index]
 
 
 class TestHandlerBuilderAuthorization:

@@ -31,6 +31,17 @@ UNKNOWN, INGESTION_ERROR and QUALITY_FAILED are not listed; they ride the INTERN
 ``to_grpc_status``, matching Go's ``Sanitize`` default (``connect.CodeInternal``).
 """
 
+_FIXED_CLIENT_MESSAGE: dict[ErrorCode, str] = {
+    ErrorCode.UPSTREAM: "upstream service unavailable",
+    ErrorCode.CANCELED: "request canceled",
+}
+"""Codes whose client-facing message is a fixed string rather than the raw error text.
+
+These mirror the exact fixed messages Go's ``Sanitize`` returns for ``CodeUpstream`` and
+``CodeCanceled`` in ``go/transport/rpc/errors.go`` -- the fixed string strips any provider or
+implementation detail that must never reach a client (the raw text is still recorded server-side).
+"""
+
 
 def to_grpc_status(err: Exception, logger: Logger | None = None) -> tuple[grpc.StatusCode, str]:
     """Map an exception to a gRPC status code and client-safe message.
@@ -50,6 +61,10 @@ def to_grpc_status(err: Exception, logger: Logger | None = None) -> tuple[grpc.S
             if logger is not None:
                 logger.error("internal error", error=str(err))
             return code, "internal error"
+        # Codes that strip provider text return a fixed client-safe message (Go Sanitize parity).
+        fixed = _FIXED_CLIENT_MESSAGE.get(err.code)
+        if fixed is not None:
+            return code, fixed
         return code, err.message
 
     # Unknown exception — always internal

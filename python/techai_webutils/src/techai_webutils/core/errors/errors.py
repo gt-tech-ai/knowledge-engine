@@ -38,7 +38,7 @@ class ErrorCode(StrEnum):
     """Failure originating in an upstream dependency (HTTP 502 / gRPC UNAVAILABLE)."""
 
 
-# gRPC status code mapping (matches Go's ToGRPCStatus)
+# gRPC status code mapping (mirrors Go's Sanitize in go/transport/rpc/errors.go)
 _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 5,  # NOT_FOUND
     ErrorCode.INVALID_INPUT: 3,  # INVALID_ARGUMENT
@@ -48,14 +48,16 @@ _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INTERNAL: 13,  # INTERNAL
     ErrorCode.TIMEOUT: 4,  # DEADLINE_EXCEEDED
     ErrorCode.UNAVAILABLE: 14,  # UNAVAILABLE
-    ErrorCode.CANCELED: 1,  # CANCELLED (Go transport/rpc Sanitize)
+    ErrorCode.UNKNOWN: 13,  # INTERNAL (Go Sanitize maps CodeUnknown to CodeInternal via its default)
+    ErrorCode.CANCELED: 1,  # CANCELLED (Go Sanitize)
     ErrorCode.INGESTION_ERROR: 13,  # INTERNAL (Go Sanitize default)
     ErrorCode.QUALITY_FAILED: 13,  # INTERNAL (Go Sanitize default)
-    ErrorCode.UPSTREAM: 14,  # UNAVAILABLE (Go transport/rpc Sanitize)
+    ErrorCode.UPSTREAM: 14,  # UNAVAILABLE (Go Sanitize)
 }
-"""Maps each ErrorCode to its canonical gRPC status code (matches Go's ToGRPCStatus).
+"""Maps each ErrorCode to its gRPC status code (mirrors Go's Sanitize in go/transport/rpc/errors.go).
 
-UNKNOWN is not listed; it rides the UNKNOWN (2) default below, matching Go's inbound mapping.
+Every ErrorCode is listed explicitly; the ``grpc_status`` fallback below is only a defensive guard
+for a future, unmapped code (it returns INTERNAL, mirroring Go's Sanitize default).
 """
 
 # HTTP status code mapping (matches Go's ToHTTPStatus)
@@ -97,7 +99,7 @@ class AppError(Exception):
     @property
     def grpc_status(self) -> int:
         """Return the corresponding gRPC status code."""
-        return _GRPC_STATUS_MAP.get(self.code, 2)  # UNKNOWN
+        return _GRPC_STATUS_MAP.get(self.code, 13)  # INTERNAL (Go Sanitize default; all codes are mapped)
 
     @property
     def http_status(self) -> int:
