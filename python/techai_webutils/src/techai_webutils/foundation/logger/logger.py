@@ -16,6 +16,7 @@ import threading
 from typing import IO, TYPE_CHECKING, TextIO, cast
 
 from techai_webutils.core.interfaces.logger import Logger
+from techai_webutils.foundation.logger.redact import redact_pii
 from opentelemetry import trace as otel_trace
 import structlog
 from structlog.tracebacks import ExceptionDictTransformer
@@ -65,6 +66,26 @@ def _add_git_sha(
     """Inject the deployed commit (GIT_SHA env = image tag) for GitHub deep-links."""
     if _GIT_SHA:
         event_dict["git_sha"] = _GIT_SHA
+    return event_dict
+
+
+_STRUCTURAL_KEYS = frozenset({"timestamp", "level", "trace_id", "span_id", "git_sha"})
+"""Fields the pipeline itself stamps; never redacted (a hex trace id can look like a phone number)."""
+
+
+def _redact_pii_fields(
+    _logger: WrappedLogger,
+    _method_name: str,
+    event_dict: EventDict,
+) -> EventDict:
+    """Structlog processor that redacts PII in the message and every string field (``redact_pii``).
+
+    Installed only when ``configure_logging(redact_pii=True)`` (the ``logging_redact_pii`` setting).
+    Pipeline-stamped structural fields are skipped; non-string values pass through.
+    """
+    for key, value in event_dict.items():
+        if isinstance(value, str) and key not in _STRUCTURAL_KEYS:
+            event_dict[key] = redact_pii(value)
     return event_dict
 
 
@@ -161,6 +182,8 @@ def _parse_level(level: str) -> int:
 def configure_logging(
     level: str = "INFO",
     stream: IO[str] | None = None,
+    *,
+    redact_pii: bool = False,
 ) -> structlog.typing.FilteringBoundLogger:
     """Configure structlog for JSON output.
 
@@ -170,6 +193,8 @@ def configure_logging(
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
         stream: Output stream. Defaults to sys.stdout.
+        redact_pii: When True (the ``logging_redact_pii`` setting), redact PII in the message and
+            every string field before rendering (``foundation.logger.redact.redact_pii``).
 
     Returns:
         A configured structlog bound logger.
@@ -178,6 +203,7 @@ def configure_logging(
     target_stream: TextIO = cast(TextIO, stream or sys.stdout)
     numeric_level = _parse_level(level)
 
+    redaction = [_redact_pii_fields] if redact_pii else []
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -194,6 +220,7 @@ def configure_logging(
             # Canonical cross-service schema: the message lives under "message"
             # (matching the Go zap/stdlib loggers), not structlog's default "event".
             structlog.processors.EventRenamer("message"),
+            *redaction,
             structlog.processors.JSONRenderer(),
         ],
         # make_filtering_bound_logger gates the app's own structlog output at the numeric

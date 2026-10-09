@@ -22,16 +22,16 @@ from botocore.exceptions import ClientError
 from techai_webutils.clients.llm.decorators import FallbackLlmProvider
 from techai_webutils.core.errors import AppError, UnavailableError
 from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
-from techai_webutils.core.interfaces.llm import LLMMessage, LLMResponse
+from techai_webutils.core.interfaces.llm import LLMMessage, LLMResponse, StreamUsage
 
 
-async def _stream(*tokens: str) -> AsyncIterator[str]:
-    """An async token stream that yields the given tokens then completes."""
+async def _stream(*tokens: str | StreamUsage) -> AsyncIterator[str | StreamUsage]:
+    """An async token stream that yields the given items then completes."""
     for token in tokens:
         yield token
 
 
-async def _stream_then_fail(exc: Exception, *tokens: str) -> AsyncIterator[str]:
+async def _stream_then_fail(exc: Exception, *tokens: str) -> AsyncIterator[str | StreamUsage]:
     """An async token stream that yields the given tokens then raises exc."""
     for token in tokens:
         yield token
@@ -215,8 +215,8 @@ async def test_stream_falls_back_before_first_token() -> None:
         tokens are returned.
     """
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
-    fallback.stream.return_value = _stream("hello", " world")
+    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
+    fallback.stream_with_usage.return_value = _stream("hello", " world")
     provider = FallbackLlmProvider(primary, fallback)
 
     tokens = [t async for t in await provider.stream(_MESSAGES)]
@@ -236,12 +236,14 @@ async def test_stream_propagates_failure_after_first_token() -> None:
         is never streamed.
     """
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream.return_value = _stream_then_fail(_client_error("ThrottlingException", 429), "partial")
+    primary.stream_with_usage.return_value = _stream_then_fail(
+        _client_error("ThrottlingException", 429), "partial"
+    )
     provider = FallbackLlmProvider(primary, fallback)
 
     with pytest.raises(ClientError):
         _ = [t async for t in await provider.stream(_MESSAGES)]
-    fallback.stream.assert_not_called()
+    fallback.stream_with_usage.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -256,12 +258,34 @@ async def test_stream_both_fail_raises_unavailable() -> None:
         UnavailableError.
     """
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
-    fallback.stream.return_value = _stream_then_fail(_client_error("InternalServerException", 500))
+    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
+    fallback.stream_with_usage.return_value = _stream_then_fail(_client_error("InternalServerException", 500))
     provider = FallbackLlmProvider(primary, fallback)
 
     with pytest.raises(UnavailableError):
         _ = [t async for t in await provider.stream(_MESSAGES)]
+
+
+@pytest.mark.asyncio
+async def test_stream_with_usage_passes_fallback_usage_through() -> None:
+    """The fallback model's streamed usage reaches the caller of ``stream_with_usage``.
+
+    Why this test is important:
+      - Staging wires Bedrock with a fallback model; if the decorator dropped the terminal
+        ``StreamUsage`` every streamed answer would report zero tokens.
+
+    What it tests:
+      - Primary throttles before a token → the items are the fallback's deltas then its exact
+        ``StreamUsage``.
+    """
+    usage = StreamUsage(model="haiku", input_tokens=9, output_tokens=2, finish_reason="end_turn")
+    primary, fallback = AsyncMock(), AsyncMock()
+    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
+    fallback.stream_with_usage.return_value = _stream("hi", usage)
+    provider = FallbackLlmProvider(primary, fallback)
+
+    items = [i async for i in await provider.stream_with_usage(_MESSAGES)]
+    assert items == ["hi", usage]
 
 
 def test_model_name_returns_primary_model() -> None:

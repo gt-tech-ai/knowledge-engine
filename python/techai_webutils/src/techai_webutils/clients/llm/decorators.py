@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from prometheus_client import Counter
 
 from techai_webutils.core.errors import UnavailableError
-from techai_webutils.core.interfaces.llm import LLMProvider
+from techai_webutils.core.interfaces.llm import LLMProvider, text_only
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from types import TracebackType
 
-    from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMResponse
+    from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMResponse, StreamUsage
 
 # Fallback activations, labelled by why the primary failed (throttle = 429, error = 5xx). Registered
 # on import (only the bedrock factory path imports this module), so it appears on /metrics in stage/prod.
@@ -137,17 +137,23 @@ class FallbackLlmProvider(LLMProvider):
 
     async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
         """Stream from the primary; if it fails before any token, retry the fallback (else re-raise / 503)."""
+        return text_only(await self.stream_with_usage(messages, config))
+
+    async def stream_with_usage(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str | StreamUsage]:
+        """Stream (with the serving model's usage last) from the primary, falling back before any token."""
         return self._stream_with_fallback(messages, config)
 
     async def _stream_with_fallback(
         self,
         messages: list[LLMMessage],
         config: LLMConfig | None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | StreamUsage]:
         """Yield the primary stream; fall back only if it fails before emitting a token."""
         yielded = False
         try:
-            async for delta in await self._primary.stream(messages, config):
+            async for delta in await self._primary.stream_with_usage(messages, config):
                 yielded = True
                 yield delta
             return
@@ -159,7 +165,7 @@ class FallbackLlmProvider(LLMProvider):
                 raise
             _FALLBACK_ACTIVATIONS.labels(reason=reason).inc()
         try:
-            async for delta in await self._fallback.stream(messages, config):
+            async for delta in await self._fallback.stream_with_usage(messages, config):
                 yield delta
         except Exception as fallback_exc:
             raise UnavailableError(_UNAVAILABLE_MSG) from fallback_exc

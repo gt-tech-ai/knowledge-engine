@@ -13,6 +13,23 @@ All notable changes to this project are recorded here. The format follows
   client-safe message "resource exhausted" on the gRPC edge. It is neither transient nor permanent,
   so the retry decorators never retry it. Python adds `QuotaExceededError(message, *, org_id,
   reason)`. Go `rpc.FromRPCError` maps a `RESOURCE_EXHAUSTED` wire status back to the code.
+- Python `AiSpanEnricher` (`clients/decorators/ai_enricher.py`): a `__getattr__` proxy over an
+  `LLMProvider` or `RetrievalEngine` that stamps the current span with the GenAI attributes
+  (`gen_ai.system`, `gen_ai.step`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`,
+  `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reason`) or the retrieval shape
+  (`retrieval.top_k`, `retrieval.result_count`, `retrieval.document_ids`, at most 20 ids). With
+  `capture_content=True` it adds redacted, 4 KiB-capped `gen_ai.content.prompt` /
+  `gen_ai.content.completion` events. Enrichment failures are logged, never raised.
+- Python `StreamUsage` and `LLMProvider.stream_with_usage()` (concrete; awaited like `stream()`):
+  the last item is the streamed call's token usage. Bedrock reads the Converse `metadata` event,
+  Ollama the final `done` chunk, the stub word counts; `FallbackLlmProvider` passes the serving
+  model's usage through. The default re-yields `stream()` with no usage, so existing providers stay
+  valid. `text_only()` filters a usage stream back to text; the built-in providers' `stream()` now
+  uses it.
+- Python `foundation.logger.redact_pii`: a port of the Go `RedactPII` (email, phone, SSN, IPv4,
+  bearer / `token=` / `access_token=` tokens). `configure_logging(redact_pii=True)` and
+  `setup_observability(redact_pii=True)` apply it to the message and every string field; pass the
+  `logging_redact_pii` setting. Both languages' tests read the shared `testdata/redact_vectors.json`.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.
