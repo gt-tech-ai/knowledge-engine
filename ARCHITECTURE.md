@@ -95,6 +95,9 @@ collaborator or zero timeout skips its layer (the service builder always adds re
   `foundation/decorate` (`OpMiddleware`, `Chain`, `Exec[R]` for custom repository/service ops), and
   `clients/decorators` (the client-boundary `Stack`: `Run`, `RunStream`, `StackFromConfig`).
   `foundation/decorator` (Go and Python) exposes `Unwrap` so tests can reach the wrapped unit.
+- **Go — workflow helpers.** `decorators.Decorate(wf, op, logger, metrics, tracer, cfg)` is the
+  standard workflow stack (the builder with `cfg.Timeout` from `schema/workflows.Load`), and
+  `workflow.NewTxWorkflow(txMgr, pipe)` runs a command pipeline inside one transaction.
 - **Python — `__getattr__` proxies** in `clients/decorators/proxy.py` (`LoggingProxy`,
   `RetryProxy`, `CircuitBreakerProxy`, …) apply their concern around each awaited call;
   `new_client_stack_from_config` composes them. Tier builders reuse `foundation/decorator.py`.

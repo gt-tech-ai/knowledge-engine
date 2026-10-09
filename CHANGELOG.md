@@ -104,6 +104,13 @@ All notable changes to this project are recorded here. The format follows
   (`DefaultKeyTemplate`, `KMSKeyAttribute`) and `clients/outbox/decorators` (`SQSAPI`, `S3API`).
   `foundation/resilience/retry.FullJitter`. Test fixture `go/tests/fixtures/outboxtest` (store
   conformance `Run` / `RunRouting`, reference `SQLStore` + `Schema`).
+- Go shared workflow helpers. `workflows/workflow.NewTxWorkflow[In, Out](txMgr, pipe)` runs a
+  pipeline inside one `TransactionManager.WithTransaction` and returns a zero output with the
+  pipeline's or the commit's error. `workflows/workflow/decorators.Decorate[In, Out](wf, op, logger,
+  metrics, tracer, cfg)` applies the standard stack (logging, metrics, tracing, `cfg.Timeout`,
+  recovery) through `NewBuilder`. `foundation/config/schema/workflows.Load(loader)` reads the
+  `workflows` section (`SectionKey`) over `DefaultConfig()` and returns `INVALID_INPUT` for a
+  section that fails to decode or validate. New mock `MockTransactionManager`.
 - Python `Fact.to_json` escapes `<`, `>`, `&`, U+2028 and U+2029 exactly as Go's `encoding/json` does.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares

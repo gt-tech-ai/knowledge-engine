@@ -43,5 +43,6 @@
 //go:generate mockgen -destination=mock_tracer.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Tracer,Span
 //go:generate mockgen -destination=mock_workflow.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Workflow
 //go:generate mockgen -destination=mock_sts_assume_role.go -package=mocks github.com/aws/aws-sdk-go-v2/credentials/stscreds AssumeRoleAPIClient
+//go:generate mockgen -destination=mock_transaction_manager.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces TransactionManager
 
 package mocks
