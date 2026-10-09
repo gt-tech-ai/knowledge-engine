@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 
+from techai_webutils.clients.decorators.metrics_proxy import MetricsProxy
 from techai_webutils.core.errors.errors import AppError
 from techai_webutils.foundation.logger.logger import get_logger
 from techai_webutils.foundation.resilience.bulkhead import SemaphoreBulkhead
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from techai_webutils.core.interfaces.bulkhead import Bulkhead
     from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
     from techai_webutils.core.interfaces.hedger import Hedger
+    from techai_webutils.core.interfaces.metrics import MetricsProvider
     from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 
 
@@ -425,23 +427,26 @@ def new_client_stack_from_config(
     config: ClientStackConfig,
     *,
     circuit_breaker: CircuitBreakerInterface | None = None,
+    metrics: MetricsProvider | None = None,
 ) -> object:
     """Compose the async client resilience stack around ``wrapped``.
 
     Applies, outermost → innermost,
-    ``Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging`` — the Python
-    analog of the Go clients/decorators stack. The Tracing layer opens a per-call span,
-    so latency is visible in the trace backend; unlike the Go stack this composer does **not** yet
-    emit explicit Prometheus ``client_operations_total``/``client_errors_total``/
-    ``client_operation_duration_seconds`` counters (span-derived RED metrics require a
-    spanmetrics connector in the collector). Reaching that metric parity is future work.
-    The circuit breaker is injected (it is stateful and shared across calls); the other
-    layers are built from ``config``. A disabled config returns ``wrapped`` unchanged.
+    ``Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging`` — the Python
+    analog of the Go clients/decorators stack. The Tracing layer opens a per-call span, and with an
+    injected ``metrics`` provider the Metrics layer (``MetricsProxy``) emits the RED series directly:
+    ``client_operations_total{client,method,outcome}``, ``client_errors_total{client,method,code}``
+    and ``client_operation_duration_seconds{client,method}``, labelled ``client=name``. Without
+    ``metrics`` that layer is skipped. The circuit breaker and the metrics provider are injected
+    (both are shared across calls); the other layers are built from ``config``. A disabled config
+    returns ``wrapped`` unchanged.
     """
     if not config.enabled:
         return wrapped
 
-    proxied = LoggingProxy(wrapped, name)
+    proxied: object = LoggingProxy(wrapped, name)
+    if metrics is not None:
+        proxied = MetricsProxy(proxied, name, metrics)
     proxied = TracingProxy(proxied, name)
     if config.timeout_seconds:
         proxied = TimeoutProxy(proxied, config.timeout_seconds)

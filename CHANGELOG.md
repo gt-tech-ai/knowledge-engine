@@ -20,6 +20,21 @@ All notable changes to this project are recorded here. The format follows
   (`retrieval.top_k`, `retrieval.result_count`, `retrieval.document_ids`, at most 20 ids). With
   `capture_content=True` it adds redacted, 4 KiB-capped `gen_ai.content.prompt` /
   `gen_ai.content.completion` events. Enrichment failures are logged, never raised.
+- Python GenAI metrics and analytics facts: `AiSpanEnricher(…, metrics=, facts=, fact_dimensions=)`
+  emits `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}`
+  (buckets 0.05 … 60 s), and publishes one `genai_calls` `Fact` per model call (dims
+  `provider`/`model`/`step` plus the injected `fact_dimensions()`, whose `org_id` becomes the fact's
+  `org_id`; measures `duration_s`/`tokens_in`/`tokens_out`; key `<trace_id>:<span_id>:<step>`).
+- Python `core/types/fact.Fact` (the `analytics.fact` JSON wire, byte-identical to the shared
+  `testdata/analytics_fact.golden.json`), the `FactPublisher` port and the `clients/facts` tier
+  (`FactPublisherKind` `stub` | `messaging`, `FactPublisherConfig`, `new_fact_publisher_from_config`).
+  The `messaging` backend is bounded and fail-open: it batches up to ten facts per `publish_batch`,
+  drops and counts `gen_ai_fact_dropped_total{reason}` (`buffer_full`, `publish_error`, `shutdown`)
+  and drains on exit.
+- Python client-stack RED metrics: `new_client_stack_from_config(…, metrics=)` adds `MetricsProxy`
+  inside Tracing (order Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging),
+  emitting `client_operations_total{client,method,outcome}`, `client_errors_total{client,method,code}`
+  and `client_operation_duration_seconds{client,method}`. Without `metrics` the stack is unchanged.
 - Python `StreamUsage` and `LLMProvider.stream_with_usage()` (concrete; awaited like `stream()`):
   the last item is the streamed call's token usage. Bedrock reads the Converse `metadata` event,
   Ollama the final `done` chunk, the stub word counts; `FallbackLlmProvider` passes the serving

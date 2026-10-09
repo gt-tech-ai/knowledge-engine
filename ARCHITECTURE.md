@@ -100,7 +100,14 @@ collaborator or zero timeout skips its layer (the service builder always adds re
   Streamed calls go through `LLMProvider.stream_with_usage`, whose last item is a `StreamUsage`.
   Optional content capture records `gen_ai.content.{prompt,completion}` events, PII-redacted by
   `foundation/logger/redact.redact_pii` (the Go `RedactPII` port; both suites read
-  `testdata/redact_vectors.json`) and capped at 4 KiB. A stamping failure is logged, never raised.
+  `testdata/redact_vectors.json`) and capped at 4 KiB. With an injected `MetricsProvider` it emits
+  `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}`; with an
+  injected `FactPublisher` it publishes one `genai_calls` analytics fact per model call, whose
+  product dimensions come from an injected `fact_dimensions` callable (the KE names no product
+  dimension). A stamping or emission failure is logged, never raised.
+- **Python — client RED metrics.** `clients/decorators/metrics_proxy.MetricsProxy` (the client
+  stack's Metrics layer) emits `client_operations_total{client,method,outcome}`,
+  `client_errors_total{client,method,code}` and `client_operation_duration_seconds{client,method}`.
 
 Inner logging layers (client stack, repository, service, pipeline, workflow) log failures at Debug
 so the outermost recovery/transport seam logs the Error once; the lock and replay-buffer loggers
@@ -127,7 +134,7 @@ Outermost → innermost:
 | Pipeline, Workflow | `go/{pipelines/pipeline,workflows/workflow}/decorators` | Recovery → Logging → Tracing → Metrics → Timeout |
 | Transport handler | `go/transport/decorators` | Recovery → Logging → Metrics → RateLimit → Timeout |
 | Execution job | `go/execution/job/decorators` | Tracing → Metrics → Logging → Recovery |
-| Python client | `clients/decorators/proxy.py` | Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging |
+| Python client | `clients/decorators/proxy.py` | Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging (Metrics only with an injected `MetricsProvider`) |
 | Python EventHandler | `clients/decorators/event_stack.py` | Dedup → DeadLetter → Retry → CircuitBreaker → Timeout |
 | Python Job | `clients/decorators/job_stack.py` | LeaderElection → RateLimit → Retry → Timeout |
 
