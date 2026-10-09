@@ -10,6 +10,7 @@ require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/validate v0.7.0
 	entgo.io/ent v0.14.6
+	github.com/DataDog/sketches-go v1.4.8
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5

@@ -162,6 +162,20 @@ previous root (Go `ConversationStartOptions`; Python `foundation/tracer/conversa
 `extract_conversation`, `stamp_conversation`, `conversation_links`). A missing or malformed id or
 index yields an unthreaded trace; a malformed `traceparent` drops only the link.
 
+## Analytics (VizQL)
+
+`core/types.VizSpec` is a declarative chart: Rows/Columns shelves of table-algebra expressions
+(`concat`, `cross`, `nest`) over one cube's fields, plus detail, encodings, a listquery filter,
+sort, time range, grain and an optional mark. `foundation/vizql` is the pure compiler (no I/O):
+`Parse` validates the JSON spec against the cube's `listquery.Map` (a field's `Role` — dimension,
+measure or time — and the `Aggregates` a measure permits; depth ≤ 8; every rejection
+`CodeInvalidInput`), `Normalize` builds the tuple table, `Compile` derives one `AggregateQuery`
+plus the panes and a mark per pane (O×O text, O×Q bar, T×Q line, Q×Q point), `Drill` swaps a
+dimension for its hierarchy child, and the reducer merges `Partial`s (sum, count, min, max and a
+1%-accurate DDSketch for p50/p95/p99). Facts travel as `core/types.Fact`, whose JSON is
+byte-identical to Python's `core/types/fact.Fact` (both suites assert
+`testdata/analytics_fact.golden.json`).
+
 ## Configuration
 
 Config selects; the composition root injects. Go `foundation/config` (Viper) layers `base.yaml` →

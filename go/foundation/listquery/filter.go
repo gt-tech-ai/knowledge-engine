@@ -1,6 +1,10 @@
 package listquery
 
-import "github.com/gt-tech-ai/knowledge-engine/go/core/types"
+import (
+	"slices"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
+)
 
 // JoinTarget is a re-export of core/types.JoinTarget, so the generated listqueryschema tier
 // can construct a field's join with only the foundation/listquery import (no direct core/types import).
@@ -46,6 +50,20 @@ func (t FieldType) String() string {
 	}
 }
 
+// FieldRole is how an analytics query may use a field: grouped by (dimension),
+// aggregated (measure), or bucketed by grain (time). Plain list-query fields are
+// dimensions (the zero value).
+type FieldRole int
+
+const (
+	// RoleDimension is a field grouped by and filtered on (the default).
+	RoleDimension FieldRole = iota
+	// RoleMeasure is a numeric field aggregated by one of its permitted Aggregates.
+	RoleMeasure
+	// RoleTime is the time field bucketed by a query's grain.
+	RoleTime
+)
+
 // Field is one allow-listed filterable field: the DTO Name a client may filter on, the
 // storage Column it maps to (defaults to Name), and its value Type. A field whose Join is set
 // filters a JOINED table's column via a correlated EXISTS rather than the same-table Column.
@@ -60,8 +78,31 @@ type Field struct {
 	// Ordinal, when non-empty, is the Column's DB values in ascending sort order: sorting the
 	// field orders by this value ordinal (a CASE) instead of lexically. Sort-only (does not affect filtering).
 	Ordinal []string
+	// Aggregates are the aggregations an analytics query may apply to a RoleMeasure field.
+	Aggregates []types.Aggregate
 	// Type is the field's value type, gating value/element compatibility.
 	Type FieldType
+	// Role is how an analytics query may use the field (dimension by default).
+	Role FieldRole
+}
+
+// AsMeasure returns a copy of the field declared as an analytics measure that
+// permits exactly the given aggregates.
+func (f Field) AsMeasure(aggs ...types.Aggregate) Field {
+	f.Role = RoleMeasure
+	f.Aggregates = aggs
+	return f
+}
+
+// AsTime returns a copy of the field declared as the analytics time field.
+func (f Field) AsTime() Field {
+	f.Role = RoleTime
+	return f
+}
+
+// Allows reports whether agg is one of the field's permitted aggregates.
+func (f Field) Allows(agg types.Aggregate) bool {
+	return slices.Contains(f.Aggregates, agg)
 }
 
 // WithColumn returns a copy of the field whose storage column differs from its DTO Name

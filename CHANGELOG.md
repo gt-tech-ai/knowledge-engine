@@ -75,6 +75,15 @@ All notable changes to this project are recorded here. The format follows
   `clients/audit`: `AuditSinkKind` (`stub`), `AuditSinkConfig` (`kind="stub"`, `enforcement`
   `shadow` | `enforced`, `endpoint`, `timeout_s=2.0`), `new_audit_sink_from_config(config, *,
   backends=…)` (durable sinks are injected) and the in-memory `StubAuditSink`.
+- Go analytics types and the VizQL compiler. `core/types`: `VizSpec` (JSON wire form with shelves as
+  `{"op":"cross"|"concat"|"nest","args":[…]}` / `{"field":…,"agg":…}`), `AlgebraExpr`, `FieldRef`,
+  `Encodings`, `TimeRange`, `Aggregate`, `Grain`, `Mark`, `AggregateQuery`, `MeasureRef`, and `Fact`
+  (the `analytics.fact` wire, byte-identical to the Python `Fact`). `foundation/listquery.Field`
+  gains `Role` (`RoleDimension` default, `RoleMeasure`, `RoleTime`), `Aggregates`, `AsMeasure`,
+  `AsTime` and `Allows`. New `foundation/vizql`: `Parse`, `Normalize`, `Compile` (+ `CubeSchema`,
+  `Plan`, `PaneKey`), `Drill`, and the reducer `Partial` / `NewPartial` / `Merge` / `Finalize`.
+  Dependency: `github.com/DataDog/sketches-go` v1.4.8.
+- Python `Fact.to_json` escapes `<`, `>`, `&`, U+2028 and U+2029 exactly as Go's `encoding/json` does.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.

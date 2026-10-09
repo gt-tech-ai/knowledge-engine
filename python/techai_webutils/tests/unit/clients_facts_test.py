@@ -151,3 +151,29 @@ async def test_messaging_publisher_batches_by_ten():
     assert [topic for topic, _ in sent] == ["facts", "facts", "facts"]
     assert [len(batch) for _, batch in sent] == [10, 10, 5]
     assert [payload for _, batch in sent for payload in batch] == [f.to_json() for f in facts]
+
+
+def test_fact_json_escapes_like_go():
+    """Test that ``to_json`` escapes the characters Go's ``encoding/json`` escapes by default.
+
+    **Why this test is important:**
+      - The idempotency key and dims are free-form; a ``<`` or ``&`` rendered raw in Python but
+        escaped in Go would make the same fact two different byte strings.
+
+    **What it tests:**
+      - ``<``, ``>``, ``&``, U+2028 and U+2029 in a dim value are rendered as ``\\u003c``,
+        ``\\u003e``, ``\\u0026``, ``\\u2028``, ``\\u2029``; other non-ASCII stays raw UTF-8
+    """
+    fact = Fact(
+        cube="c",
+        org_id="o",
+        ts=datetime(2026, 10, 9, tzinfo=UTC),
+        dims={"team": "a<b>&c\u2028\u2029\u00e9"},
+        measures={},
+        idempotency_key="k",
+    )
+
+    assert fact.to_json() == (
+        b'{"cube":"c","dims":{"team":"a\\u003cb\\u003e\\u0026c\\u2028\\u2029\xc3\xa9"},'
+        b'"idempotency_key":"k","measures":{},"org_id":"o","schema":1,"ts":"2026-10-09T00:00:00Z"}'
+    )

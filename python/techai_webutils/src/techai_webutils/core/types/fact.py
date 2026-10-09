@@ -19,6 +19,15 @@ if TYPE_CHECKING:
 FACT_SCHEMA_VERSION = 1
 """Version of the fact wire shape; a consumer rejects a version it does not know."""
 
+_GO_ESCAPES = (
+    ("<", "\\u003c"),
+    (">", "\\u003e"),
+    ("&", "\\u0026"),
+    ("\u2028", "\\u2028"),
+    ("\u2029", "\\u2029"),
+)
+"""Characters Go's ``encoding/json`` escapes by default, with the escape it writes."""
+
 _MAX_INTEGRAL_FLOAT = 1e21
 """Below this, an integral float renders as an integer — where Go's ``encoding/json`` switches to exponent form."""
 
@@ -70,4 +79,8 @@ class Fact:
             "schema": self.schema,
             "ts": _rfc3339_nano(self.ts),
         }
-        return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        text = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        # Match Go's default HTML-safe escaping; these characters can only occur inside JSON strings.
+        for char, escape in _GO_ESCAPES:
+            text = text.replace(char, escape)
+        return text.encode("utf-8")
