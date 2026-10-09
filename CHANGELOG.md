@@ -59,6 +59,16 @@ All notable changes to this project are recorded here. The format follows
   `token_ledger_from_config(config, *, redis=None, backends=…)` (consumer kinds are injected through
   `backends`), the allow-all `StubTokenLedger`, and the `Decimal` cost arithmetic (`ModelPrice`,
   `PriceTable`, `cost_of`, micro-dollar half-even). Dev dependency: `hypothesis`.
+- Python `redis` `TokenLedger` backend (`clients/token_ledger/redis.RedisTokenLedger`, built by
+  `token_ledger_from_config(kind="redis", redis=<the app's client>, metrics=…)`). `record` is one Lua
+  script: `HINCRBY` on the counter hash `<prefix>:{org}:{workspace}:{window}` (`input_tokens`,
+  `output_tokens`, `embed_tokens`, `cost_micro_usd`), `EXPIREAT` at the window end, and `XADD
+  <stream> MAXLEN ~ <stream_maxlen>` of the usage entry (`org_id, team_id, workspace_id, user_id,
+  model, operation, input_tokens, output_tokens, embed_tokens, cost_usd, pricing_version, trace_id,
+  ts`); failures are counted on `token_ledger_record_failed_total` and never raised. `check_budget`
+  reads the counters and the limits hash `<prefix>:limits:{org}:{workspace}` (`tokens`, `cost_usd`)
+  in one pipeline and fails open (`ledger_unavailable_fail_open`). `usage` is an approximate counter
+  snapshot. The script needs a non-cluster Redis.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.

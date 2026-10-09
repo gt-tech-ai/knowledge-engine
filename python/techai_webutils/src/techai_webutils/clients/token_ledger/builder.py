@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from redis.asyncio import Redis
 
+    from techai_webutils.core.interfaces.metrics import MetricsProvider
     from techai_webutils.core.interfaces.token_ledger import TokenLedger
 
 
@@ -54,13 +55,15 @@ def token_ledger_from_config(
     config: TokenLedgerConfig,
     *,
     redis: Redis | None = None,
+    metrics: MetricsProvider | None = None,
     backends: Mapping[str, Callable[[TokenLedgerConfig], TokenLedger]] = MappingProxyType({}),
 ) -> TokenLedger:
     """Build the ``TokenLedger`` selected by ``config.kind``.
 
     Args:
         config: The ledger configuration.
-        redis: The async Redis client; required for the ``redis`` kind.
+        redis: The async Redis client; required for the ``redis`` kind (the app's own client).
+        metrics: Provides ``token_ledger_record_failed_total`` for the ``redis`` kind.
         backends: Factories for consumer-supplied kinds, keyed by kind; a built-in kind name is
             never looked up here.
 
@@ -73,7 +76,9 @@ def token_ledger_from_config(
     if config.kind == TokenLedgerKind.REDIS:
         if redis is None:
             raise AppError(ErrorCode.INVALID_INPUT, "redis token ledger requires a Redis client")
-        raise AppError(ErrorCode.INVALID_INPUT, "redis token ledger backend is not available in this build")
+        from techai_webutils.clients.token_ledger.redis import RedisTokenLedger  # noqa: PLC0415
+
+        return RedisTokenLedger(redis, config, metrics=metrics)
     factory = backends.get(config.kind)
     if factory is None:
         raise AppError(ErrorCode.INVALID_INPUT, f"unknown token ledger kind: {config.kind!r}")
