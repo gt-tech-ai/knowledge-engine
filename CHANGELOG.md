@@ -45,6 +45,13 @@ All notable changes to this project are recorded here. The format follows
   bearer / `token=` / `access_token=` tokens). `configure_logging(redact_pii=True)` and
   `setup_observability(redact_pii=True)` apply it to the message and every string field; pass the
   `logging_redact_pii` setting. Both languages' tests read the shared `testdata/redact_vectors.json`.
+- Conversation-threading primitives. Go `foundation/tracer`: `Conversation{ID, Prev, TurnIndex}`,
+  `InjectConversation(ctx, c)` (sets the W3C baggage members `vv.conversation.id`, `vv.turn.index`,
+  `vv.prev.traceparent`), `ConversationStartOptions(c)` (attributes `conversation.id` /
+  `turn.index` plus one link to the previous turn) and `ParseTraceparent(s)`. Python
+  `foundation/tracer/conversation`: `ConversationContext`, `extract_conversation(ctx)`,
+  `stamp_conversation(span, conv)` and `conversation_links(conv)`. Malformed ids (outside
+  `^[A-Za-z0-9_-]{1,64}$`) or turn indexes are dropped.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.

@@ -146,6 +146,17 @@ Custom repository ops (`OpChain`) use the Repository order minus Caching. Tests 
 (`go/tests/unit/clients_wrap_order_test.go` for the client boundary, EventHandler and Job stacks;
 `services_wrap_order_test.go`, `clients_lock_decorators_test.go`, `foundation_decorator_test.go`).
 
+### Conversation threading
+
+A multi-turn conversation is one trace per turn, grouped by id and linked turn to turn. The edge
+that owns the conversation puts three W3C baggage members on each turn (Go
+`foundation/tracer.InjectConversation`): `vv.conversation.id` (opaque, `^[A-Za-z0-9_-]{1,64}$`),
+`vv.turn.index` (0-based) and `vv.prev.traceparent` (the previous turn's root span). The turn's
+root span carries the attributes `conversation.id` and `turn.index` and one span link to the
+previous root (Go `ConversationStartOptions`; Python `foundation/tracer/conversation`:
+`extract_conversation`, `stamp_conversation`, `conversation_links`). A missing or malformed id or
+index yields an unthreaded trace; a malformed `traceparent` drops only the link.
+
 ## Configuration
 
 Config selects; the composition root injects. Go `foundation/config` (Viper) layers `base.yaml` →
