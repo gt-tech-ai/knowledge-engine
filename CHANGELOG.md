@@ -96,6 +96,14 @@ All notable changes to this project are recorded here. The format follows
   `Next`. Test fixture `go/tests/fixtures/dbtest/cassandra` (cassandra:5) and
   `suite.CassandraIntegrationSuite`. Dependencies: `github.com/gocql/gocql` v1.7.0 (pulls
   `github.com/aws/aws-sdk-go` v1 through the SigV4 plugin).
+- Go transactional outbox. `core/types`: `OutboxRecord`, `OutboxStats`, `OutboxRouteAttribute`;
+  `core/interfaces`: `OutboxStore`, `OutboxSink`. New `services/outbox` (`Relay`, `NewRelay`,
+  `RelayConfig`, `DefaultRelayConfig`, `WithClock`, `WithJitter`). New `clients/outbox` (`Kind`
+  stub | sqs | s3, `Config`, `DefaultConfig`, `NewFromConfig`), `clients/outbox/stub`,
+  `clients/outbox/sqs` (`Config.Queue` + `Config.Routes` route → queue map), `clients/outbox/s3`
+  (`DefaultKeyTemplate`, `KMSKeyAttribute`) and `clients/outbox/decorators` (`SQSAPI`, `S3API`).
+  `foundation/resilience/retry.FullJitter`. Test fixture `go/tests/fixtures/outboxtest` (store
+  conformance `Run` / `RunRouting`, reference `SQLStore` + `Schema`).
 - Python `Fact.to_json` escapes `<`, `>`, `&`, U+2028 and U+2029 exactly as Go's `encoding/json` does.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares

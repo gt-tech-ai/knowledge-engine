@@ -26,6 +26,7 @@
 //go:generate mockgen -destination=mock_messaging.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces MessagePublisher,DynamicConsumer,PatternConsumer
 //go:generate mockgen -destination=mock_metrics.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Metrics,Counter,Histogram,Gauge
 //go:generate mockgen -destination=mock_observer.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces ExecutionObserver
+//go:generate mockgen -destination=mock_outbox.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces OutboxStore,OutboxSink
 //go:generate mockgen -destination=mock_pipeline.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Pipeline
 //go:generate mockgen -destination=mock_rate_limiter.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces RateLimiter
 //go:generate mockgen -destination=mock_reader.go -package=mocks io ReadCloser

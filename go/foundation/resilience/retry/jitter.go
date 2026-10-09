@@ -19,3 +19,14 @@ func EqualJitter(d time.Duration) time.Duration {
 	//nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
 	return half + time.Duration(rand.Int64N(int64(half)+1))
 }
+
+// FullJitter returns a uniform random duration in [0, d] (the AWS "full jitter"
+// strategy): the widest spread, for callers such as a polling relay whose retries
+// must not cluster at all. A non-positive duration is returned unchanged.
+func FullJitter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return d
+	}
+	//nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
+	return time.Duration(rand.Int64N(int64(d) + 1))
+}

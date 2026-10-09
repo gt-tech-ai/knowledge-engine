@@ -41,3 +41,28 @@ func TestEqualJitter_RangeAndVariation(t *testing.T) {
 		"a negative backoff is returned unchanged",
 	)
 }
+
+// TestFullJitter_RangeAndVariation tests FullJitter's uniform [0, d] draw.
+//
+// Why this test is important:
+//   - The outbox relay schedules retries with full jitter; a draw outside
+//     [0, d] would exceed the backoff cap or schedule a retry in the past
+//
+// What it tests:
+//   - 200 draws for 800ms all fall in [0, 800ms] and are not all equal
+//   - zero and negative durations are returned unchanged
+func TestFullJitter_RangeAndVariation(t *testing.T) {
+	t.Parallel()
+
+	const d = 800 * time.Millisecond
+	seen := make(map[time.Duration]struct{})
+	for range 200 {
+		j := retry.FullJitter(d)
+		require.GreaterOrEqual(t, j, time.Duration(0))
+		require.LessOrEqual(t, j, d)
+		seen[j] = struct{}{}
+	}
+	require.Greater(t, len(seen), 1)
+	require.Zero(t, retry.FullJitter(0))
+	require.Equal(t, -5*time.Second, retry.FullJitter(-5*time.Second))
+}

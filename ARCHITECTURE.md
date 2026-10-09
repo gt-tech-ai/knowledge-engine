@@ -131,6 +131,7 @@ Outermost → innermost:
 | Replay buffer | `go/clients/replaybuffer/decorators` | Tracing → Metrics → Logging → Timeout |
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
 | Analytics store | `go/clients/analytics/decorators` | Recovery → Metrics → Tracing → CircuitBreaker → Timeout (the Cassandra session's writes ride the Client boundary stack) |
+| Outbox sink | `go/clients/outbox/decorators` | the Client boundary stack around each SDK call (`SQSAPI`, `S3API`), with SDK faults coded so only throttling/server faults retry |
 | Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC streaming client | `go/clients/rpc/grpc/interceptors` (`StreamingClientBuilder`) | Timeout → Metrics → CircuitBreaker → Retry → Tracing → Logging → ServiceAuth |
@@ -186,6 +187,18 @@ clustering `(ts, dims_key, idempotency_key)`, one partial row per fact (a redeli
 dimension filters applied in Go (time clauses also narrow the clustering range), and compaction in
 single-partition logged batches of at most 30 statements.
 
+The transactional outbox is split by tier. `core/interfaces.OutboxStore` (`Claim` leases due rows,
+`MarkSent` / `Retry` / `Park` / `Stats`) is supplied by the consumer over its own table;
+`core/interfaces.OutboxSink` returns one result per record. `services/outbox.Relay.RunOnce` claims a
+batch, sends it in `SendBatch` chunks under a `Concurrency` bound, and finalizes each row by its own
+outcome: sent, retried at `now + FullJitter(min(Base·2^attempts, Max))`, or parked on its
+`MaxAttempts`th attempt (`outbox_{sent,retried,parked}_total`, `outbox_depth`,
+`outbox_lag_seconds` by lane). `clients/outbox` builds the sink (`KindStub` default, `KindSQS`,
+`KindS3`) over an injected SDK client: SQS routes each row by its `route` attribute through a
+config route → queue map with per-queue failure isolation; S3 writes one object per row by key
+template with Content-MD5 (Object Lock) and optional SSE-KMS. `go/tests/fixtures/outboxtest` is the
+store conformance suite (`Run`, `RunRouting`) plus a test-only Postgres reference store.
+
 ## Configuration
 
 Config selects; the composition root injects. Go `foundation/config` (Viper) layers `base.yaml` →
@@ -237,7 +250,7 @@ Go suite regenerates it and the Python suite compares against it.
 
 Most tiers ship an in-process, stub, or no-op backend, so wiring needs no cloud dependency:
 
-- **Go:** analytics `stub`; lock `local`; messaging, replay buffer, storage `memory`; secrets
+- **Go:** analytics `stub`; lock `local`; outbox sink `stub`; messaging, replay buffer, storage `memory`; secrets
   `env`/`file`; tracer `noop`; metrics no-op when disabled; logger `stdlib`. Jobs' `NewFromConfig`
   currently returns a no-op River enqueuer.
 - **Python:** cache `local`/`null`; email `noop`; audit, embedding, facts, llm, retrieval, kb_ingestion,
