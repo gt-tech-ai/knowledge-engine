@@ -52,6 +52,13 @@ All notable changes to this project are recorded here. The format follows
   `foundation/tracer/conversation`: `ConversationContext`, `extract_conversation(ctx)`,
   `stamp_conversation(span, conv)` and `conversation_links(conv)`. Malformed ids (outside
   `^[A-Za-z0-9_-]{1,64}$`) or turn indexes are dropped.
+- Python `TokenLedger` tier. `core/interfaces/token_ledger.py`: `UsageScope` (`org_id` required),
+  `UsageRecord`, `BudgetDecision`, `Period` (`daily` | `monthly` | `rolling_30d`), `UsageSummary` and
+  the `TokenLedger(ManagedResource, ABC)` contract (`check_budget`, `record`, `usage`; fail-open,
+  at-least-once). `clients/token_ledger`: `TokenLedgerKind` (`stub` default), `TokenLedgerConfig`,
+  `token_ledger_from_config(config, *, redis=None, backends=…)` (consumer kinds are injected through
+  `backends`), the allow-all `StubTokenLedger`, and the `Decimal` cost arithmetic (`ModelPrice`,
+  `PriceTable`, `cost_of`, micro-dollar half-even). Dev dependency: `hypothesis`.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.

@@ -114,6 +114,8 @@ dev = [
     "langdetect>=1.0.9",
     "testcontainers[postgres,redis]>=4.14.2",
     "ty>=0.0.38",
+    # hypothesis drives the property tests (e.g. the token-ledger Decimal cost arithmetic).
+    "hypothesis>=6.168.5",
 ]
 
 [tool.pytest.ini_options]
