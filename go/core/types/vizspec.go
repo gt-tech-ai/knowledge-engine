@@ -307,6 +307,9 @@ type AggregateQuery struct {
 	Measures []MeasureRef
 	// Sort orders the result rows.
 	Sort []OrderField
+	// ResumeToken, when set, resumes a previous stream after its last delivered
+	// page (RowStream.ResumeToken).
+	ResumeToken []byte
 	// Limit caps the rows returned (0 = no cap).
 	Limit int
 }

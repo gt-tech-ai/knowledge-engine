@@ -130,6 +130,7 @@ Outermost → innermost:
 | Lock | `go/clients/lock/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry |
 | Replay buffer | `go/clients/replaybuffer/decorators` | Tracing → Metrics → Logging → Timeout |
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
+| Analytics store | `go/clients/analytics/decorators` | Recovery → Metrics → Tracing → CircuitBreaker → Timeout (the Cassandra session's writes ride the Client boundary stack) |
 | Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC streaming client | `go/clients/rpc/grpc/interceptors` (`StreamingClientBuilder`) | Timeout → Metrics → CircuitBreaker → Retry → Tracing → Logging → ServiceAuth |
@@ -175,6 +176,15 @@ dimension for its hierarchy child, and the reducer merges `Partial`s (sum, count
 1%-accurate DDSketch for p50/p95/p99). Facts travel as `core/types.Fact`, whose JSON is
 byte-identical to Python's `core/types/fact.Fact` (both suites assert
 `testdata/analytics_fact.golden.json`).
+
+`core/interfaces.AnalyticsStore` (`Aggregate` → a pull-based, page-at-a-time `RowStream`; idempotent
+`Write`; optional `AnalyticsCompactor`) is built by `clients/analytics` (`KindStub` default,
+`KindCassandra`). The Cassandra store sits on `clients/cassandra.Session` — `KindCassandra`
+(self-managed, token- and DC-aware) or `KindKeyspaces` (Amazon Keyspaces: TLS + SigV4) — and keeps
+to the CQL both share: one table per cube and grain, partition `((org_id, cube, bucket))`,
+clustering `(ts, dims_key, idempotency_key)`, one partial row per fact (a redelivery overwrites it),
+dimension filters applied in Go (time clauses also narrow the clustering range), and compaction in
+single-partition logged batches of at most 30 statements.
 
 ## Configuration
 
@@ -227,7 +237,7 @@ Go suite regenerates it and the Python suite compares against it.
 
 Most tiers ship an in-process, stub, or no-op backend, so wiring needs no cloud dependency:
 
-- **Go:** lock `local`; messaging, replay buffer, storage `memory`; secrets
+- **Go:** analytics `stub`; lock `local`; messaging, replay buffer, storage `memory`; secrets
   `env`/`file`; tracer `noop`; metrics no-op when disabled; logger `stdlib`. Jobs' `NewFromConfig`
   currently returns a no-op River enqueuer.
 - **Python:** cache `local`/`null`; email `noop`; audit, embedding, facts, llm, retrieval, kb_ingestion,

@@ -83,6 +83,19 @@ All notable changes to this project are recorded here. The format follows
   `AsTime` and `Allows`. New `foundation/vizql`: `Parse`, `Normalize`, `Compile` (+ `CubeSchema`,
   `Plan`, `PaneKey`), `Drill`, and the reducer `Partial` / `NewPartial` / `Merge` / `Finalize`.
   Dependency: `github.com/DataDog/sketches-go` v1.4.8.
+- Go analytics store. `core/interfaces`: `AnalyticsStore`, `RowStream`, `AnalyticsCompactor`;
+  `core/types.Row`; `AggregateQuery.ResumeToken`. New `clients/cassandra` (`Kind` cassandra |
+  keyspaces, `Config`, `DefaultConfig` = LOCAL_QUORUM / 5 s / 500-row pages, `New`, `NewFromConfig`,
+  the `Session` / `Query` / `Iter` / `Batch` seam with coded driver errors; backends in
+  `cassandra/` and `keyspaces/`, the latter TLS + SigV4 via
+  `github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin` v1.1.0). New `clients/analytics`
+  (`Kind` stub | cassandra, `Config` with cube catalog, bucket widths, TTLs, `New`,
+  `NewFromConfig`), `clients/analytics/stub`, `clients/analytics/cassandra` (`Store`, `SchemaCQL`,
+  `TableName`, `DimsKey`, `Compact`) and `clients/analytics/decorators` (store builder + `Session`
+  client-stack wrapper). `foundation/vizql` gains `EncodePartial`, `DecodePartial`, `Truncate`,
+  `Next`. Test fixture `go/tests/fixtures/dbtest/cassandra` (cassandra:5) and
+  `suite.CassandraIntegrationSuite`. Dependencies: `github.com/gocql/gocql` v1.7.0 (pulls
+  `github.com/aws/aws-sdk-go` v1 through the SigV4 plugin).
 - Python `Fact.to_json` escapes `<`, `>`, `&`, U+2028 and U+2029 exactly as Go's `encoding/json` does.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares

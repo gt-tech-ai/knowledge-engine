@@ -4,8 +4,10 @@
 // The mock_*.go files are committed. CI regenerates them before it builds and
 // tests but does not check them for drift, so regenerate and commit them whenever
 // a mocked interface changes; local runs use the committed files.
+//go:generate mockgen -destination=mock_analytics.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AnalyticsStore,RowStream
 //go:generate mockgen -destination=mock_bulkhead.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Bulkhead
 //go:generate mockgen -destination=mock_cache.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces ByteCache
+//go:generate mockgen -destination=mock_cassandra.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra Session,Query,Iter,Batch
 //go:generate mockgen -destination=mock_circuit_breaker.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces CircuitBreaker
 //go:generate mockgen -destination=mock_client_stream.go -package=mocks google.golang.org/grpc ClientStream
 //go:generate mockgen -destination=mock_command_runner.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces CommandRunner,CmdHook
