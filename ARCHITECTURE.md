@@ -43,11 +43,11 @@ unknown kind:
   `clients/messaging`); an unknown kind is a `CodeInvalidInput` error.
 - Python: `new_<type>_from_config(config)` (or `<type>_from_config`, e.g. `executor_from_config`);
   an unknown kind raises `ValueError` in the older tiers and a coded `AppError(INVALID_INPUT)` in the
-  newer ones (`clients/facts`, `clients/token_ledger`).
+  newer ones (`clients/audit`, `clients/facts`, `clients/token_ledger`).
 - **Consumer-supplied kinds.** A backend that must call a consumer's own service (which the KE may
   not import) is injected: the factory takes `backends: Mapping[str, Callable[[Config], T]]`, and
   `Config.kind` is a `str` matched against the built-in kinds first, then the `backends` keys
-  (`clients/token_ledger/builder.py`). The kind stays a config value; the KE stays product-free.
+  (`clients/token_ledger/builder.py`, `clients/audit/builder.py`). The kind stays a config value; the KE stays product-free.
 
 One backend per sub-package beside the factory: `clients/storage/{s3,memory}`,
 `clients/lock/{local,redis}`, `foundation/logger/{zap,stdlib}`, `clients/llm/{bedrock,ollama,stub}`.
@@ -216,7 +216,7 @@ Most tiers ship an in-process, stub, or no-op backend, so wiring needs no cloud 
 - **Go:** lock `local`; messaging, replay buffer, storage `memory`; secrets
   `env`/`file`; tracer `noop`; metrics no-op when disabled; logger `stdlib`. Jobs' `NewFromConfig`
   currently returns a no-op River enqueuer.
-- **Python:** cache `local`/`null`; email `noop`; embedding, facts, llm, retrieval, kb_ingestion,
+- **Python:** cache `local`/`null`; email `noop`; audit, embedding, facts, llm, retrieval, kb_ingestion,
   token_ledger, vector `stub`; jobs, lock, messaging, storage `memory`; tracer, metrics `null`;
   executor `asyncio`.
 

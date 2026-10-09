@@ -69,6 +69,12 @@ All notable changes to this project are recorded here. The format follows
   reads the counters and the limits hash `<prefix>:limits:{org}:{workspace}` (`tokens`, `cost_usd`)
   in one pipeline and fails open (`ledger_unavailable_fail_open`). `usage` is an approximate counter
   snapshot. The script needs a non-cluster Redis.
+- Python `AuditSink` tier. `core/interfaces/audit.py`: the frozen `AuditRecord` (who, prompt, answer,
+  `sources: tuple[AuditedSource, ...]`, model, tokens, PII/safety flags, decision, cache hit, trace
+  id, `created_at`) and `AuditedSource`, and the `AuditSink` protocol (`async record(record)`).
+  `clients/audit`: `AuditSinkKind` (`stub`), `AuditSinkConfig` (`kind="stub"`, `enforcement`
+  `shadow` | `enforced`, `endpoint`, `timeout_s=2.0`), `new_audit_sink_from_config(config, *,
+  backends=…)` (durable sinks are injected) and the in-memory `StubAuditSink`.
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.
