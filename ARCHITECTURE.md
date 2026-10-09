@@ -162,7 +162,7 @@ documented exception: the logger's deploy-time `GIT_SHA` (mirrored in Python).
 
 Every error crossing a package boundary carries an `ErrorCode`. Go `go/core/errors` defines the
 codes (`NOT_FOUND`, `INVALID_INPUT`, `UNAUTHORIZED`, `FORBIDDEN`, `CONFLICT`, `TIMEOUT`,
-`UNAVAILABLE`, `UPSTREAM`, `INTERNAL`, …); `New(code, msg)` / `Wrap(err, code, msg)` build an
+`UNAVAILABLE`, `UPSTREAM`, `RESOURCE_EXHAUSTED`, `INTERNAL`, …); `New(code, msg)` / `Wrap(err, code, msg)` build an
 `*AppError` keeping cause and origin stack; `Code(err)` / `Is(err, code)` read it. Production code
 under `go/` has no `fmt.Errorf`; `.golangci.yml` bans it via `forbidigo`.
 
@@ -173,7 +173,10 @@ which maps codes and captures the real cause for the request log). Python raises
 `AppError(code, message, cause=…)` or a subclass from `core/errors`; `is_transient`, `grpc_status`
 and `http_status` derive from the code, retries retry only transient `AppError`s, and boundary
 helpers translate SDK errors (`foundation/resilience/grpc_boundary.py`,
-`foundation/resilience/aws_boundary.py`).
+`foundation/resilience/aws_boundary.py`). `RESOURCE_EXHAUSTED` (a spent quota, HTTP 429 / gRPC 8) is
+neither transient nor permanent, so no retry layer in either language retries it. The committed
+`go/core/errors/testdata/codes.json` pins every code's `{grpc, http, transient, permanent}` row; the
+Go suite regenerates it and the Python suite compares against it.
 
 ## Stub-first backends
 

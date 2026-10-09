@@ -6,6 +6,31 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `RESOURCE_EXHAUSTED` error code in both languages (Go `errors.CodeResourceExhausted`, Python
+  `ErrorCode.RESOURCE_EXHAUSTED`): HTTP 429 / gRPC `RESOURCE_EXHAUSTED` (8), with the fixed
+  client-safe message "resource exhausted" on the gRPC edge. It is neither transient nor permanent,
+  so the retry decorators never retry it. Python adds `QuotaExceededError(message, *, org_id,
+  reason)`. Go `rpc.FromRPCError` maps a `RESOURCE_EXHAUSTED` wire status back to the code.
+- `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
+  table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
+  its own maps against it, so the two languages cannot diverge silently.
+
+### Changed
+
+- Go `rpc.Sanitize` now maps `CodeUnavailable` to `connect.CodeUnavailable` ("service
+  unavailable") instead of the `INTERNAL` default, matching the Python gRPC map. Clients now see a
+  retryable `UNAVAILABLE` for a transient dependency outage instead of a terminal `INTERNAL`.
+- **Behaviour change — quota rejections are no longer retried.** Python
+  `foundation/resilience/grpc_boundary.py` used to map a gRPC `RESOURCE_EXHAUSTED` to a transient
+  `UNAVAILABLE`, so `RetryProxy` re-sent the call into the same spent budget. It now maps to the
+  non-retryable `RESOURCE_EXHAUSTED` code. A rate-limit pushback is still honoured: when the
+  trailers carry `grpc-retry-pushback-ms` (milliseconds) or `retry-after` (seconds), the boundary
+  raises a transient `UNAVAILABLE` with `details["retry_after_ms"]`. Go
+  `exponential.IsRetryable` (shared by the retrier and the circuit breaker) likewise stops retrying
+  `CodeResourceExhausted`, so a quota rejection no longer counts as a breaker failure.
+
 ## [0.3.1] - 2026-10-08
 
 Python (`techai-webutils`) reaches error-code parity with the Go `errors` package and matches Go's

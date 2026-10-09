@@ -36,6 +36,12 @@ class ErrorCode(StrEnum):
     """Quality gate failed (HTTP 500 / gRPC INTERNAL)."""
     UPSTREAM = "UPSTREAM"
     """Failure originating in an upstream dependency (HTTP 502 / gRPC UNAVAILABLE)."""
+    RESOURCE_EXHAUSTED = "RESOURCE_EXHAUSTED"
+    """A quota or budget is spent (HTTP 429 / gRPC RESOURCE_EXHAUSTED); neither transient nor permanent.
+
+    Retrying inside the quota window only burns another quota check, so it is not transient; the
+    request succeeds once the window resets, so it is not permanent either.
+    """
 
 
 # gRPC status code mapping (mirrors Go's Sanitize in go/transport/rpc/errors.go)
@@ -53,6 +59,7 @@ _GRPC_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.INGESTION_ERROR: 13,  # INTERNAL (Go Sanitize default)
     ErrorCode.QUALITY_FAILED: 13,  # INTERNAL (Go Sanitize default)
     ErrorCode.UPSTREAM: 14,  # UNAVAILABLE (Go Sanitize)
+    ErrorCode.RESOURCE_EXHAUSTED: 8,  # RESOURCE_EXHAUSTED (Go Sanitize)
 }
 """Maps each ErrorCode to its gRPC status code (mirrors Go's Sanitize in go/transport/rpc/errors.go).
 
@@ -71,6 +78,7 @@ _HTTP_STATUS_MAP: dict[ErrorCode, int] = {
     ErrorCode.TIMEOUT: 504,
     ErrorCode.UNAVAILABLE: 503,
     ErrorCode.UPSTREAM: 502,  # BadGateway (Go classify.go ToHTTPStatus)
+    ErrorCode.RESOURCE_EXHAUSTED: 429,  # TooManyRequests (Go classify.go ToHTTPStatus)
 }
 """Maps each ErrorCode to its canonical HTTP status code (matches Go's ToHTTPStatus).
 
@@ -192,6 +200,18 @@ class UnavailableError(AppError):
     def __init__(self, message: str = "service unavailable") -> None:
         """Initialize with an optional message describing the unavailable service."""
         super().__init__(ErrorCode.UNAVAILABLE, message)
+
+
+class QuotaExceededError(AppError):
+    """A quota or budget is spent for an organization (``RESOURCE_EXHAUSTED``).
+
+    It is neither transient nor permanent, so the resiliency stack never retries it; the caller backs
+    off until the quota window resets.
+    """
+
+    def __init__(self, message: str, *, org_id: str, reason: str) -> None:
+        """Initialize with a message, the organization whose quota is spent and a machine reason."""
+        super().__init__(ErrorCode.RESOURCE_EXHAUSTED, message, details={"org_id": org_id, "reason": reason})
 
 
 # Ingestion-specific errors

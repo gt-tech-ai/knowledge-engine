@@ -40,6 +40,10 @@ const (
 	CodeQualityFailed ErrorCode = "QUALITY_FAILED"
 	// CodeUpstream marks a failure originating in an upstream dependency.
 	CodeUpstream ErrorCode = "UPSTREAM"
+	// CodeResourceExhausted marks a request rejected because a quota or budget is
+	// spent. It is neither transient (retrying before the window resets only burns
+	// the quota check) nor permanent (the request succeeds once the window resets).
+	CodeResourceExhausted ErrorCode = "RESOURCE_EXHAUSTED"
 
 	// Aliases for compatibility with classify.go
 
