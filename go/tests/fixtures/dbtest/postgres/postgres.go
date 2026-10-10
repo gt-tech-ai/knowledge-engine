@@ -15,13 +15,12 @@ import (
 	"fmt"
 	"time"
 
+	// PostgreSQL driver registration.
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-
-	// PostgreSQL driver registration.
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const (

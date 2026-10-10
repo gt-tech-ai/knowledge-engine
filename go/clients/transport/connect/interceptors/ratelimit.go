@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
+
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )

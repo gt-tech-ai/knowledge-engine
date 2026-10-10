@@ -4,9 +4,10 @@
 package postgres
 
 import (
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // PostgreSQL error codes (Class 23 — Integrity Constraint Violation).

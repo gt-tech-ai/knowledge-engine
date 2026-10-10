@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 

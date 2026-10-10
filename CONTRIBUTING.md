@@ -26,7 +26,8 @@ Thanks for your interest in the Tech AI Knowledge Engine.
 
 1. Fork and branch (`<type>/<short-description>`).
 2. Make the change with a failing test first where behaviour changes.
-3. Regenerate mocks, then run the gates:
+3. Format Go code with `golangci-lint fmt ./go/...` (gofumpt, gci import sections,
+   golines at 90 columns). Regenerate mocks, then run the gates:
    `go generate ./go/tests/mocks/... && go vet ./go/... && golangci-lint run ./go/... && go test ./go/...`
    (Go) and
    `cd python/techai_webutils && uv run ruff check . && uv run basedpyright src && uv run pytest`

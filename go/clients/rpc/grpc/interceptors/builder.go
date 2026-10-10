@@ -3,8 +3,9 @@ package interceptors
 import (
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"google.golang.org/grpc"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // ServerBuilder composes server-side gRPC interceptors in the canonical

@@ -298,12 +298,20 @@ issues:
 formatters:
   enable:
     - gofumpt
-    - goimports
+    # gci organises imports into the ordered sections below (custom-order), which
+    # goimports cannot express: stdlib, then third-party, then this module.
+    - gci
     - golines
   settings:
     gofumpt:
       extra:
         group-params: true
+    gci:
+      sections:
+        - standard
+        - default
+        - localmodule
+      custom-order: true
     golines:
       max-len: 90
       tab-len: 4

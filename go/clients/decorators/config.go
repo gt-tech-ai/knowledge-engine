@@ -3,12 +3,13 @@ package decorators
 import (
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Config tunes the client resilience stack for one client tier. It is the minimal

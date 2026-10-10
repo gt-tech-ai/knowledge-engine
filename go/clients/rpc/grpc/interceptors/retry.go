@@ -3,11 +3,12 @@ package interceptors
 import (
 	"context"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // nonRetryableGRPCCodes lists gRPC status codes that must not be retried:

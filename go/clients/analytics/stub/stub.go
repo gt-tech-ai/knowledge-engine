@@ -28,7 +28,10 @@ func (*Store) Start(context.Context) error { return nil }
 func (*Store) Stop(context.Context) error { return nil }
 
 // Aggregate returns a stream with one empty, final page.
-func (*Store) Aggregate(context.Context, types.AggregateQuery) (interfaces.RowStream, error) {
+func (*Store) Aggregate(
+	context.Context,
+	types.AggregateQuery,
+) (interfaces.RowStream, error) {
 	return &emptyStream{}, nil
 }
 
@@ -39,7 +42,11 @@ func (*Store) Write(context.Context, []types.Fact) error { return nil }
 type emptyStream struct{}
 
 // Next returns no rows and no more pages.
-func (*emptyStream) Next(context.Context) ([]types.Row, bool, error) { return nil, false, nil }
+func (*emptyStream) Next(
+	context.Context,
+) ([]types.Row, bool, error) {
+	return nil, false, nil
+}
 
 // ResumeToken is empty: there is nothing to resume.
 func (*emptyStream) ResumeToken() []byte { return nil }

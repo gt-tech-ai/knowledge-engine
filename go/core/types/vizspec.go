@@ -135,7 +135,11 @@ func (e *AlgebraExpr) MarshalJSON() ([]byte, error) {
 func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	var w algebraWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid shelf expression")
+		return errors.Wrap(
+			err,
+			errors.CodeInvalidInput,
+			"vizspec: invalid shelf expression",
+		)
 	}
 	switch {
 	case w.Field != "" && w.Op == "" && len(w.Args) == 0:
@@ -143,7 +147,10 @@ func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	case w.Field == "" && w.Op != "":
 		*e = AlgebraExpr{Op: w.Op, Args: w.Args}
 	default:
-		return errors.New(errors.CodeInvalidInput, "vizspec: a shelf node is either a field or an operator")
+		return errors.New(
+			errors.CodeInvalidInput,
+			"vizspec: a shelf node is either a field or an operator",
+		)
 	}
 	return nil
 }
@@ -248,8 +255,15 @@ type vizSpecWire struct {
 // MarshalJSON renders the VizSpec wire form (the filter as its kept FilterJSON).
 func (s VizSpec) MarshalJSON() ([]byte, error) {
 	w := vizSpecWire{
-		TimeRange: s.TimeRange, Rows: s.Rows, Columns: s.Columns, Encodings: s.Encodings,
-		Cube: s.Cube, Grain: s.Grain, Mark: s.Mark, Filter: s.FilterJSON, Detail: s.Detail,
+		TimeRange: s.TimeRange,
+		Rows:      s.Rows,
+		Columns:   s.Columns,
+		Encodings: s.Encodings,
+		Cube:      s.Cube,
+		Grain:     s.Grain,
+		Mark:      s.Mark,
+		Filter:    s.FilterJSON,
+		Detail:    s.Detail,
 	}
 	for _, o := range s.Sort {
 		w.Sort = append(w.Sort, sortWire{Field: o.Field, Desc: o.Desc})
@@ -269,8 +283,15 @@ func (s *VizSpec) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid JSON")
 	}
 	*s = VizSpec{
-		TimeRange: w.TimeRange, Rows: w.Rows, Columns: w.Columns, Encodings: w.Encodings,
-		Cube: w.Cube, Grain: w.Grain, Mark: w.Mark, FilterJSON: w.Filter, Detail: w.Detail,
+		TimeRange:  w.TimeRange,
+		Rows:       w.Rows,
+		Columns:    w.Columns,
+		Encodings:  w.Encodings,
+		Cube:       w.Cube,
+		Grain:      w.Grain,
+		Mark:       w.Mark,
+		FilterJSON: w.Filter,
+		Detail:     w.Detail,
 	}
 	for _, o := range w.Sort {
 		s.Sort = append(s.Sort, OrderField{Field: o.Field, Desc: o.Desc})

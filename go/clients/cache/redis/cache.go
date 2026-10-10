@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // Compile-time interface assertions.

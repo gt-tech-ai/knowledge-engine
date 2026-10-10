@@ -308,7 +308,11 @@ func (d *recovery[In, Out]) Unwrap() Executor[In, Out] { return d.inner }
 // CircuitBreaker returns inner run through cb. When cb rejects the call without
 // running inner (an open breaker), Execute returns onOpen(err) so the tier can
 // code the rejection; an error from inner itself passes through unchanged.
-func CircuitBreaker[In, Out any](inner Executor[In, Out], cb interfaces.CircuitBreaker, onOpen func(error) error) Executor[In, Out] {
+func CircuitBreaker[In, Out any](
+	inner Executor[In, Out],
+	cb interfaces.CircuitBreaker,
+	onOpen func(error) error,
+) Executor[In, Out] {
 	return &breaker[In, Out]{inner: inner, cb: cb, onOpen: onOpen}
 }
 

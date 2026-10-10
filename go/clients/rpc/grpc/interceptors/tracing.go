@@ -5,12 +5,13 @@ import (
 	"io"
 	"sync"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // grpcMetadataCarrier adapts gRPC metadata.MD to the OTel TextMapCarrier so the

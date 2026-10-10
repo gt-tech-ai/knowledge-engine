@@ -29,7 +29,11 @@ const KMSKeyAttribute = "kms_key_id"
 // SDK seam — the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core port.
 type API interface {
 	// PutObject writes one object.
-	PutObject(ctx context.Context, in *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
+	PutObject(
+		ctx context.Context,
+		in *awss3.PutObjectInput,
+		optFns ...func(*awss3.Options),
+	) (*awss3.PutObjectOutput, error)
 }
 
 // Config configures the S3 sink.
@@ -64,9 +68,15 @@ func New(cfg Config) (*Sink, error) {
 	}
 	switch {
 	case cfg.API == nil || cfg.Bucket == "":
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "outbox s3 sink: api and bucket are required")
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			"outbox s3 sink: api and bucket are required",
+		)
 	case !strings.Contains(tmpl, "{id}"):
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "outbox s3 sink: key template must contain {id}")
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			"outbox s3 sink: key template must contain {id}",
+		)
 	}
 	return &Sink{api: cfg.API, bucket: cfg.Bucket, template: tmpl}, nil
 }
@@ -77,7 +87,11 @@ func (s *Sink) Send(ctx context.Context, recs []types.OutboxRecord) []error {
 	for i := range recs {
 		rec := &recs[i]
 		if _, err := s.api.PutObject(ctx, s.input(rec)); err != nil {
-			results[i] = coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox s3 sink: put "+rec.ID.String())
+			results[i] = coreerr.Wrap(
+				err,
+				coreerr.CodeOr(err, coreerr.CodeUnavailable),
+				"outbox s3 sink: put "+rec.ID.String(),
+			)
 		}
 	}
 	return results

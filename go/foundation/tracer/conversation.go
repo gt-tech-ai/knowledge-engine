@@ -50,7 +50,10 @@ type Conversation struct {
 // ParseTraceparent returns the span context a W3C traceparent encodes, and
 // false when the value is malformed.
 func ParseTraceparent(s string) (trace.SpanContext, bool) {
-	ctx := traceContext.Extract(context.Background(), propagation.MapCarrier{"traceparent": s})
+	ctx := traceContext.Extract(
+		context.Background(),
+		propagation.MapCarrier{"traceparent": s},
+	)
 	sc := trace.SpanContextFromContext(ctx)
 	return sc, sc.IsValid()
 }
@@ -69,7 +72,10 @@ func InjectConversation(ctx context.Context, c Conversation) context.Context {
 	}
 	if c.Prev.IsValid() {
 		carrier := propagation.MapCarrier{}
-		traceContext.Inject(trace.ContextWithRemoteSpanContext(context.Background(), c.Prev), carrier)
+		traceContext.Inject(
+			trace.ContextWithRemoteSpanContext(context.Background(), c.Prev),
+			carrier,
+		)
 		values[BaggagePrevTraceparent] = carrier.Get("traceparent")
 	}
 	bag := baggage.FromContext(ctx)

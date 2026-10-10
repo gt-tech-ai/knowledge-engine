@@ -37,7 +37,11 @@ var _ interfaces.QueryBackend[predicate, struct{}] = residual{}
 
 // compileResidual folds f into a predicate (match-all for an empty filter).
 func compileResidual(f types.Filter) predicate {
-	return listquery.Compile[predicate, struct{}](residual{}, func(field string) string { return field }, f)
+	return listquery.Compile[predicate, struct{}](
+		residual{},
+		func(field string) string { return field },
+		f,
+	)
 }
 
 // Clause matches one comparison against the row's time or dimension value.
@@ -181,7 +185,13 @@ func pushdown(f types.Filter, lo, hi time.Time) (from, to time.Time) {
 				hi = up
 			}
 		case types.OpEq:
-			lo, hi = maxTime(lo, at.Truncate(time.Millisecond)), minTime(hi, at.Truncate(time.Millisecond).Add(time.Millisecond))
+			lo, hi = maxTime(
+				lo,
+				at.Truncate(time.Millisecond),
+			), minTime(
+				hi,
+				at.Truncate(time.Millisecond).Add(time.Millisecond),
+			)
 		}
 	}
 	return lo, hi

@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // TraceResponseHeader is the response header carrying the active span's W3C trace

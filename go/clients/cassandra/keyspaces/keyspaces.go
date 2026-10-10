@@ -15,6 +15,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/gocql/gocql"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
@@ -63,7 +64,11 @@ func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	}
 	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "keyspaces: unknown consistency "+cfg.Consistency)
+		return nil, errors.Wrap(
+			err,
+			errors.CodeInvalidInput,
+			"keyspaces: unknown consistency "+cfg.Consistency,
+		)
 	}
 	provider := cfg.Credentials
 	if provider == nil {
@@ -89,26 +94,40 @@ func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	}
 	cluster.DisableInitialHostLookup = true
 	cluster.SslOpts = &gocql.SslOptions{
-		Config:                 &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12},
+		Config: &tls.Config{
+			ServerName: host,
+			MinVersion: tls.VersionTLS12,
+		},
 		CaPath:                 cfg.CACertPath,
 		EnableHostVerification: true,
 	}
-	cluster.Authenticator = sigv4.NewAwsAuthenticatorWithCredentialCallback(cfg.Region, credentialsCallback(provider))
+	cluster.Authenticator = sigv4.NewAwsAuthenticatorWithCredentialCallback(
+		cfg.Region,
+		credentialsCallback(provider),
+	)
 	return cluster, nil
 }
 
 // credentialsCallback adapts an AWS SDK v2 credentials provider to the SigV4
 // plugin's callback, bounding each refresh.
-func credentialsCallback(provider aws.CredentialsProvider) sigv4.SigV4CredentialsCallback {
+func credentialsCallback(
+	provider aws.CredentialsProvider,
+) sigv4.SigV4CredentialsCallback {
 	return func() (sigv4.SigV4Credentials, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), credentialsTimeout)
 		defer cancel()
 		creds, err := provider.Retrieve(ctx)
 		if err != nil {
-			return sigv4.SigV4Credentials{}, errors.Wrap(err, errors.CodeUnavailable, "keyspaces: retrieve AWS credentials")
+			return sigv4.SigV4Credentials{}, errors.Wrap(
+				err,
+				errors.CodeUnavailable,
+				"keyspaces: retrieve AWS credentials",
+			)
 		}
 		return sigv4.SigV4Credentials{
-			AccessKeyId: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey, SessionToken: creds.SessionToken,
+			AccessKeyId:     creds.AccessKeyID,
+			SecretAccessKey: creds.SecretAccessKey,
+			SessionToken:    creds.SessionToken,
 		}, nil
 	}
 }
@@ -120,18 +139,27 @@ func defaultChain(region string) aws.CredentialsProvider {
 	var once sync.Once
 	var chain aws.CredentialsProvider
 	var loadErr error
-	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-		once.Do(func() {
-			awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
-			if err != nil {
-				loadErr = errors.Wrap(err, errors.CodeInternal, "keyspaces: load AWS credentials chain")
-				return
+	return aws.CredentialsProviderFunc(
+		func(ctx context.Context) (aws.Credentials, error) {
+			once.Do(func() {
+				awsCfg, err := awsconfig.LoadDefaultConfig(
+					ctx,
+					awsconfig.WithRegion(region),
+				)
+				if err != nil {
+					loadErr = errors.Wrap(
+						err,
+						errors.CodeInternal,
+						"keyspaces: load AWS credentials chain",
+					)
+					return
+				}
+				chain = awsCfg.Credentials
+			})
+			if loadErr != nil {
+				return aws.Credentials{}, loadErr
 			}
-			chain = awsCfg.Credentials
-		})
-		if loadErr != nil {
-			return aws.Credentials{}, loadErr
-		}
-		return chain.Retrieve(ctx)
-	})
+			return chain.Retrieve(ctx)
+		},
+	)
 }

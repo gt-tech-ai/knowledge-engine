@@ -116,7 +116,10 @@ func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = coreerr.WithDetails(
-				coreerr.New(coreerr.CodeInternal, fmt.Sprintf("cache: load panicked: %v", r)),
+				coreerr.New(
+					coreerr.CodeInternal,
+					fmt.Sprintf("cache: load panicked: %v", r),
+				),
 				map[string]string{"stack": string(debug.Stack())},
 			)
 		}
@@ -128,7 +131,11 @@ func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 // CodeCanceled.
 func contextError(err error) error {
 	if coreerr.StdIs(err, context.DeadlineExceeded) {
-		return coreerr.Wrap(err, coreerr.CodeTimeout, "cache: read-through wait timed out")
+		return coreerr.Wrap(
+			err,
+			coreerr.CodeTimeout,
+			"cache: read-through wait timed out",
+		)
 	}
 	return coreerr.Wrap(err, coreerr.CodeCanceled, "cache: read-through wait canceled")
 }

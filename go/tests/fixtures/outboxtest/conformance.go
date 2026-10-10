@@ -41,10 +41,19 @@ type Harness struct {
 //     parked rows and reports the oldest pending row's creation time.
 func Run(t *testing.T, h Harness) {
 	t.Helper()
-	t.Run("ConcurrentClaimsAreDisjoint", func(t *testing.T) { concurrentClaimsAreDisjoint(t, h) })
+	t.Run(
+		"ConcurrentClaimsAreDisjoint",
+		func(t *testing.T) { concurrentClaimsAreDisjoint(t, h) },
+	)
 	t.Run("NextAttemptAtIsHonoured", func(t *testing.T) { nextAttemptAtIsHonoured(t, h) })
-	t.Run("SentAndParkedAreNotClaimed", func(t *testing.T) { sentAndParkedAreNotClaimed(t, h) })
-	t.Run("StatsCountsPendingAndParked", func(t *testing.T) { statsCountsPendingAndParked(t, h) })
+	t.Run(
+		"SentAndParkedAreNotClaimed",
+		func(t *testing.T) { sentAndParkedAreNotClaimed(t, h) },
+	)
+	t.Run(
+		"StatsCountsPendingAndParked",
+		func(t *testing.T) { statsCountsPendingAndParked(t, h) },
+	)
 }
 
 // seed enqueues n records on lane, created a second apart (oldest first), and
@@ -147,7 +156,13 @@ func statsCountsPendingAndParked(t *testing.T, h Harness) {
 	require.NoError(t, err)
 	require.Equal(t, 3, stats.Pending)
 	require.Equal(t, 0, stats.Parked)
-	require.True(t, oldest.Equal(stats.OldestPending), "oldest %v, got %v", oldest, stats.OldestPending)
+	require.True(
+		t,
+		oldest.Equal(stats.OldestPending),
+		"oldest %v, got %v",
+		oldest,
+		stats.OldestPending,
+	)
 
 	require.NoError(t, h.Store.MarkSent(ctx, ids[0]))
 	require.NoError(t, h.Store.Park(ctx, ids[1], "poison"))

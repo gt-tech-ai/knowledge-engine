@@ -27,7 +27,11 @@ type session struct {
 
 // Query returns a decorated query.
 func (s *session) Query(stmt string, values ...any) cassandra.Query {
-	return &query{inner: s.inner.Query(stmt, values...), stack: s.stack, ctx: context.Background()}
+	return &query{
+		inner: s.inner.Query(stmt, values...),
+		stack: s.stack,
+		ctx:   context.Background(),
+	}
 }
 
 // Batch returns a decorated batch.
@@ -41,10 +45,15 @@ func (s *session) ExecuteBatch(b cassandra.Batch) error {
 	if db, ok := b.(*batch); ok {
 		inner, ctx = db.inner, db.ctx
 	}
-	_, err := clientdecorators.Run(ctx, s.stack, "cassandra.batch", clientdecorators.RunOpts{Retryable: true},
+	_, err := clientdecorators.Run(
+		ctx,
+		s.stack,
+		"cassandra.batch",
+		clientdecorators.RunOpts{Retryable: true},
 		func(cctx context.Context) (struct{}, error) {
 			return struct{}{}, s.inner.ExecuteBatch(inner.WithContext(cctx))
-		})
+		},
+	)
 	return err
 }
 
@@ -70,10 +79,20 @@ func (q *query) WithContext(ctx context.Context) cassandra.Query {
 }
 
 // PageSize sets the page size.
-func (q *query) PageSize(n int) cassandra.Query { q.inner = q.inner.PageSize(n); return q }
+func (q *query) PageSize(
+	n int,
+) cassandra.Query {
+	q.inner = q.inner.PageSize(n)
+	return q
+}
 
 // PageState sets the resume position.
-func (q *query) PageState(state []byte) cassandra.Query { q.inner = q.inner.PageState(state); return q }
+func (q *query) PageState(
+	state []byte,
+) cassandra.Query {
+	q.inner = q.inner.PageState(state)
+	return q
+}
 
 // Idempotent marks the statement retryable.
 func (q *query) Idempotent(idempotent bool) cassandra.Query {
@@ -84,8 +103,13 @@ func (q *query) Idempotent(idempotent bool) cassandra.Query {
 // Exec runs the statement through the stack (each attempt bound to the stack's
 // per-attempt context), retried only when idempotent.
 func (q *query) Exec() error {
-	_, err := clientdecorators.Run(q.ctx, q.stack, "cassandra.exec", clientdecorators.RunOpts{Retryable: q.idempotent},
-		func(cctx context.Context) (struct{}, error) { return struct{}{}, q.inner.WithContext(cctx).Exec() })
+	_, err := clientdecorators.Run(
+		q.ctx,
+		q.stack,
+		"cassandra.exec",
+		clientdecorators.RunOpts{Retryable: q.idempotent},
+		func(cctx context.Context) (struct{}, error) { return struct{}{}, q.inner.WithContext(cctx).Exec() },
+	)
 	return err
 }
 

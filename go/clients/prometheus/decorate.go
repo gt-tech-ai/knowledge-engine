@@ -24,7 +24,11 @@ import (
 // CodeCanceled, and any other failure CodeUnavailable. A throttling or unavailable status
 // (429, 502, 503, 504) is a CodeUnavailable error, so the stack retries it and its breaker
 // counts it. Any other status passes through for the client to code.
-func DecorateDoer(inner HTTPDoer, stack *clientdecorators.Stack, maxBodyBytes int64) HTTPDoer {
+func DecorateDoer(
+	inner HTTPDoer,
+	stack *clientdecorators.Stack,
+	maxBodyBytes int64,
+) HTTPDoer {
 	return &decoratedDoer{inner: inner, stack: stack, maxBodyBytes: maxBodyBytes}
 }
 

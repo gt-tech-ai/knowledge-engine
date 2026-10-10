@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestSuite provides common test infrastructure for all suites.

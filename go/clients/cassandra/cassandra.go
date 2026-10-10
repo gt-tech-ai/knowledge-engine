@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+
 	cassandrabackend "github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/keyspaces"
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
@@ -64,31 +65,57 @@ func NewFromConfig(cfg *Config) (Session, error) {
 	}
 	s, err := cluster.CreateSession()
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeUnavailable, "cassandra: create session")
+		return nil, coreerr.Wrap(
+			err,
+			coreerr.CodeUnavailable,
+			"cassandra: create session",
+		)
 	}
 	return &gocqlSession{session: s, speculative: speculative}, nil
 }
 
 // clusterFor builds the backend's cluster configuration and the speculative
 // execution policy its idempotent reads use (nil for none).
-func clusterFor(cfg *Config) (*gocql.ClusterConfig, gocql.SpeculativeExecutionPolicy, error) {
+func clusterFor(
+	cfg *Config,
+) (*gocql.ClusterConfig, gocql.SpeculativeExecutionPolicy, error) {
 	switch cfg.Kind {
 	case KindCassandra:
 		cluster, err := cassandrabackend.New(&cassandrabackend.Config{
-			Hosts: cfg.Cassandra.Hosts, LocalDC: cfg.Cassandra.LocalDC, Keyspace: cfg.Keyspace,
-			Consistency: cfg.Consistency, Username: cfg.Cassandra.Username, Password: cfg.Cassandra.Password,
-			Timeout: cfg.Timeout, ConnectTimeout: cfg.ConnectTimeout, Port: cfg.Cassandra.Port,
-			PageSize: cfg.PageSize, NumConns: cfg.NumConns, TLS: cfg.Cassandra.TLS,
+			Hosts:          cfg.Cassandra.Hosts,
+			LocalDC:        cfg.Cassandra.LocalDC,
+			Keyspace:       cfg.Keyspace,
+			Consistency:    cfg.Consistency,
+			Username:       cfg.Cassandra.Username,
+			Password:       cfg.Cassandra.Password,
+			Timeout:        cfg.Timeout,
+			ConnectTimeout: cfg.ConnectTimeout,
+			Port:           cfg.Cassandra.Port,
+			PageSize:       cfg.PageSize,
+			NumConns:       cfg.NumConns,
+			TLS:            cfg.Cassandra.TLS,
 		})
-		return cluster, &gocql.SimpleSpeculativeExecution{NumAttempts: 1, TimeoutDelay: speculativeDelay}, err
+		return cluster, &gocql.SimpleSpeculativeExecution{
+			NumAttempts:  1,
+			TimeoutDelay: speculativeDelay,
+		}, err
 	case KindKeyspaces:
 		cluster, err := keyspaces.New(&keyspaces.Config{
-			Region: cfg.Keyspaces.Region, Keyspace: cfg.Keyspace, Consistency: cfg.Consistency,
-			CACertPath: cfg.Keyspaces.CACertPath, Timeout: cfg.Timeout, ConnectTimeout: cfg.ConnectTimeout,
-			Port: cfg.Keyspaces.Port, PageSize: cfg.PageSize, NumConns: cfg.NumConns,
+			Region:         cfg.Keyspaces.Region,
+			Keyspace:       cfg.Keyspace,
+			Consistency:    cfg.Consistency,
+			CACertPath:     cfg.Keyspaces.CACertPath,
+			Timeout:        cfg.Timeout,
+			ConnectTimeout: cfg.ConnectTimeout,
+			Port:           cfg.Keyspaces.Port,
+			PageSize:       cfg.PageSize,
+			NumConns:       cfg.NumConns,
 		})
 		return cluster, nil, err
 	default:
-		return nil, nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown cassandra kind: %v", cfg.Kind))
+		return nil, nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("unknown cassandra kind: %v", cfg.Kind),
+		)
 	}
 }

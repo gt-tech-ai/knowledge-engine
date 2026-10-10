@@ -3,11 +3,12 @@ package interceptors
 import (
 	"context"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // CircuitBreakerClientInterceptor returns a client-side interceptor that wraps

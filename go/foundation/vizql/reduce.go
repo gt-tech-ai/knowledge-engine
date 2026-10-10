@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -33,14 +34,21 @@ type Partial struct {
 // CodeInvalidInput.
 func NewPartial(value float64) (Partial, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return Partial{}, errors.New(errors.CodeInvalidInput, "vizql: observation must be finite")
+		return Partial{}, errors.New(
+			errors.CodeInvalidInput,
+			"vizql: observation must be finite",
+		)
 	}
 	sketch, err := ddsketch.NewDefaultDDSketch(SketchRelativeAccuracy)
 	if err != nil {
 		return Partial{}, errors.Wrap(err, errors.CodeInternal, "vizql: create sketch")
 	}
 	if err := sketch.Add(value); err != nil {
-		return Partial{}, errors.Wrap(err, errors.CodeInvalidInput, "vizql: add observation")
+		return Partial{}, errors.Wrap(
+			err,
+			errors.CodeInvalidInput,
+			"vizql: add observation",
+		)
 	}
 	return Partial{Sketch: sketch, Sum: value, Count: 1, Min: value, Max: value}, nil
 }
@@ -78,7 +86,10 @@ func mergeSketch(dst, src *ddsketch.DDSketch) {
 		return
 	}
 	src.ForEach(func(value, count float64) bool {
-		_ = dst.AddWithCount(value, count) // value came from a valid sketch bin; Add cannot reject it
+		_ = dst.AddWithCount(
+			value,
+			count,
+		) // value came from a valid sketch bin; Add cannot reject it
 		return false
 	})
 }

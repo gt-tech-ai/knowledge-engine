@@ -59,11 +59,15 @@ func (c RelayConfig) Validate() error {
 	case c.Lane == "":
 		return coreerr.New(coreerr.CodeInvalidInput, "outbox relay: lane is required")
 	case c.BatchSize <= 0, c.SendBatch <= 0, c.Concurrency <= 0, c.MaxAttempts <= 0:
-		return coreerr.New(coreerr.CodeInvalidInput,
-			"outbox relay: batch_size, send_batch, concurrency and max_attempts must be positive")
+		return coreerr.New(
+			coreerr.CodeInvalidInput,
+			"outbox relay: batch_size, send_batch, concurrency and max_attempts must be positive",
+		)
 	case c.BaseBackoff <= 0 || c.MaxBackoff < c.BaseBackoff:
-		return coreerr.New(coreerr.CodeInvalidInput,
-			"outbox relay: base_backoff must be positive and max_backoff at least base_backoff")
+		return coreerr.New(
+			coreerr.CodeInvalidInput,
+			"outbox relay: base_backoff must be positive and max_backoff at least base_backoff",
+		)
 	}
 	return nil
 }
@@ -73,11 +77,18 @@ func (c RelayConfig) Validate() error {
 // yields the defaults; an unreadable or invalid one is CodeInvalidInput. Load
 // through it so a bad section stops boot with a coded error, never NewRelay's
 // panic.
-func LoadRelayConfig(loader interfaces.ConfigLoader, key, lane string) (RelayConfig, error) {
+func LoadRelayConfig(
+	loader interfaces.ConfigLoader,
+	key, lane string,
+) (RelayConfig, error) {
 	cfg := DefaultRelayConfig(lane)
 	if loader.Get(key) != nil {
 		if err := loader.UnmarshalKey(key, &cfg); err != nil {
-			return RelayConfig{}, coreerr.Wrap(err, coreerr.CodeInvalidInput, "load outbox relay config "+key)
+			return RelayConfig{}, coreerr.Wrap(
+				err,
+				coreerr.CodeInvalidInput,
+				"load outbox relay config "+key,
+			)
 		}
 	}
 	if err := cfg.Validate(); err != nil {
@@ -138,7 +149,12 @@ func NewRelay(
 		panic(err)
 	}
 	if store == nil || sink == nil {
-		panic(coreerr.New(coreerr.CodeInvalidInput, "outbox relay: store and sink are required"))
+		panic(
+			coreerr.New(
+				coreerr.CodeInvalidInput,
+				"outbox relay: store and sink are required",
+			),
+		)
 	}
 	r := &Relay{
 		cfg: cfg, store: store, sink: sink, logger: logger, tracer: tracer,
@@ -146,10 +162,26 @@ func NewRelay(
 	}
 	if metrics != nil {
 		r.sent = metrics.Counter("outbox_sent_total", "Outbox records delivered.", "lane")
-		r.retried = metrics.Counter("outbox_retried_total", "Outbox deliveries rescheduled after a failure.", "lane")
-		r.parked = metrics.Counter("outbox_parked_total", "Outbox records parked after exhausting their attempts.", "lane")
-		r.depth = metrics.Gauge("outbox_depth", "Outbox records pending delivery.", "lane")
-		r.lag = metrics.Gauge("outbox_lag_seconds", "Age of the oldest pending outbox record, in seconds.", "lane")
+		r.retried = metrics.Counter(
+			"outbox_retried_total",
+			"Outbox deliveries rescheduled after a failure.",
+			"lane",
+		)
+		r.parked = metrics.Counter(
+			"outbox_parked_total",
+			"Outbox records parked after exhausting their attempts.",
+			"lane",
+		)
+		r.depth = metrics.Gauge(
+			"outbox_depth",
+			"Outbox records pending delivery.",
+			"lane",
+		)
+		r.lag = metrics.Gauge(
+			"outbox_lag_seconds",
+			"Age of the oldest pending outbox record, in seconds.",
+			"lane",
+		)
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -182,7 +214,11 @@ func (r *Relay) RunOnce(ctx context.Context) error {
 func (r *Relay) runOnce(ctx context.Context) error {
 	recs, err := r.store.Claim(ctx, r.cfg.Lane, r.cfg.BatchSize)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox relay: claim")
+		return coreerr.Wrap(
+			err,
+			coreerr.CodeOr(err, coreerr.CodeUnavailable),
+			"outbox relay: claim",
+		)
 	}
 
 	var (
@@ -218,8 +254,14 @@ func (r *Relay) runOnce(ctx context.Context) error {
 func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error {
 	results := r.sink.Send(ctx, chunk)
 	if len(results) != len(chunk) {
-		mismatch := coreerr.New(coreerr.CodeInternal,
-			fmt.Sprintf("outbox relay: sink returned %d results for %d records", len(results), len(chunk)))
+		mismatch := coreerr.New(
+			coreerr.CodeInternal,
+			fmt.Sprintf(
+				"outbox relay: sink returned %d results for %d records",
+				len(results),
+				len(chunk),
+			),
+		)
 		results = make([]error, len(chunk))
 		for i := range results {
 			results[i] = mismatch
@@ -247,7 +289,11 @@ func interrupted(ctx context.Context, sendErr error) bool {
 // finalize records one row's outcome: sent, parked on its last attempt (or on
 // its first permanent failure with ParkOnPermanent), or rescheduled with
 // jittered capped exponential backoff.
-func (r *Relay) finalize(ctx context.Context, rec *types.OutboxRecord, sendErr error) error {
+func (r *Relay) finalize(
+	ctx context.Context,
+	rec *types.OutboxRecord,
+	sendErr error,
+) error {
 	lane := r.cfg.Lane
 	var err error
 	switch {
@@ -263,7 +309,11 @@ func (r *Relay) finalize(ctx context.Context, rec *types.OutboxRecord, sendErr e
 		inc(r.retried, lane, err)
 	}
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox relay: finalize "+rec.ID.String())
+		return coreerr.Wrap(
+			err,
+			coreerr.CodeOr(err, coreerr.CodeUnavailable),
+			"outbox relay: finalize "+rec.ID.String(),
+		)
 	}
 	return nil
 }
@@ -289,7 +339,8 @@ func (r *Relay) refreshGauges(ctx context.Context) {
 	stats, err := r.store.Stats(ctx, r.cfg.Lane)
 	if err != nil {
 		if r.logger != nil {
-			r.logger.WithContext(ctx).Warn("outbox relay: stats failed", "lane", r.cfg.Lane, "error", err.Error())
+			r.logger.WithContext(ctx).
+				Warn("outbox relay: stats failed", "lane", r.cfg.Lane, "error", err.Error())
 		}
 		return
 	}

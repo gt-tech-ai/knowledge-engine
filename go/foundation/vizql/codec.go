@@ -7,6 +7,7 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/store"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -42,7 +43,11 @@ func DecodePartial(b []byte) (Partial, error) {
 	if rest := b[partialHeaderLen:]; len(rest) > 0 {
 		sketch, err := ddsketch.DecodeDDSketch(rest, store.DefaultProvider, nil)
 		if err != nil {
-			return Partial{}, errors.Wrap(err, errors.CodeInvalidInput, "vizql: malformed partial sketch")
+			return Partial{}, errors.Wrap(
+				err,
+				errors.CodeInvalidInput,
+				"vizql: malformed partial sketch",
+			)
 		}
 		p.Sketch = sketch
 	}

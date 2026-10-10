@@ -17,9 +17,8 @@ import (
 
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
-	gb "github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker/gobreaker"
-
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
+	gb "github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker/gobreaker"
 )
 
 // Kind specifies which circuit breaker implementation to use.

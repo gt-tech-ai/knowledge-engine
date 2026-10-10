@@ -86,7 +86,10 @@ func (f *Fact) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, errors.CodeInvalidInput, "fact: decode")
 	}
 	if w.Schema != FactSchemaVersion {
-		return errors.New(errors.CodeInvalidInput, "fact: unknown schema version "+strconv.Itoa(w.Schema))
+		return errors.New(
+			errors.CodeInvalidInput,
+			"fact: unknown schema version "+strconv.Itoa(w.Schema),
+		)
 	}
 	ts, err := time.Parse(time.RFC3339Nano, w.TS)
 	if err != nil {

@@ -70,7 +70,11 @@ func NewClient(
 ) (interfaces.Source, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "loading aws config for secrets manager")
+		return nil, errors.Wrap(
+			err,
+			errors.CodeInternal,
+			"loading aws config for secrets manager",
+		)
 	}
 	return New(secretsmanager.NewFromConfig(awsCfg), locs), nil
 }
@@ -90,7 +94,11 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 		SecretId: aws.String(loc.SecretID),
 	})
 	if err != nil {
-		return types.Secret{}, errors.Wrap(err, errors.CodeUpstream, "fetching secret from secrets manager")
+		return types.Secret{}, errors.Wrap(
+			err,
+			errors.CodeUpstream,
+			"fetching secret from secrets manager",
+		)
 	}
 	if out.SecretString == nil {
 		return types.Secret{}, errors.NotFound(
@@ -99,12 +107,21 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 	}
 	var fields map[string]string
 	if err := json.Unmarshal([]byte(*out.SecretString), &fields); err != nil {
-		return types.Secret{}, errors.Wrap(err, errors.CodeInternal, "decoding secrets manager json")
+		return types.Secret{}, errors.Wrap(
+			err,
+			errors.CodeInternal,
+			"decoding secrets manager json",
+		)
 	}
 	value, found := fields[loc.Field]
 	if !found || value == "" {
 		return types.Secret{}, errors.NotFound(
-			fmt.Sprintf("field %q not found in secret %q for %s", loc.Field, loc.SecretID, ref),
+			fmt.Sprintf(
+				"field %q not found in secret %q for %s",
+				loc.Field,
+				loc.SecretID,
+				ref,
+			),
 		)
 	}
 	return types.NewSecret(value), nil
@@ -115,6 +132,9 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 func (s source) Put(_ context.Context, ref types.Ref, _ types.Secret) error {
 	return errors.New(
 		errors.CodeInvalidInput,
-		fmt.Sprintf("aws-sm credential source is read-only (IaC writes secrets): cannot write %s", ref),
+		fmt.Sprintf(
+			"aws-sm credential source is read-only (IaC writes secrets): cannot write %s",
+			ref,
+		),
 	)
 }

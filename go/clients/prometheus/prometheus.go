@@ -82,7 +82,10 @@ func ParseKind(s string) (Kind, error) {
 	case "http":
 		return KindHTTP, nil
 	default:
-		return 0, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown prometheus kind: %q", s))
+		return 0, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("unknown prometheus kind: %q", s),
+		)
 	}
 }
 
@@ -90,13 +93,19 @@ func ParseKind(s string) (Kind, error) {
 // through an http.Client bounded by cfg.Timeout and wrapped (DecorateDoer) in the client
 // stack built from cfg.Resilience and deps, capping bodies at cfg.MaxBodyBytes. An unknown
 // kind, or KindHTTP without a BaseURL, is CodeInvalidInput.
-func NewFromConfig(cfg Config, deps clientdecorators.Deps) (interfaces.MetricsQuerier, error) {
+func NewFromConfig(
+	cfg Config,
+	deps clientdecorators.Deps,
+) (interfaces.MetricsQuerier, error) {
 	switch cfg.Kind {
 	case KindStub:
 		return stub.New(), nil
 	case KindHTTP:
 		if cfg.BaseURL == "" {
-			return nil, coreerr.New(coreerr.CodeInvalidInput, "prometheus: base_url is required for the http kind")
+			return nil, coreerr.New(
+				coreerr.CodeInvalidInput,
+				"prometheus: base_url is required for the http kind",
+			)
 		}
 		stack, err := clientdecorators.StackFromConfig("prometheus", cfg.Resilience, deps)
 		if err != nil {
@@ -105,6 +114,9 @@ func NewFromConfig(cfg Config, deps clientdecorators.Deps) (interfaces.MetricsQu
 		doer := DecorateDoer(&http.Client{Timeout: cfg.Timeout}, stack, cfg.MaxBodyBytes)
 		return New(cfg.BaseURL, doer), nil
 	default:
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown prometheus kind: %v", cfg.Kind))
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("unknown prometheus kind: %v", cfg.Kind),
+		)
 	}
 }

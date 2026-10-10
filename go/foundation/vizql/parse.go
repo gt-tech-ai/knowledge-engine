@@ -15,12 +15,19 @@ const MaxShelfDepth = 8
 
 // grains is the set of accepted time resolutions.
 var grains = map[types.Grain]bool{
-	types.GrainMinute: true, types.GrainHour: true, types.GrainDay: true, types.GrainMonth: true,
+	types.GrainMinute: true,
+	types.GrainHour:   true,
+	types.GrainDay:    true,
+	types.GrainMonth:  true,
 }
 
 // marks is the set of accepted explicit marks (MarkAuto included).
 var marks = map[types.Mark]bool{
-	types.MarkAuto: true, types.MarkText: true, types.MarkBar: true, types.MarkLine: true, types.MarkPoint: true,
+	types.MarkAuto:  true,
+	types.MarkText:  true,
+	types.MarkBar:   true,
+	types.MarkLine:  true,
+	types.MarkPoint: true,
 }
 
 // ops is the set of accepted table-algebra operators.
@@ -44,7 +51,11 @@ func Parse(b []byte, m *listquery.Map) (types.VizSpec, error) {
 	var spec types.VizSpec
 	if err := json.Unmarshal(b, &spec); err != nil {
 		if errors.Code(err) == errors.CodeUnknown {
-			return types.VizSpec{}, errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid JSON")
+			return types.VizSpec{}, errors.Wrap(
+				err,
+				errors.CodeInvalidInput,
+				"vizspec: invalid JSON",
+			)
 		}
 		return types.VizSpec{}, err
 	}
@@ -68,7 +79,9 @@ func validate(spec *types.VizSpec, m *listquery.Map) error {
 	}
 	for _, o := range spec.Sort {
 		if !keys[o.Field] {
-			return invalid("sort key " + o.Field + " is not a shelved dimension or aggregated measure")
+			return invalid(
+				"sort key " + o.Field + " is not a shelved dimension or aggregated measure",
+			)
 		}
 	}
 	return compileFilter(spec, m)
@@ -85,7 +98,8 @@ func validateScalars(spec *types.VizSpec) error {
 	if !marks[spec.Mark] {
 		return invalid("unknown mark " + string(spec.Mark))
 	}
-	if tr := spec.TimeRange; !tr.From.IsZero() && !tr.To.IsZero() && !tr.From.Before(tr.To) {
+	if tr := spec.TimeRange; !tr.From.IsZero() && !tr.To.IsZero() &&
+		!tr.From.Before(tr.To) {
 		return invalid("time_range.from must precede time_range.to")
 	}
 	return nil
@@ -103,7 +117,9 @@ func validateFields(spec *types.VizSpec, m *listquery.Map) (map[string]bool, err
 	for _, ref := range spec.Detail {
 		f, ok := m.Lookup(ref.Name)
 		if !ok || f.Role == listquery.RoleMeasure || ref.Agg != types.AggNone {
-			return nil, invalid("detail field " + ref.Name + " is not a declared dimension")
+			return nil, invalid(
+				"detail field " + ref.Name + " is not a declared dimension",
+			)
 		}
 		keys[ref.Key()] = true
 	}
@@ -136,7 +152,12 @@ func compileFilter(spec *types.VizSpec, m *listquery.Map) error {
 
 // validateShelf walks one shelf expression, bounding its depth and validating
 // each leaf; it records every leaf's Key in keys.
-func validateShelf(e *types.AlgebraExpr, m *listquery.Map, depth int, keys map[string]bool) error {
+func validateShelf(
+	e *types.AlgebraExpr,
+	m *listquery.Map,
+	depth int,
+	keys map[string]bool,
+) error {
 	if e == nil {
 		return nil
 	}
@@ -176,7 +197,9 @@ func validateRef(ref types.FieldRef, m *listquery.Map) error {
 			return invalid("measure " + ref.Name + " needs an aggregate")
 		}
 		if !f.Allows(ref.Agg) {
-			return invalid("aggregate " + string(ref.Agg) + " is not permitted on " + ref.Name)
+			return invalid(
+				"aggregate " + string(ref.Agg) + " is not permitted on " + ref.Name,
+			)
 		}
 		return nil
 	}

@@ -58,19 +58,25 @@ func NewFromConfig(cfg *Config) (interfaces.AnalyticsStore, error) {
 			dial = cassandra.NewFromConfig
 		}
 		sessionCfg := cfg.Cassandra
-		store, err := analyticscassandra.NewLazy(func() (cassandra.Session, error) { return dial(&sessionCfg) }, analyticscassandra.Config{
-			Keyspace:             cfg.Cassandra.Keyspace,
-			Cubes:                cfg.Cubes,
-			BucketWidth:          cfg.BucketWidth,
-			TTL:                  cfg.TTL,
-			PageSize:             cfg.Cassandra.PageSize,
-			MaxConcurrentBuckets: cfg.MaxConcurrentBuckets,
-		})
+		store, err := analyticscassandra.NewLazy(
+			func() (cassandra.Session, error) { return dial(&sessionCfg) },
+			analyticscassandra.Config{
+				Keyspace:             cfg.Cassandra.Keyspace,
+				Cubes:                cfg.Cubes,
+				BucketWidth:          cfg.BucketWidth,
+				TTL:                  cfg.TTL,
+				PageSize:             cfg.Cassandra.PageSize,
+				MaxConcurrentBuckets: cfg.MaxConcurrentBuckets,
+			},
+		)
 		if err != nil {
 			return nil, err
 		}
 		return store, nil
 	default:
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown analytics kind: %v", cfg.Kind))
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("unknown analytics kind: %v", cfg.Kind),
+		)
 	}
 }

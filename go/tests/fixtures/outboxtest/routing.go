@@ -48,7 +48,11 @@ func RunRouting(t *testing.T, h Harness, r Routing) {
 		for i := range n {
 			payload := `{"route":"` + route + `","n":` + strconv.Itoa(i) + `}`
 			rec := types.OutboxRecord{
-				ID: uuid.New(), Lane: lane, Tenant: "org-1", Key: route, Payload: []byte(payload),
+				ID:         uuid.New(),
+				Lane:       lane,
+				Tenant:     "org-1",
+				Key:        route,
+				Payload:    []byte(payload),
 				Attributes: map[string]string{types.OutboxRouteAttribute: route},
 				CreatedAt:  time.Now().Add(-time.Minute),
 			}

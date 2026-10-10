@@ -61,18 +61,29 @@ func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 				WithStartupTimeout(startupTimeout),
 		).WithDeadline(startupTimeout),
 	}
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
+	container, err := testcontainers.GenericContainer(
+		ctx,
+		testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
+		},
+	)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "failed to start Cassandra container")
+		return nil, coreerr.Wrap(
+			err,
+			coreerr.CodeInternal,
+			"failed to start Cassandra container",
+		)
 	}
 	host, err := container.Host(ctx)
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "failed to get container host")
+		return nil, coreerr.Wrap(
+			err,
+			coreerr.CodeInternal,
+			"failed to get container host",
+		)
 	}
 	mapped, err := container.MappedPort(ctx, cqlPort)
 	if err != nil {

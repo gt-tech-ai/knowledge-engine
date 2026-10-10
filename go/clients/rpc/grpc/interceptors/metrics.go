@@ -7,10 +7,11 @@ import (
 	"sync"
 	"time"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
+
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // defaultDurationBuckets are the default histogram bucket boundaries for RPC

@@ -6,10 +6,11 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // Sanitize maps a domain AppError to a client-safe Connect code and a generic

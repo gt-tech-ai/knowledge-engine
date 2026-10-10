@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
@@ -45,11 +46,18 @@ type Config struct {
 // consistency is CodeInvalidInput.
 func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if len(cfg.Hosts) == 0 {
-		return nil, errors.New(errors.CodeInvalidInput, "cassandra: at least one host is required")
+		return nil, errors.New(
+			errors.CodeInvalidInput,
+			"cassandra: at least one host is required",
+		)
 	}
 	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "cassandra: unknown consistency "+cfg.Consistency)
+		return nil, errors.Wrap(
+			err,
+			errors.CodeInvalidInput,
+			"cassandra: unknown consistency "+cfg.Consistency,
+		)
 	}
 	cluster := gocql.NewCluster(cfg.Hosts...)
 	if cfg.Port > 0 {
@@ -67,9 +75,14 @@ func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if cfg.NumConns > 0 {
 		cluster.NumConns = cfg.NumConns
 	}
-	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.DCAwareRoundRobinPolicy(cfg.LocalDC))
+	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(
+		gocql.DCAwareRoundRobinPolicy(cfg.LocalDC),
+	)
 	if cfg.Username != "" {
-		cluster.Authenticator = gocql.PasswordAuthenticator{Username: cfg.Username, Password: cfg.Password}
+		cluster.Authenticator = gocql.PasswordAuthenticator{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		}
 	}
 	if cfg.TLS {
 		cluster.SslOpts = &gocql.SslOptions{

@@ -68,7 +68,10 @@ func DefaultConfig() Config {
 // NewFromConfig builds the sink cfg selects, its SDK client wrapped in the
 // client stack built from cfg.Resilience and deps. An unknown kind, or a backend
 // missing its required settings, is CodeInvalidInput.
-func NewFromConfig(cfg Config, deps clientdecorators.Deps) (interfaces.OutboxSink, error) {
+func NewFromConfig(
+	cfg Config,
+	deps clientdecorators.Deps,
+) (interfaces.OutboxSink, error) {
 	switch cfg.Kind {
 	case KindStub:
 		return stub.New(), nil
@@ -93,6 +96,9 @@ func NewFromConfig(cfg Config, deps clientdecorators.Deps) (interfaces.OutboxSin
 		cfg.S3.API = decorators.S3API(cfg.S3.API, stack)
 		return outboxs3.New(cfg.S3)
 	default:
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown outbox sink kind: %v", cfg.Kind))
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("unknown outbox sink kind: %v", cfg.Kind),
+		)
 	}
 }

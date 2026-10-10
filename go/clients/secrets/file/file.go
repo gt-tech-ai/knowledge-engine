@@ -63,7 +63,11 @@ func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 				fmt.Sprintf("credential file %q does not exist for %s", loc.Path, ref),
 			)
 		}
-		return types.Secret{}, errors.Wrap(err, errors.CodeInternal, "reading credential file")
+		return types.Secret{}, errors.Wrap(
+			err,
+			errors.CodeInternal,
+			"reading credential file",
+		)
 	}
 	value, found := lookup(data, loc.Key)
 	if !found || value == "" {
@@ -81,7 +85,9 @@ func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) error {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return errors.NotFound(fmt.Sprintf("no file location mapped for credential %s", ref))
+		return errors.NotFound(
+			fmt.Sprintf("no file location mapped for credential %s", ref),
+		)
 	}
 	// Ensure the parent directory exists (0700 — a secrets dir), so a first write to a
 	// not-yet-created git-ignored store (e.g. .secrets/) succeeds; the check-ignore below
@@ -92,10 +98,20 @@ func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) erro
 	// `git check-ignore -q <path>` exits 0 when the path IS ignored; the CommandRunner
 	// returns a non-nil error for any non-zero exit (not-ignored, or git unavailable),
 	// so we fail SAFE — refuse the write unless git positively confirms the path ignored.
-	if err := s.runner.Run(ctx, filepath.Dir(loc.Path), "git", "check-ignore", "-q", loc.Path); err != nil {
+	if err := s.runner.Run(
+		ctx,
+		filepath.Dir(loc.Path),
+		"git",
+		"check-ignore",
+		"-q",
+		loc.Path,
+	); err != nil {
 		return errors.New(
 			errors.CodeInvalidInput,
-			fmt.Sprintf("refusing to write credential to non-git-ignored path %q", loc.Path),
+			fmt.Sprintf(
+				"refusing to write credential to non-git-ignored path %q",
+				loc.Path,
+			),
 		)
 	}
 
@@ -169,7 +185,11 @@ func splitKV(line string) (key, value string, ok bool) {
 	if eq < 0 {
 		return "", "", false
 	}
-	return strings.TrimSpace(trimmed[:eq]), unquote(strings.TrimSpace(trimmed[eq+1:])), true
+	return strings.TrimSpace(
+			trimmed[:eq],
+		), unquote(
+			strings.TrimSpace(trimmed[eq+1:]),
+		), true
 }
 
 // unquote strips one matching pair of surrounding single or double quotes from a dotenv

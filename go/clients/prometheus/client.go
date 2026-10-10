@@ -158,7 +158,11 @@ func (c *Client) get(
 	endpoint := c.baseURL + path + "?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
-		return body, coreerr.Wrap(err, coreerr.CodeInvalidInput, "build prometheus query request")
+		return body, coreerr.Wrap(
+			err,
+			coreerr.CodeInvalidInput,
+			"build prometheus query request",
+		)
 	}
 	resp, err := c.doer.Do(req)
 	if err != nil {
@@ -173,7 +177,10 @@ func (c *Client) get(
 		return body, coreerr.Wrap(err, coreerr.CodeUpstream, "decode prometheus response")
 	}
 	if body.Status != "success" {
-		return body, coreerr.New(coreerr.CodeUpstream, "prometheus query failed: "+body.Error)
+		return body, coreerr.New(
+			coreerr.CodeUpstream,
+			"prometheus query failed: "+body.Error,
+		)
 	}
 	return body, nil
 }
@@ -232,18 +239,33 @@ func statusError(status int, body io.Reader) error {
 func parseSample(pair [2]json.RawMessage) (Sample, error) {
 	var ts float64
 	if err := json.Unmarshal(pair[0], &ts); err != nil {
-		return Sample{}, coreerr.Wrap(err, coreerr.CodeUpstream, "parse prometheus sample time")
+		return Sample{}, coreerr.Wrap(
+			err,
+			coreerr.CodeUpstream,
+			"parse prometheus sample time",
+		)
 	}
 	var raw string
 	if err := json.Unmarshal(pair[1], &raw); err != nil {
-		return Sample{}, coreerr.Wrap(err, coreerr.CodeUpstream, "parse prometheus sample")
+		return Sample{}, coreerr.Wrap(
+			err,
+			coreerr.CodeUpstream,
+			"parse prometheus sample",
+		)
 	}
 	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return Sample{}, coreerr.Wrap(err, coreerr.CodeUpstream, "parse prometheus sample value")
+		return Sample{}, coreerr.Wrap(
+			err,
+			coreerr.CodeUpstream,
+			"parse prometheus sample value",
+		)
 	}
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return Sample{}, coreerr.New(coreerr.CodeNotFound, "query returned "+raw+" (no data)")
+		return Sample{}, coreerr.New(
+			coreerr.CodeNotFound,
+			"query returned "+raw+" (no data)",
+		)
 	}
 	sec, frac := math.Modf(ts)
 	return Sample{Time: time.Unix(int64(sec), int64(frac*1e9)).UTC(), Value: v}, nil

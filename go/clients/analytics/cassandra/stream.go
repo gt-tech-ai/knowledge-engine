@@ -63,9 +63,14 @@ type resumeToken struct {
 // resume token), so a token resumes only the query that issued it.
 func queryFingerprint(q types.AggregateQuery) (string, error) {
 	q.ResumeToken = nil
-	b, err := json.Marshal(q) //nolint:musttag // a hash input, never a wire format: untagged field names are fine
+	//nolint:musttag // a hash input, never a wire format: untagged field names are fine
+	b, err := json.Marshal(q)
 	if err != nil {
-		return "", errors.Wrap(err, errors.CodeInvalidInput, "analytics: query is not serializable")
+		return "", errors.Wrap(
+			err,
+			errors.CodeInvalidInput,
+			"analytics: query is not serializable",
+		)
 	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:16]), nil
@@ -79,10 +84,16 @@ func decodeToken(b []byte, fingerprint string) (*resumeToken, error) {
 	}
 	var t resumeToken
 	if err := json.Unmarshal(b, &t); err != nil || t.Bucket == nil {
-		return nil, errors.New(errors.CodeInvalidInput, "analytics: malformed resume token")
+		return nil, errors.New(
+			errors.CodeInvalidInput,
+			"analytics: malformed resume token",
+		)
 	}
 	if t.Query != fingerprint {
-		return nil, errors.New(errors.CodeInvalidInput, "analytics: resume token belongs to a different query")
+		return nil, errors.New(
+			errors.CodeInvalidInput,
+			"analytics: resume token belongs to a different query",
+		)
 	}
 	return &t, nil
 }
@@ -110,8 +121,16 @@ func (p *readPlan) fetch(ctx context.Context, bucket time.Time, state []byte) pa
 }
 
 // project keeps the group-by dimensions and the requested partials of a row.
-func (p *readPlan) project(ts time.Time, dims map[string]string, partials map[string][]byte) types.Row {
-	row := types.Row{TS: ts.UTC(), Group: make(map[string]string, len(p.groupBy)), Partials: make(map[string][]byte, len(p.measures))}
+func (p *readPlan) project(
+	ts time.Time,
+	dims map[string]string,
+	partials map[string][]byte,
+) types.Row {
+	row := types.Row{
+		TS:       ts.UTC(),
+		Group:    make(map[string]string, len(p.groupBy)),
+		Partials: make(map[string][]byte, len(p.measures)),
+	}
 	for _, name := range p.groupBy {
 		row.Group[name] = dims[name]
 	}
@@ -159,7 +178,13 @@ var _ interfaces.RowStream = (*stream)(nil)
 
 // newStream positions a stream at resume (or the first bucket) and starts the
 // first window of readers.
-func newStream(ctx context.Context, plan *readPlan, buckets []time.Time, resume *resumeToken, window int) *stream {
+func newStream(
+	ctx context.Context,
+	plan *readPlan,
+	buckets []time.Time,
+	resume *resumeToken,
+	window int,
+) *stream {
 	sctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	s := &stream{ctx: sctx, cancel: cancel, plan: plan, window: window}
 	for i, b := range buckets {
@@ -232,7 +257,11 @@ func (s *stream) Next(ctx context.Context) ([]types.Row, bool, error) {
 			s.token = s.position(p)
 			return p.rows, len(p.next) > 0 || s.cur+1 < len(s.buckets), nil
 		case <-ctx.Done():
-			return nil, false, errors.Wrap(ctx.Err(), errors.CodeCanceled, "analytics: stream read canceled")
+			return nil, false, errors.Wrap(
+				ctx.Err(),
+				errors.CodeCanceled,
+				"analytics: stream read canceled",
+			)
 		}
 	}
 	return nil, false, nil
@@ -250,7 +279,8 @@ func (s *stream) position(p page) []byte {
 		next := s.buckets[s.cur+1].UnixMilli()
 		t = resumeToken{Bucket: &next, Query: s.plan.fingerprint}
 	}
-	b, _ := json.Marshal(t) //nolint:errchkjson // a string and a byte slice always marshal
+	//nolint:errchkjson // a string and a byte slice always marshal
+	b, _ := json.Marshal(t)
 	return b
 }
 
