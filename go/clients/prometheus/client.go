@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -107,6 +108,12 @@ func (c *Client) QueryRange(
 	start, end time.Time,
 	step time.Duration,
 ) ([]Sample, error) {
+	if step <= 0 || end.Before(start) {
+		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+			"range query needs a positive step and end >= start (step %s, %s..%s)",
+			step, start.Format(time.RFC3339), end.Format(time.RFC3339),
+		))
+	}
 	body, err := c.get(ctx, "/api/v1/query_range", url.Values{
 		"query": {promql},
 		"start": {strconv.FormatInt(start.Unix(), 10)},
@@ -155,21 +162,69 @@ func (c *Client) get(
 	}
 	resp, err := c.doer.Do(req)
 	if err != nil {
-		return body, coreerr.Wrap(err, coreerr.CodeUnavailable, "query prometheus")
+		return body, transportError(err, "query prometheus")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return body, coreerr.Wrap(err, coreerr.CodeUpstream, fmt.Sprintf(
-			"decode prometheus response (HTTP %d)", resp.StatusCode,
-		))
+	if resp.StatusCode != http.StatusOK {
+		return body, statusError(resp.StatusCode, resp.Body)
 	}
-	if resp.StatusCode != http.StatusOK || body.Status != "success" {
-		return body, coreerr.New(coreerr.CodeUpstream, fmt.Sprintf(
-			"prometheus query failed (HTTP %d): %s", resp.StatusCode, body.Error,
-		))
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return body, coreerr.Wrap(err, coreerr.CodeUpstream, "decode prometheus response")
+	}
+	if body.Status != "success" {
+		return body, coreerr.New(coreerr.CodeUpstream, "prometheus query failed: "+body.Error)
 	}
 	return body, nil
+}
+
+// transportError codes a failed send. A code the doer already chose survives; otherwise
+// the caller's own deadline is CodeTimeout, its cancellation CodeCanceled, and any other
+// failure CodeUnavailable.
+func transportError(err error, msg string) error {
+	code := coreerr.Code(err)
+	switch {
+	case code != coreerr.CodeUnknown:
+	case coreerr.StdIs(err, context.DeadlineExceeded):
+		code = coreerr.CodeTimeout
+	case coreerr.StdIs(err, context.Canceled):
+		code = coreerr.CodeCanceled
+	default:
+		code = coreerr.CodeUnavailable
+	}
+	return coreerr.Wrap(err, code, msg)
+}
+
+// isTransientStatus reports whether an HTTP status means the server is throttling or
+// briefly unavailable, so a later attempt may succeed.
+func isTransientStatus(status int) bool {
+	switch status {
+	case http.StatusTooManyRequests, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+// statusError codes an HTTP error status, quoting the server's error text when body is a
+// query-API envelope. A transient status (see isTransientStatus) is CodeUnavailable, so the
+// client stack retries it and its breaker counts it. A rejected query (400, 422) is
+// CodeInvalidInput. Any other status is CodeUpstream.
+func statusError(status int, body io.Reader) error {
+	msg := fmt.Sprintf("prometheus query failed (HTTP %d)", status)
+	var env response
+	if json.NewDecoder(body).Decode(&env) == nil && env.Error != "" {
+		msg += ": " + env.Error
+	}
+	switch {
+	case isTransientStatus(status):
+		return coreerr.New(coreerr.CodeUnavailable, msg)
+	case status == http.StatusBadRequest, status == http.StatusUnprocessableEntity:
+		return coreerr.New(coreerr.CodeInvalidInput, msg)
+	default:
+		return coreerr.New(coreerr.CodeUpstream, msg)
+	}
 }
 
 // parseSample decodes one [<unix time>, "<value>"] pair, failing closed on a NaN or

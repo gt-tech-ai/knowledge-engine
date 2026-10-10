@@ -1,12 +1,15 @@
 package unit_test
 
 import (
+	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -14,6 +17,7 @@ import (
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/prometheus"
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/prom"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -170,13 +174,22 @@ func TestClient_QueryRangeParsesMatrix(t *testing.T) {
 // code that tells a caller whether to retry, fix the query, or report the server.
 //
 // Why this test is important:
-//   - The client stack retries only transient codes; an outage coded as a bad query would
-//     never be retried, and a server-side failure coded as transient would be retried forever.
+//   - The client stack retries every code except the permanent ones (invalid input, not
+//     found, auth, conflict, exhausted quota) and a caller's cancellation, and its breaker
+//     counts the retryable ones. A bad query coded as an outage is retried and trips the
+//     breaker; an outage coded as a bad query is never retried; a caller's own deadline coded
+//     as an outage blames a healthy server.
 //
 // What it tests:
-//   - A transport error is CodeUnavailable; an HTTP error status (with the server's message),
-//     a "status":"error" envelope, an undecodable body and an unparsable sample are
-//     CodeUpstream; a base URL that cannot form a request is CodeInvalidInput with no send.
+//   - A transport error is CodeUnavailable; the caller's cancellation is CodeCanceled and its
+//     deadline CodeTimeout.
+//   - A throttling or unavailable status (429, 502, 503) is CodeUnavailable; a rejected query
+//     (400) is CodeInvalidInput with the server's message; any other status (500) is
+//     CodeUpstream.
+//   - On HTTP 200, a "status":"error" envelope, an undecodable body and an unparsable sample
+//     are CodeUpstream.
+//   - A base URL that cannot form a request, and a range with a non-positive step or an end
+//     before its start, are CodeInvalidInput with no send.
 func TestClient_ErrorStatusIsCoded(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -188,18 +201,37 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 	}{
 		{name: "transport", doErr: coreerr.Sentinel("connection refused"), wantCode: coreerr.CodeUnavailable},
 		{
+			name:     "caller canceled",
+			doErr:    &url.Error{Op: "Get", URL: "http://prom.test:9090", Err: context.Canceled},
+			wantCode: coreerr.CodeCanceled,
+		},
+		{
+			name:     "caller deadline",
+			doErr:    &url.Error{Op: "Get", URL: "http://prom.test:9090", Err: context.DeadlineExceeded},
+			wantCode: coreerr.CodeTimeout,
+		},
+		{
 			name:     "HTTP 400",
 			resp:     promResponse(http.StatusBadRequest, `{"status":"error","error":"parse error at char 3"}`),
-			wantCode: coreerr.CodeUpstream,
+			wantCode: coreerr.CodeInvalidInput,
 			wantMsg:  "parse error at char 3",
 		},
+		{name: "HTTP 429", resp: promResponse(http.StatusTooManyRequests, ``), wantCode: coreerr.CodeUnavailable},
+		{name: "HTTP 502 html", resp: promResponse(http.StatusBadGateway, `<html>`), wantCode: coreerr.CodeUnavailable},
+		{
+			name:     "HTTP 503",
+			resp:     promResponse(http.StatusServiceUnavailable, `{"status":"error","error":"starting up"}`),
+			wantCode: coreerr.CodeUnavailable,
+			wantMsg:  "starting up",
+		},
+		{name: "HTTP 500", resp: promResponse(http.StatusInternalServerError, `{}`), wantCode: coreerr.CodeUpstream},
 		{
 			name:     "status error",
 			resp:     promResponse(http.StatusOK, `{"status":"error","error":"query timed out"}`),
 			wantCode: coreerr.CodeUpstream,
 			wantMsg:  "query timed out",
 		},
-		{name: "bad json", resp: promResponse(http.StatusBadGateway, `<html>`), wantCode: coreerr.CodeUpstream},
+		{name: "bad json", resp: promResponse(http.StatusOK, `<html>`), wantCode: coreerr.CodeUpstream},
 		{
 			name:     "bad sample",
 			resp:     promResponse(http.StatusOK, strings.Replace(promVector, "%s", promInstant("abc"), 1)),
@@ -229,6 +261,20 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
 	})
+	t.Run("bad range", func(t *testing.T) {
+		t.Parallel()
+		doer := mocks.NewMockPrometheusHTTPDoer(gomock.NewController(t))
+		doer.EXPECT().Do(gomock.Any()).Times(0)
+		c := prometheus.New("http://prom.test:9090", doer)
+		t0 := time.Unix(1727260000, 0)
+
+		_, err := c.QueryRange(t.Context(), `up`, t0, t0.Add(time.Hour), 0)
+		require.Error(t, err)
+		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		_, err = c.QueryRange(t.Context(), `up`, t0.Add(time.Hour), t0, time.Minute)
+		require.Error(t, err)
+		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+	})
 }
 
 // TestNewFromConfig_StubDefaultAndUnknownKind tests the factory: the default config boots
@@ -242,8 +288,19 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 //   - DefaultConfig builds the stub: Query returns 0 and QueryRange an empty series, no error.
 //   - An unknown kind and the http kind without a base URL are CodeInvalidInput.
 //   - The http kind with a base URL builds a querier without sending anything.
+//   - ParseKind maps "stub" and "http" to their kinds and rejects anything else.
 func TestNewFromConfig_StubDefaultAndUnknownKind(t *testing.T) {
 	t.Parallel()
+	for s, want := range map[string]prometheus.Kind{"stub": prometheus.KindStub, "http": prometheus.KindHTTP} {
+		got, err := prometheus.ParseKind(s)
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+		assert.Equal(t, s, got.String())
+	}
+	_, err := prometheus.ParseKind("victoria")
+	require.Error(t, err)
+	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+
 	q, err := prometheus.NewFromConfig(prometheus.DefaultConfig(), clientdecorators.Deps{})
 	require.NoError(t, err)
 	v, err := q.Query(t.Context(), `up`)
@@ -281,16 +338,21 @@ func TestNewFromConfig_StubDefaultAndUnknownKind(t *testing.T) {
 //     attempt would have answered.
 //
 // What it tests:
-//   - With retries on, a transport error then a response returns that response; the transport
-//     body is closed inside the attempt, and the returned body still reads in full.
-//   - With retries off, a transport error comes back coded CodeUnavailable.
+//   - With retries on, a transport error, then a 503, then a 200 returns the 200; the
+//     transport body is closed inside the attempt, the returned body still reads in full, and
+//     the attempts are counted under the operation named for the endpoint
+//     (prometheus.query_range).
+//   - With retries off, a transport error comes back CodeUnavailable, and a body over the cap
+//     is CodeInvalidInput.
 func TestDecorateDoer_RetriesTransportErrorsAndBuffersBody(t *testing.T) {
 	t.Parallel()
 	cfg := clientdecorators.DefaultConfig()
 	cfg.RetryEnabled = true
 	cfg.Retry.InitialInterval = time.Millisecond
 	cfg.Retry.MaxInterval = time.Millisecond
-	stack, err := clientdecorators.StackFromConfig("prometheus", cfg, clientdecorators.Deps{})
+	reg := promclient.NewRegistry()
+	stack, err := clientdecorators.StackFromConfig("prometheus", cfg,
+		clientdecorators.Deps{Metrics: prom.NewFromRegistry(reg)})
 	require.NoError(t, err)
 	ctrl := gomock.NewController(t)
 	inner := mocks.NewMockPrometheusHTTPDoer(ctrl)
@@ -302,23 +364,32 @@ func TestDecorateDoer_RetriesTransportErrorsAndBuffersBody(t *testing.T) {
 	src.EXPECT().Close().Return(nil)
 	gomock.InOrder(
 		inner.EXPECT().Do(gomock.Any()).Return(nil, coreerr.Sentinel("connection reset")),
+		inner.EXPECT().Do(gomock.Any()).Return(promResponse(http.StatusServiceUnavailable, ``), nil),
 		inner.EXPECT().Do(gomock.Any()).Return(&http.Response{StatusCode: http.StatusOK, Body: src}, nil),
 	)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://prom.test/api/v1/query", http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+		"http://prom.test/api/v1/query_range", http.NoBody)
 	require.NoError(t, err)
 
-	resp, err := prometheus.DecorateDoer(inner, stack).Do(req)
+	resp, err := prometheus.DecorateDoer(inner, stack, 1024).Do(req)
 
 	require.NoError(t, err)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "payload", string(body))
+	assert.InDelta(t, 3.0, clientOpCounter(t, reg, "prometheus.query_range"), 0)
 
 	bare, err := clientdecorators.StackFromConfig("prometheus", clientdecorators.Config{}, clientdecorators.Deps{})
 	require.NoError(t, err)
 	failing := mocks.NewMockPrometheusHTTPDoer(gomock.NewController(t))
 	failing.EXPECT().Do(gomock.Any()).Return(nil, coreerr.Sentinel("connection refused"))
-	_, err = prometheus.DecorateDoer(failing, bare).Do(req)
+	_, err = prometheus.DecorateDoer(failing, bare, 0).Do(req)
 	require.Error(t, err)
 	assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+
+	large := mocks.NewMockPrometheusHTTPDoer(gomock.NewController(t))
+	large.EXPECT().Do(gomock.Any()).Return(promResponse(http.StatusOK, strings.Repeat("x", 9)), nil)
+	_, err = prometheus.DecorateDoer(large, bare, 8).Do(req)
+	require.Error(t, err)
+	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
 }

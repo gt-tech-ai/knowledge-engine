@@ -135,10 +135,19 @@ All notable changes to this project are recorded here. The format follows
   caller without storing it. A nil `ByteCache` skips the cache but still coalesces concurrent
   loads per key.
 - Go `clients/prometheus`: the Prometheus HTTP query client.
-  - `Kind` (`KindStub` default, `KindHTTP`), `Config`, `DefaultConfig` and `NewFromConfig`. The
-    factory returns a `core/interfaces.MetricsQuerier`, does no I/O, and fails on an unknown kind.
+  - `Kind` (`KindStub` default, `KindHTTP`), `ParseKind`, `Config` (with `MaxBodyBytes`,
+    default `DefaultMaxBodyBytes` = 32 MiB), `DefaultConfig` and `NewFromConfig`. The factory
+    returns a `core/interfaces.MetricsQuerier`, does no I/O, and fails on an unknown kind.
   - `New`, `Client.Query`, `Client.QueryRange` and the `HTTPDoer` seam.
-  - `DecorateDoer` wraps each request in the client stack, reading the body inside the attempt.
+  - Error codes:
+    - 429/502/503/504 → `UNAVAILABLE`.
+    - 400/422, a bad range or an over-cap body → `INVALID_INPUT`.
+    - The caller's deadline → `TIMEOUT`; its cancellation → `CANCELED`.
+    - Any other error status → `UPSTREAM`.
+  - `DecorateDoer(inner, stack, maxBodyBytes)` wraps each request in the client stack as op
+    `prometheus.<endpoint>`.
+    - The capped body is read inside the attempt.
+    - Transient statuses are errors, so they are retried and counted by the breaker.
   - `clients/prometheus/stub` is the zero-infrastructure backend.
   - New `core/interfaces.MetricsQuerier` and `core/types.MetricSample` (`prometheus.Sample` is an
     alias), plus the generated `mocks.MockPrometheusHTTPDoer`.
@@ -148,7 +157,10 @@ All notable changes to this project are recorded here. The format follows
 - Go `foundation/cache.ReadThrough` detaches the shared load from the caller that started it: the
   load runs on the single-flight goroutine and its cache write uses `context.WithoutCancel`. Each
   caller returns when its own context ends, with `CANCELED` or `TIMEOUT`, and the other callers
-  still get the value. A panicking load returns an `INTERNAL` error instead of panicking the caller.
+  still get the value. A caller whose context has already ended returns at once and starts no load.
+  A panicking load returns an `INTERNAL` error instead of panicking the caller; the error's `stack`
+  detail holds the panic-site stack. Callers that join a flight get the starting caller's cache
+  and options.
 
 - Go `rpc.Sanitize` now maps `CodeUnavailable` to `connect.CodeUnavailable` ("service
   unavailable") instead of the `INTERNAL` default, matching the Python gRPC map. Clients now see a

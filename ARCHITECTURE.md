@@ -145,7 +145,7 @@ Outermost → innermost:
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
 | Analytics store | `go/clients/analytics/decorators` | Recovery → Metrics → Tracing → CircuitBreaker → Timeout (the Cassandra session's writes ride the Client boundary stack) |
 | Outbox sink | `go/clients/outbox/decorators` | the Client boundary stack around each SDK call (`SQSAPI`, `S3API`), with SDK faults coded so only throttling/server faults retry |
-| Prometheus query | `go/clients/prometheus` (`DecorateDoer`) | the Client boundary stack around each HTTP GET (retryable; the body is read inside the attempt) |
+| Prometheus query | `go/clients/prometheus` (`DecorateDoer`) | the Client boundary stack around each HTTP GET, op `prometheus.<endpoint>` (retryable; the capped body is read inside the attempt; 429/502/503/504 are coded transient) |
 | Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC streaming client | `go/clients/rpc/grpc/interceptors` (`StreamingClientBuilder`) | Timeout → Metrics → CircuitBreaker → Retry → Tracing → Logging → ServiceAuth |
@@ -226,12 +226,19 @@ Postgres reference store.
 `core/interfaces.MetricsQuerier` evaluates PromQL: `Query` returns one instant sample and
 `QueryRange` one series of `core/types.MetricSample`. It is built by `clients/prometheus`
 (`KindStub` default, which answers 0 and an empty series; `KindHTTP`, the Prometheus HTTP API
-client). Both calls fail closed:
+client). The HTTP kind fails closed:
 
 - no sample, or a NaN or infinite one, is `CodeNotFound`;
-- several series or the wrong result type is `CodeInvalidInput`;
-- a transport failure is `CodeUnavailable`;
-- an error status or an unparsable body is `CodeUpstream`.
+- several series, the wrong result type, a bad range (step <= 0, end before start), a rejected
+  query (HTTP 400/422) or a body over `MaxBodyBytes` is `CodeInvalidInput`;
+- a transport failure or a throttling/unavailable status (429/502/503/504) is
+  `CodeUnavailable`, which the client stack retries and its breaker counts;
+- the caller's own deadline is `CodeTimeout` and its cancellation `CodeCanceled`;
+- any other error status, a `"status":"error"` envelope or an unparsable body is
+  `CodeUpstream`.
+
+The stub is the deliberate exception: it measures nothing and answers zero, so the graph boots
+without a metrics server.
 
 ## Configuration
 

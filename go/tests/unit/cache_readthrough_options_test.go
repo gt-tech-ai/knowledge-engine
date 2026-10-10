@@ -35,8 +35,9 @@ type readThroughResult struct {
 //     the degraded value for the whole TTL after the upstream recovers.
 //
 // What it tests:
-//   - Two callers miss on one key while the load is blocked; the load returns a rejected value;
-//     both callers receive that value with no error, and Set is never called.
+//   - Two callers both miss on one key (each Get waits until both have arrived) and load a
+//     value the predicate rejects; both receive that value with no error, and Set is never
+//     called. Whether the two loads coalesce is covered by the nil-cache test.
 func TestReadThrough_UncacheableResultSharedButNotStored(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -63,23 +64,18 @@ func TestReadThrough_UncacheableResultSharedButNotStored(t *testing.T) {
 	).AnyTimes()
 
 	var sf singleflight.Group
-	release := make(chan struct{})
 	results := make(chan readThroughResult, callers)
 	for range callers {
 		go func() {
 			v, err := cache.ReadThrough(
 				context.Background(), m, &sf, key, time.Minute, 1,
-				func() (int, error) {
-					<-release
-					return partial, nil
-				},
+				func() (int, error) { return partial, nil },
 				cache.WithCacheable(func(v int) bool { return v != partial }),
 			)
 			results <- readThroughResult{value: v, err: err}
 		}()
 	}
 	go func() { arrived.Wait(); close(releaseGet) }()
-	close(release)
 	for range callers {
 		r := <-results
 		require.NoError(t, r.err)
@@ -128,11 +124,12 @@ func TestReadThrough_NilCacheCoalescesWithoutCaching(t *testing.T) {
 		close(secondLoad)
 		return 99, nil
 	})
-	// B either attaches to A's flight (its load never runs) or fires its own load; give it time
-	// to reach the flight before releasing A.
+	// B either attaches to A's flight (its load never runs) or fires its own load. Singleflight
+	// exposes no "attached" signal, so give B a generous window to reach the flight before
+	// releasing A; the window only costs time when coalescing works.
 	select {
 	case <-secondLoad:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(500 * time.Millisecond):
 	}
 	close(release)
 	for range 2 {
@@ -219,6 +216,7 @@ func TestReadThrough_FirstCallerCancelDoesNotFailOthers(t *testing.T) {
 //
 // What it tests:
 //   - A load that panics returns a CodeInternal error, and nothing is cached.
+//   - The error's "stack" detail names the panicking function, so the panic is diagnosable.
 func TestReadThrough_LoadPanicBecomesCodedError(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -231,4 +229,38 @@ func TestReadThrough_LoadPanicBecomesCodedError(t *testing.T) {
 		func() (int, error) { panic("load blew up") })
 	require.Error(t, err)
 	assert.Equal(t, coreerr.CodeInternal, coreerr.Code(err))
+	var appErr *coreerr.AppError
+	require.ErrorAs(t, err, &appErr)
+	assert.Contains(t, appErr.Details["stack"], "TestReadThrough_LoadPanicBecomesCodedError")
+}
+
+// TestReadThrough_DoneContextSkipsLoad tests that a caller whose context has already ended
+// gets its coded context error without touching the cache or starting a load.
+//
+// Why this test is important:
+//   - The load is detached from its callers, so a stream of already-expired requests would
+//     otherwise each start a load and a cache write that nobody waits for.
+//
+// What it tests:
+//   - A cancelled ctx returns CodeCanceled and an expired one CodeTimeout; Get, Set and the
+//     load never run.
+func TestReadThrough_DoneContextSkipsLoad(t *testing.T) {
+	t.Parallel()
+	m := mocks.NewMockByteCache(gomock.NewController(t))
+	var sf singleflight.Group
+	var loads int32
+	load := func() (int, error) { atomic.AddInt32(&loads, 1); return 1, nil }
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := cache.ReadThrough(canceled, m, &sf, "done", time.Minute, 1, load)
+	require.Error(t, err)
+	assert.Equal(t, coreerr.CodeCanceled, coreerr.Code(err))
+
+	expired, cancelExpired := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancelExpired()
+	_, err = cache.ReadThrough(expired, m, &sf, "done", time.Minute, 1, load)
+	require.Error(t, err)
+	assert.Equal(t, coreerr.CodeTimeout, coreerr.Code(err))
+	assert.Equal(t, int32(0), atomic.LoadInt32(&loads), "a done caller starts no load")
 }

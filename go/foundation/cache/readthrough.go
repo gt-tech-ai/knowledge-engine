@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"golang.org/x/sync/singleflight"
@@ -39,6 +40,11 @@ func WithCacheable[T any](cacheable func(T) bool) ReadThroughOption[T] {
 //
 // A nil c skips the cache entirely but still coalesces concurrent loads per key. WithCacheable
 // keeps a rejected value out of the cache while still returning it to every coalesced caller.
+// The caller that starts a flight sets its load, cache and options; callers that join it get
+// that policy, so every caller of one key should pass the same cache and options.
+//
+// A caller whose ctx is already done returns its CodeCanceled or CodeTimeout error at once,
+// without reading the cache or starting a load.
 //
 // The shared load is detached from the caller that started it: it runs on the single-flight
 // goroutine, its cache write uses context.WithoutCancel(ctx), and each caller waits only until its
@@ -65,6 +71,9 @@ func ReadThrough[T any](
 		opt(&o)
 	}
 	var zero T
+	if err := ctx.Err(); err != nil {
+		return zero, contextError(err)
+	}
 	if c != nil {
 		if data, hit := c.Get(ctx, key); hit {
 			if val, ok, decErr := Decode[T](data, version); decErr == nil && ok {
@@ -99,13 +108,17 @@ func ReadThrough[T any](
 	}
 }
 
-// recoverLoad runs load and turns a panic into a CodeInternal error: the load runs on the
-// single-flight goroutine, where an unrecovered panic would crash the process instead of
-// reaching the caller's recovery decorator.
+// recoverLoad runs load and turns a panic into a CodeInternal error whose "stack" detail is
+// the panicking goroutine's stack: the load runs on the single-flight goroutine, where an
+// unrecovered panic would crash the process instead of reaching the caller's recovery
+// decorator.
 func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = coreerr.New(coreerr.CodeInternal, fmt.Sprintf("cache: load panicked: %v", r))
+			err = coreerr.WithDetails(
+				coreerr.New(coreerr.CodeInternal, fmt.Sprintf("cache: load panicked: %v", r)),
+				map[string]string{"stack": string(debug.Stack())},
+			)
 		}
 	}()
 	return load()
