@@ -134,6 +134,14 @@ All notable changes to this project are recorded here. The format follows
   compile unchanged. `WithCacheable(func(T) bool)` returns a rejected value to every coalesced
   caller without storing it. A nil `ByteCache` skips the cache but still coalesces concurrent
   loads per key.
+- Go `clients/prometheus`: the Prometheus HTTP query client.
+  - `Kind` (`KindStub` default, `KindHTTP`), `Config`, `DefaultConfig` and `NewFromConfig`. The
+    factory returns a `core/interfaces.MetricsQuerier`, does no I/O, and fails on an unknown kind.
+  - `New`, `Client.Query`, `Client.QueryRange` and the `HTTPDoer` seam.
+  - `DecorateDoer` wraps each request in the client stack, reading the body inside the attempt.
+  - `clients/prometheus/stub` is the zero-infrastructure backend.
+  - New `core/interfaces.MetricsQuerier` and `core/types.MetricSample` (`prometheus.Sample` is an
+    alias), plus the generated `mocks.MockPrometheusHTTPDoer`.
 
 ### Changed
 
