@@ -104,14 +104,15 @@ func newSQSClient(ctx context.Context, cfg Config) (*awssqs.Client, error) {
 }
 
 // resolveAPI returns the injected Config.API when set, otherwise builds the real
-// aws-sdk-go-v2 SQS client from cfg. It is the single seam through which both the
+// aws-sdk-go-v2 SQS client from cfg, loading the AWS config under ctx. It is the
+// single seam through which both the
 // publisher and subscriber obtain their SQS client (real in production, a mock in
 // black-box tests).
-func resolveAPI(cfg Config) (API, error) {
+func resolveAPI(ctx context.Context, cfg Config) (API, error) {
 	if cfg.API != nil {
 		return cfg.API, nil
 	}
-	return newSQSClient(context.Background(), cfg)
+	return newSQSClient(ctx, cfg)
 }
 
 // ensureQueue resolves the URL for queueName, creating the queue only if it does

@@ -55,6 +55,7 @@ func TestStorageClient_NewFromConfig_BuildsRealClient(t *testing.T) {
 
 	for name, cfg := range map[string]infra.S3Config{"minio": minioCfg, "s3": s3Cfg} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			c, err := storage.NewFromConfig(context.Background(), storage.KindS3, cfg)
 			require.NoError(t, err)
 			require.NotNil(t, c)
@@ -86,15 +87,16 @@ func TestStorageClient_NewFromConfig_RejectsInvalidConfig(t *testing.T) {
 
 // newStorageClientWithMock builds a StorageClient over the injected mock S3 seam. A
 // positive threshold forces the multipart path without a multi-megabyte body; 0 uses
-// the default.
+// the default. ctx is the construction context passed to storage.New.
 func newStorageClientWithMock(
+	ctx context.Context,
 	t *testing.T,
 	api s3.S3API,
 	threshold int64,
 ) interfaces.StorageClient {
 	t.Helper()
 	c, err := storage.New(
-		context.Background(),
+		ctx,
 		storage.Config{API: api, MultipartThreshold: threshold},
 	)
 	require.NoError(t, err)
@@ -123,7 +125,7 @@ func TestStorageClient_NotFoundMapping(t *testing.T) {
 	api.EXPECT().GetObject(gomock.Any(), gomock.Any()).
 		Return(nil, &s3types.NoSuchKey{})
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	_, statErr := c.Stat(context.Background(), "b", "missing")
 	require.Error(t, statErr)
@@ -165,7 +167,7 @@ func TestStorageClient_Stat_ReturnsMetadata(t *testing.T) {
 		ETag:          aws.String(`"abc"`),
 	}, nil)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	obj, err := c.Stat(context.Background(), "b", "doc.pdf")
 	require.NoError(t, err)
@@ -200,7 +202,7 @@ func TestStorageClient_Upload_SetsContentType(t *testing.T) {
 		},
 	)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	err := c.Upload(
 		context.Background(),
@@ -231,13 +233,14 @@ func TestStorageClient_Upload_ThresholdSelectsSingleVsMultipart(t *testing.T) {
 	t.Parallel()
 
 	t.Run("small body → single part", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
 			Return(&awss3.PutObjectOutput{}, nil)
 		// No multipart expectations: gomock fails if CreateMultipartUpload is called.
 
-		c := newStorageClientWithMock(t, api, 0)
+		c := newStorageClientWithMock(t.Context(), t, api, 0)
 		require.NoError(
 			t,
 			c.Upload(
@@ -251,6 +254,7 @@ func TestStorageClient_Upload_ThresholdSelectsSingleVsMultipart(t *testing.T) {
 	})
 
 	t.Run("large body → multipart", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().CreateMultipartUpload(gomock.Any(), gomock.Any()).
@@ -262,7 +266,7 @@ func TestStorageClient_Upload_ThresholdSelectsSingleVsMultipart(t *testing.T) {
 		// No PutObject expectation: gomock fails if the single-part path is taken.
 
 		// A 4-byte threshold forces the multipart path for a 6-byte body.
-		c := newStorageClientWithMock(t, api, 4)
+		c := newStorageClientWithMock(t.Context(), t, api, 4)
 		require.NoError(
 			t,
 			c.Upload(
@@ -300,7 +304,7 @@ func TestStorageClient_ListObjects_MapsContents(t *testing.T) {
 			},
 		}, nil)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	objs, err := c.ListObjects(context.Background(), "b", "")
 	require.NoError(t, err)
@@ -351,7 +355,7 @@ func TestStorageClient_ListObjectsPageToken_StreamsWithToken(t *testing.T) {
 			}, nil
 		})
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	objs, next, err := c.ListObjectsPageToken(
 		context.Background(),
@@ -403,7 +407,7 @@ func TestStorageClient_DeleteBatch_SurfacesPerObjectErrors(t *testing.T) {
 			}},
 		}, nil)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	err := c.DeleteBatch(context.Background(), "b", []string{"x"})
 	require.Error(t, err)
@@ -455,7 +459,7 @@ func TestStorageClient_DeleteBatch_ChunksOverLimit(t *testing.T) {
 	for i := range keys {
 		keys[i] = fmt.Sprintf("k%d", i)
 	}
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 	require.NoError(t, c.DeleteBatch(context.Background(), "b", keys))
 
 	assert.Equal(t, 3, calls, "2500 keys → ceil(2500/1000) = 3 requests")
@@ -490,7 +494,7 @@ func TestStorageClient_DeleteBatch_BuildsIdentifiers(t *testing.T) {
 		},
 	) // exactly once: the empty batch below must NOT call the API.
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	require.NoError(t, c.DeleteBatch(context.Background(), "b", []string{"a", "b", "c"}))
 	require.NotNil(t, got)
@@ -539,7 +543,7 @@ func TestStorageClient_Multipart_AbortsWithLiveContextOnCancel(t *testing.T) {
 	)
 
 	// A 4-byte threshold forces the multipart path for a small body.
-	c := newStorageClientWithMock(t, api, 4)
+	c := newStorageClientWithMock(t.Context(), t, api, 4)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // operation context already cancelled before the part fails
@@ -580,7 +584,7 @@ func TestStorageClient_Delete_CallsDeleteObject(t *testing.T) {
 		},
 	)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	require.NoError(t, c.Delete(context.Background(), "b", "k"))
 	require.NotNil(t, got)
@@ -606,7 +610,7 @@ func TestStorageClient_Download_ReturnsBody(t *testing.T) {
 		Body: io.NopCloser(strings.NewReader("file-bytes")),
 	}, nil)
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	rc, err := c.Download(context.Background(), "b", "k")
 	require.NoError(t, err)
@@ -634,7 +638,7 @@ func TestStorageClient_NotFound_SmithyAPIErrorCode(t *testing.T) {
 	api.EXPECT().HeadObject(gomock.Any(), gomock.Any()).
 		Return(nil, &smithy.GenericAPIError{Code: "404", Message: "not found"})
 
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	exists, err := c.Exists(context.Background(), "b", "missing")
 	require.NoError(t, err)
@@ -874,6 +878,7 @@ func TestStorageClient_EnsureBucket(t *testing.T) {
 	}
 
 	t.Run("exists: does not create", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().HeadBucket(gomock.Any(), gomock.Any()).
@@ -882,6 +887,7 @@ func TestStorageClient_EnsureBucket(t *testing.T) {
 	})
 
 	t.Run("absent: creates", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().
@@ -893,6 +899,7 @@ func TestStorageClient_EnsureBucket(t *testing.T) {
 	})
 
 	t.Run("absent: already owned is success", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().
@@ -904,6 +911,7 @@ func TestStorageClient_EnsureBucket(t *testing.T) {
 	})
 
 	t.Run("absent: other create error propagates", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		api := mocks.NewMockS3API(ctrl)
 		api.EXPECT().

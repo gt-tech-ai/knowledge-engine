@@ -54,7 +54,51 @@ linters:
     # Only revive's `exported` rule is enabled
     # (see settings.revive) — the repo is already at 0 findings, so this locks it in.
     - revive
+    # --- correctness/quality linter set (vertiva_ekp's), enabled at 0 findings ---
+    # Bug detection
+    - durationcheck
+    - sqlclosecheck
+    - rowserrcheck
+    - contextcheck
+    - fatcontext
+    - makezero
+    - wastedassign
+    - gocheckcompilerdirectives
+    # Code quality
+    - whitespace
+    - dogsled
+    - errname
+    - goprintffuncname
+    - nakedret
+    - tagalign
+    - usestdlibvars
+    # Observability / logging
+    - loggercheck
+    - goconst
+    - dupword
+    # Testing
+    - usetesting
+    - thelper
+    - tparallel
   settings:
+    dogsled:
+      # Fixture constructors return the whole wiring (service, repos, mocks); a test that
+      # needs two of them ignores the rest, up to four.
+      max-blank-identifiers: 4
+    dupword:
+      # Intentional repeats in embedded scripts: a Lua block that closes a nested `if`
+      # inside a `for` ends `end end`.
+      ignore:
+        - "end"
+    nakedret:
+      # Ban naked returns outright (a named result returned bare): any function with
+      # named results must name them in the return statement.
+      max-func-lines: 0
+    tagalign:
+      # Align struct tags in a block for readability; do not reorder their keys
+      # (sort would fight the mapstructure/json ordering the structs already use).
+      align: true
+      sort: false
     exhaustive:
       # Closed enums this module owns must list every member (a `default` does not
       # count). Enums the code only inspects and does not own, gRPC and Connect
@@ -62,12 +106,21 @@ linters:
       # catch-all `default` is the right handling, so they are not checked.
       ignore-enum-types: ^(google\.golang\.org/grpc/codes\.Code|connectrpc\.com/connect\.Code|reflect\.Kind)$
     gocritic:
+      # vertiva_ekp's bar: the experimental and opinionated tags on, minus the four
+      # checks it disables (duplicate-import alias churn, if-else chains that read better
+      # than a switch, octal-literal style, and the nolint-comment shape that nolintlint
+      # already owns).
       disabled-checks:
+        - dupImport
         - ifElseChain
+        - octalLiteral
+        - whyNoLint
       enabled-tags:
         - diagnostic
         - style
         - performance
+        - experimental
+        - opinionated
       settings:
         hugeParam:
           # slog.Handler implementations must take slog.Record (288 bytes) by
@@ -75,6 +128,11 @@ linters:
           # interface-mandated case isn't flagged, while genuinely oversized
           # value params still are.
           sizeThreshold: 512
+    goconst:
+      # Flag a repeated string literal (>=3 runes, >=3 occurrences) so it becomes a
+      # named constant.
+      min-len: 3
+      min-occurrences: 3
     gocyclo:
       min-complexity: 15
     revive:
@@ -99,6 +157,7 @@ linters:
     govet:
       enable:
         - fieldalignment
+        - nilness
     gosec:
       excludes: []
     dupl:
@@ -310,6 +369,16 @@ linters:
       - path: ^go/foundation/tracer/oteltracer/tracer\.go$
         linters:
           - spancheck
+      # The Redis subscriber's first Subscribe starts a dispatch loop that outlives
+      # that call, so its handler context is a subscriber-lifetime context cancelled
+      # by Close. Deriving it from the caller's context would cancel every handler
+      # when that one call's context ends and hand the caller's trace values to
+      # unrelated messages. contextcheck cannot tell a lifetime context from a
+      # dropped request context.
+      - path: ^go/clients/messaging/redis/subscriber\.go$
+        linters:
+          - contextcheck
+        text: register->ensureStartedLocked
       # A struct tag is a single string literal that Go cannot wrap, so a field whose
       # tag pushes it past the column limit has no compliant spelling.
       - linters:

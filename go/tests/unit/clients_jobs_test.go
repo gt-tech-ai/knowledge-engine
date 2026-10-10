@@ -174,6 +174,7 @@ func TestEventPublisher_Stub(t *testing.T) {
 // testEvt returns a MockEvent standing in for a domain event; the stub publisher is
 // a no-op, so Type/Metadata are relaxed (AnyTimes) don't-cares.
 func testEvt(t *testing.T) events.Event {
+	t.Helper()
 	e := mocks.NewMockEvent(gomock.NewController(t))
 	e.EXPECT().Type().Return(events.EventType("test.event")).AnyTimes()
 	e.EXPECT().Metadata().Return(events.EventMetadata{}).AnyTimes()

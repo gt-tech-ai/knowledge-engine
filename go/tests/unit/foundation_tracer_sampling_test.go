@@ -163,7 +163,7 @@ func TestContextWithForcedSample(t *testing.T) {
 //     non-recording and every rate-1 root span is recording.
 func TestTracer_ConcurrentNewKeepsOwnSampler(t *testing.T) {
 	const pairs = 64
-	ctx := context.Background()
+	ctx := t.Context()
 
 	type result struct {
 		err       error
@@ -184,9 +184,9 @@ func TestTracer_ConcurrentNewKeepsOwnSampler(t *testing.T) {
 				results <- result{err: err}
 				return
 			}
-			t.Cleanup(func() { _ = tr.Shutdown(context.Background()) })
+			t.Cleanup(func() { _ = tr.Shutdown(context.WithoutCancel(ctx)) })
 			// Spans are never ended, so nothing is queued for export to the collector.
-			retCtx, _ := tr.Start(context.Background(), "root")
+			retCtx, _ := tr.Start(ctx, "root")
 			results <- result{
 				rate: rate, recording: oteltrace.SpanFromContext(retCtx).IsRecording(),
 			}

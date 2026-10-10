@@ -70,7 +70,7 @@ type Subscriber struct {
 // otherwise builds the real AWS SDK client from cfg. Config.BaseBackoff overrides
 // the initial receive-retry wait (0 uses the package default).
 func NewSubscriber(cfg Config) (*Subscriber, error) {
-	api, err := resolveAPI(cfg)
+	api, err := resolveAPI(context.Background(), cfg)
 	if err != nil {
 		return nil, err
 	}

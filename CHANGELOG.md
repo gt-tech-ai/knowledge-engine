@@ -10,8 +10,15 @@ All notable changes to this project are recorded here. The format follows
 
 - Go `errors.ContextCode(err, fallback)`: like `CodeOr`, but maps an uncoded
   `context.DeadlineExceeded` to `CodeTimeout` and `context.Canceled` to `CodeCanceled`.
+- Go `sqs.NewPublisherContext(ctx, cfg)`: like `sqs.NewPublisher`, but loads the AWS
+  config under `ctx`, so a caller's deadline or cancellation bounds client construction.
 
 ### Changed
+
+- Go `messaging.NewFromConfig` now honours its context: the SQS backend loads its AWS
+  config under it instead of `context.Background()`.
+- Go `fixtures.StubClientStream` no longer substitutes `context.Background()` for a nil
+  context; pass the caller's context.
 
 - Go: errors that came back raw from a third-party SDK, the standard library or a context
   (redis/postgres/gRPC/connect close and ping, cache envelope encode/decode, config

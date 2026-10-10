@@ -76,11 +76,14 @@ func (d *metricsDecorator) Release(ctx context.Context, key, token string) error
 	return err
 }
 
+// outcomeError is the outcome label every lock operation records when it fails.
+const outcomeError = "error"
+
 // acquireOutcome maps an Acquire result to a metric outcome label.
 func acquireOutcome(acquired bool, err error) string {
 	switch {
 	case err != nil:
-		return "error"
+		return outcomeError
 	case acquired:
 		return "acquired"
 	default:
@@ -92,7 +95,7 @@ func acquireOutcome(acquired bool, err error) string {
 func renewOutcome(held bool, err error) string {
 	switch {
 	case err != nil:
-		return "error"
+		return outcomeError
 	case held:
 		return "held"
 	default:
@@ -103,7 +106,7 @@ func renewOutcome(held bool, err error) string {
 // okOrError maps an error-only result to a metric outcome label.
 func okOrError(err error) string {
 	if err != nil {
-		return "error"
+		return outcomeError
 	}
 	return "ok"
 }

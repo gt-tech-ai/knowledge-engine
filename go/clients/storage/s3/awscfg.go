@@ -15,13 +15,17 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
 
+// kindMinIO is the infra.S3Config Kind of the MinIO (local/dev) backend, which uses
+// path-style addressing, an explicit endpoint and static credentials.
+const kindMinIO = "minio"
+
 // s3OptionsApplier returns the s3.Options mutator encoding the dev/stage backend
 // differences: MinIO needs path-style addressing and an explicit endpoint, while
 // AWS S3 uses virtual-host addressing and the SDK-resolved regional endpoint.
 func s3OptionsApplier(cfg infra.S3Config) func(*s3.Options) {
 	return func(o *s3.Options) {
 		o.UsePathStyle = cfg.ForcePathStyle
-		if cfg.Kind == "minio" && cfg.Endpoint != "" {
+		if cfg.Kind == kindMinIO && cfg.Endpoint != "" {
 			o.BaseEndpoint = aws.String(cfg.Endpoint)
 		}
 	}
@@ -37,7 +41,7 @@ func s3OptionsApplier(cfg infra.S3Config) func(*s3.Options) {
 // InvalidAccessKeyId and bypasses IRSA — the staging orphaned-file-cleanup /
 // presign / download breakage this guards against.
 func UseStaticCredentials(cfg infra.S3Config) bool {
-	return cfg.Kind == "minio" && cfg.AccessKeyID != ""
+	return cfg.Kind == kindMinIO && cfg.AccessKeyID != ""
 }
 
 // NewAWSClient builds an aws-sdk-go-v2 S3 client for the given config. Static

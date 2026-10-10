@@ -22,14 +22,18 @@ type SQSConfig struct {
 	SecretAccessKey string `mapstructure:"secret_access_key" envalias:"SQS_SECRET_ACCESS_KEY"`
 }
 
+// elasticMQCredential is the placeholder static access key and secret local ElasticMQ
+// accepts; it authenticates nothing.
+const elasticMQCredential = "local"
+
 // DefaultSQSConfig returns an SQSConfig with defaults for local ElasticMQ.
 func DefaultSQSConfig() SQSConfig {
 	return SQSConfig{
 		Queues:          map[string]string{},
 		Endpoint:        "http://localhost:9324",
 		Region:          "us-east-1",
-		AccessKeyID:     "local",
-		SecretAccessKey: "local",
+		AccessKeyID:     elasticMQCredential,
+		SecretAccessKey: elasticMQCredential,
 	}
 }
 

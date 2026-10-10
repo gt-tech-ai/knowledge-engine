@@ -23,10 +23,18 @@ type LoggingConfig struct {
 	RedactPII bool `mapstructure:"redact_pii"`
 }
 
+// The logger kinds LoggingConfig.Kind accepts (case-insensitive).
+const (
+	// loggerKindZap selects the zap logger, the default.
+	loggerKindZap = "zap"
+	// loggerKindStdlib selects the log/slog-backed logger.
+	loggerKindStdlib = "stdlib"
+)
+
 // DefaultLoggingConfig returns a LoggingConfig with defaults.
 func DefaultLoggingConfig() LoggingConfig {
 	return LoggingConfig{
-		Kind:      "zap",
+		Kind:      loggerKindZap,
 		Level:     "info",
 		Format:    "json",
 		RedactPII: true,
@@ -36,7 +44,7 @@ func DefaultLoggingConfig() LoggingConfig {
 // Validate returns an error if the configuration is invalid.
 func (c LoggingConfig) Validate() error {
 	kind := strings.ToLower(c.Kind)
-	if kind != "zap" && kind != "stdlib" {
+	if kind != loggerKindZap && kind != loggerKindStdlib {
 		return coreerr.New(
 			coreerr.CodeInvalidInput,
 			"unknown logger kind: "+c.Kind,
@@ -48,9 +56,9 @@ func (c LoggingConfig) Validate() error {
 // GetKind converts the config kind string to a logger.Kind.
 func (c *LoggingConfig) GetKind() (logger.Kind, error) {
 	switch strings.ToLower(c.Kind) {
-	case "zap":
+	case loggerKindZap:
 		return logger.KindZap, nil
-	case "stdlib":
+	case loggerKindStdlib:
 		return logger.KindStdlib, nil
 	default:
 		return 0, coreerr.New(

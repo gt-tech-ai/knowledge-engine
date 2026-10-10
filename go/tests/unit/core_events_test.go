@@ -38,11 +38,11 @@ func (e widgetValue) Metadata() events.EventMetadata { return e.EventMetadata }
 
 // newWidgetRegistry returns a registry with the consumer's widget.created event
 // registered.
-func newWidgetRegistry(t testing.TB) *events.Registry {
-	t.Helper()
+func newWidgetRegistry(tb testing.TB) *events.Registry {
+	tb.Helper()
 	reg := events.NewRegistry()
 	require.NoError(
-		t,
+		tb,
 		reg.Register("widget.created", func() events.Event { return &widgetCreated{} }),
 	)
 	return reg

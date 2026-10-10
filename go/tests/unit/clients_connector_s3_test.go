@@ -75,6 +75,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("counts objects under the prefix", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().ListObjectsPage(gomock.Any(), "b", "docs/", gomock.Any()).
@@ -93,6 +94,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 	})
 
 	t.Run("a client-fault API error → InvalidInput", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
@@ -114,6 +116,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 	})
 
 	t.Run("a transport error → Unavailable", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
@@ -156,6 +159,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("streams a page and returns the resume token", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
@@ -176,6 +180,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 	})
 
 	t.Run("a client-fault API error → InvalidInput (terminal)", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
@@ -197,6 +202,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 	})
 
 	t.Run("a transport error → Unavailable (transient)", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
@@ -561,6 +567,7 @@ func TestConnectorSourceBuilder_Build(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("unknown kind fails loud", func(t *testing.T) {
+		t.Parallel()
 		b := connector.NewSourceBuilder(nil, nil, connectordecorators.Deps{})
 		_, err := b.Build(ctx, interfaces.SourceConfig{Kind: "bogus"})
 		require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
@@ -569,6 +576,7 @@ func TestConnectorSourceBuilder_Build(t *testing.T) {
 	t.Run(
 		"s3 kind builds a decorated source that probes via StorageClient",
 		func(t *testing.T) {
+			t.Parallel()
 			ctrl := gomock.NewController(t)
 			sc := mocks.NewMockStorageClient(ctrl)
 			sc.EXPECT().ListObjectsPage(gomock.Any(), "b", "docs/", gomock.Any()).

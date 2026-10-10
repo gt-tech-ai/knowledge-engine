@@ -1299,13 +1299,13 @@ func TestGRPCTimeoutStreamClientInterceptor_CompletesBeforeDeadline(t *testing.T
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -1427,13 +1427,13 @@ func TestGRPCTimeoutStreamClientInterceptor_PassesThroughNonContextError(t *test
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil, sentinel), nil
+			return fixtures.StubClientStream(ctx, nil, sentinel), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -1514,13 +1514,13 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_PassesWhenClosed(t *testing.T
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1623,13 +1623,13 @@ func TestGRPCRetryStreamClientInterceptor_SucceedsFirstAttempt(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1660,7 +1660,7 @@ func TestGRPCRetryStreamClientInterceptor_RetriesTransientError(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
@@ -1670,7 +1670,7 @@ func TestGRPCRetryStreamClientInterceptor_RetriesTransientError(t *testing.T) {
 			if attempts <= 2 {
 				return nil, status.Errorf(codes.Unavailable, "transient")
 			}
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1740,13 +1740,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsMetrics(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1808,14 +1808,14 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsRecvMsgFailure(t *testing.T) 
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				context.Background(),
+				ctx,
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -1853,13 +1853,13 @@ func TestGRPCTracingStreamClientInterceptor_CreatesSpan(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1921,14 +1921,14 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnRecvMsgFailure(t *testing.
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				context.Background(),
+				ctx,
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -1967,13 +1967,13 @@ func TestGRPCLoggingStreamClientInterceptor_LogsSuccess(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -2001,14 +2001,14 @@ func TestGRPCLoggingStreamClientInterceptor_LogsError(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				context.Background(),
+				ctx,
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -2270,13 +2270,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsAbandonedCancellation(t *test
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2322,13 +2322,13 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnAbandonedCancellation(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2368,13 +2368,13 @@ func TestGRPCLoggingStreamClientInterceptor_LogsAbandonedCancellation(t *testing
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2433,13 +2433,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsOnceWhenDrainedThenCancelled(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2496,13 +2496,13 @@ func TestGRPCTracingStreamClientInterceptor_DrainedThenCancelledEndsSpanOK(t *te
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2557,13 +2557,13 @@ func TestGRPCLoggingStreamClientInterceptor_DrainedThenCancelledLogsNoError(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context,
+			ctx context.Context,
 			_ *grpc.StreamDesc,
 			_ *grpc.ClientConn,
 			_ string,
 			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(context.Background(), nil), nil
+			return fixtures.StubClientStream(ctx, nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")

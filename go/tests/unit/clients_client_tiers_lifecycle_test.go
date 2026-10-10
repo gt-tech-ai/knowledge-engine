@@ -158,6 +158,7 @@ func TestStatelessClients_LifecycleNoOps(t *testing.T) {
 	}
 	for name, lc := range lifecycles {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			assert.NoError(t, lc.Start(ctx))
 			assert.NoError(t, lc.Stop(ctx))
 		})

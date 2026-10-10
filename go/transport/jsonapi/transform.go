@@ -203,7 +203,7 @@ func TransformError(statusCode int, body []byte) []byte {
 	if len(body) > 0 {
 		var parsed map[string]any
 		if err := json.Unmarshal(body, &parsed); err == nil {
-			if c := normalizeErrorCode(parsed["code"]); c != "" {
+			if c := normalizeErrorCode(parsed[memberCode]); c != "" {
 				code = c
 			}
 			if m, ok := parsed["message"].(string); ok && m != "" {
@@ -214,8 +214,8 @@ func TransformError(statusCode int, body []byte) []byte {
 
 	statusStr := strconv.Itoa(statusCode)
 	member := map[string]any{
-		"code":   code,
-		"status": statusStr,
+		memberCode: code,
+		"status":   statusStr,
 	}
 	if detail != "" {
 		member["detail"] = detail
@@ -228,6 +228,10 @@ func TransformError(statusCode int, body []byte) []byte {
 	}
 	return out
 }
+
+// memberCode is the error-body member carrying the machine-readable error code,
+// both in a Connect error body and in a JSON:API error object.
+const memberCode = "code"
 
 // normalizeErrorCode maps the "code" member of an upstream error body to a JSON:API
 // machine-readable code string. Two producers reach this: Vanguard renders a

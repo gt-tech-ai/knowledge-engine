@@ -41,19 +41,10 @@ type Harness struct {
 //     parked rows and reports the oldest pending row's creation time.
 func Run(t *testing.T, h Harness) {
 	t.Helper()
-	t.Run(
-		"ConcurrentClaimsAreDisjoint",
-		func(t *testing.T) { concurrentClaimsAreDisjoint(t, h) },
-	)
-	t.Run("NextAttemptAtIsHonoured", func(t *testing.T) { nextAttemptAtIsHonoured(t, h) })
-	t.Run(
-		"SentAndParkedAreNotClaimed",
-		func(t *testing.T) { sentAndParkedAreNotClaimed(t, h) },
-	)
-	t.Run(
-		"StatsCountsPendingAndParked",
-		func(t *testing.T) { statsCountsPendingAndParked(t, h) },
-	)
+	t.Run("ConcurrentClaimsAreDisjoint", h.concurrentClaimsAreDisjoint)
+	t.Run("NextAttemptAtIsHonoured", h.nextAttemptAtIsHonoured)
+	t.Run("SentAndParkedAreNotClaimed", h.sentAndParkedAreNotClaimed)
+	t.Run("StatsCountsPendingAndParked", h.statsCountsPendingAndParked)
 }
 
 // seed enqueues n records on lane, created a second apart (oldest first), and
@@ -76,7 +67,7 @@ func seed(t *testing.T, h Harness, lane string, n int, oldest time.Time) []uuid.
 func newLane() string { return "conformance-" + uuid.NewString() }
 
 // concurrentClaimsAreDisjoint claims 50 rows from 5 goroutines.
-func concurrentClaimsAreDisjoint(t *testing.T, h Harness) {
+func (h Harness) concurrentClaimsAreDisjoint(t *testing.T) {
 	ctx, lane := context.Background(), newLane()
 	want := seed(t, h, lane, 50, time.Now().Add(-time.Hour))
 
@@ -109,7 +100,7 @@ func concurrentClaimsAreDisjoint(t *testing.T, h Harness) {
 }
 
 // nextAttemptAtIsHonoured checks the lease and Retry's schedule.
-func nextAttemptAtIsHonoured(t *testing.T, h Harness) {
+func (h Harness) nextAttemptAtIsHonoured(t *testing.T) {
 	ctx, lane := context.Background(), newLane()
 	ids := seed(t, h, lane, 2, time.Now().Add(-time.Hour))
 
@@ -133,7 +124,7 @@ func nextAttemptAtIsHonoured(t *testing.T, h Harness) {
 }
 
 // sentAndParkedAreNotClaimed finalizes two unclaimed due rows and claims.
-func sentAndParkedAreNotClaimed(t *testing.T, h Harness) {
+func (h Harness) sentAndParkedAreNotClaimed(t *testing.T) {
 	ctx, lane := context.Background(), newLane()
 	ids := seed(t, h, lane, 3, time.Now().Add(-time.Hour))
 
@@ -147,7 +138,7 @@ func sentAndParkedAreNotClaimed(t *testing.T, h Harness) {
 }
 
 // statsCountsPendingAndParked checks Stats before and after finalizing.
-func statsCountsPendingAndParked(t *testing.T, h Harness) {
+func (h Harness) statsCountsPendingAndParked(t *testing.T) {
 	ctx, lane := context.Background(), newLane()
 	oldest := time.Now().Add(-time.Hour).Truncate(time.Second)
 	ids := seed(t, h, lane, 3, oldest)

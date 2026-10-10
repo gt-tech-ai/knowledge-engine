@@ -939,11 +939,14 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -958,7 +961,6 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	require.NoError(t, err, "unexpected error")
 	require.NotNil(t, resp, "expected non-nil response")
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "user-42", claims.Sub)
 	assert.Equal(t, "org-99", claims.TenantID)
@@ -981,11 +983,11 @@ func TestAuthInterceptor_NoSub(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var ok bool
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			_, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -994,7 +996,6 @@ func TestAuthInterceptor_NoSub(t *testing.T) {
 	_, err := handler(context.Background(), newTestRequest())
 	require.NoError(t, err, "unexpected error")
 
-	_, ok := interceptors.GetAuthClaims(capturedCtx)
 	assert.False(t, ok, "expected no claims when X-User-Sub is absent")
 }
 
@@ -1012,11 +1013,14 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1028,7 +1032,6 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	_, err := handler(context.Background(), req)
 	require.NoError(t, err, "unexpected error")
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "user-1", claims.Sub)
 	assert.Nil(t, claims.Roles)
@@ -1048,11 +1051,14 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1064,7 +1070,6 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 
 	_, _ = handler(context.Background(), req)
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims")
 	// Empty roles string should NOT set roles
 	assert.Nil(t, claims.Roles)
@@ -1084,11 +1089,14 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1100,7 +1108,6 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 
 	_, _ = handler(context.Background(), req)
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims")
 	// splitRoles should discard empty segments
 	assert.Len(t, claims.Roles, 2)
@@ -1122,11 +1129,14 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1134,7 +1144,6 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	_, err := handler(context.Background(), newTestRequest())
 	require.NoError(t, err)
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(
 		t,
 		ok,
@@ -1169,11 +1178,14 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1186,7 +1198,6 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	_, err := handler(context.Background(), req)
 	require.NoError(t, err, "unexpected error")
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "real-user-from-gateway", claims.Sub)
 	assert.Equal(t, "real-org-from-gateway", claims.TenantID)
@@ -1611,10 +1622,10 @@ func TestTracingInterceptor_ExtractsTraceContext(t *testing.T) {
 	interceptor := interceptors.TracingInterceptor(tracer)
 
 	// Capture the context the inner handler receives to verify extraction.
-	var capturedCtx context.Context
+	var extracted trace.SpanContext
 	handler := interceptor.WrapUnary(
 		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			capturedCtx = ctx
+			extracted = trace.SpanContextFromContext(ctx)
 			return newTestResponse(), nil
 		},
 	)
@@ -1623,7 +1634,6 @@ func TestTracingInterceptor_ExtractsTraceContext(t *testing.T) {
 	require.NoError(t, err, "unexpected error")
 
 	// Verify the trace context was extracted from headers into the Go context.
-	extracted := trace.SpanContextFromContext(capturedCtx)
 	require.True(
 		t,
 		extracted.IsValid(),
@@ -2186,9 +2196,12 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	t.Parallel()
 
 	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
-	var capturedCtx context.Context
+	var (
+		claims *interceptors.AuthClaims
+		ok     bool
+	)
 	next := func(ctx context.Context, _ connect.StreamingHandlerConn) error {
-		capturedCtx = ctx
+		claims, ok = interceptors.GetAuthClaims(ctx)
 		return nil
 	}
 
@@ -2204,7 +2217,6 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	err := interceptor.WrapStreamingHandler(next)(context.Background(), conn)
 	require.NoError(t, err)
 
-	claims, ok := interceptors.GetAuthClaims(capturedCtx)
 	require.True(t, ok, "streaming handler should see auth claims")
 	assert.Equal(t, "stream-user", claims.Sub)
 	assert.Equal(t, "org-7", claims.TenantID)

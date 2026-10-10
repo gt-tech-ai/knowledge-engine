@@ -88,11 +88,11 @@ func ParseKind(s string) (Kind, error) {
 // WithRedisClient option — NOT from cfg; the SQSConfig arg is inert for Redis) — wrapping
 // the thin core in the messaging decorators. It is the app-wiring entrypoint, sitting at
 // the tier root above the backends exactly like cache/storage NewFromConfig; additional
-// options (logger, metrics, retrier, redis client) may be layered on. The context is
-// accepted for factory-signature symmetry with the other clients; publisher construction
-// itself is synchronous.
+// options (logger, metrics, retrier, redis client) may be layered on. The context
+// bounds the SQS backend's AWS config load; the other backends do no I/O at
+// construction.
 func NewFromConfig(
-	_ context.Context,
+	ctx context.Context,
 	kind Kind,
 	cfg infra.SQSConfig,
 	opts ...options.Option[Config],
@@ -103,12 +103,22 @@ func NewFromConfig(
 		WithEndpoint(cfg.Endpoint),
 		WithStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey),
 	)
-	return NewPublisher(kind, append(base, opts...)...)
+	return newPublisher(ctx, kind, append(base, opts...)...)
 }
 
 // NewPublisher creates a message publisher of the specified kind with optional
 // functional options. Returns an error if the kind is unknown.
 func NewPublisher(
+	kind Kind,
+	opts ...options.Option[Config],
+) (interfaces.MessagePublisher, error) {
+	return newPublisher(context.Background(), kind, opts...)
+}
+
+// newPublisher builds the publisher for kind, constructing the SQS backend's AWS
+// client under ctx.
+func newPublisher(
+	ctx context.Context,
 	kind Kind,
 	opts ...options.Option[Config],
 ) (interfaces.MessagePublisher, error) {
@@ -118,7 +128,7 @@ func NewPublisher(
 
 	switch cfg.Kind {
 	case KindSQS:
-		core, err := sqs.NewPublisher(cfg.SQS)
+		core, err := sqs.NewPublisherContext(ctx, cfg.SQS)
 		if err != nil {
 			return nil, err
 		}

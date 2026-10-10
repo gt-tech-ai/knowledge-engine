@@ -116,6 +116,7 @@ func TestNewFromConfig(t *testing.T) {
 		"zero-len key": base64.StdEncoding.EncodeToString([]byte{}),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			_, err := crypto.NewFromConfig(crypto.Config{Key: key})
 			require.Error(t, err)
 		})

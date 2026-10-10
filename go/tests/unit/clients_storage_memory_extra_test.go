@@ -72,7 +72,7 @@ func TestStorageClient_Exists_ReturnsTrueWhenPresent(t *testing.T) {
 	api := mocks.NewMockS3API(gomock.NewController(t))
 	api.EXPECT().HeadObject(gomock.Any(), gomock.Any()).
 		Return(&awss3.HeadObjectOutput{ContentLength: aws.Int64(5)}, nil)
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	exists, err := c.Exists(context.Background(), "b", "k")
 	require.NoError(t, err)

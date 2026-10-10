@@ -281,8 +281,8 @@ func reclassifyBindingError(status int, body []byte) int {
 // request envelope, in the same shape TransformError produces.
 func writeRequestError(w http.ResponseWriter, message string) {
 	body, err := json.Marshal(map[string]any{
-		"code":    "invalid_argument",
-		"message": message,
+		memberCode: "invalid_argument",
+		"message":  message,
 	})
 	if err != nil {
 		body = nil
@@ -299,8 +299,8 @@ func writeRequestError(w http.ResponseWriter, message string) {
 // which is config data rather than caller input.
 func writeMissingResourceError(w http.ResponseWriter, singleKey string) {
 	body, err := json.Marshal(map[string]any{
-		"code":    "internal",
-		"message": "response carried no " + singleKey + " resource",
+		memberCode: "internal",
+		"message":  "response carried no " + singleKey + " resource",
 	})
 	if err != nil {
 		body = nil

@@ -267,6 +267,7 @@ func TestRetryMW_TxGuardedRunsOnce(t *testing.T) {
 	t.Parallel()
 
 	t.Run("inside a tx runs once, retrier not used", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mr := mocks.NewMockRetrier(ctrl) // strict: any Retry call fails the test
 		calls := 0
@@ -278,6 +279,7 @@ func TestRetryMW_TxGuardedRunsOnce(t *testing.T) {
 	})
 
 	t.Run("outside a tx the retrier drives the op", func(t *testing.T) {
+		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mr := mocks.NewMockRetrier(ctrl)
 		mr.EXPECT().Retry(gomock.Any(), gomock.Any()).DoAndReturn(

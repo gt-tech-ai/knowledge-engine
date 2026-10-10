@@ -107,32 +107,12 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	base := mocks.NewMockStorageClient(ctrl)
 
-	// A generated ReadCloser mock that models an S3 GetObject body tied to the call
-	// context: each Read surfaces the context error once cancelled, streams the
-	// payload otherwise, then EOFs. This is what lets the test detect a decorator
-	// that wrongly cancels the timeout context on return (the read below happens
-	// AFTER Download returned, so a cancelled context would surface here).
-	streamData := []byte("streamed payload")
-	var streamCtx context.Context
-	var pos int
-	body := mocks.NewMockReadCloser(ctrl)
-	body.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
-		if err := streamCtx.Err(); err != nil {
-			return 0, apperr.Wrap(err, apperr.CodeCanceled, "stream read")
-		}
-		if pos >= len(streamData) {
-			return 0, io.EOF
-		}
-		n := copy(p, streamData[pos:])
-		pos += n
-		return n, nil
-	}).AnyTimes()
-	body.EXPECT().Close().Return(nil)
-
+	// The body is bound to the context the decorator passes to Download, so a
+	// decorator that wrongly cancels the timeout context on return surfaces here (the
+	// read below happens AFTER Download returned).
 	base.EXPECT().Download(gomock.Any(), "b", "k").DoAndReturn(
 		func(ctx context.Context, _, _ string) (io.ReadCloser, error) {
-			streamCtx = ctx
-			return body, nil
+			return ctxBoundBody(ctx, ctrl, []byte("streamed payload")), nil
 		},
 	)
 
@@ -147,6 +127,31 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "streamed payload", string(data))
 	require.NoError(t, rc.Close())
+}
+
+// ctxBoundBody returns a generated ReadCloser mock that models an S3 GetObject body
+// tied to the call context: each Read surfaces the context error once ctx is
+// cancelled, streams data otherwise, then EOFs. Close succeeds once.
+func ctxBoundBody(
+	ctx context.Context,
+	ctrl *gomock.Controller,
+	data []byte,
+) io.ReadCloser {
+	var pos int
+	body := mocks.NewMockReadCloser(ctrl)
+	body.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
+		if err := ctx.Err(); err != nil {
+			return 0, apperr.Wrap(err, apperr.CodeCanceled, "stream read")
+		}
+		if pos >= len(data) {
+			return 0, io.EOF
+		}
+		n := copy(p, data[pos:])
+		pos += n
+		return n, nil
+	}).AnyTimes()
+	body.EXPECT().Close().Return(nil)
+	return body
 }
 
 // TestStorageDecorator_LogsAndCountsOnError verifies failed operations are logged

@@ -42,9 +42,17 @@ type Publisher struct {
 }
 
 // NewPublisher creates an SQS message publisher. It uses Config.API when set,
-// otherwise builds the real AWS SDK client from cfg (endpoint + credentials).
+// otherwise builds the real AWS SDK client from cfg (endpoint + credentials). It is
+// NewPublisherContext with a background context.
 func NewPublisher(cfg Config) (*Publisher, error) {
-	api, err := resolveAPI(cfg)
+	return NewPublisherContext(context.Background(), cfg)
+}
+
+// NewPublisherContext creates an SQS message publisher like NewPublisher, loading
+// the AWS config (credential chain, region) under ctx so a caller's deadline or
+// cancellation bounds client construction.
+func NewPublisherContext(ctx context.Context, cfg Config) (*Publisher, error) {
+	api, err := resolveAPI(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

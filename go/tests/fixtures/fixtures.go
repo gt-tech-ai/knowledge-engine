@@ -310,16 +310,13 @@ func StubRateLimiter(allowed bool) *mocks.MockRateLimiter {
 // ---------------------------------------------------------------------------
 
 // StubClientStream returns a generated MockClientStream for stream-interceptor
-// tests: Context returns ctx (background when nil), SendMsg returns sendErr, and
+// tests: Context returns ctx (the caller's, never nil), SendMsg returns sendErr, and
 // RecvMsg yields recvErrs in order then io.EOF. It replaces the former FakeClientStream.
 func StubClientStream(
 	ctx context.Context,
 	sendErr error,
 	recvErrs ...error,
 ) grpc.ClientStream {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	s := mocks.NewMockClientStream(newCtrl())
 	s.EXPECT().Header().Return(metadata.MD(nil), nil).AnyTimes()
 	s.EXPECT().Trailer().Return(metadata.MD(nil)).AnyTimes()

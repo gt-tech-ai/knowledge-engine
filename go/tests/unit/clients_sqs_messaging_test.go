@@ -231,6 +231,31 @@ func TestPublisher_ReturnsErrorWhenQueueUnresolvable(t *testing.T) {
 	require.Error(t, pub.Publish(context.Background(), "q", []byte("x")))
 }
 
+// TestNewPublisherContext_UsesInjectedAPI tests that the context-aware constructor
+// honours the injected SQS seam exactly like NewPublisher.
+//
+// Why this test is important:
+//   - NewFromConfig builds its SQS core through NewPublisherContext; a constructor that
+//     ignored Config.API would dial real AWS from a unit-wired graph
+//
+// What it tests:
+//   - A publisher built with NewPublisherContext sends through the injected API
+func TestNewPublisherContext_UsesInjectedAPI(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	api := mocks.NewMockAPI(ctrl)
+	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
+		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
+	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).
+		Return(&awssqs.SendMessageOutput{}, nil)
+
+	pub, err := sqs.NewPublisherContext(t.Context(), sqs.Config{API: api})
+	require.NoError(t, err)
+
+	require.NoError(t, pub.Publish(t.Context(), "q", []byte("x")))
+}
+
 // TestPublisher_PublishBatch_StopsOnSendError tests that PublishBatch returns the
 // first send error rather than continuing to send the rest of the batch.
 //

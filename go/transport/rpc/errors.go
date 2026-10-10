@@ -13,6 +13,9 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
+// msgInternal is the client-safe message every internal failure is reduced to.
+const msgInternal = "internal server error"
+
 // Sanitize maps a domain AppError to a client-safe Connect code and a generic
 // message, stripping any implementation detail (stack traces, SQL, upstream
 // provider text) that must never reach an API consumer.
@@ -48,9 +51,9 @@ func Sanitize(err error) (code connect.Code, message string) {
 		apperr.CodeInternal,
 		apperr.CodeIngestion,
 		apperr.CodeQualityFailed:
-		return connect.CodeInternal, "internal server error"
+		return connect.CodeInternal, msgInternal
 	default:
-		return connect.CodeInternal, "internal server error"
+		return connect.CodeInternal, msgInternal
 	}
 }
 
@@ -90,7 +93,7 @@ var fromWire = map[connect.Code]wireMapping{
 	connect.CodeDeadlineExceeded:  {apperr.CodeTimeout, "deadline exceeded"},
 	connect.CodeCanceled:          {apperr.CodeCanceled, "request canceled"},
 	connect.CodeResourceExhausted: {apperr.CodeResourceExhausted, "resource exhausted"},
-	connect.CodeInternal:          {apperr.CodeInternal, "internal server error"},
+	connect.CodeInternal:          {apperr.CodeInternal, msgInternal},
 }
 
 // FromRPCError maps a Connect or gRPC status error to a domain AppError.

@@ -196,23 +196,31 @@ type HTTPServerMetrics struct {
 	ResponseSize *prometheus.HistogramVec
 }
 
+// The HTTP server metrics' shared label names.
+const (
+	// labelMethod is the HTTP request method label.
+	labelMethod = "method"
+	// labelPath is the request path label.
+	labelPath = "path"
+)
+
 // NewHTTPServerMetrics creates and registers HTTP server metrics.
 func NewHTTPServerMetrics(reg prometheus.Registerer) *HTTPServerMetrics {
 	m := &HTTPServerMetrics{
 		RequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_server_requests_total",
 			Help: "Total HTTP requests processed",
-		}, []string{"method", "path", "status"}),
+		}, []string{labelMethod, labelPath, "status"}),
 		RequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
 			Buckets: prometheus.DefBuckets,
-		}, []string{"method", "path"}),
+		}, []string{labelMethod, labelPath}),
 		ResponseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "http_server_response_size_bytes",
 			Help:    "HTTP response size in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 6),
-		}, []string{"method", "path"}),
+		}, []string{labelMethod, labelPath}),
 	}
 
 	reg.MustRegister(m.RequestsTotal, m.RequestDuration, m.ResponseSize)

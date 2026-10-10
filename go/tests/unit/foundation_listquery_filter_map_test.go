@@ -37,6 +37,7 @@ func TestListQueryFieldBuilders(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tc.typ, tc.field.Type)
 			// Column defaults to Name.
 			require.Equal(t, tc.field.Name, tc.field.Column)
@@ -45,6 +46,7 @@ func TestListQueryFieldBuilders(t *testing.T) {
 	}
 
 	t.Run("WithColumn overrides only the storage column", func(t *testing.T) {
+		t.Parallel()
 		base := listquery.String("display_name")
 		got := base.WithColumn("full_name")
 		require.Equal(t, "full_name", got.Column)
@@ -54,6 +56,7 @@ func TestListQueryFieldBuilders(t *testing.T) {
 	})
 
 	t.Run("WithJoin stamps a correlated-join target as a copy", func(t *testing.T) {
+		t.Parallel()
 		base := listquery.String("team_name")
 		got := base.WithJoin(types.JoinTarget{Table: "teams", Columns: []string{"name"}})
 		require.NotNil(t, got.Join)
@@ -62,6 +65,7 @@ func TestListQueryFieldBuilders(t *testing.T) {
 	})
 
 	t.Run("WithOrdinal sets the value-ordinal sort order as a copy", func(t *testing.T) {
+		t.Parallel()
 		base := listquery.String("status")
 		got := base.WithOrdinal([]string{"pending", "active", "done"})
 		require.Equal(t, []string{"pending", "active", "done"}, got.Ordinal)
@@ -93,6 +97,7 @@ func TestListQueryMapAccessors(t *testing.T) {
 	t.Run(
 		"Lookup finds a registered field and misses an unknown one",
 		func(t *testing.T) {
+			t.Parallel()
 			f, ok := m.Lookup("name")
 			require.True(t, ok)
 			require.Equal(t, "name", f.Name)
@@ -105,6 +110,7 @@ func TestListQueryMapAccessors(t *testing.T) {
 	t.Run(
 		"Column returns the mapped column, falling back to the field name",
 		func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, "t_name", m.Column("team_name"))
 			require.Equal(t, "name", m.Column("name"))
 			// Unknown field: safe fallback to the name itself.
@@ -113,6 +119,7 @@ func TestListQueryMapAccessors(t *testing.T) {
 	)
 
 	t.Run("Join returns the joined target only for a joined field", func(t *testing.T) {
+		t.Parallel()
 		jt := m.Join("team_name")
 		require.NotNil(t, jt)
 		require.Equal(t, "teams", jt.Table)
@@ -123,6 +130,7 @@ func TestListQueryMapAccessors(t *testing.T) {
 	t.Run(
 		"Ordinal returns the value ordinal only for an ordinal field",
 		func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, []string{"a", "b"}, m.Ordinal("status"))
 			require.Nil(t, m.Ordinal("name"), "a field with no ordinal returns nil")
 			require.Nil(t, m.Ordinal("unknown"), "an unknown field returns nil")

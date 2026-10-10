@@ -403,11 +403,11 @@ func TestTenantScopeInterceptor_StampsExtractedTenant(t *testing.T) {
 				"nil uuid":   func() { tenant, resolved = uuid.Nil, true },
 			} {
 				set()
-				got, err = invoke(ic, context.Background())
+				unstamped, err := invoke(ic, context.Background())
 				require.NoError(t, err)
-				_, ok = coretenant.TenantFromContext(got)
+				_, ok = coretenant.TenantFromContext(unstamped)
 				assert.False(t, ok, "%s: no tenant context may be stamped", label)
-				_, ok = entsql.VarFromContext(got, "app.tenant")
+				_, ok = entsql.VarFromContext(unstamped, "app.tenant")
 				assert.False(t, ok, "%s: no session variable may be stamped", label)
 			}
 		})
@@ -528,13 +528,24 @@ func invokeUnary(ic connect.Interceptor, ctx context.Context) (context.Context, 
 func invokeUnaryWith(
 	ic connect.Interceptor, ctx context.Context, req connect.AnyRequest,
 ) (context.Context, error) {
-	var captured context.Context
+	seen := make(chan context.Context, 1)
 	next := func(c context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-		captured = c
+		seen <- c
 		return newTestResponse(), nil
 	}
 	_, err := ic.WrapUnary(next)(ctx, req)
-	return captured, err
+	return observed(seen), err
+}
+
+// observed returns the context a pass-through handler sent on seen, or nil when the
+// handler never ran.
+func observed(seen <-chan context.Context) context.Context {
+	select {
+	case c := <-seen:
+		return c
+	default:
+		return nil
+	}
 }
 
 // invokeStreaming runs ic's streaming-handler path against a pass-through handler and
@@ -544,15 +555,15 @@ func invokeStreaming(
 	ic connect.Interceptor,
 	ctx context.Context,
 ) (context.Context, error) {
-	var captured context.Context
+	seen := make(chan context.Context, 1)
 	err := ic.WrapStreamingHandler(
 		func(c context.Context, _ connect.StreamingHandlerConn) error {
-			captured = c
+			seen <- c
 			return nil
 		},
 	)(
 		ctx,
 		nil,
 	)
-	return captured, err
+	return observed(seen), err
 }

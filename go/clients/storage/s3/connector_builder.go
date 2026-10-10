@@ -30,7 +30,7 @@ type ConnectorClientBuilder = func(
 // result to connector.NewSourceBuilder.
 func NewConnectorClientBuilder(base infra.S3Config) ConnectorClientBuilder {
 	endpoint := ""
-	if base.Kind == "minio" {
+	if base.Kind == kindMinIO {
 		endpoint = base.Endpoint
 	}
 	return func(
@@ -43,7 +43,7 @@ func NewConnectorClientBuilder(base infra.S3Config) ConnectorClientBuilder {
 		}
 		cfg := infra.S3Config{Kind: "s3", Region: region}
 		if endpoint != "" {
-			cfg.Kind = "minio"
+			cfg.Kind = kindMinIO
 			cfg.Endpoint = endpoint
 			cfg.ForcePathStyle = true
 		}
