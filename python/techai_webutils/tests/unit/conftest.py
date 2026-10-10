@@ -5,8 +5,9 @@ now-collapsed ``tests/<layer>/conftest.py`` files:
 
 - ``isolate_config_env`` / ``mock_redis`` — from the former ``foundation/conftest.py``.
 - ``s3_config`` / ``sqs_config`` / ``mock_service`` — from the former ``clients/conftest.py``.
+- ``metrics_mock`` — the spec'd ``MetricsProvider`` shared by the client-decorator metric tests.
 
-The five fixture names are disjoint, so the merge introduces no collisions. The
+The six fixture names are disjoint, so the merge introduces no collisions. The
 integration suite keeps its own ``sqs_config`` / ``s3_config`` (real ElasticMQ/MinIO)
 in ``tests/integration/conftest.py``, resolved independently for that directory.
 """
@@ -18,6 +19,7 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 
 from techai_webutils.clients.messaging.config import SQSConfig
+from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
 from techai_webutils.clients.storage.config import S3Config
 from techai_webutils.foundation.config.bridge import reset_config
 from techai_webutils.foundation.config.settings import (
@@ -122,3 +124,28 @@ def mock_service() -> MagicMock:
     svc.create_item.side_effect = lambda name: {"id": "new", "name": name}
     svc.failing_method.side_effect = RuntimeError("intentional failure")
     return svc
+
+
+@pytest.fixture
+def metrics_mock() -> tuple[MagicMock, dict[str, MagicMock]]:
+    """A ``MetricsProvider`` mock plus its instruments, recorded by metric name as they are declared.
+
+    Each ``counter`` / ``histogram`` declaration returns a fresh ``MagicMock(spec=MetricCounter)`` /
+    ``MagicMock(spec=MetricHistogram)`` stored under the metric name.
+    """
+    instruments: dict[str, MagicMock] = {}
+
+    def _counter(name: str, _help: str, _labels: list[str] | None = None) -> MagicMock:
+        instruments[name] = MagicMock(spec=MetricCounter)
+        return instruments[name]
+
+    def _histogram(
+        name: str, _help: str, _labels: list[str] | None = None, _buckets: object = None
+    ) -> MagicMock:
+        instruments[name] = MagicMock(spec=MetricHistogram)
+        return instruments[name]
+
+    provider = MagicMock(spec=MetricsProvider)
+    provider.counter.side_effect = _counter
+    provider.histogram.side_effect = _histogram
+    return provider, instruments

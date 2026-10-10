@@ -6,21 +6,21 @@ import grpc
 import pytest
 from grpc.aio import AioRpcError, Metadata
 
-from techai_webutils.core.errors import AppError
+from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.foundation.resilience.grpc_boundary import (
     grpc_error_to_app_error,
     wrap_grpc_errors,
 )
 
 
-def _rpc_error(code: grpc.StatusCode, detail: str = "boom") -> AioRpcError:
+def _rpc_error(code: grpc.StatusCode, detail: str = "boom", trailing: Metadata | None = None) -> AioRpcError:
     """Build a raw AioRpcError for a status code (matching the SDK's positional constructor)."""
-    return AioRpcError(code, Metadata(), Metadata(), detail)
+    return AioRpcError(code, Metadata(), trailing if trailing is not None else Metadata(), detail)
 
 
 class TestGrpcErrorToAppError:
     def test_transient_codes_map_to_transient_app_error(self) -> None:
-        """Test that UNAVAILABLE / DEADLINE_EXCEEDED / RESOURCE_EXHAUSTED become transient AppErrors.
+        """Test that UNAVAILABLE / DEADLINE_EXCEEDED become transient AppErrors.
 
         **Why this test is important:**
           - RetryProxy only retries a transient ``AppError``; a raw ``AioRpcError`` escapes the retry
@@ -33,7 +33,6 @@ class TestGrpcErrorToAppError:
         for code in (
             grpc.StatusCode.UNAVAILABLE,
             grpc.StatusCode.DEADLINE_EXCEEDED,
-            grpc.StatusCode.RESOURCE_EXHAUSTED,
         ):
             err = grpc_error_to_app_error(_rpc_error(code))
             assert isinstance(err, AppError)
@@ -53,6 +52,70 @@ class TestGrpcErrorToAppError:
         err = grpc_error_to_app_error(_rpc_error(grpc.StatusCode.NOT_FOUND))
         assert isinstance(err, AppError)
         assert not err.is_transient
+
+    def test_grpc_boundary_maps_resource_exhausted_to_quota_code(self) -> None:
+        """Test that a bare RESOURCE_EXHAUSTED becomes the non-retryable quota code.
+
+        **Why this test is important:**
+          - A server rejecting on a spent quota answers RESOURCE_EXHAUSTED; treating it as transient
+            makes the retry stack re-send the call into the same exhausted budget.
+
+        **What it tests:**
+          - the AppError code is RESOURCE_EXHAUSTED, ``is_transient`` and ``is_permanent`` are False
+          - the gRPC detail is kept in the message and the raw error is the cause
+        """
+        raw = _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, "budget spent")
+
+        err = grpc_error_to_app_error(raw)
+
+        assert err.code is ErrorCode.RESOURCE_EXHAUSTED
+        assert err.is_transient is False
+        assert err.is_permanent is False
+        assert err.message == "gRPC upstream RESOURCE_EXHAUSTED: budget spent"
+        assert err.cause is raw
+
+    def test_grpc_boundary_resource_exhausted_with_pushback_is_transient(self) -> None:
+        """Test that RESOURCE_EXHAUSTED with an explicit retry pushback stays retryable.
+
+        **Why this test is important:**
+          - A rate limiter that names a retry delay is telling the caller the call will succeed
+            after it; dropping that signal would fail calls the server invited back.
+
+        **What it tests:**
+          - ``grpc-retry-pushback-ms: 250`` yields a transient UNAVAILABLE with ``retry_after_ms`` "250"
+          - ``retry-after: 2`` (seconds) yields a transient UNAVAILABLE with ``retry_after_ms`` "2000"
+        """
+        pushback = grpc_error_to_app_error(
+            _rpc_error(
+                grpc.StatusCode.RESOURCE_EXHAUSTED,
+                trailing=Metadata(("grpc-retry-pushback-ms", "250")),
+            )
+        )
+        retry_after = grpc_error_to_app_error(
+            _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=Metadata(("retry-after", "2")))
+        )
+
+        assert pushback.code is ErrorCode.UNAVAILABLE
+        assert pushback.is_transient is True
+        assert pushback.details == {"retry_after_ms": "250"}
+        assert retry_after.code is ErrorCode.UNAVAILABLE
+        assert retry_after.details == {"retry_after_ms": "2000"}
+
+    def test_grpc_boundary_ignores_malformed_pushback(self) -> None:
+        """Test that an unparseable pushback trailer is treated as a plain quota rejection.
+
+        **Why this test is important:**
+          - A garbage trailer must not turn a quota rejection into a retry storm.
+
+        **What it tests:**
+          - ``grpc-retry-pushback-ms: soon`` and a negative ``retry-after`` both yield RESOURCE_EXHAUSTED
+        """
+        for trailing in (
+            Metadata(("grpc-retry-pushback-ms", "soon")),
+            Metadata(("retry-after", "-1")),
+        ):
+            err = grpc_error_to_app_error(_rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=trailing))
+            assert err.code is ErrorCode.RESOURCE_EXHAUSTED
 
 
 class TestWrapGrpcErrors:

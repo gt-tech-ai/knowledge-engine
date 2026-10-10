@@ -19,7 +19,13 @@ from techai_webutils.clients.embedding.builder import (
     EmbeddingKind,
     new_embedding_from_config,
 )
+from techai_webutils.clients.audit import AuditSinkConfig, new_audit_sink_from_config
+from techai_webutils.clients.audit.stub import StubAuditSink
 from techai_webutils.clients.embedding.stub import StubEmbeddingProvider
+from techai_webutils.clients.facts import FactPublisherConfig, new_fact_publisher_from_config
+from techai_webutils.clients.facts.stub import StubFactPublisher
+from techai_webutils.clients.token_ledger import TokenLedgerConfig, token_ledger_from_config
+from techai_webutils.clients.token_ledger.stub import StubTokenLedger
 from techai_webutils.clients.jobs.builder import new_jobs_from_config
 from techai_webutils.clients.jobs.config import JobConfig, JobKind
 from techai_webutils.clients.jobs.memory import InMemoryJobEnqueuer
@@ -82,6 +88,8 @@ _REAL_BACKENDS = [
     "techai_webutils.foundation.tracer.builder.new_tracer",
     "techai_webutils.foundation.metrics.builder.PrometheusMetricsProvider",
     "techai_webutils.execution.executor.factory.ray_runtime_from_config",
+    "techai_webutils.clients.facts.messaging.MessagingFactPublisher",
+    "techai_webutils.clients.token_ledger.redis.RedisTokenLedger",
 ]
 
 
@@ -96,7 +104,8 @@ def test_service_builds_all_stubs_no_network(monkeypatch: pytest.MonkeyPatch) ->
     What it tests:
         - With every real backend constructor patched to fail, each tier factory called with its
           stub/memory/noop/null/local/asyncio kind (storage, messaging, embedding, vector, email, llm,
-          retrieval, kb_ingestion, lock, cache, jobs, tracer, metrics, executor) returns the stub
+          retrieval, kb_ingestion, lock, cache, jobs, tracer, metrics, executor, facts, token_ledger,
+          audit) returns the stub
           implementation — i.e. none constructed a real client.
     """
 
@@ -129,6 +138,9 @@ def test_service_builds_all_stubs_no_network(monkeypatch: pytest.MonkeyPatch) ->
     tracer = new_tracer_from_config(TracerConfig(kind=TracerKind.NULL))
     metrics = new_metrics_from_config(MetricsConfig(kind=MetricsKind.NULL))
     executor = executor_from_config(ExecutorConfig(kind=ExecutorKind.ASYNCIO))
+    facts = new_fact_publisher_from_config(FactPublisherConfig(), publisher=None)
+    token_ledger = token_ledger_from_config(TokenLedgerConfig())
+    audit = new_audit_sink_from_config(AuditSinkConfig())
 
     assert isinstance(storage, InMemoryStorageClient)
     assert isinstance(publisher, InMemoryPublisher)
@@ -146,3 +158,6 @@ def test_service_builds_all_stubs_no_network(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(tracer, NullTracerProvider)
     assert isinstance(metrics, NullMetricsProvider)
     assert isinstance(executor, AsyncioExecutor)
+    assert isinstance(facts, StubFactPublisher)
+    assert isinstance(token_ledger, StubTokenLedger)
+    assert isinstance(audit, StubAuditSink)

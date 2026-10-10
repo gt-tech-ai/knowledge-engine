@@ -36,6 +36,7 @@ def setup_observability(
     level: str = "INFO",
     otlp_endpoint: str = "localhost:4317",
     trace_sample_rate: float = 1.0,
+    redact_pii: bool = False,
 ) -> None:
     """Initialize logging + tracing for a service.
 
@@ -51,9 +52,10 @@ def setup_observability(
             stripped so an "http://host:4317"-style value also works.
         trace_sample_rate: Span sampling fraction 0.0-1.0 (parse_sample_rate above
             normalizes a raw string into this).
+        redact_pii: Redact PII in every log line (pass the ``logging_redact_pii`` setting).
 
     """
-    _ = configure_logging(level=level)
+    _ = configure_logging(level=level, redact_pii=redact_pii)
 
     endpoint = otlp_endpoint
     # The gRPC exporter wants a bare host:port; strip any URL scheme so the

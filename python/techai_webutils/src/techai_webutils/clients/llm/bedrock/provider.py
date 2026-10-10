@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, cast
 import aiobotocore.session  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 
-from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
+from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse, StreamUsage, text_only
 from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 
 if TYPE_CHECKING:
@@ -160,19 +160,32 @@ class BedrockLlmProvider(LLMProvider):
         config: LLMConfig | None = None,
     ) -> AsyncIterator[str]:
         """Return an async iterator of text deltas from a streaming Converse invocation."""
+        return text_only(await self.stream_with_usage(messages, config))
+
+    async def stream_with_usage(
+        self,
+        messages: list[LLMMessage],
+        config: LLMConfig | None = None,
+    ) -> AsyncIterator[str | StreamUsage]:
+        """Return text deltas from a streaming Converse invocation, then its ``metadata`` usage."""
         return self._stream_deltas(messages, config)
 
     async def _stream_deltas(
         self,
         messages: list[LLMMessage],
         config: LLMConfig | None,
-    ) -> AsyncIterator[str]:
-        """Open a streaming Converse invocation and yield contentBlockDelta text deltas.
+    ) -> AsyncIterator[str | StreamUsage]:
+        """Open a streaming Converse invocation and yield contentBlockDelta text deltas, then usage.
 
-        Bedrock/botocore failures (on open or mid-stream) are wrapped in a coded ``AppError``
-        (``_to_app_error``); a ``GeneratorExit`` from client cancellation propagates untouched.
+        ``messageStop`` carries the stop reason and the final ``metadata`` event the token usage;
+        together they become the last item, a ``StreamUsage`` (omitted if Bedrock sent no
+        ``metadata``). Bedrock/botocore failures (on open or mid-stream) are wrapped in a coded
+        ``AppError`` (``_to_app_error``); a ``GeneratorExit`` from client cancellation propagates
+        untouched.
         """
         client = await self._runtime_client()
+        stop_reason = "stop"
+        usage: dict[str, Any] | None = None
         try:
             response = await client.converse_stream(**_converse_args(self._model, messages, config))
             stream = cast("AsyncIterator[dict[str, Any]]", response["stream"])
@@ -180,8 +193,19 @@ class BedrockLlmProvider(LLMProvider):
                 text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
                 if text:
                     yield text
+                if "messageStop" in event:
+                    stop_reason = str(event["messageStop"].get("stopReason", "stop"))
+                if "metadata" in event:
+                    usage = cast("dict[str, Any]", event["metadata"].get("usage", {}))
         except (ClientError, BotoCoreError) as exc:
             raise _to_app_error(exc) from exc
+        if usage is not None:
+            yield StreamUsage(
+                model=self._model,
+                input_tokens=int(usage.get("inputTokens", 0)),
+                output_tokens=int(usage.get("outputTokens", 0)),
+                finish_reason=stop_reason,
+            )
 
     def model_name(self) -> str:
         """Return the configured Bedrock model id."""

@@ -41,9 +41,11 @@ type Config struct {
 // defaultIsRetryable reports whether an error is worth retrying. Permanent
 // client/domain failures — constraint violations (CodeConflict), invalid input,
 // not-found, and auth errors — are never transient: retrying them wastes time
-// and, inside a transaction, masks the real cause behind SQLSTATE 25P02. A
-// caller-cancelled context is likewise permanent for this call. All other errors
-// (transient DB/network failures, unknown errors) are retryable.
+// and, inside a transaction, masks the real cause behind SQLSTATE 25P02. A spent
+// quota (CodeResourceExhausted) is not retried either: it recovers only when its
+// window resets, never within a backoff. A caller-cancelled context is likewise
+// permanent for this call. All other errors (transient DB/network failures,
+// unknown errors) are retryable.
 func defaultIsRetryable(err error) bool {
 	// A caller-cancelled context is permanent for this call: the caller has gone
 	// away, so retrying is pointless — and because the circuit breaker shares this
@@ -58,7 +60,8 @@ func defaultIsRetryable(err error) bool {
 		apperrors.CodeInvalidInput,
 		apperrors.CodeNotFound,
 		apperrors.CodeForbidden,
-		apperrors.CodeUnauthorized:
+		apperrors.CodeUnauthorized,
+		apperrors.CodeResourceExhausted:
 		return false
 	default:
 		return true

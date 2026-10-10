@@ -42,7 +42,12 @@ unknown kind:
   or `NewFromConfig(ctx, kind, cfg)` at a client tier root (`clients/storage`,
   `clients/messaging`); an unknown kind is a `CodeInvalidInput` error.
 - Python: `new_<type>_from_config(config)` (or `<type>_from_config`, e.g. `executor_from_config`);
-  an unknown kind raises `ValueError`.
+  an unknown kind raises `ValueError` in the older tiers and a coded `AppError(INVALID_INPUT)` in the
+  newer ones (`clients/audit`, `clients/facts`, `clients/token_ledger`).
+- **Consumer-supplied kinds.** A backend that must call a consumer's own service (which the KE may
+  not import) is injected: the factory takes `backends: Mapping[str, Callable[[Config], T]]`, and
+  `Config.kind` is a `str` matched against the built-in kinds first, then the `backends` keys
+  (`clients/token_ledger/builder.py`, `clients/audit/builder.py`). The kind stays a config value; the KE stays product-free.
 
 One backend per sub-package beside the factory: `clients/storage/{s3,memory}`,
 `clients/lock/{local,redis}`, `foundation/logger/{zap,stdlib}`, `clients/llm/{bedrock,ollama,stub}`.
@@ -90,9 +95,37 @@ collaborator or zero timeout skips its layer (the service builder always adds re
   `foundation/decorate` (`OpMiddleware`, `Chain`, `Exec[R]` for custom repository/service ops), and
   `clients/decorators` (the client-boundary `Stack`: `Run`, `RunStream`, `StackFromConfig`).
   `foundation/decorator` (Go and Python) exposes `Unwrap` so tests can reach the wrapped unit.
-- **Python — `__getattr__` proxies** in `clients/decorators/proxy.py` (`LoggingProxy`,
-  `RetryProxy`, `CircuitBreakerProxy`, …) apply their concern around each awaited call;
-  `new_client_stack_from_config` composes them. Tier builders reuse `foundation/decorator.py`.
+  Its generic `CircuitBreaker(inner, cb, onOpen)` codes only an open-breaker rejection as
+  `UNAVAILABLE`; the operation's own error passes through with its code.
+- **Go — workflow helpers.** `decorators.Decorate(wf, op, logger, metrics, tracer, cfg)` is the
+  standard workflow stack (the builder with `cfg.Timeout` from `schema/workflows.Load`), and
+  `workflow.NewTxWorkflow(txMgr, pipe)` runs a command pipeline inside one transaction.
+- **Python — `__getattr__` proxies** in `clients/decorators/proxy.py` (`LoggingProxy`, `RetryProxy`,
+  `CircuitBreakerProxy`, …) apply their concern around each awaited call;
+  `new_client_stack_from_config` composes them. `RetryProxy` (async) and `retry_transient_async`
+  wait out a server pushback (`details["retry_after_ms"]`, read by `retry_after_s`) before the next
+  attempt, capped by `max_pushback_s` / the retry's max delay. Tier builders reuse
+  `foundation/decorator.py`.
+- **Python — GenAI span enrichment.** `clients/decorators/ai_enricher.AiSpanEnricher` wraps an
+  `LLMProvider` or `RetrievalEngine` and stamps the span already current (the step's) with
+  `gen_ai.system`, `gen_ai.step`, `gen_ai.request.model` (the model asked for),
+  `gen_ai.response.model` (the model that served the call), `gen_ai.usage.{input,output}_tokens`,
+  `gen_ai.response.finish_reason`, or `retrieval.{top_k,result_count,document_ids}`; it opens no span.
+  Both `stream` and `stream_with_usage` are wrapped (the latter re-yields its trailing
+  `StreamUsage`). Around a `FallbackLlmProvider`, `gen_ai.system` names the fallback, not the member
+  that served; wrap each member in its own enricher to attribute it.
+  Optional content capture records `gen_ai.content.{prompt,completion}` events, PII-redacted by
+  `foundation/logger/redact.redact_pii` (the Go `RedactPII` port; both suites read
+  `testdata/redact_vectors.json`) and capped at 4 KiB. With an injected `MetricsProvider` it emits
+  `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}` under the
+  served model; with an injected `FactPublisher` it publishes one `genai_calls` analytics fact per
+  model call (stamped with the call's start time), whose
+  product dimensions come from an injected `fact_dimensions` callable (the KE names no product
+  dimension). A stamping or emission failure is logged, never raised.
+- **Python — client RED metrics.** `clients/decorators/metrics_proxy.MetricsProxy` (the client
+  stack's Metrics layer) emits `client_operations_total{client,method,outcome}`,
+  `client_errors_total{client,method,code}` and `client_operation_duration_seconds{client,method}`.
+  A streamed call is measured at open only, not over the stream's lifetime.
 
 Inner logging layers (client stack, repository, service, pipeline, workflow) log failures at Debug
 so the outermost recovery/transport seam logs the Error once; the lock and replay-buffer loggers
@@ -110,6 +143,9 @@ Outermost → innermost:
 | Lock | `go/clients/lock/decorators` | Tracing → Metrics → Logging → Timeout → CircuitBreaker → Retry |
 | Replay buffer | `go/clients/replaybuffer/decorators` | Tracing → Metrics → Logging → Timeout |
 | Cache | `go/clients/cache/decorators` | Metrics → Timeout → CircuitBreaker |
+| Analytics store | `go/clients/analytics/decorators` | Recovery → Metrics → Tracing → CircuitBreaker → Timeout (the Cassandra session's writes ride the Client boundary stack) |
+| Outbox sink | `go/clients/outbox/decorators` | the Client boundary stack around each SDK call (`SQSAPI`, `S3API`), with SDK faults coded so only throttling/server faults retry |
+| Prometheus query | `go/clients/prometheus` (`DecorateDoer`) | the Client boundary stack around each HTTP GET, op `prometheus.<endpoint>` (retryable; the capped body is read inside the attempt; 429/502/503/504 are coded transient) |
 | Connect server | `go/clients/transport/connect/interceptors` | Recovery → RetryBudget → RateLimit → Bulkhead → Metrics → Tracing → Logging → ServiceAuth → Auth → caller-supplied (`WithInterceptors`: the consumer's principal and tenant-scope interceptors) → Validate |
 | Connect/gRPC client | + `go/clients/rpc/grpc/interceptors` | Metrics → CircuitBreaker → Retry → Timeout → Tracing → Logging (gRPC appends ServiceAuth) |
 | gRPC streaming client | `go/clients/rpc/grpc/interceptors` (`StreamingClientBuilder`) | Timeout → Metrics → CircuitBreaker → Retry → Tracing → Logging → ServiceAuth |
@@ -119,7 +155,7 @@ Outermost → innermost:
 | Pipeline, Workflow | `go/{pipelines/pipeline,workflows/workflow}/decorators` | Recovery → Logging → Tracing → Metrics → Timeout |
 | Transport handler | `go/transport/decorators` | Recovery → Logging → Metrics → RateLimit → Timeout |
 | Execution job | `go/execution/job/decorators` | Tracing → Metrics → Logging → Recovery |
-| Python client | `clients/decorators/proxy.py` | Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Logging |
+| Python client | `clients/decorators/proxy.py` | Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging (Metrics only with an injected `MetricsProvider`) |
 | Python EventHandler | `clients/decorators/event_stack.py` | Dedup → DeadLetter → Retry → CircuitBreaker → Timeout |
 | Python Job | `clients/decorators/job_stack.py` | LeaderElection → RateLimit → Retry → Timeout |
 
@@ -130,6 +166,79 @@ service token it also adds a unary ServiceAuth interceptor for the connection's 
 Custom repository ops (`OpChain`) use the Repository order minus Caching. Tests pin the orders
 (`go/tests/unit/clients_wrap_order_test.go` for the client boundary, EventHandler and Job stacks;
 `services_wrap_order_test.go`, `clients_lock_decorators_test.go`, `foundation_decorator_test.go`).
+
+### Conversation threading
+
+A multi-turn conversation is one trace per turn, grouped by id and linked turn to turn. The edge
+that owns the conversation puts three W3C baggage members on each turn (Go
+`foundation/tracer.InjectConversation`): `vv.conversation.id` (opaque, `^[A-Za-z0-9_-]{1,64}$`),
+`vv.turn.index` (0-based) and `vv.prev.traceparent` (the previous turn's root span). The turn's
+root span carries the attributes `conversation.id` and `turn.index` and one span link to the
+previous root (Go `ConversationStartOptions`; Python `foundation/tracer/conversation`:
+`extract_conversation`, `stamp_conversation`, `conversation_links`). A missing or malformed id or
+index yields an unthreaded trace; a malformed `traceparent` drops only the link.
+
+## Analytics (VizQL)
+
+`core/types.VizSpec` is a declarative chart: Rows/Columns shelves of table-algebra expressions
+(`concat`, `cross`, `nest`) over one cube's fields, plus detail, encodings, a listquery filter,
+sort, time range, grain and an optional mark. `foundation/vizql` is the pure compiler (no I/O):
+`Parse` validates the JSON spec against the cube's `listquery.Map` (a field's `Role` — dimension,
+measure or time — and the `Aggregates` a measure permits; a sort key must name a placed dimension or
+aggregated measure; depth ≤ 8; every rejection `CodeInvalidInput`), `Normalize` builds the tuple
+table, `Compile` derives one `AggregateQuery` plus the panes and a mark per pane (O×O text, O×Q bar,
+T×Q line, Q×Q point), `Drill` swaps a dimension for its hierarchy child (sort keys included), and
+the reducer merges `Partial`s (sum, count, min, max and a 1%-accurate DDSketch for p50/p95/p99).
+Facts travel as `core/types.Fact`, whose JSON is byte-identical to Python's `core/types/fact.Fact`
+(both suites assert `testdata/analytics_fact.golden.json`).
+
+`core/interfaces.AnalyticsStore` (`Aggregate` → a pull-based, page-at-a-time `RowStream`; idempotent
+`Write`; optional `AnalyticsCompactor`) is built by `clients/analytics` (`KindStub` default,
+`KindCassandra`). The Cassandra store sits on `clients/cassandra.Session` — `KindCassandra`
+(self-managed, token- and DC-aware) or `KindKeyspaces` (Amazon Keyspaces: TLS + SigV4) — and keeps
+to the CQL both share: one table per cube and grain, partition `((org_id, cube, bucket))`,
+clustering `(ts, dims_key, idempotency_key)`, one partial row per fact (a redelivery overwrites it),
+dimension filters applied in Go (time clauses also narrow the clustering range; `OpLike` is a
+case-insensitive substring match with `%` and `_` literal), and compaction in single-partition
+logged batches of at most 30 statements. `NewFromConfig` does no I/O: the Cassandra store is built
+by `NewLazy` and dials at `Start` (an operation before it is `CodeUnavailable`); Keyspaces defaults
+to port `DefaultPort` (9142) and loads the AWS credentials chain on first use. A stream's first read
+error is terminal, a resume token is bound to the query that issued it, and a compacted row keeps
+the bucket's retention: it expires at bucket end + the grain's TTL (CQL `TTL()` cannot be read off a
+non-frozen map, so the TTL is anchored to the bucket, not to each fact's write).
+
+The transactional outbox is split by tier. `core/interfaces.OutboxStore` (`Claim` leases due rows,
+`MarkSent` / `Retry` / `Park` / `Stats`) is supplied by the consumer over its own table;
+`core/interfaces.OutboxSink` returns one result per record. `services/outbox.Relay.RunOnce` claims a
+batch, sends it in `SendBatch` chunks under a `Concurrency` bound, and finalizes each row by its own
+outcome: sent, retried at `now + FullJitter(min(Base·2^attempts, Max))`, or parked on its
+`MaxAttempts`th attempt (`outbox_{sent,retried,parked}_total`, `outbox_depth`, `outbox_lag_seconds`
+by lane). With `ParkOnPermanent` a permanent failure parks the row at once; a run cancelled mid-send
+leaves its unfinished rows leased for the next claim. `LoadRelayConfig` reads a lane's `RelayConfig`
+over the defaults. `clients/outbox` builds the sink (`KindStub` default, `KindSQS`, `KindS3`) over
+an injected SDK client: SQS routes each row by its `route` attribute through a config route → queue
+map with per-queue failure isolation (a `.fifo` queue gets group id `Key`, else `Tenant`, else
+`Lane`, and deduplication id `ID`); the sinks keep an SDK error's code (`errors.CodeOr`); S3 writes
+one object per row by key template with Content-MD5 (Object Lock) and optional SSE-KMS.
+`go/tests/fixtures/outboxtest` is the store conformance suite (`Run`, `RunRouting`) plus a test-only
+Postgres reference store.
+
+`core/interfaces.MetricsQuerier` evaluates PromQL: `Query` returns one instant sample and
+`QueryRange` one series of `core/types.MetricSample`. It is built by `clients/prometheus`
+(`KindStub` default, which answers 0 and an empty series; `KindHTTP`, the Prometheus HTTP API
+client). The HTTP kind fails closed:
+
+- no sample, or a NaN or infinite one, is `CodeNotFound`;
+- several series, the wrong result type, a bad range (step <= 0, end before start), a rejected
+  query (HTTP 400/422) or a body over `MaxBodyBytes` is `CodeInvalidInput`;
+- a transport failure or a throttling/unavailable status (429/502/503/504) is
+  `CodeUnavailable`, which the client stack retries and its breaker counts;
+- the caller's own deadline is `CodeTimeout` and its cancellation `CodeCanceled`;
+- any other error status, a `"status":"error"` envelope or an unparsable body is
+  `CodeUpstream`.
+
+The stub is the deliberate exception: it measures nothing and answers zero, so the graph boots
+without a metrics server.
 
 ## Configuration
 
@@ -162,7 +271,7 @@ documented exception: the logger's deploy-time `GIT_SHA` (mirrored in Python).
 
 Every error crossing a package boundary carries an `ErrorCode`. Go `go/core/errors` defines the
 codes (`NOT_FOUND`, `INVALID_INPUT`, `UNAUTHORIZED`, `FORBIDDEN`, `CONFLICT`, `TIMEOUT`,
-`UNAVAILABLE`, `UPSTREAM`, `INTERNAL`, …); `New(code, msg)` / `Wrap(err, code, msg)` build an
+`UNAVAILABLE`, `UPSTREAM`, `RESOURCE_EXHAUSTED`, `INTERNAL`, …); `New(code, msg)` / `Wrap(err, code, msg)` build an
 `*AppError` keeping cause and origin stack; `Code(err)` / `Is(err, code)` read it. Production code
 under `go/` has no `fmt.Errorf`; `.golangci.yml` bans it via `forbidigo`.
 
@@ -173,17 +282,20 @@ which maps codes and captures the real cause for the request log). Python raises
 `AppError(code, message, cause=…)` or a subclass from `core/errors`; `is_transient`, `grpc_status`
 and `http_status` derive from the code, retries retry only transient `AppError`s, and boundary
 helpers translate SDK errors (`foundation/resilience/grpc_boundary.py`,
-`foundation/resilience/aws_boundary.py`).
+`foundation/resilience/aws_boundary.py`). `RESOURCE_EXHAUSTED` (a spent quota, HTTP 429 / gRPC 8) is
+neither transient nor permanent, so no retry layer in either language retries it. The committed
+`go/core/errors/testdata/codes.json` pins every code's `{grpc, http, transient, permanent}` row; the
+Go suite regenerates it and the Python suite compares against it.
 
 ## Stub-first backends
 
 Most tiers ship an in-process, stub, or no-op backend, so wiring needs no cloud dependency:
 
-- **Go:** lock `local`; messaging, replay buffer, storage `memory`; secrets
+- **Go:** analytics `stub`; lock `local`; outbox sink `stub`; messaging, replay buffer, storage `memory`; secrets
   `env`/`file`; tracer `noop`; metrics no-op when disabled; logger `stdlib`. Jobs' `NewFromConfig`
   currently returns a no-op River enqueuer.
-- **Python:** cache `local`/`null`; email `noop`; embedding, llm, retrieval, kb_ingestion, vector
-  `stub`; jobs, lock, messaging, storage `memory`; tracer, metrics `null`;
+- **Python:** cache `local`/`null`; email `noop`; audit, embedding, facts, llm, retrieval, kb_ingestion,
+  token_ledger, vector `stub`; jobs, lock, messaging, storage `memory`; tracer, metrics `null`;
   executor `asyncio`.
 
 Go cache (Redis), database (Postgres) and connector (S3) have no stub and are covered by

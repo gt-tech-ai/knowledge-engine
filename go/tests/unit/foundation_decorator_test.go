@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -182,4 +183,35 @@ func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 			"series are labelled by the instance name, not the tier",
 		)
 	}
+}
+
+// TestDecoratorCircuitBreakerCodesOnlyRejections tests the generic breaker
+// decorator.
+//
+// Why this test is important:
+//   - A tier must tell "the breaker shed the call" (retry later) apart from "the
+//     call ran and failed" (keep its own code); mixing them hides real errors
+//
+// What it tests:
+//   - with the breaker rejecting without running inner, Execute returns the
+//     onOpen error and inner is never called
+//   - with the breaker running inner, inner's output and error pass through
+//     unchanged ("in-out", nil)
+func TestDecoratorCircuitBreakerCodesOnlyRejections(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	inner := mocks.NewMockPipeline[string, string](ctrl)
+	onOpen := func(err error) error { return coreerr.Wrap(err, coreerr.CodeUnavailable, "shed") }
+
+	open := mocks.NewMockCircuitBreaker(ctrl)
+	open.EXPECT().Execute(gomock.Any()).Return(coreerr.Sentinel("open"))
+	_, err := decorator.CircuitBreaker[string, string](inner, open, onOpen).Execute(context.Background(), "in")
+	require.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+
+	closed := mocks.NewMockCircuitBreaker(ctrl)
+	closed.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error { return fn() })
+	inner.EXPECT().Execute(gomock.Any(), "in").Return("in-out", nil)
+	out, err := decorator.CircuitBreaker[string, string](inner, closed, onOpen).Execute(context.Background(), "in")
+	require.NoError(t, err)
+	require.Equal(t, "in-out", out)
 }

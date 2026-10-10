@@ -1,5 +1,5 @@
 // Package decorator provides one generic implementation of the cross-cutting
-// decorator stack (timeout, metrics, tracing, logging, recovery) shared by every
+// decorator stack (timeout, circuit breaker, metrics, tracing, logging, recovery) shared by every
 // tier whose unit of work has the shape Execute(ctx, In) (Out, error) — pipelines
 // and workflows today. Each tier keeps its own fluent builder (and therefore its
 // own wrap order (ARCHITECTURE.md#decorator-order) and its tier-specific labels/recovery
@@ -304,3 +304,39 @@ func (d *recovery[In, Out]) Execute(
 
 // Unwrap returns the inner executor this decorator wraps.
 func (d *recovery[In, Out]) Unwrap() Executor[In, Out] { return d.inner }
+
+// CircuitBreaker returns inner run through cb. When cb rejects the call without
+// running inner (an open breaker), Execute returns onOpen(err) so the tier can
+// code the rejection; an error from inner itself passes through unchanged.
+func CircuitBreaker[In, Out any](inner Executor[In, Out], cb interfaces.CircuitBreaker, onOpen func(error) error) Executor[In, Out] {
+	return &breaker[In, Out]{inner: inner, cb: cb, onOpen: onOpen}
+}
+
+// breaker runs each execution through a circuit breaker.
+type breaker[In, Out any] struct {
+	// inner is the protected executor.
+	inner Executor[In, Out]
+	// cb decides whether inner runs.
+	cb interfaces.CircuitBreaker
+	// onOpen converts a rejection into the tier's error.
+	onOpen func(error) error
+}
+
+// Execute runs inner through the breaker, converting only a rejection with onOpen.
+func (d *breaker[In, Out]) Execute(ctx context.Context, input In) (Out, error) {
+	var out Out
+	ran := false
+	err := d.cb.Execute(func() error {
+		ran = true
+		var inner error
+		out, inner = d.inner.Execute(ctx, input)
+		return inner
+	})
+	if err != nil && !ran {
+		return out, d.onOpen(err)
+	}
+	return out, err
+}
+
+// Unwrap returns the inner executor this decorator wraps.
+func (d *breaker[In, Out]) Unwrap() Executor[In, Out] { return d.inner }

@@ -10,6 +10,7 @@ from techai_webutils.core.errors.errors import (
     InvalidInputError,
     NotFoundError,
     AppTimeoutError,
+    QuotaExceededError,
     UnauthorizedError,
     UnavailableError,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "InternalError",
     "InvalidInputError",
     "NotFoundError",
+    "QuotaExceededError",
     "UnauthorizedError",
     "UnavailableError",
 ]

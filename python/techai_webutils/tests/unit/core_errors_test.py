@@ -87,6 +87,7 @@ class TestAppError:
           - INGESTION_ERROR maps to gRPC 13 (Go Sanitize default)
           - QUALITY_FAILED maps to gRPC 13 (Go Sanitize default)
           - UPSTREAM maps to gRPC 14
+          - RESOURCE_EXHAUSTED maps to gRPC 8
           - every ErrorCode is covered, so a future code must be given a decided status
         """
         mapping = {
@@ -103,6 +104,7 @@ class TestAppError:
             ErrorCode.INGESTION_ERROR: 13,
             ErrorCode.QUALITY_FAILED: 13,
             ErrorCode.UPSTREAM: 14,
+            ErrorCode.RESOURCE_EXHAUSTED: 8,
         }
         assert set(mapping) == set(ErrorCode)
         for code, expected_grpc in mapping.items():
@@ -129,6 +131,7 @@ class TestAppError:
           - TIMEOUT maps to HTTP 504
           - UNAVAILABLE maps to HTTP 503
           - UPSTREAM maps to HTTP 502
+          - RESOURCE_EXHAUSTED maps to HTTP 429
           - UNKNOWN, CANCELED, INGESTION_ERROR, QUALITY_FAILED map to HTTP 500 (the default)
           - every ErrorCode is covered, so a future code must be given a decided status
         """
@@ -146,6 +149,7 @@ class TestAppError:
             ErrorCode.CANCELED: 500,
             ErrorCode.INGESTION_ERROR: 500,
             ErrorCode.QUALITY_FAILED: 500,
+            ErrorCode.RESOURCE_EXHAUSTED: 429,
         }
         assert set(mapping) == set(ErrorCode)
         for code, expected_http in mapping.items():

@@ -3,7 +3,9 @@ package errors
 import "net/http"
 
 // IsTransient returns true if the error represents a transient failure
-// that may succeed on retry (timeout, unavailable, certain internal errors).
+// that may succeed on retry (timeout, unavailable). CodeResourceExhausted is
+// deliberately not transient: a spent quota does not recover within a retry
+// backoff, only when its window resets.
 func IsTransient(err error) bool {
 	code := Code(err)
 	switch code {
@@ -16,6 +18,7 @@ func IsTransient(err error) bool {
 
 // IsPermanent returns true if the error represents a permanent failure
 // that will not succeed on retry (not found, invalid input, unauthorized, forbidden, conflict).
+// CodeResourceExhausted is not permanent: the request succeeds once the quota window resets.
 func IsPermanent(err error) bool {
 	code := Code(err)
 	switch code {
@@ -47,6 +50,8 @@ func ToHTTPStatus(code ErrorCode) int {
 		return http.StatusInternalServerError
 	case CodeUpstream:
 		return http.StatusBadGateway
+	case CodeResourceExhausted:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

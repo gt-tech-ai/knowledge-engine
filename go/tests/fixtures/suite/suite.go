@@ -1,13 +1,14 @@
 // Package suite provides test suite constructors for unit and integration tests.
 //
 // It carries the schema-agnostic suites (a gomock UnitSuite plus one suite per
-// generic backing service — Redis, MinIO, ElasticMQ). A Postgres suite for a
+// generic backing service — Redis, MinIO, ElasticMQ, Cassandra). A Postgres suite for a
 // consumer's own schema belongs with that consumer.
 package suite
 
 import (
 	"context"
 
+	cassandradb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/cassandra"
 	elasticmqdb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/elasticmq"
 	miniodb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/minio"
 	redisdb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/redis"
@@ -136,5 +137,39 @@ func (s *ElasticMQIntegrationSuite) SetupSuite() {
 func (s *ElasticMQIntegrationSuite) TearDownSuite() {
 	if s.elasticmq != nil {
 		s.elasticmq.Close(context.Background())
+	}
+}
+
+// CassandraIntegrationSuite provides a test suite with a real single-node
+// Cassandra 5. CassandraHost/CassandraPort let the caller build its own session;
+// Cassandra.Exec runs schema bootstrap through cqlsh.
+type CassandraIntegrationSuite struct {
+	// Cassandra is the running Cassandra container, terminated in TearDownSuite.
+	Cassandra *cassandradb.TestCassandra
+	// CassandraHost is the host callers connect to.
+	CassandraHost string
+	// TestSuite is the embedded base suite (assertions, TempDir, IsIntegration).
+	base.TestSuite
+	// CassandraPort is the mapped native-protocol port.
+	CassandraPort int
+}
+
+// SetupSuite starts Cassandra and waits until cqlsh answers.
+func (s *CassandraIntegrationSuite) SetupSuite() {
+	s.TestSuite.SetupSuite()
+	s.IsIntegration()
+
+	c, err := cassandradb.NewTestCassandra(context.Background())
+	s.Require().NoError(err, "failed to create test Cassandra")
+
+	s.Cassandra = c
+	s.CassandraHost = c.Host()
+	s.CassandraPort = c.Port()
+}
+
+// TearDownSuite terminates the Cassandra container.
+func (s *CassandraIntegrationSuite) TearDownSuite() {
+	if s.Cassandra != nil {
+		s.Cassandra.Close(context.Background())
 	}
 }

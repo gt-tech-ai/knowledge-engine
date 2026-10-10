@@ -16,6 +16,7 @@ from techai_webutils.foundation.logger.logger import (
     get_logger,
     new_logger,
 )
+from techai_webutils.foundation.logger.redact import redact_pii
 from techai_webutils.foundation.logger.stdlib_logger import StdlibLogger
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "get_logger",
     "new_logger",
     "new_logger_from_config",
+    "redact_pii",
 ]

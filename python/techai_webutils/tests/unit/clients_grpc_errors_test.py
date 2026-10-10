@@ -211,6 +211,21 @@ class TestToGrpcStatus:
         assert code == grpc.StatusCode.UNAVAILABLE
         assert msg == "upstream service unavailable"
 
+    def test_resource_exhausted_returns_fixed_message(self) -> None:
+        """Test that RESOURCE_EXHAUSTED maps to gRPC RESOURCE_EXHAUSTED with Go's fixed message.
+
+        **Why this test is important:**
+          - A quota rejection's raw text can name the org or its budget; Go's Sanitize returns the
+            fixed "resource exhausted" for CodeResourceExhausted, and both edges must agree
+
+        **What it tests:**
+          - The status code is RESOURCE_EXHAUSTED
+          - The message is the fixed "resource exhausted", not the raw text
+        """
+        code, msg = to_grpc_status(AppError(ErrorCode.RESOURCE_EXHAUSTED, "org-1 spent 1000000 tokens"))
+        assert code == grpc.StatusCode.RESOURCE_EXHAUSTED
+        assert msg == "resource exhausted"
+
     def test_unknown_is_hidden_as_internal(self) -> None:
         """Test that UNKNOWN is reported as INTERNAL with the generic message.
 

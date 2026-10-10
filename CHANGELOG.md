@@ -6,6 +6,208 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-09
+
+### Added
+
+- `RESOURCE_EXHAUSTED` error code in both languages (Go `errors.CodeResourceExhausted`, Python
+  `ErrorCode.RESOURCE_EXHAUSTED`): HTTP 429 / gRPC `RESOURCE_EXHAUSTED` (8), with the fixed
+  client-safe message "resource exhausted" on the gRPC edge. It is neither transient nor permanent,
+  so the retry decorators never retry it. Python adds `QuotaExceededError(message, *, org_id,
+  reason)`. Go `rpc.FromRPCError` maps a `RESOURCE_EXHAUSTED` wire status back to the code.
+- Python `AiSpanEnricher` (`clients/decorators/ai_enricher.py`): a `__getattr__` proxy over an
+  `LLMProvider` or `RetrievalEngine` that stamps the current span with the GenAI attributes
+  (`gen_ai.system`, `gen_ai.step`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`,
+  `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reason`) or the retrieval shape
+  (`retrieval.top_k`, `retrieval.result_count`, `retrieval.document_ids`, at most 20 ids). With
+  `capture_content=True` it adds redacted, 4 KiB-capped `gen_ai.content.prompt` /
+  `gen_ai.content.completion` events. Enrichment failures are logged, never raised.
+- Python GenAI metrics and analytics facts: `AiSpanEnricher(…, metrics=, facts=, fact_dimensions=)`
+  emits `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}`
+  (buckets 0.05 … 60 s), and publishes one `genai_calls` `Fact` per model call (dims
+  `provider`/`model`/`step` plus the injected `fact_dimensions()`, whose `org_id` becomes the fact's
+  `org_id`; measures `duration_s`/`tokens_in`/`tokens_out`; key `<trace_id>:<span_id>:<step>`).
+- Python `core/types/fact.Fact` (the `analytics.fact` JSON wire, byte-identical to the shared
+  `testdata/analytics_fact.golden.json`), the `FactPublisher` port and the `clients/facts` tier
+  (`FactPublisherKind` `stub` | `messaging`, `FactPublisherConfig`, `new_fact_publisher_from_config`).
+  The `messaging` backend is bounded and fail-open: it batches up to ten facts per `publish_batch`,
+  drops and counts `gen_ai_fact_dropped_total{reason}` (`buffer_full`, `publish_error`, `shutdown`,
+  `closed`) and drains on exit.
+- Python client-stack RED metrics: `new_client_stack_from_config(…, metrics=)` adds `MetricsProxy`
+  inside Tracing (order Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging),
+  emitting `client_operations_total{client,method,outcome}`, `client_errors_total{client,method,code}`
+  and `client_operation_duration_seconds{client,method}`. Without `metrics` the stack is unchanged.
+- Python `StreamUsage` and `LLMProvider.stream_with_usage()` (concrete; awaited like `stream()`):
+  the last item is the streamed call's token usage. Bedrock reads the Converse `metadata` event,
+  Ollama the final `done` chunk, the stub word counts; `FallbackLlmProvider` passes the serving
+  model's usage through. The default re-yields `stream()` with no usage, so existing providers stay
+  valid. `text_only()` filters a usage stream back to text; the built-in providers' `stream()` now
+  uses it.
+- Python `foundation.logger.redact_pii`: a port of the Go `RedactPII` (email, phone, SSN, IPv4,
+  bearer / `token=` / `access_token=` tokens). `configure_logging(redact_pii=True)` and
+  `setup_observability(redact_pii=True)` apply it to the message and every string field; pass the
+  `logging_redact_pii` setting. Both languages' tests read the shared `testdata/redact_vectors.json`.
+- Conversation-threading primitives. Go `foundation/tracer`: `Conversation{ID, Prev, TurnIndex}`,
+  `InjectConversation(ctx, c)` (sets the W3C baggage members `vv.conversation.id`, `vv.turn.index`,
+  `vv.prev.traceparent`), `ConversationStartOptions(c)` (attributes `conversation.id` /
+  `turn.index` plus one link to the previous turn) and `ParseTraceparent(s)`. Python
+  `foundation/tracer/conversation`: `ConversationContext`, `extract_conversation(ctx)`,
+  `stamp_conversation(span, conv)` and `conversation_links(conv)`. Malformed ids (outside
+  `^[A-Za-z0-9_-]{1,64}$`) or turn indexes are dropped.
+- Python `TokenLedger` tier. `core/interfaces/token_ledger.py`: `UsageScope` (`org_id` required),
+  `UsageRecord`, `BudgetDecision`, `Period` (`daily` | `monthly` | `rolling_30d`), `UsageSummary` and
+  the `TokenLedger(ManagedResource, ABC)` contract (`check_budget`, `record`, `usage`; fail-open,
+  at-least-once). `clients/token_ledger`: `TokenLedgerKind` (`stub` default), `TokenLedgerConfig`,
+  `token_ledger_from_config(config, *, redis=None, backends=…)` (consumer kinds are injected through
+  `backends`), the allow-all `StubTokenLedger`, and the `Decimal` cost arithmetic (`ModelPrice`,
+  `PriceTable`, `cost_of`, micro-dollar half-even). Dev dependency: `hypothesis`.
+- Python `redis` `TokenLedger` backend (`clients/token_ledger/redis.RedisTokenLedger`, built by
+  `token_ledger_from_config(kind="redis", redis=<the app's client>, metrics=…)`). `record` is one Lua
+  script: `HINCRBY` on the counter hash `<prefix>:{org}:{workspace}:{window}` (`input_tokens`,
+  `output_tokens`, `embed_tokens`, `cost_micro_usd`), `EXPIREAT` at the window end, and `XADD
+  <stream> MAXLEN ~ <stream_maxlen>` of the usage entry (`org_id, team_id, workspace_id, user_id,
+  model, operation, input_tokens, output_tokens, embed_tokens, cost_usd, pricing_version, trace_id,
+  ts`); failures are counted on `token_ledger_record_failed_total` and never raised. `check_budget`
+  reads the counters and the limits hash `<prefix>:limits:{org}:{workspace}` (`tokens`, `cost_usd`)
+  in one pipeline and fails open (`ledger_unavailable_fail_open`). `usage` is an approximate counter
+  snapshot. The script needs a non-cluster Redis.
+- Python `AuditSink` tier. `core/interfaces/audit.py`: the frozen `AuditRecord` (who, prompt, answer,
+  `sources: tuple[AuditedSource, ...]`, model, tokens, PII/safety flags, decision, cache hit, trace
+  id, `created_at`) and `AuditedSource`, and the `AuditSink` protocol (`async record(record)`).
+  `clients/audit`: `AuditSinkKind` (`stub`), `AuditSinkConfig` (`kind="stub"`, `enforcement`
+  `shadow` | `enforced`, `endpoint`, `timeout_s=2.0`), `new_audit_sink_from_config(config, *,
+  backends=…)` (durable sinks are injected) and the in-memory `StubAuditSink`.
+- Go analytics types and the VizQL compiler. `core/types`: `VizSpec` (JSON wire form with shelves as
+  `{"op":"cross"|"concat"|"nest","args":[…]}` / `{"field":…,"agg":…}`), `AlgebraExpr`, `FieldRef`,
+  `Encodings`, `TimeRange`, `Aggregate`, `Grain`, `Mark`, `AggregateQuery`, `MeasureRef`, and `Fact`
+  (the `analytics.fact` wire, byte-identical to the Python `Fact`). `foundation/listquery.Field`
+  gains `Role` (`RoleDimension` default, `RoleMeasure`, `RoleTime`), `Aggregates`, `AsMeasure`,
+  `AsTime` and `Allows`. New `foundation/vizql`: `Parse`, `Normalize`, `Compile` (+ `CubeSchema`,
+  `Plan`, `PaneKey`), `Drill`, and the reducer `Partial` / `NewPartial` / `Merge` / `Finalize`.
+  Dependency: `github.com/DataDog/sketches-go` v1.4.8.
+- Go analytics store. `core/interfaces`: `AnalyticsStore`, `RowStream`, `AnalyticsCompactor`;
+  `core/types.Row`; `AggregateQuery.ResumeToken`. New `clients/cassandra` (`Kind` cassandra |
+  keyspaces, `Config`, `DefaultConfig` = LOCAL_QUORUM / 5 s / 500-row pages, `New`, `NewFromConfig`,
+  the `Session` / `Query` / `Iter` / `Batch` seam with coded driver errors; backends in
+  `cassandra/` and `keyspaces/`, the latter TLS + SigV4 via
+  `github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin` v1.1.0). New `clients/analytics`
+  (`Kind` stub | cassandra, `Config` with cube catalog, bucket widths, TTLs, `New`,
+  `NewFromConfig`), `clients/analytics/stub`, `clients/analytics/cassandra` (`Store`, `SchemaCQL`,
+  `TableName`, `DimsKey`, `Compact`) and `clients/analytics/decorators` (store builder + `Session`
+  client-stack wrapper). `foundation/vizql` gains `EncodePartial`, `DecodePartial`, `Truncate`,
+  `Next`. Test fixture `go/tests/fixtures/dbtest/cassandra` (cassandra:5) and
+  `suite.CassandraIntegrationSuite`. Dependencies: `github.com/gocql/gocql` v1.7.0 (pulls
+  `github.com/aws/aws-sdk-go` v1 through the SigV4 plugin).
+- Go transactional outbox. `core/types`: `OutboxRecord`, `OutboxStats`, `OutboxRouteAttribute`;
+  `core/interfaces`: `OutboxStore`, `OutboxSink`. New `services/outbox` (`Relay`, `NewRelay`,
+  `RelayConfig`, `DefaultRelayConfig`, `WithClock`, `WithJitter`). New `clients/outbox` (`Kind`
+  stub | sqs | s3, `Config`, `DefaultConfig`, `NewFromConfig`), `clients/outbox/stub`,
+  `clients/outbox/sqs` (`Config.Queue` + `Config.Routes` route → queue map), `clients/outbox/s3`
+  (`DefaultKeyTemplate`, `KMSKeyAttribute`) and `clients/outbox/decorators` (`SQSAPI`, `S3API`).
+  `foundation/resilience/retry.FullJitter`. Test fixture `go/tests/fixtures/outboxtest` (store
+  conformance `Run` / `RunRouting`, reference `SQLStore` + `Schema`).
+- Go outbox and analytics additions: `core/errors.CodeOr(err, fallback)` (keeps a client's code,
+  codes an uncoded SDK error); `services/outbox.LoadRelayConfig(loader, key, lane)` and
+  `RelayConfig.ParkOnPermanent` (park a row on its first permanent failure instead of retrying it to
+  `MaxAttempts`); FIFO SQS queues (a `.fifo` queue name sends each message with group id `Key`, else
+  `Tenant`, else `Lane`, and deduplication id `ID`); the S3 key placeholder `{key}`;
+  `clients/analytics/cassandra.NewLazy(dial, cfg)` (dials at `Start`, so `clients/analytics`
+  `NewFromConfig` does no I/O); `foundation/vizql.ValidGrain`;
+  `clients/cassandra/keyspaces.DefaultPort` (9142); and the generic
+  `foundation/decorator.CircuitBreaker(inner, cb, onOpen)` executor decorator, which codes only an
+  open-breaker rejection as `UNAVAILABLE` and passes the operation's own error through.
+- Python `AiSpanEnricher` stamps `gen_ai.response.model` (the model that served the call) next to
+  `gen_ai.request.model` (the model the caller asked for), and wraps `stream_with_usage()` as well
+  as `stream()`. Python `foundation/resilience/async_retry.retry_after_s(err)` and
+  `RETRY_AFTER_MS_DETAIL` read a server pushback off an `AppError`; `RetryProxy(…,
+  max_pushback_s=10.0)` caps it.
+- Go shared workflow helpers. `workflows/workflow.NewTxWorkflow[In, Out](txMgr, pipe)` runs a
+  pipeline inside one `TransactionManager.WithTransaction` and returns a zero output with the
+  pipeline's or the commit's error. `workflows/workflow/decorators.Decorate[In, Out](wf, op, logger,
+  metrics, tracer, cfg)` applies the standard stack (logging, metrics, tracing, `cfg.Timeout`,
+  recovery) through `NewBuilder`. `foundation/config/schema/workflows.Load(loader)` reads the
+  `workflows` section (`SectionKey`) over `DefaultConfig()` and returns `INVALID_INPUT` for a
+  section that fails to decode or validate. New mock `MockTransactionManager`.
+- Python `Fact.to_json` escapes `<`, `>`, `&`, U+2028 and U+2029 exactly as Go's `encoding/json` does.
+- `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
+  table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
+  its own maps against it, so the two languages cannot diverge silently.
+- Go `foundation/cache.ReadThrough` takes variadic `...ReadThroughOption[T]`; existing calls
+  compile unchanged. `WithCacheable(func(T) bool)` returns a rejected value to every coalesced
+  caller without storing it. A nil `ByteCache` skips the cache but still coalesces concurrent
+  loads per key.
+- Go `clients/prometheus`: the Prometheus HTTP query client.
+  - `Kind` (`KindStub` default, `KindHTTP`), `ParseKind`, `Config` (with `MaxBodyBytes`,
+    default `DefaultMaxBodyBytes` = 32 MiB), `DefaultConfig` and `NewFromConfig`. The factory
+    returns a `core/interfaces.MetricsQuerier`, does no I/O, and fails on an unknown kind.
+  - `New`, `Client.Query`, `Client.QueryRange` and the `HTTPDoer` seam.
+  - Error codes:
+    - 429/502/503/504 → `UNAVAILABLE`.
+    - 400/422, a bad range or an over-cap body → `INVALID_INPUT`.
+    - The caller's deadline → `TIMEOUT`; its cancellation → `CANCELED`.
+    - Any other error status → `UPSTREAM`.
+  - `DecorateDoer(inner, stack, maxBodyBytes)` wraps each request in the client stack as op
+    `prometheus.<endpoint>`.
+    - The capped body is read inside the attempt.
+    - Transient statuses are errors, so they are retried and counted by the breaker.
+  - `clients/prometheus/stub` is the zero-infrastructure backend.
+  - New `core/interfaces.MetricsQuerier` and `core/types.MetricSample` (`prometheus.Sample` is an
+    alias), plus the generated `mocks.MockPrometheusHTTPDoer`.
+
+### Changed
+
+- Go `foundation/cache.ReadThrough` detaches the shared load from the caller that started it: the
+  load runs on the single-flight goroutine and its cache write uses `context.WithoutCancel`. Each
+  caller returns when its own context ends, with `CANCELED` or `TIMEOUT`, and the other callers
+  still get the value. A caller whose context has already ended returns at once and starts no load.
+  A panicking load returns an `INTERNAL` error instead of panicking the caller; the error's `stack`
+  detail holds the panic-site stack. Callers that join a flight get the starting caller's cache
+  and options.
+
+- Go `rpc.Sanitize` now maps `CodeUnavailable` to `connect.CodeUnavailable` ("service
+  unavailable") instead of the `INTERNAL` default, matching the Python gRPC map. Clients now see a
+  retryable `UNAVAILABLE` for a transient dependency outage instead of a terminal `INTERNAL`.
+- **Behaviour change — quota rejections are no longer retried.** Python
+  `foundation/resilience/grpc_boundary.py` used to map a gRPC `RESOURCE_EXHAUSTED` to a transient
+  `UNAVAILABLE`, so `RetryProxy` re-sent the call into the same spent budget. It now maps to the
+  non-retryable `RESOURCE_EXHAUSTED` code. A rate-limit pushback is still honoured: when the
+  trailers carry `grpc-retry-pushback-ms` (milliseconds) or `retry-after` (seconds), the boundary
+  raises a transient `UNAVAILABLE` with `details["retry_after_ms"]`. Go
+  `exponential.IsRetryable` (shared by the retrier and the circuit breaker) likewise stops retrying
+  `CodeResourceExhausted`, so a quota rejection no longer counts as a breaker failure.
+
+### Fixed
+
+- Go outbox relay: a run cancelled mid-send leaves its unfinished rows leased instead of counting
+  the cancellation as a send failure; the SQS and S3 sinks keep a code the SDK error already carries
+  (`CodeOr`) instead of recoding it `UNAVAILABLE`.
+- Go `foundation/vizql`: a sort key the query neither groups by nor computes, and a cube without a
+  field allow-list, are `INVALID_INPUT`; `Drill` renames a drilled field in the sort keys too;
+  `OpLike` is documented as a case-insensitive substring match (`%` and `_` are literal). Go
+  `core/types.Fact` rejects a schema other than `FactSchemaVersion` on unmarshal.
+- Go analytics store: the Cassandra stream's first read error is terminal (every later `Next`
+  returns it); a resume token is bound to the query that issued it (another query's token is
+  `INVALID_INPUT`); compaction keeps the bucket's retention (the merged row expires at bucket end +
+  TTL, and a bucket already past that is left alone); the `Compact` call now runs through the
+  decorator chain (timeout included). The `dbtest/cassandra` fixture gives each wait step the full
+  4-minute start budget (the per-step 60 s default was shorter than a cold start).
+- Go `clients/cassandra`: a zero port or timeout keeps the driver's default; Keyspaces loads the AWS
+  default credentials chain on the first refresh rather than at construction.
+- Go `foundation/tracer/oteltracer.New` takes its tracer from the provider it built, not the OTel
+  global, so tracers created concurrently each keep their own sampler.
+- Go `foundation/tracer.ConversationStartOptions` returns no options for a conversation that
+  `InjectConversation` would refuse; `retry.FullJitter` no longer overflows at `math.MaxInt64`.
+- Python facts publisher: a publish once closing has begun, or after its sender has died, is dropped
+  and counted (`reason="closed"`) instead of buffered; a dead sender is logged. Python `redact_pii`
+  logging redacts strings nested in dicts, lists and tuples.
+- Python `AiSpanEnricher`: metrics and the `genai_calls` fact use the served model, and the fact's
+  `ts` is the call's start. `MetricsProxy` documents that a streamed call is measured at open.
+- Python `RedisTokenLedger`: the window is coerced to `Period` (a bad value is `INVALID_INPUT`),
+  cost is rounded half-even to the micro-dollar, and malformed stored limits fail open.
+- Python `Fact` renders a `bool` measure as a number (`1`/`0`), as Go does.
+- Python `RetryProxy` and `retry_transient_async` wait out a server pushback (`retry_after_ms`,
+  capped) before the next attempt.
+
 ## [0.3.1] - 2026-10-08
 
 Python (`techai-webutils`) reaches error-code parity with the Go `errors` package and matches Go's

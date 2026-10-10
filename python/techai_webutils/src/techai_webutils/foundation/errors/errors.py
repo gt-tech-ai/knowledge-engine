@@ -52,8 +52,9 @@ def classify_error(err: BaseException) -> str:
         ErrorCode.UPSTREAM,
     ):
         return "internal"
-    # UNKNOWN and CANCELED are classified neither transient nor permanent in Go, so they fall
-    # through to the catch-all category.
+    # UNKNOWN, CANCELED and RESOURCE_EXHAUSTED are classified neither transient nor permanent in
+    # Go, so they fall through to the catch-all category (a spent quota is not retried, and it is
+    # not a server-side failure either).
     return "unknown"
 
 

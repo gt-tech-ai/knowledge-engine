@@ -2,6 +2,7 @@ package unit_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -141,4 +142,50 @@ func TestContextWithForcedSample(t *testing.T) {
 		32,
 		"the forced span carries a 32-hex trace id",
 	)
+}
+
+// TestTracer_ConcurrentNewKeepsOwnSampler tests that tracers built concurrently with different
+// sample rates each keep their own sampler.
+//
+// Why this test is important:
+//   - Every New installs its provider as the OTel global. A tracer taken from the global instead
+//     of from its own provider picks up whichever provider a concurrent New installed last, so a
+//     rate-0 tracer can start recording (and exporting) spans, or a rate-1 tracer can drop them.
+//
+// What it tests:
+//   - With rate-0 and rate-1 tracers created in parallel, every rate-0 root span is non-recording
+//     and every rate-1 root span is recording.
+func TestTracer_ConcurrentNewKeepsOwnSampler(t *testing.T) {
+	const pairs = 64
+	ctx := context.Background()
+
+	type result struct {
+		rate      float64
+		recording bool
+	}
+	results := make(chan result, 2*pairs)
+	var wg sync.WaitGroup
+	for i := range 2 * pairs {
+		rate := float64(i % 2)
+		wg.Go(func() {
+			tr, err := tracer.New(ctx, tracer.KindOTel,
+				tracer.WithServiceName("tracer-concurrent-test"),
+				tracer.WithEndpoint("localhost:4317"),
+				tracer.WithSampleRate(rate),
+			)
+			if !assert.NoError(t, err) {
+				return
+			}
+			t.Cleanup(func() { _ = tr.Shutdown(context.Background()) })
+			// Spans are never ended, so nothing is queued for export to the collector.
+			retCtx, _ := tr.Start(context.Background(), "root")
+			results <- result{rate: rate, recording: oteltrace.SpanFromContext(retCtx).IsRecording()}
+		})
+	}
+	wg.Wait()
+	close(results)
+
+	for r := range results {
+		assert.Equal(t, r.rate == 1, r.recording, "a tracer at rate %v must follow its own sampler", r.rate)
+	}
 }

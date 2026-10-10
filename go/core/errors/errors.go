@@ -40,6 +40,10 @@ const (
 	CodeQualityFailed ErrorCode = "QUALITY_FAILED"
 	// CodeUpstream marks a failure originating in an upstream dependency.
 	CodeUpstream ErrorCode = "UPSTREAM"
+	// CodeResourceExhausted marks a request rejected because a quota or budget is
+	// spent. It is neither transient (retrying before the window resets only burns
+	// the quota check) nor permanent (the request succeeds once the window resets).
+	CodeResourceExhausted ErrorCode = "RESOURCE_EXHAUSTED"
 
 	// Aliases for compatibility with classify.go
 
@@ -196,6 +200,16 @@ func Code(err error) ErrorCode {
 		return appErr.Code
 	}
 	return CodeUnknown
+}
+
+// CodeOr extracts err's ErrorCode like Code, but returns fallback when err
+// carries no code (an uncoded third-party error, or nil). Use it to wrap a
+// client error without discarding a code the client already chose.
+func CodeOr(err error, fallback ErrorCode) ErrorCode {
+	if code := Code(err); code != CodeUnknown {
+		return code
+	}
+	return fallback
 }
 
 // WithDetails returns a copy of the error with additional details.

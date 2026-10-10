@@ -36,7 +36,9 @@ import (
 //   - Unauthorized maps to CodeUnauthenticated
 //   - Forbidden maps to CodePermissionDenied
 //   - Upstream maps to CodeUnavailable
+//   - Unavailable maps to CodeUnavailable (so a client can retry it)
 //   - Canceled maps to CodeCanceled
+//   - ResourceExhausted maps to CodeResourceExhausted
 //   - Internal and unknown errors map to CodeInternal
 func TestToConnectError_AllCodes(t *testing.T) {
 	t.Parallel()
@@ -77,9 +79,19 @@ func TestToConnectError_AllCodes(t *testing.T) {
 			wantCode: connect.CodeUnavailable,
 		},
 		{
+			appErr:   apperr.Unavailable("dependency flapping"),
+			name:     "Unavailable",
+			wantCode: connect.CodeUnavailable,
+		},
+		{
 			appErr:   apperr.New(apperr.CodeCanceled, "request canceled"),
 			name:     "Canceled",
 			wantCode: connect.CodeCanceled,
+		},
+		{
+			appErr:   apperr.New(apperr.CodeResourceExhausted, "budget spent"),
+			name:     "ResourceExhausted",
+			wantCode: connect.CodeResourceExhausted,
 		},
 		{
 			appErr:   apperr.Timeout("deadline exceeded"),

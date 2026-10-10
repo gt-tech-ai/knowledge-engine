@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
+from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse, StreamUsage, text_only
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
@@ -29,11 +29,17 @@ def _last_user_message(messages: list[LLMMessage]) -> str:
     return ""
 
 
-async def _token_stream(text: str) -> AsyncIterator[str]:
-    """Yield ``text`` token-by-token (whitespace-delimited, trailing space preserved)."""
+def _input_tokens(messages: list[LLMMessage]) -> int:
+    """Count prompt tokens as whitespace-delimited words across every message (deterministic)."""
+    return sum(len(m.content.split()) for m in messages)
+
+
+async def _token_stream(text: str, usage: StreamUsage) -> AsyncIterator[str | StreamUsage]:
+    """Yield ``text`` token-by-token (whitespace-delimited, trailing space preserved), then ``usage``."""
     for token in text.split(" "):
         if token:
             yield f"{token} "
+    yield usage
 
 
 class StubLlmProvider(NoOpAsyncResource, LLMProvider):
@@ -49,18 +55,29 @@ class StubLlmProvider(NoOpAsyncResource, LLMProvider):
         return LLMResponse(
             content=answer,
             model=self._model,
-            input_tokens=sum(len(m.content.split()) for m in messages),
+            input_tokens=_input_tokens(messages),
             output_tokens=len(answer.split()),
             finish_reason="stop",
         )
 
-    async def stream(
+    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+        """Return an async iterator streaming the last user message token-by-token."""
+        return text_only(await self.stream_with_usage(messages, config))
+
+    async def stream_with_usage(
         self,
         messages: list[LLMMessage],
         config: LLMConfig | None = None,  # noqa: ARG002
-    ) -> AsyncIterator[str]:
-        """Return an async iterator streaming the last user message token-by-token."""
-        return _token_stream(_last_user_message(messages))
+    ) -> AsyncIterator[str | StreamUsage]:
+        """Stream the last user message token-by-token, then a word-count ``StreamUsage``."""
+        answer = _last_user_message(messages)
+        usage = StreamUsage(
+            model=self._model,
+            input_tokens=_input_tokens(messages),
+            output_tokens=len(answer.split()),
+            finish_reason="stop",
+        )
+        return _token_stream(answer, usage)
 
     def model_name(self) -> str:
         """Return the stub model identifier."""

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from techai_webutils.core.errors import AppError, ErrorCode
-from techai_webutils.core.interfaces.llm import LLMConfig, LLMProvider, LLMResponse
+from techai_webutils.core.interfaces.llm import LLMConfig, LLMProvider, LLMResponse, StreamUsage, text_only
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
@@ -114,13 +114,21 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
 
     async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
         """Stream a completion token-by-token. Awaited to obtain the iterator, then ``async for``."""
+        return text_only(await self.stream_with_usage(messages, config))
+
+    async def stream_with_usage(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str | StreamUsage]:
+        """Stream content deltas, then the ``done`` chunk's token counts as a ``StreamUsage``."""
         return self._stream_tokens(self._chat_payload(messages, config, stream=True))
 
-    async def _stream_tokens(self, payload: dict[str, object]) -> AsyncIterator[str]:
-        """Yield content deltas from the streamed /api/chat NDJSON until ``done``.
+    async def _stream_tokens(self, payload: dict[str, object]) -> AsyncIterator[str | StreamUsage]:
+        """Yield content deltas from the streamed /api/chat NDJSON until ``done``, then its usage.
 
-        Transport/decode failures are wrapped in a coded ``AppError`` (``_to_app_error``); a
-        ``GeneratorExit`` from client cancellation propagates untouched.
+        The ``done`` chunk carries ``prompt_eval_count`` / ``eval_count`` / ``done_reason``, which
+        become the final ``StreamUsage``. Transport/decode failures are wrapped in a coded
+        ``AppError`` (``_to_app_error``); a ``GeneratorExit`` from client cancellation propagates
+        untouched.
         """
         try:
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
@@ -133,6 +141,12 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
                     if token:
                         yield token
                     if chunk.get("done"):
+                        yield StreamUsage(
+                            model=str(chunk.get("model") or payload["model"]),
+                            input_tokens=int(chunk.get("prompt_eval_count", 0)),
+                            output_tokens=int(chunk.get("eval_count", 0)),
+                            finish_reason=_finish_reason(chunk.get("done_reason")),
+                        )
                         return
         except (httpx.HTTPError, ValueError) as exc:
             raise _to_app_error(exc) from exc
