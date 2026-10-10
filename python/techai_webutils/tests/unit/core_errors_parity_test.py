@@ -13,7 +13,7 @@ from techai_webutils.core.errors import AppError, ErrorCode
 _CODES_JSON = Path(__file__).resolve().parents[4] / "go" / "core" / "errors" / "testdata" / "codes.json"
 
 
-def test_go_and_python_resource_exhausted_status_parity():
+def test_go_and_python_error_code_status_parity():
     """Test that every Go error code maps to the same gRPC/HTTP status and retry class in Python.
 
     **Why this test is important:**

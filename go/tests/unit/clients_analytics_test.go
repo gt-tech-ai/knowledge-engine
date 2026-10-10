@@ -59,36 +59,49 @@ func TestNewFromConfig_DefaultsToStub(t *testing.T) {
 	require.NoError(t, store.Stop(ctx))
 }
 
-// TestNewFromConfig_CassandraKindBuildsSessionFromNestedConfig tests that the
-// cassandra kind builds its session from the nested Cassandra config.
+// TestNewFromConfig_CassandraKindDialsNestedConfigAtStart tests that the
+// cassandra kind dials its session from the nested Cassandra config at Start,
+// never at construction.
 //
 // Why this test is important:
 //   - Keyspaces-vs-Cassandra connectivity is chosen by the nested Cassandra.Kind;
 //     the analytics factory must pass that config through untouched
+//   - Construction does no I/O, so a process whose cluster is unreachable still
+//     builds its graph and serves health and readiness
 //
 // What it tests:
-//   - the session factory receives exactly cfg.Cassandra (keyspaces kind, region,
-//     keyspace) and the returned store is an AnalyticsStore and AnalyticsCompactor
-//   - a session factory error is returned, coded, with no store
-func TestNewFromConfig_CassandraKindBuildsSessionFromNestedConfig(t *testing.T) {
+//   - construction does not call the session factory; Start calls it once with
+//     exactly cfg.Cassandra (keyspaces kind, region, keyspace), and a second Start
+//     does not dial again; the store is an AnalyticsStore and AnalyticsCompactor
+//   - a Write before Start is CodeUnavailable
+//   - a session factory error is returned by Start, coded
+func TestNewFromConfig_CassandraKindDialsNestedConfigAtStart(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	ctrl := gomock.NewController(t)
 	session := mocks.NewMockSession(ctrl)
-	var got cassandra.Config
+	var got []cassandra.Config
 	store, err := analytics.New(analytics.KindCassandra,
 		analytics.WithCassandra(cassandra.KindKeyspaces, cassandra.WithKeyspacesRegion("us-east-1"), cassandra.WithKeyspace("analytics")),
 		analytics.WithCube("genai_calls", types.GrainHour, types.GrainDay),
 		analytics.WithSessionFactory(func(c *cassandra.Config) (cassandra.Session, error) {
-			got = *c
+			got = append(got, *c)
 			return session, nil
 		}),
 	)
 	require.NoError(t, err)
+	assert.Empty(t, got, "no dial at construction")
+	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(store.Write(ctx, []types.Fact{
+		{Cube: "genai_calls", OrgID: "o", IdempotencyKey: "k"},
+	})))
 
-	assert.Equal(t, cassandra.KindKeyspaces, got.Kind)
-	assert.Equal(t, "us-east-1", got.Keyspaces.Region)
-	assert.Equal(t, "analytics", got.Keyspace)
+	require.NoError(t, store.Start(ctx))
+	require.NoError(t, store.Start(ctx))
+	require.Len(t, got, 1)
+	assert.Equal(t, cassandra.KindKeyspaces, got[0].Kind)
+	assert.Equal(t, "us-east-1", got[0].Keyspaces.Region)
+	assert.Equal(t, "analytics", got[0].Keyspace)
 	assert.Implements(t, (*interfaces.AnalyticsStore)(nil), store)
 	assert.Implements(t, (*interfaces.AnalyticsCompactor)(nil), store)
 
@@ -97,6 +110,6 @@ func TestNewFromConfig_CassandraKindBuildsSessionFromNestedConfig(t *testing.T) 
 			return nil, apperr.New(apperr.CodeUnavailable, "dial refused")
 		}),
 	)
-	assert.Nil(t, failing)
-	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
+	require.NoError(t, err)
+	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(failing.Start(ctx)))
 }

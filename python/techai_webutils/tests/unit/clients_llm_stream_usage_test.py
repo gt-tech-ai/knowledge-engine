@@ -16,6 +16,7 @@ import pytest
 
 from techai_webutils.clients.llm.ollama import OllamaLlmProvider
 from techai_webutils.clients.llm.stub import StubLlmProvider
+from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.llm import (
     LLMConfig,
     LLMMessage,
@@ -42,25 +43,33 @@ async def _events(events: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]
         yield event
 
 
-def _ollama_client(lines: list[str]) -> MagicMock:
-    """An ``httpx.AsyncClient`` mock whose ``stream()`` context yields the given NDJSON lines."""
+async def _lines(lines: list[str]) -> AsyncIterator[str]:
+    """Yield NDJSON lines in order (the shape ``httpx.Response.aiter_lines`` yields)."""
+    for line in lines:
+        yield line
 
-    class _StreamCtx:
-        async def __aenter__(self) -> _StreamCtx:
-            return self
 
-        async def __aexit__(self, *_: object) -> bool:
-            return False
+def _ollama_client(lines: list[str], *, status: int = 200) -> MagicMock:
+    """An ``httpx.AsyncClient`` mock whose ``stream()`` context yields the given NDJSON lines.
 
-        def raise_for_status(self) -> None:
-            return None
-
-        async def aiter_lines(self) -> AsyncIterator[str]:
-            for line in lines:
-                yield line
-
+    The response is a ``MagicMock(spec=httpx.Response)``; a non-2xx ``status`` makes its
+    ``raise_for_status`` raise the real ``httpx.HTTPStatusError``.
+    """
+    response = MagicMock(spec=httpx.Response)
+    response.status_code = status
+    response.aiter_lines = MagicMock(return_value=_lines(lines))
+    if status >= 400:  # noqa: PLR2004
+        request = httpx.Request("POST", "http://ollama/api/chat")
+        response.raise_for_status = MagicMock(
+            side_effect=httpx.HTTPStatusError(
+                "error", request=request, response=httpx.Response(status, request=request)
+            )
+        )
+    stream_ctx = MagicMock()
+    stream_ctx.__aenter__ = AsyncMock(return_value=response)
+    stream_ctx.__aexit__ = AsyncMock(return_value=False)
     client = MagicMock(spec=httpx.AsyncClient)
-    client.stream = MagicMock(return_value=_StreamCtx())
+    client.stream = MagicMock(return_value=stream_ctx)
     return client
 
 
@@ -141,6 +150,29 @@ async def test_ollama_stream_with_usage_yields_usage_last():
         "mael",
         StreamUsage(model="llama3.2", input_tokens=7, output_tokens=2, finish_reason="stop"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("status", "code"), [(503, ErrorCode.UNAVAILABLE), (400, ErrorCode.INTERNAL)])
+async def test_ollama_stream_with_usage_codes_http_errors(status: int, code: ErrorCode):
+    """Test that a non-2xx streamed Ollama response raises a coded ``AppError``.
+
+    **Why this test is important:**
+      - Retry and the circuit breaker classify by ``ErrorCode``; a raw ``httpx.HTTPStatusError``
+        would bypass them and a 5xx would never be retried.
+
+    **What it tests:**
+      - HTTP 503 raises ``AppError(UNAVAILABLE)`` and HTTP 400 raises ``AppError(INTERNAL)``,
+        each with the message "ollama chat returned HTTP <status>", and no item is yielded
+    """
+    client = _ollama_client(['{"message":{"content":"never"},"done":false}'], status=status)
+    stream = await OllamaLlmProvider(client, model="m").stream_with_usage(_messages("hi"))
+
+    with pytest.raises(AppError) as excinfo:
+        await _collect(stream)
+
+    assert excinfo.value.code == code
+    assert excinfo.value.message == f"ollama chat returned HTTP {status}"
 
 
 @pytest.mark.asyncio

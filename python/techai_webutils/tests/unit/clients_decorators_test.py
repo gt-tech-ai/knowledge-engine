@@ -8,7 +8,7 @@ plus the async-first behaviour: an awaited failure is logged/traced, transient e
 
 import json
 from io import StringIO
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from techai_webutils.clients.decorators.proxy import (
     CircuitBreakerProxy,
@@ -263,6 +263,38 @@ class TestRetryProxy:
         with pytest.raises(AppError):
             await proxy.run()
         assert svc.calls == 1
+
+    @pytest.mark.asyncio
+    async def test_waits_out_a_server_pushback_before_retrying(self) -> None:
+        """Test that a transient error carrying ``retry_after_ms`` is retried only after that delay.
+
+        **Why this test is important:**
+          - The proxy otherwise retries immediately; on a rate-limit pushback that burns every
+            attempt inside the window the server said is exhausted.
+
+        **What it tests:**
+          - a 300 ms pushback, then success → one sleep of exactly 0.3 s and the result ``ok``
+          - a 60 s pushback is capped at ``max_pushback_s`` (2.0 s)
+          - a transient error without the detail is retried with no sleep
+        """
+        delays: list[float] = []
+
+        async def _record_sleep(seconds: float) -> None:
+            delays.append(seconds)
+
+        svc = MagicMock()
+        svc.run = AsyncMock(
+            side_effect=[
+                AppError(ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "300"}),
+                AppError(ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "60000"}),
+                AppError(ErrorCode.UNAVAILABLE, "blip"),
+                "ok",
+            ]
+        )
+        proxy = RetryProxy(svc, max_attempts=4, max_pushback_s=2.0, sleep=_record_sleep)
+
+        assert await proxy.run() == "ok"
+        assert delays == [0.3, 2.0]
 
     def test_rejects_non_positive_max_attempts(self) -> None:
         """Test that constructing a RetryProxy with max_attempts < 1 fails loudly.

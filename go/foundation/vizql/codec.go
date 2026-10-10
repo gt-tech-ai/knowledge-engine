@@ -67,7 +67,8 @@ func Truncate(t time.Time, g types.Grain) time.Time {
 	}
 }
 
-// Next returns the start of the grain period after the one starting at start.
+// Next returns the start of the grain period after the one starting at start; an
+// unknown grain returns start unchanged (callers validate with ValidGrain).
 func Next(start time.Time, g types.Grain) time.Time {
 	switch g {
 	case types.GrainMinute:
@@ -76,7 +77,14 @@ func Next(start time.Time, g types.Grain) time.Time {
 		return start.Add(time.Hour)
 	case types.GrainDay:
 		return start.AddDate(0, 0, 1)
-	default:
+	case types.GrainMonth:
 		return start.AddDate(0, 1, 0)
+	default:
+		return start
 	}
+}
+
+// ValidGrain reports whether g is one of the grains Truncate and Next know.
+func ValidGrain(g types.Grain) bool {
+	return grains[g]
 }

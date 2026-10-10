@@ -1,9 +1,9 @@
 """Tests for async retry + async circuit breaker (the asyncio-path resiliency variants)."""
 
 import pytest
-from techai_webutils.core.errors.errors import InvalidInputError, UnavailableError
+from techai_webutils.core.errors.errors import AppError, ErrorCode, InvalidInputError, UnavailableError
 from techai_webutils.foundation.resilience.async_circuit_breaker import AsyncCircuitBreaker
-from techai_webutils.foundation.resilience.async_retry import retry_transient_async
+from techai_webutils.foundation.resilience.async_retry import retry_after_s, retry_transient_async
 from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenError, CircuitState
 
 
@@ -89,6 +89,41 @@ class TestRetryTransientAsync:
         assert attempts == 3
         assert len(delays) == 2  # one sleep before each of the two retries
         assert all(delay >= 0 for delay in delays)
+
+    @pytest.mark.asyncio
+    async def test_honours_server_retry_pushback(self) -> None:
+        """Test that a ``retry_after_ms`` detail stretches the wait to the server's delay, capped.
+
+        **Why this test is important:**
+          - A rate-limited server names the delay after which the call succeeds; retrying on the
+            short exponential schedule only re-sends into the same exhausted window.
+
+        **What it tests:**
+          - a pushback of 2500 ms waits exactly 2.5 s (above the 0.01 s backoff)
+          - a pushback of 60000 ms is capped at ``max_delay`` (5.0 s)
+          - ``retry_after_s`` is None for a missing, non-numeric or negative detail and for a
+            non-``AppError``
+        """
+        delays: list[float] = []
+
+        async def _record_sleep(seconds: float) -> None:
+            delays.append(seconds)
+
+        pushbacks = iter(["2500", "60000"])
+
+        @retry_transient_async(max_attempts=3, base_delay=0.01, max_delay=5.0, sleep=_record_sleep)
+        async def call() -> str:
+            delay = next(pushbacks, None)
+            if delay is not None:
+                raise AppError(ErrorCode.UNAVAILABLE, "slow down", details={"retry_after_ms": delay})
+            return "ok"
+
+        assert await call() == "ok"
+        assert delays == [2.5, 5.0]
+        assert retry_after_s(UnavailableError()) is None
+        assert retry_after_s(AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "soon"})) is None
+        assert retry_after_s(AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "-5"})) is None
+        assert retry_after_s(RuntimeError("x")) is None
 
 
 class TestAsyncCircuitBreaker:

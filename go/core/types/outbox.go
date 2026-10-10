@@ -23,7 +23,8 @@ type OutboxRecord struct {
 	Tenant string
 	// Lane names the outbox lane (one relay drains one lane).
 	Lane string
-	// Key is the record's routing or idempotency key (e.g. a message-group or object key part).
+	// Key is the record's ordering key: the SQS sink's FIFO message group id and
+	// the S3 sink's {key} object-key placeholder ("" = none).
 	Key string
 	// Payload is the message body, delivered verbatim.
 	Payload []byte

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,4 +89,23 @@ func TestFact_MarshalEscapesLikePython(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `{"cube":"c","dims":{"team":"a\u003cb\u003e\u0026c\u2028\u2029é"},`+
 		`"idempotency_key":"k","measures":{},"org_id":"o","schema":1,"ts":"2026-10-09T00:00:00Z"}`, string(got))
+}
+
+// TestFact_UnmarshalRejectsUnknownSchema tests the wire-version check.
+//
+// Why this test is important:
+//   - A fact from a newer producer may carry fields or semantics this consumer
+//     does not know; folding it in silently corrupts the aggregates
+//
+// What it tests:
+//   - a fact whose schema is 2, or absent (0), is CodeInvalidInput
+func TestFact_UnmarshalRejectsUnknownSchema(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","schema":2,"ts":"2026-10-09T00:00:00Z"}`,
+		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","ts":"2026-10-09T00:00:00Z"}`,
+	} {
+		var f types.Fact
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(json.Unmarshal([]byte(body), &f)), body)
+	}
 }

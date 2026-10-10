@@ -87,8 +87,13 @@ func InjectConversation(ctx context.Context, c Conversation) context.Context {
 
 // ConversationStartOptions returns the span start options for a turn's root
 // span: the conversation.id and turn.index attributes, plus one link to the
-// previous turn's root span when Prev is valid.
+// previous turn's root span when Prev is valid. A conversation InjectConversation
+// would refuse (an ID failing the id pattern, or a negative TurnIndex) yields no
+// options, so a malformed id never lands on a span.
 func ConversationStartOptions(c Conversation) []trace.SpanStartOption {
+	if !conversationIDPattern.MatchString(c.ID) || c.TurnIndex < 0 {
+		return nil
+	}
 	opts := []trace.SpanStartOption{trace.WithAttributes(
 		attribute.String(AttrConversationID, c.ID),
 		attribute.Int(AttrTurnIndex, c.TurnIndex),

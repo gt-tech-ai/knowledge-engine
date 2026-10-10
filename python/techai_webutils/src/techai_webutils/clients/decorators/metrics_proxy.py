@@ -7,6 +7,11 @@ exception that is not an ``AppError``), and observes latency
 (``client_operation_duration_seconds{client,method}``). The instruments come from an injected
 ``MetricsProvider``, created once at construction. Emission is best-effort: a failing metrics
 backend is logged at warning and never changes the call's result or exception.
+
+A method that returns an async iterator (a streamed call) is measured as the call that opens the
+stream: its duration and outcome cover opening it, not consuming it, and an error raised while
+iterating is not counted here. The full duration of a streamed generation is
+``gen_ai_request_duration_seconds`` from ``AiSpanEnricher``, which reports at exhaustion.
 """
 
 from __future__ import annotations

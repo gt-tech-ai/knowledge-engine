@@ -8,6 +8,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/decorators"
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 	"github.com/stretchr/testify/assert"
@@ -114,4 +115,47 @@ func TestDecorators_SessionRetriesOnlyIdempotentStatements(t *testing.T) {
 	once.EXPECT().WithContext(gomock.Any()).Return(once).AnyTimes()
 	once.EXPECT().Exec().Return(apperr.New(apperr.CodeUnavailable, "replica down"))
 	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(session.Query("ONCE").Exec()))
+}
+
+// compactingStore joins the two generated mocks so a base store both stores
+// and compacts, as the Cassandra store does.
+type compactingStore struct {
+	*mocks.MockAnalyticsStore
+	*mocks.MockAnalyticsCompactor
+}
+
+// TestDecorators_CompactRunsThroughTheChain tests that Compact gets the same
+// timeout, breaker and recovery as the other operations.
+//
+// Why this test is important:
+//   - A compaction over a hot partition that hangs on a slow node would otherwise
+//     run with no deadline, no breaker and no span or metric
+//
+// What it tests:
+//   - a Compact that blocks until its context ends returns CodeTimeout after
+//     the 20 ms deadline
+//   - with the breaker open, Compact returns CodeUnavailable without calling the base
+//   - a base store that does not compact is CodeInvalidInput
+func TestDecorators_CompactRunsThroughTheChain(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bucket := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	base := compactingStore{mocks.NewMockAnalyticsStore(ctrl), mocks.NewMockAnalyticsCompactor(ctrl)}
+	base.MockAnalyticsCompactor.EXPECT().Compact(gomock.Any(), "c", types.GrainDay, "o", bucket).DoAndReturn(
+		func(ctx context.Context, _ string, _ types.Grain, _ string, _ time.Time) error {
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	slow := decorators.NewBuilder(base, "facts").WithTimeout(20 * time.Millisecond).Build()
+	assert.Equal(t, apperr.CodeTimeout, apperr.Code(slow.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
+
+	open := mocks.NewMockCircuitBreaker(ctrl)
+	open.EXPECT().Execute(gomock.Any()).Return(apperr.Sentinel("circuit breaker is open"))
+	shed := decorators.NewBuilder(base, "facts").WithCircuitBreaker(open).Build()
+	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(shed.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
+
+	plain := decorators.NewBuilder(mocks.NewMockAnalyticsStore(ctrl), "facts").Build()
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(plain.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
 }

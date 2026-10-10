@@ -84,11 +84,11 @@ func TestOutboxSinkFromConfig_DefaultsToStubAndRejectsUnknownKind(t *testing.T) 
 	broken := map[string]func(*outbox.Config){
 		"unknown":    func(c *outbox.Config) { c.Kind = outbox.Kind(99) },
 		"sqs no api": func(c *outbox.Config) { c.Kind, c.SQS.Queue = outbox.KindSQS, "q" },
-		"sqs no q":   func(c *outbox.Config) { c.Kind, c.SQS.API = outbox.KindSQS, mocks.NewMockAPI(ctrl) },
+		"sqs no q":   func(c *outbox.Config) { c.Kind, c.SQS.API = outbox.KindSQS, mocks.NewMockOutboxSQSAPI(ctrl) },
 		"s3 no api":  func(c *outbox.Config) { c.Kind, c.S3.Bucket = outbox.KindS3, "b" },
-		"s3 no bkt":  func(c *outbox.Config) { c.Kind, c.S3.API = outbox.KindS3, mocks.NewMockS3API(ctrl) },
+		"s3 no bkt":  func(c *outbox.Config) { c.Kind, c.S3.API = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl) },
 		"s3 no {id}": func(c *outbox.Config) {
-			c.Kind, c.S3.API, c.S3.Bucket, c.S3.KeyTemplate = outbox.KindS3, mocks.NewMockS3API(ctrl), "b", "{tenant}"
+			c.Kind, c.S3.API, c.S3.Bucket, c.S3.KeyTemplate = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl), "b", "{tenant}"
 		},
 	}
 	for name, mutate := range broken {
@@ -99,13 +99,13 @@ func TestOutboxSinkFromConfig_DefaultsToStubAndRejectsUnknownKind(t *testing.T) 
 	}
 
 	sqsCfg := outbox.DefaultConfig()
-	sqsCfg.Kind, sqsCfg.SQS = outbox.KindSQS, outboxsqs.Config{API: mocks.NewMockAPI(ctrl), Queue: "q"}
+	sqsCfg.Kind, sqsCfg.SQS = outbox.KindSQS, outboxsqs.Config{API: mocks.NewMockOutboxSQSAPI(ctrl), Queue: "q"}
 	sqsSink, err := outbox.NewFromConfig(sqsCfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 	assert.IsType(t, &outboxsqs.Sink{}, sqsSink)
 
 	s3Cfg := outbox.DefaultConfig()
-	s3Cfg.Kind, s3Cfg.S3.API, s3Cfg.S3.Bucket = outbox.KindS3, mocks.NewMockS3API(ctrl), "b"
+	s3Cfg.Kind, s3Cfg.S3.API, s3Cfg.S3.Bucket = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl), "b"
 	s3Sink, err := outbox.NewFromConfig(s3Cfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 	assert.IsType(t, &outboxs3.Sink{}, s3Sink)
@@ -129,7 +129,7 @@ func TestOutboxSinkFromConfig_DefaultsToStubAndRejectsUnknownKind(t *testing.T) 
 func TestSQSSink_MapsPartialBatchFailureToRecords(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
-	api := mocks.NewMockAPI(ctrl)
+	api := mocks.NewMockOutboxSQSAPI(ctrl)
 	recs := sinkRecords(12)
 	url := "http://sqs.local/000000000000/audit-events"
 	var first *awssqs.SendMessageBatchInput
@@ -193,7 +193,7 @@ func TestSQSSink_MapsPartialBatchFailureToRecords(t *testing.T) {
 func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
-	api := mocks.NewMockAPI(ctrl)
+	api := mocks.NewMockOutboxSQSAPI(ctrl)
 	recs := sinkRecords(6)
 	routes := []string{"standard", "deletion", "facet", "standard", "", "bogus"}
 	for i, r := range routes {
@@ -268,7 +268,7 @@ func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
-	api := mocks.NewMockS3API(ctrl)
+	api := mocks.NewMockOutboxS3API(ctrl)
 	recs := sinkRecords(3)
 	recs[1].Attributes = map[string]string{"kms_key_id": "arn:aws:kms:us-east-1:000000000000:key/k-1"}
 	type put struct {
@@ -326,7 +326,7 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 func TestOutboxSinkDecorators_RetryOnlyTransientWithFullBody(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
-	api := mocks.NewMockS3API(ctrl)
+	api := mocks.NewMockOutboxS3API(ctrl)
 	recs := sinkRecords(2)
 	var bodies []string
 	read := func(in *awss3.PutObjectInput) {
@@ -363,4 +363,89 @@ func TestOutboxSinkDecorators_RetryOnlyTransientWithFullBody(t *testing.T) {
 
 	assert.Equal(t, []apperr.ErrorCode{"", apperr.CodeInvalidInput}, codesOf(results))
 	assert.Equal(t, []string{string(recs[0].Payload), string(recs[0].Payload)}, bodies)
+}
+
+// TestSQSSink_FIFOQueueCarriesGroupAndDedupIDs tests delivery to a FIFO queue.
+//
+// Why this test is important:
+//   - SQS rejects every FIFO entry without a MessageGroupId, so without one each
+//     record bound for a FIFO queue would back off to parking; the record's Key
+//     is the ordering group and its ID the deduplication id
+//
+// What it tests:
+//   - an entry for "events.fifo" carries MessageGroupId = the record's Key and
+//     MessageDeduplicationId = its ID; a record with no Key is grouped by tenant
+//   - an entry for a standard queue carries neither
+func TestSQSSink_FIFOQueueCarriesGroupAndDedupIDs(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	api := mocks.NewMockOutboxSQSAPI(ctrl)
+	recs := sinkRecords(3)
+	recs[0].Key = "doc-7"
+	recs[0].Attributes = map[string]string{types.OutboxRouteAttribute: "ordered"}
+	recs[1].Attributes = map[string]string{types.OutboxRouteAttribute: "ordered"}
+	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).Times(2).
+		DoAndReturn(func(_ context.Context, in *awssqs.GetQueueUrlInput, _ ...func(*awssqs.Options)) (*awssqs.GetQueueUrlOutput, error) {
+			return &awssqs.GetQueueUrlOutput{QueueUrl: aws.String("u-" + aws.ToString(in.QueueName))}, nil
+		})
+	sent := map[string][]sqstypes.SendMessageBatchRequestEntry{}
+	var mu sync.Mutex
+	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).Times(2).
+		DoAndReturn(func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+			out := &awssqs.SendMessageBatchOutput{}
+			mu.Lock()
+			defer mu.Unlock()
+			sent[aws.ToString(in.QueueUrl)] = in.Entries
+			for _, e := range in.Entries {
+				out.Successful = append(out.Successful, sqstypes.SendMessageBatchResultEntry{Id: e.Id})
+			}
+			return out, nil
+		})
+
+	sink, err := outboxsqs.New(outboxsqs.Config{
+		API: api, Queue: "plain", Routes: map[string]string{"ordered": "events.fifo"},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []error{nil, nil, nil}, sink.Send(context.Background(), recs))
+	fifo := sent["u-events.fifo"]
+	require.Len(t, fifo, 2)
+	assert.Equal(t, "doc-7", aws.ToString(fifo[0].MessageGroupId))
+	assert.Equal(t, recs[0].ID.String(), aws.ToString(fifo[0].MessageDeduplicationId))
+	assert.Equal(t, "org-1", aws.ToString(fifo[1].MessageGroupId))
+	assert.Equal(t, recs[1].ID.String(), aws.ToString(fifo[1].MessageDeduplicationId))
+	plain := sent["u-plain"]
+	require.Len(t, plain, 1)
+	assert.Nil(t, plain[0].MessageGroupId)
+	assert.Nil(t, plain[0].MessageDeduplicationId)
+}
+
+// TestS3Sink_KeyTemplateSubstitutesRecordKey tests the {key} key-template placeholder.
+//
+// Why this test is important:
+//   - A consumer that partitions its archive by the record's Key needs the key in
+//     the object path; an unsubstituted placeholder would write every record of
+//     a tenant and day under one literal "{key}" prefix
+//
+// What it tests:
+//   - template "{tenant}/{key}/{id}" keys a record with Key "doc-7" as
+//     org-1/doc-7/<id>
+func TestS3Sink_KeyTemplateSubstitutesRecordKey(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	api := mocks.NewMockOutboxS3API(ctrl)
+	recs := sinkRecords(1)
+	recs[0].Key = "doc-7"
+	var key string
+	api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+			key = aws.ToString(in.Key)
+			return &awss3.PutObjectOutput{}, nil
+		})
+
+	sink, err := outboxs3.New(outboxs3.Config{API: api, Bucket: "archive", KeyTemplate: "{tenant}/{key}/{id}"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []error{nil}, sink.Send(context.Background(), recs))
+	assert.Equal(t, "org-1/doc-7/"+recs[0].ID.String(), key)
 }

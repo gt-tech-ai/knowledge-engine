@@ -19,6 +19,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	outboxclient "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox"
@@ -31,13 +32,19 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/outboxtest"
 )
 
-// requireIntegration skips unless INTEGRATION or CI is set (the suite gate).
+// requireIntegration skips in -short mode, unless INTEGRATION or CI is set (the
+// suite gate), and when no container provider is reachable.
 func requireIntegration(t *testing.T) {
 	t.Helper()
-	if os.Getenv("INTEGRATION") == "" && os.Getenv("CI") == "" {
-		t.Skip("set INTEGRATION=1 or CI=1 to run integration tests")
+	if testing.Short() || (os.Getenv("INTEGRATION") == "" && os.Getenv("CI") == "") {
+		t.Skip("set INTEGRATION=1 or CI=1 (without -short) to run integration tests")
 	}
+	testcontainers.SkipIfProviderIsNotHealthy(t)
 }
+
+// enqueuedAt is every enqueued record's creation time: fixed in the past, so
+// the record is due at once and its date-partitioned S3 key is deterministic.
+var enqueuedAt = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 // newOutboxStore starts Postgres and returns the migrated reference store.
 func newOutboxStore(t *testing.T) *outboxtest.SQLStore {
@@ -71,7 +78,7 @@ func enqueueN(t *testing.T, store *outboxtest.SQLStore, lane string, n int) []uu
 		ids[i] = uuid.New()
 		rec := types.OutboxRecord{
 			ID: ids[i], Lane: lane, Tenant: "org-1", Key: strconv.Itoa(i),
-			Payload: []byte(`{"seq":` + strconv.Itoa(i) + `}`), CreatedAt: time.Now().Add(-time.Minute),
+			Payload: []byte(`{"seq":` + strconv.Itoa(i) + `}`), CreatedAt: enqueuedAt,
 		}
 		require.NoError(t, store.Enqueue(context.Background(), &rec))
 	}
@@ -217,7 +224,7 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 	for _, o := range listed.Contents {
 		keys = append(keys, aws.ToString(o.Key))
 	}
-	day := time.Now().Add(-time.Minute).UTC().Format("2006/01/02")
+	day := enqueuedAt.Format("2006/01/02")
 	want := make([]string, len(ids))
 	for i, id := range ids {
 		want[i] = "org-1/" + day + "/" + id.String()
@@ -253,7 +260,8 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 //
 // What it tests:
 //   - standard, large, deletion, facet and notification rows reach their own
-//     queues exactly; member_removed rows, whose queue does not exist, stay
+//     queues exactly, and ordered rows reach a FIFO queue (so each carries a
+//     message group id); member_removed rows, whose queue does not exist, stay
 //     pending.
 func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 	requireIntegration(t)
@@ -265,12 +273,17 @@ func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 	api := awssqs.NewFromConfig(awsConfig(t, elasticmqdb.AccessKey, elasticmqdb.SecretKey),
 		func(o *awssqs.Options) { o.BaseEndpoint = aws.String(emq.Endpoint()) })
 
-	healthy := []string{"standard", "large", "deletion", "facet", "notification"}
+	healthy := []string{"standard", "large", "deletion", "facet", "notification", "ordered"}
 	routes := map[string]string{"member_removed": "q-member-removed"} // never created
 	urls := map[string]string{}
 	for _, route := range healthy {
-		routes[route] = "q-" + route
-		out, err := api.CreateQueue(ctx, &awssqs.CreateQueueInput{QueueName: aws.String("q-" + route)})
+		in := &awssqs.CreateQueueInput{QueueName: aws.String("q-" + route)}
+		if route == "ordered" { // a FIFO queue rejects any entry without a group id
+			in.QueueName = aws.String("q-ordered.fifo")
+			in.Attributes = map[string]string{"FifoQueue": "true"}
+		}
+		routes[route] = aws.ToString(in.QueueName)
+		out, err := api.CreateQueue(ctx, in)
 		require.NoError(t, err)
 		urls[route] = aws.ToString(out.QueueUrl)
 	}
@@ -282,7 +295,10 @@ func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 	require.NoError(t, err)
 
 	outboxtest.RunRouting(t, outboxtest.Harness{Store: store, Enqueue: store.Enqueue}, outboxtest.Routing{
-		Sink: sink, Healthy: healthy, Broken: "member_removed",
+		RunOnce: func(ctx context.Context, lane string) error {
+			return outbox.NewRelay(outbox.DefaultRelayConfig(lane), store, sink, nil, nil, nil).RunOnce(ctx)
+		},
+		Healthy: healthy, Broken: "member_removed",
 		Delivered: func(ctx context.Context, route string) ([]string, error) {
 			var got []string
 			for {

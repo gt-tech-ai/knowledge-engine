@@ -10,16 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
-	"github.com/gt-tech-ai/knowledge-engine/go/services/outbox"
 )
 
-// Routing is what RunRouting drives: a routing sink with healthy routes and one
-// broken route, and a way to read what each route received.
+// Routing is what RunRouting drives: one relay pass over a routing sink with
+// healthy routes and one broken route, and a way to read what each route
+// received. The caller builds the relay, so this fixture depends only on core.
 type Routing struct {
-	// Sink is the routing sink under test.
-	Sink interfaces.OutboxSink
+	// RunOnce runs one relay pass over lane, draining h.Store through the
+	// routing sink under test.
+	RunOnce func(ctx context.Context, lane string) error
 	// Delivered returns the payloads that arrived at route's destination.
 	Delivered func(ctx context.Context, route string) ([]string, error)
 	// Broken is a route whose destination fails every send.
@@ -61,8 +61,7 @@ func RunRouting(t *testing.T, h Harness, r Routing) {
 	}
 	enqueue(r.Broken, 2)
 
-	relay := outbox.NewRelay(outbox.DefaultRelayConfig(lane), h.Store, r.Sink, nil, nil, nil)
-	require.NoError(t, relay.RunOnce(ctx))
+	require.NoError(t, r.RunOnce(ctx, lane))
 
 	for _, route := range r.Healthy {
 		got, err := r.Delivered(ctx, route)

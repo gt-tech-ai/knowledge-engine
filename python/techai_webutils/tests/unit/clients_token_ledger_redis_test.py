@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from redis.asyncio import Redis
+from redis.asyncio.client import Pipeline
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from techai_webutils.clients.token_ledger import TokenLedgerConfig, TokenLedgerKind, token_ledger_from_config
 from techai_webutils.clients.token_ledger.redis import RedisTokenLedger
+from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.metrics import MetricCounter, MetricsProvider
 from techai_webutils.core.interfaces.token_ledger import (
     BudgetDecision,
@@ -43,14 +48,14 @@ def _record() -> UsageRecord:
 def _client() -> tuple[MagicMock, AsyncMock]:
     """A mocked async Redis client and the registered record script it hands out."""
     script = AsyncMock(return_value=b"1-0")
-    client = MagicMock()
+    client = MagicMock(spec=Redis)
     client.register_script.return_value = script
     return client, script
 
 
 def _pipeline(client: MagicMock, results: list[object]) -> MagicMock:
     """Attach a non-transactional pipeline mock to ``client`` whose ``execute`` returns ``results``."""
-    pipe = MagicMock()
+    pipe = MagicMock(spec=Pipeline)
     pipe.__aenter__ = AsyncMock(return_value=pipe)
     pipe.__aexit__ = AsyncMock(return_value=None)
     pipe.execute = AsyncMock(return_value=results)
@@ -223,8 +228,6 @@ async def test_usage_reads_counter_snapshot():
       - a rolling 30-day window sums the 30 daily keys ending today
       - asking a monthly ledger for a daily period raises ``AppError(INVALID_INPUT)``
     """
-    from techai_webutils.core.errors import AppError, ErrorCode
-
     client, _ = _client()
     monthly = RedisTokenLedger(client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS))
     rolling = RedisTokenLedger(
@@ -259,4 +262,61 @@ async def test_usage_reads_counter_snapshot():
     assert keys[0] == "token_ledger:org-1:w-1:2026-10-09"
     assert keys[-1] == "token_ledger:org-1:w-1:2026-09-10"
     assert len(keys) == 30
+    assert caught.value.code is ErrorCode.INVALID_INPUT
+
+
+@pytest.mark.asyncio
+async def test_check_budget_fails_open_on_malformed_limits():
+    """Test that an unparsable limits hash allows the call instead of raising.
+
+    **Why this test is important:**
+      - The limits hash is written by another service; a bad value there must not turn every
+        generation for that scope into an error.
+
+    **What it tests:**
+      - with ``tokens`` set to ``b"lots"`` the decision is exactly
+        ``BudgetDecision(True, "ledger_unavailable_fail_open", None, None)``
+    """
+    client, _ = _client()
+    _pipeline(client, [[b"1", b"1", b"0", b"1"], {b"tokens": b"lots"}])
+    ledger = RedisTokenLedger(client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS))
+
+    decision = await ledger.check_budget(_SCOPE)
+
+    assert decision == BudgetDecision(
+        allowed=True, reason="ledger_unavailable_fail_open", remaining_tokens=None, remaining_cost_usd=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_record_rounds_cost_half_even_and_accepts_a_string_window():
+    """Test that cost is rounded half-even to micro-dollars and a plain-string window is honoured.
+
+    **Why this test is important:**
+      - Truncating the cost drifts the counters below the durable ledger, which rounds half-even.
+      - Config loaded from YAML carries the window as a string; compared by identity it silently
+        fell back to daily keys, so a rolling budget read one day instead of thirty.
+
+    **What it tests:**
+      - ``cost_usd`` ``0.0000135`` is recorded as 14 micro-dollars (half-even), not 13
+      - a ``window="rolling_30d"`` string config reads 30 daily keys in ``usage``
+      - an unknown window string raises ``AppError(INVALID_INPUT)`` at construction
+    """
+    client, script = _client()
+    rolling = RedisTokenLedger(
+        client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS, window=cast("Period", "rolling_30d"))
+    )
+
+    await rolling.record(replace(_record(), cost_usd=Decimal("0.0000135")))
+    with patch("techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW):
+        pipe = _pipeline(client, [[b"0", b"0", b"0", b"0"]] * 30)
+        await rolling.usage(_SCOPE, Period.ROLLING_30D)
+    with pytest.raises(AppError) as caught:
+        RedisTokenLedger(
+            client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS, window=cast("Period", "weekly"))
+        )
+
+    assert script.await_args is not None
+    assert script.await_args.kwargs["args"][5] == 14
+    assert len(pipe.hmget.call_args_list) == 30
     assert caught.value.code is ErrorCode.INVALID_INPUT

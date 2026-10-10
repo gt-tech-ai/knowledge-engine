@@ -128,3 +128,34 @@ func TestKeyspacesConfig_UsesTLSAndSigV4(t *testing.T) {
 	_, err = keyspaces.New(&keyspaces.Config{Port: 9142, Credentials: aws.CredentialsProvider(provider)})
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "region is required")
 }
+
+// TestClusterConfig_ZeroValuesKeepDriverDefaults tests that omitted timeouts and
+// port leave the driver's defaults in place.
+//
+// Why this test is important:
+//   - A YAML overlay that omits a timeout yields a zero duration; copied into the
+//     cluster it disables the driver's timeout, so a query to a dead node waits
+//     forever and the circuit breaker never trips
+//
+// What it tests:
+//   - for both backends, a config with zero Timeout and ConnectTimeout keeps the
+//     timeouts of gocql.NewCluster; keyspaces with zero Port uses 9142
+//   - keyspaces without injected credentials builds a SigV4 cluster without
+//     loading the AWS chain at construction
+func TestClusterConfig_ZeroValuesKeepDriverDefaults(t *testing.T) {
+	t.Parallel()
+	want := gocql.NewCluster("x")
+
+	plain, err := cassandrabackend.New(&cassandrabackend.Config{Hosts: []string{"c1"}, Consistency: "ONE"})
+	require.NoError(t, err)
+	assert.Equal(t, want.Timeout, plain.Timeout)
+	assert.Equal(t, want.ConnectTimeout, plain.ConnectTimeout)
+
+	ks, err := keyspaces.New(&keyspaces.Config{Region: "us-east-1", Consistency: "LOCAL_QUORUM"})
+	require.NoError(t, err)
+	assert.Equal(t, want.Timeout, ks.Timeout)
+	assert.Equal(t, want.ConnectTimeout, ks.ConnectTimeout)
+	assert.Equal(t, 9142, ks.Port)
+	_, ok := ks.Authenticator.(sigv4.AwsAuthenticator)
+	assert.True(t, ok)
+}

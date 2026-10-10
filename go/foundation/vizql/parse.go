@@ -37,7 +37,8 @@ func invalid(msg string) error {
 // every referenced field must be allow-listed; a measure must carry one of its
 // permitted aggregates and a dimension or time field none; detail fields must be
 // dimensions; shelves nest at most MaxShelfDepth levels; the grain, mark, time
-// range and sort keys must be valid; and the filter is compiled with
+// range must be valid; a sort key must name a dimension or aggregated measure the
+// spec places (shelves, detail, encodings); a nil m is rejected; and the filter is compiled with
 // listquery.Parse. Every rejection is CodeInvalidInput.
 func Parse(b []byte, m *listquery.Map) (types.VizSpec, error) {
 	var spec types.VizSpec
@@ -58,13 +59,16 @@ func validate(spec *types.VizSpec, m *listquery.Map) error {
 	if err := validateScalars(spec); err != nil {
 		return err
 	}
+	if m == nil {
+		return invalid("cube has no field allow-list")
+	}
 	keys, err := validateFields(spec, m)
 	if err != nil {
 		return err
 	}
 	for _, o := range spec.Sort {
-		if _, ok := m.Lookup(o.Field); !ok && !keys[o.Field] {
-			return invalid("sort key " + o.Field + " is neither a field nor a referenced measure")
+		if !keys[o.Field] {
+			return invalid("sort key " + o.Field + " is not a shelved dimension or aggregated measure")
 		}
 	}
 	return compileFilter(spec, m)

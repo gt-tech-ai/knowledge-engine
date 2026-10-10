@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"strings"
 	"context"
 	"testing"
 
@@ -89,4 +90,30 @@ func TestConversationStartOptions_FirstTurnHasNoLink(t *testing.T) {
 
 	assert.Len(t, cfg.Attributes(), 2)
 	assert.Empty(t, cfg.Links())
+}
+
+// TestConversationStartOptions_RejectsInvalidConversation tests that a malformed
+// conversation stamps nothing on the root span.
+//
+// Why this test is important:
+//   - The id often comes from an untrusted request header; InjectConversation
+//     already refuses a malformed one for baggage, and the span path must refuse
+//     it too, or a multi-KB or PII-shaped value lands as a span attribute
+//
+// What it tests:
+//   - an id with an "@", a 65-character id and a negative turn index each yield
+//     no options: zero attributes and zero links, even with a valid Prev
+func TestConversationStartOptions_RejectsInvalidConversation(t *testing.T) {
+	t.Parallel()
+	prev, ok := tracer.ParseTraceparent(prevTraceparent)
+	require.True(t, ok)
+
+	for _, c := range []tracer.Conversation{
+		{ID: "user@example.com", TurnIndex: 1, Prev: prev},
+		{ID: strings.Repeat("a", 65), TurnIndex: 1, Prev: prev},
+		{ID: "c1", TurnIndex: -1, Prev: prev},
+	} {
+		opts := tracer.ConversationStartOptions(c)
+		assert.Empty(t, opts, "conversation %q turn %d", c.ID, c.TurnIndex)
+	}
 }

@@ -73,19 +73,35 @@ _STRUCTURAL_KEYS = frozenset({"timestamp", "level", "trace_id", "span_id", "git_
 """Fields the pipeline itself stamps; never redacted (a hex trace id can look like a phone number)."""
 
 
+def _redact_value(value: object) -> object:
+    """Redact every string in ``value``, walking into dict values, lists and tuples.
+
+    Dict keys are kept as they are; a tuple becomes a list (as JSON would render it); every other
+    value passes through unchanged.
+    """
+    if isinstance(value, str):
+        return redact_pii(value)
+    if isinstance(value, dict):
+        return {k: _redact_value(v) for k, v in value.items()}  # pyright: ignore[reportUnknownVariableType]
+    if isinstance(value, list | tuple):
+        return [_redact_value(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
+    return value
+
+
 def _redact_pii_fields(
     _logger: WrappedLogger,
     _method_name: str,
     event_dict: EventDict,
 ) -> EventDict:
-    """Structlog processor that redacts PII in the message and every string field (``redact_pii``).
+    """Structlog processor that redacts PII in the message and every field (``redact_pii``).
 
     Installed only when ``configure_logging(redact_pii=True)`` (the ``logging_redact_pii`` setting).
-    Pipeline-stamped structural fields are skipped; non-string values pass through.
+    Pipeline-stamped structural fields are skipped; strings nested in dicts, lists and tuples are
+    redacted too; other values pass through.
     """
     for key, value in event_dict.items():
-        if isinstance(value, str) and key not in _STRUCTURAL_KEYS:
-            event_dict[key] = redact_pii(value)
+        if key not in _STRUCTURAL_KEYS:
+            event_dict[key] = _redact_value(value)
     return event_dict
 
 

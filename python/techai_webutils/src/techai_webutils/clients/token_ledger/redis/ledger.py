@@ -18,7 +18,9 @@ no workspace uses ``-``):
 ``record`` is one Lua script (counters + expiry + stream entry in one atomic round-trip; redis-py
 runs it with ``EVALSHA`` and loads it on a cache miss). Because the script touches a per-scope key
 and the shared stream, it needs a non-cluster Redis (or a cluster where both hash to one slot).
-``record`` and ``check_budget`` fail open; ``usage`` is an approximate snapshot of the counters — the
+``record`` and ``check_budget`` fail open (a Redis error or an unparsable limits hash allows the
+call); the cost counter is the record's cost rounded half-even to the micro-dollar, as ``cost_of``
+rounds it; ``usage`` is an approximate snapshot of the counters — the
 authoritative aggregate is the durable ledger behind a consumer-supplied kind.
 """
 
@@ -26,9 +28,10 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal
 from typing import TYPE_CHECKING
 
+from techai_webutils.clients.token_ledger.cost import MICRO_DOLLAR
 from techai_webutils.core.errors.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.token_ledger import (
     BudgetDecision,
@@ -97,7 +100,19 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
     def __init__(
         self, redis: Redis, config: TokenLedgerConfig, *, metrics: MetricsProvider | None = None
     ) -> None:
-        """Bind the client and config, register the record script and the failure counter."""
+        """Bind the client and config, register the record script and the failure counter.
+
+        Raises:
+            AppError: ``INVALID_INPUT`` when ``config.window`` is not a ``Period`` value (a plain
+                string such as ``"rolling_30d"`` from YAML is accepted and coerced).
+
+        """
+        try:
+            self._window = Period(config.window)
+        except ValueError as exc:
+            raise AppError(
+                ErrorCode.INVALID_INPUT, f"unknown token ledger window {config.window!r}", cause=exc
+            ) from exc
         self._redis = redis
         self._config = config
         self._script = redis.register_script(RECORD_SCRIPT)
@@ -122,7 +137,7 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
 
     def _monthly(self) -> bool:
         """Return True when counters are kept per month (else per day)."""
-        return self._config.window is Period.MONTHLY
+        return self._window == Period.MONTHLY
 
     def _bucket(self, ts: datetime) -> tuple[str, int]:
         """Return the window id ``ts`` falls in and that bucket's expiry (epoch seconds)."""
@@ -132,12 +147,12 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             start = datetime(utc.year, utc.month, 1, tzinfo=UTC)
             return utc.strftime("%Y-%m"), int((start + timedelta(days=days)).timestamp())
         day_end = datetime(utc.year, utc.month, utc.day, tzinfo=UTC) + timedelta(days=1)
-        keep = timedelta(days=_ROLLING_DAYS) if self._config.window is Period.ROLLING_30D else timedelta(0)
+        keep = timedelta(days=_ROLLING_DAYS) if self._window == Period.ROLLING_30D else timedelta(0)
         return utc.strftime("%Y-%m-%d"), int((day_end + keep).timestamp())
 
     def _window_keys(self, scope: UsageScope, now: datetime) -> list[str]:
         """Return the counter keys the current window sums (one, or 30 days for rolling)."""
-        if self._config.window is Period.ROLLING_30D:
+        if self._window == Period.ROLLING_30D:
             return [
                 self._counter_key(scope, (now - timedelta(days=i)).astimezone(UTC).strftime("%Y-%m-%d"))
                 for i in range(_ROLLING_DAYS)
@@ -169,7 +184,7 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             usage.input_tokens,
             usage.output_tokens,
             usage.embed_tokens,
-            int(usage.cost_usd * _MICROS),
+            int(usage.cost_usd.quantize(MICRO_DOLLAR, rounding=ROUND_HALF_EVEN) * _MICROS),
         ]
         for key, value in entry.items():
             args += [key, value]
@@ -200,10 +215,11 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         return totals[0], totals[1], totals[2], totals[3]
 
     async def check_budget(self, scope: UsageScope) -> BudgetDecision:
-        """Compare the window's counters with the scope's limits; fail open on a Redis error."""
+        """Compare the window's counters with the scope's limits; fail open on a Redis or parse error."""
         keys = self._window_keys(scope, _utcnow())
         try:
             replies = await self._read(keys, self._limits_key(scope))
+            return self._decide(replies)
         except Exception:
             self._logger.warning("token budget check failed open", org_id=scope.org_id, exc_info=True)
             return BudgetDecision(
@@ -212,6 +228,15 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
                 remaining_tokens=None,
                 remaining_cost_usd=None,
             )
+
+    def _decide(self, replies: list[object]) -> BudgetDecision:
+        """Return the budget decision for the counter rows plus the trailing limits hash reply.
+
+        Raises:
+            ValueError: A counter or limit value is not a number (the caller fails open).
+            decimal.InvalidOperation: ``cost_usd`` is not a decimal (the caller fails open).
+
+        """
         input_tokens, output_tokens, embed_tokens, cost_micros = self._sum(replies[:-1])
         limits = {_text(k): _text(v) for k, v in dict(replies[-1]).items()}  # type: ignore[call-overload]
         token_limit = limits.get("tokens")
@@ -242,10 +267,10 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         raises ``INVALID_INPUT`` (the authoritative aggregate is the durable ledger's). A Redis error
         raises ``UNAVAILABLE``.
         """
-        if period is not self._config.window:
+        if period != self._window:
             raise AppError(
                 ErrorCode.INVALID_INPUT,
-                f"redis token ledger keeps {self._config.window} counters; cannot answer {period}",
+                f"redis token ledger keeps {self._window} counters; cannot answer {period}",
             )
         try:
             replies = await self._read(self._window_keys(scope, _utcnow()), None)

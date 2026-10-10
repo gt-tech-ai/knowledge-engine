@@ -34,13 +34,14 @@ type API interface {
 
 // Config configures the S3 sink.
 type Config struct {
-	// API is the S3 client (e.g. *awss3.Client); required.
-	API API
+	// API is the S3 client (e.g. *awss3.Client); required. It is injected by
+	// the composition root, never read from config.
+	API API `yaml:"-" mapstructure:"-"`
 	// Bucket is the destination bucket; required.
 	Bucket string `yaml:"bucket" mapstructure:"bucket"`
-	// KeyTemplate renders each object key from {tenant}, {yyyy}, {mm}, {dd} (the
-	// record's UTC creation date) and {id}; it must contain {id} so keys are
-	// unique. Empty uses DefaultKeyTemplate.
+	// KeyTemplate renders each object key from {tenant}, {key} (the record's
+	// Key), {yyyy}, {mm}, {dd} (the record's UTC creation date) and {id}; it must
+	// contain {id} so keys are unique. Empty uses DefaultKeyTemplate.
 	KeyTemplate string `yaml:"key_template" mapstructure:"key_template"`
 }
 
@@ -76,7 +77,7 @@ func (s *Sink) Send(ctx context.Context, recs []types.OutboxRecord) []error {
 	for i := range recs {
 		rec := &recs[i]
 		if _, err := s.api.PutObject(ctx, s.input(rec)); err != nil {
-			results[i] = coreerr.Wrap(err, codeOr(err, coreerr.CodeUnavailable), "outbox s3 sink: put "+rec.ID.String())
+			results[i] = coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox s3 sink: put "+rec.ID.String())
 		}
 	}
 	return results
@@ -103,17 +104,10 @@ func (s *Sink) key(rec *types.OutboxRecord) string {
 	created := rec.CreatedAt.UTC()
 	return strings.NewReplacer(
 		"{tenant}", rec.Tenant,
+		"{key}", rec.Key,
 		"{yyyy}", created.Format("2006"),
 		"{mm}", created.Format("01"),
 		"{dd}", created.Format("02"),
 		"{id}", rec.ID.String(),
 	).Replace(s.template)
-}
-
-// codeOr keeps err's code when it has one, else uses fallback.
-func codeOr(err error, fallback coreerr.ErrorCode) coreerr.ErrorCode {
-	if code := coreerr.Code(err); code != coreerr.CodeUnknown {
-		return code
-	}
-	return fallback
 }

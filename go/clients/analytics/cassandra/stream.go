@@ -2,6 +2,8 @@ package cassandra
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"sync"
 	"time"
@@ -24,6 +26,8 @@ type readPlan struct {
 	table string
 	// org and cube are the partition-key components besides the bucket.
 	org, cube string
+	// fingerprint identifies the query; it is carried in every resume token.
+	fingerprint string
 	// groupBy are the dimensions projected into Row.Group.
 	groupBy []string
 	// measures are the partials projected into Row.Partials.
@@ -45,22 +49,40 @@ type page struct {
 }
 
 // resumeToken is the decoded RowStream position: the bucket being read and the
-// page state within it.
+// page state within it, bound to the query that issued it.
 type resumeToken struct {
 	// Bucket is the bucket start in Unix milliseconds.
 	Bucket *int64 `json:"bucket"`
+	// Query is the fingerprint of the query the token belongs to.
+	Query string `json:"query"`
 	// Page is the page state to continue from.
 	Page []byte `json:"page,omitempty"`
 }
 
-// decodeToken parses a resume token (nil for none); a malformed one is CodeInvalidInput.
-func decodeToken(b []byte) (*resumeToken, error) {
+// queryFingerprint hashes every field of q that shapes the result (all but the
+// resume token), so a token resumes only the query that issued it.
+func queryFingerprint(q types.AggregateQuery) (string, error) {
+	q.ResumeToken = nil
+	b, err := json.Marshal(q) //nolint:musttag // a hash input, never a wire format: untagged field names are fine
+	if err != nil {
+		return "", errors.Wrap(err, errors.CodeInvalidInput, "analytics: query is not serializable")
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:16]), nil
+}
+
+// decodeToken parses a resume token (nil for none); a malformed one, or one
+// issued for a query other than fingerprint, is CodeInvalidInput.
+func decodeToken(b []byte, fingerprint string) (*resumeToken, error) {
 	if len(b) == 0 {
 		return nil, nil //nolint:nilnil // no token is a valid "start from the beginning"
 	}
 	var t resumeToken
 	if err := json.Unmarshal(b, &t); err != nil || t.Bucket == nil {
 		return nil, errors.New(errors.CodeInvalidInput, "analytics: malformed resume token")
+	}
+	if t.Query != fingerprint {
+		return nil, errors.New(errors.CodeInvalidInput, "analytics: resume token belongs to a different query")
 	}
 	return &t, nil
 }
@@ -102,8 +124,10 @@ func (p *readPlan) project(ts time.Time, dims map[string]string, partials map[st
 }
 
 // stream delivers the buckets' pages in bucket order while up to window buckets
-// are read ahead concurrently, each into a one-page channel: memory stays at
-// window pages, and a slow consumer stalls the readers.
+// are read ahead concurrently, each into a one-page channel. A page is
+// materialized whole, so memory is bounded by about 2×window pages of pageSize
+// rows (one buffered and one being fetched per reader), and a slow consumer
+// stalls the readers. The first read error is terminal.
 type stream struct {
 	// ctx scopes the readers; cancel stops them.
 	ctx    context.Context //nolint:containedctx // the stream outlives Aggregate and owns its readers' context
@@ -114,6 +138,8 @@ type stream struct {
 	chans []chan page
 	// buckets are the bucket starts, in order.
 	buckets []time.Time
+	// err is the first read error; once set, every Next returns it.
+	err error
 	// token is the position after the last delivered page.
 	token []byte
 	// first is the page state to resume the first bucket from.
@@ -185,8 +211,12 @@ func (s *stream) read(bucket time.Time, state []byte, ch chan<- page) {
 	}
 }
 
-// Next returns the next page in bucket order.
+// Next returns the next page in bucket order. After a read error it returns
+// that error, with no rows and more=false, on every call.
 func (s *stream) Next(ctx context.Context) ([]types.Row, bool, error) {
+	if s.err != nil {
+		return nil, false, s.err
+	}
 	for s.cur < len(s.buckets) {
 		select {
 		case p, ok := <-s.chans[s.cur]:
@@ -196,7 +226,8 @@ func (s *stream) Next(ctx context.Context) ([]types.Row, bool, error) {
 				continue
 			}
 			if p.err != nil {
-				return nil, false, p.err
+				s.err = p.err
+				return nil, false, s.err
 			}
 			s.token = s.position(p)
 			return p.rows, len(p.next) > 0 || s.cur+1 < len(s.buckets), nil
@@ -211,13 +242,13 @@ func (s *stream) Next(ctx context.Context) ([]types.Row, bool, error) {
 // following bucket's start.
 func (s *stream) position(p page) []byte {
 	at := p.bucket.UnixMilli()
-	t := resumeToken{Bucket: &at, Page: p.next}
+	t := resumeToken{Bucket: &at, Query: s.plan.fingerprint, Page: p.next}
 	if len(p.next) == 0 {
 		if s.cur+1 >= len(s.buckets) {
 			return nil
 		}
 		next := s.buckets[s.cur+1].UnixMilli()
-		t = resumeToken{Bucket: &next}
+		t = resumeToken{Bucket: &next, Query: s.plan.fingerprint}
 	}
 	b, _ := json.Marshal(t) //nolint:errchkjson // a string and a byte slice always marshal
 	return b

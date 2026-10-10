@@ -36,8 +36,11 @@ type groupRows struct {
 // per-fact rows it absorbed, inside one partition, so it applies atomically and a
 // half-done compaction never changes an answer; rerunning it is a no-op. Run one
 // compactor per bucket, only for buckets past the facts' redelivery horizon (a
-// fact redelivered after compaction would be counted again). An undeclared cube or
-// grain, a misaligned bucket, or a bucket that has not ended is CodeInvalidInput.
+// fact redelivered after compaction would be counted again). With a TTL
+// configured for the grain, the merged row keeps the bucket's retention — it
+// expires at bucket end + TTL, never later — and a bucket already past that is
+// left to expire on its own (nil, no I/O). An undeclared cube or grain, a
+// misaligned bucket, or a bucket that has not ended is CodeInvalidInput.
 func (s *Store) Compact(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time) error {
 	grains, ok := s.cfg.Cubes[cube]
 	if !ok || !slices.Contains(grains, grain) {
@@ -45,15 +48,28 @@ func (s *Store) Compact(ctx context.Context, cube string, grain types.Grain, org
 	}
 	width := s.cfg.BucketWidth[grain]
 	bucket = bucket.UTC()
-	if !vizql.Truncate(bucket, width).Equal(bucket) || vizql.Next(bucket, width).After(time.Now()) {
+	end := vizql.Next(bucket, width)
+	now := time.Now()
+	if !vizql.Truncate(bucket, width).Equal(bucket) || end.After(now) {
 		return errors.New(errors.CodeInvalidInput, "analytics: only a closed, aligned bucket can be compacted")
 	}
-	groups, err := s.readPartition(ctx, cube, grain, org, bucket)
+	var ttlSeconds int
+	if ttl := s.cfg.TTL[grain]; ttl > 0 {
+		ttlSeconds = int(end.Add(ttl).Sub(now) / time.Second)
+		if ttlSeconds < 1 {
+			return nil
+		}
+	}
+	session, err := s.sess()
+	if err != nil {
+		return err
+	}
+	groups, err := s.readPartition(ctx, session, cube, grain, org, bucket)
 	if err != nil {
 		return err
 	}
 	for _, g := range groups {
-		if err := s.compactGroup(ctx, cube, grain, org, bucket, g); err != nil {
+		if err := compactGroup(ctx, session, cube, grain, org, bucket, ttlSeconds, g); err != nil {
 			return err
 		}
 	}
@@ -62,12 +78,12 @@ func (s *Store) Compact(ctx context.Context, cube string, grain types.Grain, org
 
 // readPartition reads every row of one partition, grouped by (ts, dims_key) in
 // clustering order.
-func (s *Store) readPartition(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time) ([]*groupRows, error) {
+func (s *Store) readPartition(ctx context.Context, session cassandra.Session, cube string, grain types.Grain, org string, bucket time.Time) ([]*groupRows, error) {
 	var groups []*groupRows
 	index := map[string]*groupRows{}
 	var state []byte
 	for {
-		iter := s.session.Query(
+		iter := session.Query(
 			"SELECT ts, dims_key, idempotency_key, dims, partials FROM "+TableName(cube, grain)+
 				" WHERE org_id = ? AND cube = ? AND bucket = ?", org, cube, bucket,
 		).WithContext(ctx).PageSize(s.cfg.PageSize).PageState(state).Idempotent(true).Iter()
@@ -101,16 +117,17 @@ func (s *Store) readPartition(ctx context.Context, cube string, grain types.Grai
 	}
 }
 
-// compactGroup folds a group's per-fact rows into its compacted row, a chunk per batch.
-func (s *Store) compactGroup(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time, g *groupRows) error {
+// compactGroup folds a group's per-fact rows into its compacted row, a chunk per
+// batch, writing the merged row USING TTL ttlSeconds when it is positive.
+func compactGroup(ctx context.Context, session cassandra.Session, cube string, grain types.Grain, org string, bucket time.Time, ttlSeconds int, g *groupRows) error {
 	table := TableName(cube, grain)
 	dimsKey := g.dimsKey
 	upsert := "INSERT INTO " + table +
 		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, '', ?, ?)"
 	var ttlArgs []any
-	if ttl := s.cfg.TTL[grain]; ttl > 0 {
+	if ttlSeconds > 0 {
 		upsert += " USING TTL ?"
-		ttlArgs = []any{int(ttl / time.Second)}
+		ttlArgs = []any{ttlSeconds}
 	}
 	merged := g.compacted
 	for start := 0; start < len(g.keys); start += compactChunk {
@@ -119,14 +136,14 @@ func (s *Store) compactGroup(ctx context.Context, cube string, grain types.Grain
 		if err != nil {
 			return err
 		}
-		batch := s.session.Batch(cassandra.LoggedBatch).WithContext(ctx)
+		batch := session.Batch(cassandra.LoggedBatch).WithContext(ctx)
 		batch.Query(upsert, append([]any{org, cube, bucket, g.ts, dimsKey, g.dims, next}, ttlArgs...)...)
 		for _, key := range g.keys[start:end] {
 			batch.Query("DELETE FROM "+table+
 				" WHERE org_id = ? AND cube = ? AND bucket = ? AND ts = ? AND dims_key = ? AND idempotency_key = ?",
 				org, cube, bucket, g.ts, dimsKey, key)
 		}
-		if err := s.session.ExecuteBatch(batch); err != nil {
+		if err := session.ExecuteBatch(batch); err != nil {
 			return err
 		}
 		merged = next

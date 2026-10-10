@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
@@ -54,15 +55,43 @@ type Config struct {
 
 // Store is the Cassandra-protocol AnalyticsStore.
 type Store struct {
-	// session is the Cassandra-protocol session (its lifecycle is the store's).
+	// session is the Cassandra-protocol session (its lifecycle is the store's);
+	// nil until Start when the store dials lazily.
 	session cassandra.Session
+	// dial opens the session at Start (nil when New was given a session).
+	dial func() (cassandra.Session, error)
 	// cfg is the validated configuration.
 	cfg Config
+	// mu guards session.
+	mu sync.RWMutex
 }
 
 // New returns a store over session. A cube name that is not a lower-case
-// identifier, or a declared grain without a bucket width, is CodeInvalidInput.
+// identifier, or a declared grain that is unknown or lacks a known bucket width,
+// is CodeInvalidInput.
 func New(session cassandra.Session, cfg Config) (*Store, error) {
+	s, err := newStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	s.session = session
+	return s, nil
+}
+
+// NewLazy returns a store that dials its session with dial at Start, so
+// construction does no I/O; an operation before Start is CodeUnavailable. The
+// config is validated as by New.
+func NewLazy(dial func() (cassandra.Session, error), cfg Config) (*Store, error) {
+	s, err := newStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	s.dial = dial
+	return s, nil
+}
+
+// newStore validates cfg and applies its defaults.
+func newStore(cfg Config) (*Store, error) {
 	if cfg.PageSize <= 0 {
 		cfg.PageSize = 500
 	}
@@ -74,12 +103,16 @@ func New(session cassandra.Session, cfg Config) (*Store, error) {
 			return nil, errors.New(errors.CodeInvalidInput, "analytics: invalid cube name "+cube)
 		}
 		for _, g := range grains {
-			if _, ok := cfg.BucketWidth[g]; !ok {
+			width, ok := cfg.BucketWidth[g]
+			if !ok {
 				return nil, errors.New(errors.CodeInvalidInput, "analytics: no bucket width for grain "+string(g))
+			}
+			if !vizql.ValidGrain(g) || !vizql.ValidGrain(width) {
+				return nil, errors.New(errors.CodeInvalidInput, "analytics: unknown grain or bucket width for "+string(g))
 			}
 		}
 	}
-	return &Store{session: session, cfg: cfg}, nil
+	return &Store{cfg: cfg}, nil
 }
 
 // TableName returns the table holding cube's rows at grain.
@@ -98,13 +131,41 @@ func SchemaCQL(keyspace, cube string, grain types.Grain) (string, error) {
   PRIMARY KEY ((org_id, cube, bucket), ts, dims_key, idempotency_key))`, nil
 }
 
-// Start does nothing: the session is dialed at construction.
-func (*Store) Start(context.Context) error { return nil }
-
-// Stop closes the session.
-func (s *Store) Stop(context.Context) error {
-	s.session.Close()
+// Start dials the session of a lazy store (once; a store built by New, or
+// already started, does nothing). A dial failure is returned as coded by dial.
+func (s *Store) Start(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.session != nil || s.dial == nil {
+		return nil
+	}
+	session, err := s.dial()
+	if err != nil {
+		return err
+	}
+	s.session = session
 	return nil
+}
+
+// Stop closes the session, if one was opened.
+func (s *Store) Stop(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.session != nil {
+		s.session.Close()
+		s.session = nil
+	}
+	return nil
+}
+
+// sess returns the open session; before Start (or after Stop) it is CodeUnavailable.
+func (s *Store) sess() (cassandra.Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.session == nil {
+		return nil, errors.New(errors.CodeUnavailable, "analytics: store is not started")
+	}
+	return s.session, nil
 }
 
 // DimsKey renders dims canonically (sorted, URL-escaped key=value pairs): the
@@ -119,13 +180,18 @@ func DimsKey(dims map[string]string) string {
 
 // Write upserts one partial row per fact per declared grain of its cube, with
 // bounded concurrency. A fact for an undeclared cube, without an org or with an
-// empty idempotency key (reserved for compacted rows), or with a non-finite
-// measure, is CodeInvalidInput.
+// empty idempotency key (reserved for compacted rows), with a schema version
+// other than FactSchemaVersion (0, an in-process fact, is accepted), or with a
+// non-finite measure, is CodeInvalidInput.
 func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 	type job struct {
 		partials map[string][]byte
 		grain    types.Grain
 		fact     types.Fact
+	}
+	session, err := s.sess()
+	if err != nil {
+		return err
 	}
 	var jobs []job
 	for _, fact := range facts {
@@ -135,6 +201,9 @@ func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 		}
 		if fact.OrgID == "" || fact.IdempotencyKey == "" {
 			return errors.New(errors.CodeInvalidInput, "analytics: a fact needs an org_id and an idempotency_key")
+		}
+		if fact.Schema != 0 && fact.Schema != types.FactSchemaVersion {
+			return errors.New(errors.CodeInvalidInput, "analytics: unknown fact schema version")
 		}
 		partials := make(map[string][]byte, len(fact.Measures))
 		for name, v := range fact.Measures {
@@ -151,13 +220,13 @@ func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(s.cfg.MaxConcurrentBuckets)
 	for _, j := range jobs {
-		g.Go(func() error { return s.insert(gctx, j.fact, j.grain, j.partials) })
+		g.Go(func() error { return s.insert(gctx, session, j.fact, j.grain, j.partials) })
 	}
 	return g.Wait()
 }
 
 // insert writes one fact's partial row into grain's table.
-func (s *Store) insert(ctx context.Context, fact types.Fact, grain types.Grain, partials map[string][]byte) error {
+func (s *Store) insert(ctx context.Context, session cassandra.Session, fact types.Fact, grain types.Grain, partials map[string][]byte) error {
 	stmt := "INSERT INTO " + TableName(fact.Cube, grain) +
 		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	args := []any{
@@ -168,12 +237,13 @@ func (s *Store) insert(ctx context.Context, fact types.Fact, grain types.Grain, 
 		stmt += " USING TTL ?"
 		args = append(args, int(ttl/time.Second))
 	}
-	return s.session.Query(stmt, args...).WithContext(ctx).Idempotent(true).Exec()
+	return session.Query(stmt, args...).WithContext(ctx).Idempotent(true).Exec()
 }
 
 // Aggregate opens a page-at-a-time stream over the buckets of q.TimeRange. The
 // table is q.Grain's (the cube's coarsest grain when unset). An undeclared cube or
-// grain, a missing org or an open-ended time range is CodeInvalidInput.
+// grain, a missing org, an open-ended time range, or a resume token issued for a
+// different query is CodeInvalidInput; a store not yet started is CodeUnavailable.
 func (s *Store) Aggregate(ctx context.Context, q types.AggregateQuery) (interfaces.RowStream, error) {
 	grains, ok := s.cfg.Cubes[q.Cube]
 	if !ok {
@@ -195,12 +265,20 @@ func (s *Store) Aggregate(ctx context.Context, q types.AggregateQuery) (interfac
 	for b := vizql.Truncate(lo, width); b.Before(hi); b = vizql.Next(b, width) {
 		buckets = append(buckets, b)
 	}
-	resume, err := decodeToken(q.ResumeToken)
+	fingerprint, err := queryFingerprint(q)
+	if err != nil {
+		return nil, err
+	}
+	resume, err := decodeToken(q.ResumeToken, fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.sess()
 	if err != nil {
 		return nil, err
 	}
 	plan := &readPlan{
-		session: s.session, table: TableName(q.Cube, grain), org: q.OrgID, cube: q.Cube,
+		session: session, fingerprint: fingerprint, table: TableName(q.Cube, grain), org: q.OrgID, cube: q.Cube,
 		lo: lo, hi: hi, pageSize: s.cfg.PageSize, groupBy: q.GroupBy, measures: measureNames(q.Measures),
 		keep: compileResidual(q.Filter),
 	}

@@ -400,3 +400,154 @@ func TestRelay_SpansRunsAndLogsStatsFailure(t *testing.T) {
 
 	require.NoError(t, relay.RunOnce(ctx))
 }
+
+// TestRelay_CancelledRunLeavesFailedRowsLeased tests shutdown mid-delivery.
+//
+// Why this test is important:
+//   - A relay stopped while a send is in flight sees that send fail with the
+//     cancellation; recording it as a failed attempt would burn a retry (and
+//     eventually park) a record that never had a real delivery failure
+//
+// What it tests:
+//   - with the run's context cancelled during Send, a record whose send failed
+//     with context.Canceled is neither retried nor parked, while a record the
+//     sink delivered is still marked sent
+func TestRelay_CancelledRunLeavesFailedRowsLeased(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	store := mocks.NewMockOutboxStore(ctrl)
+	sink := mocks.NewMockOutboxSink(ctrl)
+	recs := outboxRecords(2, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
+	sink.EXPECT().Send(gomock.Any(), recs).DoAndReturn(
+		func(context.Context, []types.OutboxRecord) []error {
+			cancel()
+			return []error{nil, apperr.Wrap(context.Canceled, apperr.CodeCanceled, "send")}
+		})
+	store.EXPECT().MarkSent(gomock.Any(), recs[0].ID).Return(nil).Times(1)
+
+	relay := outbox.NewRelay(relayConfig(10, 1, 1), store, sink, nil, nil, nil, fixedClock())
+
+	require.NoError(t, relay.RunOnce(ctx))
+}
+
+// TestRelay_ParkOnPermanentParksAtFirstPermanentFailure tests ParkOnPermanent.
+//
+// Why this test is important:
+//   - A record the destination rejects as malformed fails identically on every
+//     attempt; retrying it MaxAttempts times only delays the operator seeing it
+//
+// What it tests:
+//   - with ParkOnPermanent and MaxAttempts 5, a first-attempt INVALID_INPUT
+//     failure is parked, while a first-attempt UNAVAILABLE failure is retried
+//   - without ParkOnPermanent the same INVALID_INPUT failure is retried
+func TestRelay_ParkOnPermanentParksAtFirstPermanentFailure(t *testing.T) {
+	t.Parallel()
+	reject := apperr.New(apperr.CodeInvalidInput, "malformed payload")
+	outage := apperr.New(apperr.CodeUnavailable, "queue down")
+
+	t.Run("enabled", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		store := mocks.NewMockOutboxStore(ctrl)
+		sink := mocks.NewMockOutboxSink(ctrl)
+		recs := outboxRecords(2, 1)
+		store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
+		sink.EXPECT().Send(gomock.Any(), recs).Return([]error{reject, outage})
+		store.EXPECT().Park(gomock.Any(), recs[0].ID, reject.Error()).Return(nil).Times(1)
+		store.EXPECT().Retry(gomock.Any(), recs[1].ID, gomock.Any(), outage.Error()).Return(nil).Times(1)
+		cfg := relayConfig(10, 1, 5)
+		cfg.ParkOnPermanent = true
+
+		require.NoError(t, outbox.NewRelay(cfg, store, sink, nil, nil, nil, fixedClock()).RunOnce(context.Background()))
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		store := mocks.NewMockOutboxStore(ctrl)
+		sink := mocks.NewMockOutboxSink(ctrl)
+		recs := outboxRecords(1, 1)
+		store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
+		sink.EXPECT().Send(gomock.Any(), recs).Return([]error{reject})
+		store.EXPECT().Retry(gomock.Any(), recs[0].ID, gomock.Any(), reject.Error()).Return(nil).Times(1)
+
+		require.NoError(t, outbox.NewRelay(relayConfig(10, 1, 5), store, sink, nil, nil, nil, fixedClock()).
+			RunOnce(context.Background()))
+	})
+}
+
+// TestLoadRelayConfig_OverlaysDefaultsAndRejectsInvalid tests the relay config loader.
+//
+// Why this test is important:
+//   - NewRelay panics on an invalid config; composition roots load the config
+//     through this function so a bad section stops boot with a coded error
+//     instead of a panic
+//
+// What it tests:
+//   - an absent section yields DefaultRelayConfig(lane)
+//   - a section setting max_attempts 3 keeps the other defaults
+//   - a section setting concurrency 0 is INVALID_INPUT
+//   - an unmarshal failure is INVALID_INPUT reading "load outbox relay config"
+func TestLoadRelayConfig_OverlaysDefaultsAndRejectsInvalid(t *testing.T) {
+	t.Parallel()
+	set := func(mut func(*outbox.RelayConfig)) func(string, any) error {
+		return func(_ string, target any) error {
+			mut(target.(*outbox.RelayConfig))
+			return nil
+		}
+	}
+
+	t.Run("absent", func(t *testing.T) {
+		t.Parallel()
+		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
+		loader.EXPECT().Get("outbox.audit").Return(nil)
+
+		cfg, err := outbox.LoadRelayConfig(loader, "outbox.audit", "audit")
+
+		require.NoError(t, err)
+		assert.Equal(t, outbox.DefaultRelayConfig("audit"), cfg)
+	})
+
+	t.Run("present", func(t *testing.T) {
+		t.Parallel()
+		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
+		loader.EXPECT().Get("outbox.audit").Return(map[string]any{"max_attempts": 3})
+		loader.EXPECT().UnmarshalKey("outbox.audit", gomock.Any()).
+			DoAndReturn(set(func(c *outbox.RelayConfig) { c.MaxAttempts = 3 }))
+
+		cfg, err := outbox.LoadRelayConfig(loader, "outbox.audit", "audit")
+
+		require.NoError(t, err)
+		want := outbox.DefaultRelayConfig("audit")
+		want.MaxAttempts = 3
+		assert.Equal(t, want, cfg)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
+		loader.EXPECT().Get("outbox.audit").Return(map[string]any{"concurrency": 0})
+		loader.EXPECT().UnmarshalKey("outbox.audit", gomock.Any()).
+			DoAndReturn(set(func(c *outbox.RelayConfig) { c.Concurrency = 0 }))
+
+		_, err := outbox.LoadRelayConfig(loader, "outbox.audit", "audit")
+
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
+	})
+
+	t.Run("unmarshal failure", func(t *testing.T) {
+		t.Parallel()
+		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
+		loader.EXPECT().Get("outbox.audit").Return(map[string]any{"concurrency": "many"})
+		loader.EXPECT().UnmarshalKey("outbox.audit", gomock.Any()).Return(apperr.Sentinel("bad int"))
+
+		_, err := outbox.LoadRelayConfig(loader, "outbox.audit", "audit")
+
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
+		assert.Contains(t, err.Error(), "load outbox relay config")
+	})
+}

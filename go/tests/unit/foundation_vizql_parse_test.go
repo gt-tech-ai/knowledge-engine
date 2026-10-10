@@ -91,8 +91,10 @@ func nested(depth int) string {
 //   - an unknown field, a disallowed aggregate, an aggregate on a dimension, a
 //     measure without an aggregate, an over-deep shelf (9 levels), a group-by
 //     (detail) on an undeclared or non-dimension field, an unknown operator, grain
-//     or mark, an inverted time range, a bad filter field and a sort on an unknown
-//     key are each a CodeInvalidInput error; a shelf of depth 8 is accepted
+//     or mark, an inverted time range, a bad filter field, a sort on an unknown
+//     key, on a raw (un-aggregated) measure or on a dimension on no shelf, and a
+//     nil allow-list are each a CodeInvalidInput error; a shelf of depth 8 is
+//     accepted
 func TestVizqlParse_RejectsWithCodedInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -111,6 +113,8 @@ func TestVizqlParse_RejectsWithCodedInvalidInput(t *testing.T) {
 		"inverted time range":    `{"cube":"genai_calls","time_range":{"from":"2026-10-09T00:00:00Z","to":"2026-10-01T00:00:00Z"}}`,
 		"bad filter field":       `{"cube":"genai_calls","filter":{"$eq":{"secret":"x"}}}`,
 		"sort on unknown key":    `{"cube":"genai_calls","sort":[{"field":"avg(tokens_in)"}]}`,
+		"sort on raw measure":    `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"field":"tokens_in"}]}`,
+		"sort off the shelves":   `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"field":"model"}]}`,
 		"missing cube":           `{"rows":{"field":"team"}}`,
 		"malformed JSON":         `{"cube":`,
 	}
@@ -122,4 +126,7 @@ func TestVizqlParse_RejectsWithCodedInvalidInput(t *testing.T) {
 
 	_, err := vizql.Parse([]byte(`{"cube":"genai_calls","rows":`+nested(7)+`}`), vizCubeMap())
 	assert.NoError(t, err, "depth 8 is within the limit")
+
+	_, err = vizql.Parse([]byte(`{"cube":"genai_calls","rows":{"field":"team"}}`), nil)
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")
 }

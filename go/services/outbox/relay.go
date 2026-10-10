@@ -37,6 +37,10 @@ type RelayConfig struct {
 	BaseBackoff time.Duration `yaml:"base_backoff" mapstructure:"base_backoff"`
 	// MaxBackoff caps the backoff before jitter.
 	MaxBackoff time.Duration `yaml:"max_backoff" mapstructure:"max_backoff"`
+	// ParkOnPermanent parks a record on its first permanent failure (one
+	// coreerr.IsPermanent reports, e.g. a malformed payload the destination
+	// rejects) instead of retrying it until MaxAttempts.
+	ParkOnPermanent bool `yaml:"park_on_permanent" mapstructure:"park_on_permanent"`
 }
 
 // DefaultRelayConfig returns a relay config for lane: claim 100 rows, send 10 at
@@ -62,6 +66,24 @@ func (c RelayConfig) Validate() error {
 			"outbox relay: base_backoff must be positive and max_backoff at least base_backoff")
 	}
 	return nil
+}
+
+// LoadRelayConfig reads the relay config for lane from loader's key section,
+// overlaid on DefaultRelayConfig(lane), and validates it. An absent section
+// yields the defaults; an unreadable or invalid one is CodeInvalidInput. Load
+// through it so a bad section stops boot with a coded error, never NewRelay's
+// panic.
+func LoadRelayConfig(loader interfaces.ConfigLoader, key, lane string) (RelayConfig, error) {
+	cfg := DefaultRelayConfig(lane)
+	if loader.Get(key) != nil {
+		if err := loader.UnmarshalKey(key, &cfg); err != nil {
+			return RelayConfig{}, coreerr.Wrap(err, coreerr.CodeInvalidInput, "load outbox relay config "+key)
+		}
+	}
+	if err := cfg.Validate(); err != nil {
+		return RelayConfig{}, err
+	}
+	return cfg, nil
 }
 
 // Option customizes a Relay beyond its config (the deterministic seams tests use).
@@ -100,7 +122,9 @@ type Relay struct {
 }
 
 // NewRelay builds a relay over store and sink. logger, metrics and tracer may be
-// nil. An invalid cfg or a nil store or sink is a wiring bug and panics.
+// nil. An invalid cfg or a nil store or sink is a wiring bug and panics; build
+// cfg with LoadRelayConfig (or call cfg.Validate first) to get a coded error
+// instead.
 func NewRelay(
 	cfg RelayConfig,
 	store interfaces.OutboxStore,
@@ -158,7 +182,7 @@ func (r *Relay) RunOnce(ctx context.Context) error {
 func (r *Relay) runOnce(ctx context.Context) error {
 	recs, err := r.store.Claim(ctx, r.cfg.Lane, r.cfg.BatchSize)
 	if err != nil {
-		return coreerr.Wrap(err, codeOf(err), "outbox relay: claim")
+		return coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox relay: claim")
 	}
 
 	var (
@@ -203,6 +227,9 @@ func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error
 	}
 	var errs []error
 	for i := range chunk {
+		if interrupted(ctx, results[i]) {
+			continue // the row stays leased and is re-claimed when its lease expires
+		}
 		if err := r.finalize(ctx, &chunk[i], results[i]); err != nil {
 			errs = append(errs, err)
 		}
@@ -210,8 +237,16 @@ func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error
 	return errs
 }
 
-// finalize records one row's outcome: sent, parked on its last attempt, or
-// rescheduled with jittered capped exponential backoff.
+// interrupted reports a send that failed only because the run's own context
+// ended (shutdown or deadline); such a failure is not a delivery attempt.
+func interrupted(ctx context.Context, sendErr error) bool {
+	return sendErr != nil && ctx.Err() != nil &&
+		(coreerr.StdIs(sendErr, context.Canceled) || coreerr.StdIs(sendErr, context.DeadlineExceeded))
+}
+
+// finalize records one row's outcome: sent, parked on its last attempt (or on
+// its first permanent failure with ParkOnPermanent), or rescheduled with
+// jittered capped exponential backoff.
 func (r *Relay) finalize(ctx context.Context, rec *types.OutboxRecord, sendErr error) error {
 	lane := r.cfg.Lane
 	var err error
@@ -219,7 +254,7 @@ func (r *Relay) finalize(ctx context.Context, rec *types.OutboxRecord, sendErr e
 	case sendErr == nil:
 		err = r.store.MarkSent(ctx, rec.ID)
 		inc(r.sent, lane, err)
-	case rec.Attempts >= r.cfg.MaxAttempts:
+	case rec.Attempts >= r.cfg.MaxAttempts || (r.cfg.ParkOnPermanent && coreerr.IsPermanent(sendErr)):
 		err = r.store.Park(ctx, rec.ID, sendErr.Error())
 		inc(r.parked, lane, err)
 	default:
@@ -228,7 +263,7 @@ func (r *Relay) finalize(ctx context.Context, rec *types.OutboxRecord, sendErr e
 		inc(r.retried, lane, err)
 	}
 	if err != nil {
-		return coreerr.Wrap(err, codeOf(err), "outbox relay: finalize "+rec.ID.String())
+		return coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox relay: finalize "+rec.ID.String())
 	}
 	return nil
 }
@@ -271,12 +306,4 @@ func inc(c interfaces.Counter, lane string, err error) {
 	if c != nil && err == nil {
 		c.Inc(lane)
 	}
-}
-
-// codeOf keeps an error's code when it has one, else classifies it as unavailable.
-func codeOf(err error) coreerr.ErrorCode {
-	if code := coreerr.Code(err); code != coreerr.CodeUnknown {
-		return code
-	}
-	return coreerr.CodeUnavailable
 }

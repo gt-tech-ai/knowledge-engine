@@ -8,6 +8,7 @@ package keyspaces
 import (
 	"context"
 	"crypto/tls"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -20,9 +21,13 @@ import (
 // credentialsTimeout bounds one credentials refresh (an IRSA token exchange).
 const credentialsTimeout = 5 * time.Second
 
+// DefaultPort is the Keyspaces TLS native-protocol port.
+const DefaultPort = 9142
+
 // Config is the Amazon Keyspaces connection configuration.
 type Config struct {
-	// Credentials supplies SigV4 credentials; nil loads the AWS default chain.
+	// Credentials supplies SigV4 credentials; nil loads the AWS default chain on
+	// the first credentials refresh, not at construction.
 	Credentials aws.CredentialsProvider
 	// Region is the AWS region of the Keyspaces endpoint (required).
 	Region string
@@ -36,7 +41,7 @@ type Config struct {
 	Timeout time.Duration
 	// ConnectTimeout bounds each connection attempt.
 	ConnectTimeout time.Duration
-	// Port is the TLS native-protocol port (9142).
+	// Port is the TLS native-protocol port (0 = DefaultPort).
 	Port int
 	// PageSize is the default page size of a query.
 	PageSize int
@@ -49,9 +54,9 @@ func Endpoint(region string) string {
 	return "cassandra." + region + ".amazonaws.com"
 }
 
-// New returns the cluster configuration for cfg, without dialing. A missing
-// region or an unknown consistency is CodeInvalidInput; a default credentials
-// chain that cannot be loaded is CodeInternal.
+// New returns the cluster configuration for cfg, without dialing or loading
+// credentials; a zero port is DefaultPort and a zero timeout keeps the driver's
+// default. A missing region or an unknown consistency is CodeInvalidInput.
 func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if cfg.Region == "" {
 		return nil, errors.New(errors.CodeInvalidInput, "keyspaces: region is required")
@@ -62,19 +67,22 @@ func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	}
 	provider := cfg.Credentials
 	if provider == nil {
-		awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.Region))
-		if err != nil {
-			return nil, errors.Wrap(err, errors.CodeInternal, "keyspaces: load AWS credentials chain")
-		}
-		provider = awsCfg.Credentials
+		provider = defaultChain(cfg.Region)
 	}
 	host := Endpoint(cfg.Region)
 	cluster := gocql.NewCluster(host)
-	cluster.Port = cfg.Port
+	cluster.Port = DefaultPort
+	if cfg.Port > 0 {
+		cluster.Port = cfg.Port
+	}
 	cluster.Keyspace = cfg.Keyspace
 	cluster.Consistency = consistency
-	cluster.Timeout = cfg.Timeout
-	cluster.ConnectTimeout = cfg.ConnectTimeout
+	if cfg.Timeout > 0 {
+		cluster.Timeout = cfg.Timeout
+	}
+	if cfg.ConnectTimeout > 0 {
+		cluster.ConnectTimeout = cfg.ConnectTimeout
+	}
 	cluster.PageSize = cfg.PageSize
 	if cfg.NumConns > 0 {
 		cluster.NumConns = cfg.NumConns
@@ -103,4 +111,27 @@ func credentialsCallback(provider aws.CredentialsProvider) sigv4.SigV4Credential
 			AccessKeyId: creds.AccessKeyID, SecretAccessKey: creds.SecretAccessKey, SessionToken: creds.SessionToken,
 		}, nil
 	}
+}
+
+// defaultChain returns a provider that loads the AWS default credentials chain for
+// region on its first Retrieve (so construction does no I/O) and caches it; a
+// chain that cannot be loaded is CodeInternal on every Retrieve.
+func defaultChain(region string) aws.CredentialsProvider {
+	var once sync.Once
+	var chain aws.CredentialsProvider
+	var loadErr error
+	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		once.Do(func() {
+			awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+			if err != nil {
+				loadErr = errors.Wrap(err, errors.CodeInternal, "keyspaces: load AWS credentials chain")
+				return
+			}
+			chain = awsCfg.Credentials
+		})
+		if loadErr != nil {
+			return aws.Credentials{}, loadErr
+		}
+		return chain.Retrieve(ctx)
+	})
 }

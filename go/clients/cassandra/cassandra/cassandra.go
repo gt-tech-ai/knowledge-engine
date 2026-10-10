@@ -40,8 +40,9 @@ type Config struct {
 	TLS bool
 }
 
-// New returns the cluster configuration for cfg, without dialing. An empty host
-// list or an unknown consistency is CodeInvalidInput.
+// New returns the cluster configuration for cfg, without dialing; a zero port or
+// timeout keeps the driver's default. An empty host list or an unknown
+// consistency is CodeInvalidInput.
 func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if len(cfg.Hosts) == 0 {
 		return nil, errors.New(errors.CodeInvalidInput, "cassandra: at least one host is required")
@@ -56,8 +57,12 @@ func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	}
 	cluster.Keyspace = cfg.Keyspace
 	cluster.Consistency = consistency
-	cluster.Timeout = cfg.Timeout
-	cluster.ConnectTimeout = cfg.ConnectTimeout
+	if cfg.Timeout > 0 {
+		cluster.Timeout = cfg.Timeout
+	}
+	if cfg.ConnectTimeout > 0 {
+		cluster.ConnectTimeout = cfg.ConnectTimeout
+	}
 	cluster.PageSize = cfg.PageSize
 	if cfg.NumConns > 0 {
 		cluster.NumConns = cfg.NumConns

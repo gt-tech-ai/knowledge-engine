@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 
 from techai_webutils.clients.facts import (
@@ -14,6 +17,7 @@ from techai_webutils.clients.facts import (
     FactPublisherKind,
     new_fact_publisher_from_config,
 )
+from techai_webutils.clients.facts.messaging import MessagingFactPublisher
 from techai_webutils.clients.facts.stub import StubFactPublisher
 from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.fact_publisher import FactPublisher
@@ -115,12 +119,52 @@ async def test_messaging_publisher_drops_and_counts_when_full():
     assert dropped.inc.call_args_list == [((), {"reason": "buffer_full"})]
 
     async with publisher:
-        await asyncio.sleep(0.05)
+        pass
 
     assert dropped.inc.call_args_list[1] == ((2,), {"reason": "publish_error"})
     metrics.counter.assert_called_once_with(
         "gen_ai_fact_dropped_total", "Analytics facts dropped before publish, by reason.", ["reason"]
     )
+
+
+@pytest.mark.asyncio
+async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose():
+    """Test that a dead sender task closes the publisher instead of buffering into the void.
+
+    **Why this test is important:**
+      - A sender that died silently would leave every later fact buffered until ``buffer_full``,
+        hiding the real cause behind a climbing drop counter; a fact published after shutdown
+        would likewise vanish uncounted.
+
+    **What it tests:**
+      - the drop counter raising inside the sender's error path kills the sender; the next
+        ``publish`` of two facts counts ``inc(2, reason="closed")`` and buffers nothing
+      - ``aclose`` returns normally (the sender's exception is not re-raised)
+      - after ``aclose``, one more published fact counts ``inc(reason="closed")``
+    """
+    metrics, dropped = _dropped_counter()
+    dropped.inc.side_effect = [RuntimeError("metrics down"), None, None]
+    transport = MagicMock(spec=MessagePublisher)
+    transport.publish_batch = AsyncMock(side_effect=RuntimeError("sqs down"))
+    publisher = MessagingFactPublisher(
+        transport, "facts", max_buffer=10, flush_interval_s=0.0, drain_timeout_s=0.5, metrics=metrics
+    )
+
+    await publisher.__aenter__()
+    publisher.publish([_fact(1)])
+    sender = publisher._sender  # noqa: SLF001 — the only handle on the task whose death is under test
+    assert sender is not None
+    await asyncio.wait([sender])
+    publisher.publish([_fact(2), _fact(3)])
+    await publisher.aclose()
+    publisher.publish([_fact(4)])
+
+    assert dropped.inc.call_args_list == [
+        ((), {"reason": "publish_error"}),
+        ((2,), {"reason": "closed"}),
+        ((), {"reason": "closed"}),
+    ]
+    assert transport.publish_batch.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -177,3 +221,80 @@ def test_fact_json_escapes_like_go():
         b'{"cube":"c","dims":{"team":"a\\u003cb\\u003e\\u0026c\\u2028\\u2029\xc3\xa9"},'
         b'"idempotency_key":"k","measures":{},"org_id":"o","schema":1,"ts":"2026-10-09T00:00:00Z"}'
     )
+
+
+def test_fact_json_renders_bool_measures_as_numbers():
+    """Test that a ``bool`` measure is written as ``1`` / ``0``, never as a JSON boolean.
+
+    **Why this test is important:**
+      - The Go consumer decodes measures into ``float64``; a ``true`` there fails the whole fact,
+        and Python accepts ``True`` wherever a ``float`` is typed.
+
+    **What it tests:**
+      - measures ``{"cached": True, "failed": False}`` serialize as ``{"cached":1,"failed":0}``
+    """
+    fact = Fact(
+        cube="genai_calls",
+        org_id="org-1",
+        ts=datetime(2026, 10, 9, tzinfo=UTC),
+        dims={},
+        measures={"cached": True, "failed": False},
+        idempotency_key="k",
+    )
+
+    assert json.loads(fact.to_json())["measures"] == {"cached": 1, "failed": 0}
+    assert b'"measures":{"cached":1,"failed":0}' in fact.to_json()
+
+
+_TEXT = st.text(max_size=12)
+"""Any short string, including the characters Go escapes (``<``, ``>``, ``&``, U+2028/9)."""
+
+_MEASURE = st.one_of(
+    st.integers(min_value=-(2**53), max_value=2**53),
+    st.floats(allow_nan=False, allow_infinity=False, width=64),
+    st.booleans(),
+)
+"""Measure values the wire accepts: finite floats, exact integers, and bools (coerced to 0/1)."""
+
+
+@given(
+    cube=_TEXT,
+    org_id=_TEXT,
+    micros=st.integers(min_value=0, max_value=10**15),
+    dims=st.dictionaries(_TEXT, _TEXT, max_size=4),
+    measures=st.dictionaries(_TEXT, _MEASURE, max_size=4),
+    key=_TEXT,
+)
+def test_fact_json_round_trips(
+    cube: str, org_id: str, micros: int, dims: dict[str, str], measures: dict[str, float], key: str
+):
+    """Test, over generated facts, that ``to_json`` decodes back to the fact's own values.
+
+    **Why this test is important:**
+      - The golden file pins one fact; escaping, integral-float rendering or timestamp trimming
+        that breaks for other values would corrupt facts the Go consumer then rejects or misreads.
+
+    **What it tests:**
+      - the JSON decodes to exactly the fact's cube, org_id, dims, idempotency key and schema
+      - every measure decodes to a number equal to the input (bools as 1/0), never a JSON bool
+      - ``ts`` decodes to the same instant, in UTC with a ``Z`` suffix
+      - none of ``<``, ``>``, ``&`` appears raw in the bytes (Go's HTML-safe escaping)
+    """
+    ts = datetime(2020, 1, 1, tzinfo=UTC) + timedelta(microseconds=micros)
+    fact = Fact(cube=cube, org_id=org_id, ts=ts, dims=dims, measures=measures, idempotency_key=key)
+
+    raw = fact.to_json()
+    body = json.loads(raw)
+
+    assert (body["cube"], body["org_id"], body["dims"], body["idempotency_key"], body["schema"]) == (
+        cube,
+        org_id,
+        dims,
+        key,
+        fact.schema,
+    )
+    assert body["measures"] == {k: float(v) for k, v in measures.items()}
+    assert not any(isinstance(v, bool) for v in body["measures"].values())
+    assert body["ts"].endswith("Z")
+    assert datetime.fromisoformat(body["ts"]) == ts
+    assert not any(c in raw for c in (b"<", b">", b"&"))

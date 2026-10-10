@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"math"
 	"math/rand/v2"
 	"time"
 )
@@ -16,8 +17,7 @@ func EqualJitter(d time.Duration) time.Duration {
 		return d
 	}
 	half := d / 2
-	//nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
-	return half + time.Duration(rand.Int64N(int64(half)+1))
+	return half + time.Duration(upTo(int64(half)))
 }
 
 // FullJitter returns a uniform random duration in [0, d] (the AWS "full jitter"
@@ -27,6 +27,15 @@ func FullJitter(d time.Duration) time.Duration {
 	if d <= 0 {
 		return d
 	}
+	return time.Duration(upTo(int64(d)))
+}
+
+// upTo draws uniformly from [0, n] for n >= 0; at math.MaxInt64 the bound n+1
+// would overflow, so the full non-negative range is drawn directly.
+func upTo(n int64) int64 {
+	if n == math.MaxInt64 {
+		return rand.Int64() //nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
+	}
 	//nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
-	return time.Duration(rand.Int64N(int64(d) + 1))
+	return rand.Int64N(n + 1)
 }

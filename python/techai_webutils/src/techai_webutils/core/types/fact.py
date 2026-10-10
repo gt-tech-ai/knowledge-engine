@@ -43,7 +43,13 @@ def _rfc3339_nano(ts: datetime) -> str:
 
 
 def _number(value: float) -> float | int:
-    """Render an integral float as an int so the JSON matches Go's float64 encoding (``42`` not ``42.0``)."""
+    """Render a measure as a JSON number the Go ``float64`` decoder accepts.
+
+    An integral float renders as an int (``42`` not ``42.0``, matching Go's encoding), and a ``bool``
+    (which Python accepts wherever a ``float`` is typed) renders as ``1`` / ``0``, never ``true``.
+    """
+    if isinstance(value, bool):
+        return int(value)
     if isinstance(value, float) and value.is_integer() and abs(value) < _MAX_INTEGRAL_FLOAT:
         return int(value)
     return value
@@ -62,7 +68,7 @@ class Fact:
     dims: Mapping[str, str]
     """Dimension values the fact is grouped by (``model``, ``step``, ``team``, …)."""
     measures: Mapping[str, float]
-    """Numeric measures the fact contributes (``tokens_in``, ``duration_s``, …)."""
+    """Numeric measures the fact contributes (``tokens_in``, ``duration_s``, …); a ``bool`` is sent as 1/0."""
     idempotency_key: str
     """Unique per observation; a redelivered fact with the same key overwrites, never double-counts."""
     schema: int = field(default=FACT_SCHEMA_VERSION)

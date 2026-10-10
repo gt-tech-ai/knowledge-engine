@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -65,4 +66,26 @@ func TestFullJitter_RangeAndVariation(t *testing.T) {
 	require.Greater(t, len(seen), 1)
 	require.Zero(t, retry.FullJitter(0))
 	require.Equal(t, -5*time.Second, retry.FullJitter(-5*time.Second))
+}
+
+// TestJitter_MaxDurationDoesNotOverflow tests both jitters at the largest duration.
+//
+// Why this test is important:
+//   - A caller with an uncapped exponential backoff can reach the largest
+//     time.Duration; drawing from [0, d] there must not overflow d+1 into a
+//     negative bound, which panics the retrying goroutine
+//
+// What it tests:
+//   - FullJitter(MaxInt64) and EqualJitter(MaxInt64) return without panicking,
+//     within [0, MaxInt64] and [MaxInt64/2, MaxInt64] respectively
+func TestJitter_MaxDurationDoesNotOverflow(t *testing.T) {
+	t.Parallel()
+	maxD := time.Duration(math.MaxInt64)
+
+	for range 100 {
+		full := retry.FullJitter(maxD)
+		require.GreaterOrEqual(t, full, time.Duration(0))
+		equal := retry.EqualJitter(maxD)
+		require.GreaterOrEqual(t, equal, maxD/2)
+	}
 }

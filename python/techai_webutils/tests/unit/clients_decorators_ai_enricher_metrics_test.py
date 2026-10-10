@@ -2,36 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
+from opentelemetry.trace import SpanContext
 import pytest
 
 from techai_webutils.clients.decorators.ai_enricher import AiSpanEnricher
-from techai_webutils.core.interfaces.llm import LLMMessage, LLMProvider, LLMResponse
-from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+from techai_webutils.core.interfaces.fact_publisher import FactPublisher
+from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMProvider, LLMResponse
+from techai_webutils.core.types.fact import Fact
 
 _MODULE = "techai_webutils.clients.decorators.ai_enricher"
 """Import site of the enricher (its OTel span lookup and clock are patched here)."""
-
-
-def _metrics() -> tuple[MagicMock, dict[str, MagicMock]]:
-    """A ``MetricsProvider`` mock whose instruments are recorded by metric name."""
-    instruments: dict[str, MagicMock] = {}
-
-    def _counter(name: str, _help: str, _labels: list[str] | None = None) -> MagicMock:
-        instruments[name] = MagicMock(spec=MetricCounter)
-        return instruments[name]
-
-    def _histogram(
-        name: str, _help: str, _labels: list[str] | None = None, _buckets: object = None
-    ) -> MagicMock:
-        instruments[name] = MagicMock(spec=MetricHistogram)
-        return instruments[name]
-
-    provider = MagicMock(spec=MetricsProvider)
-    provider.counter.side_effect = _counter
-    provider.histogram.side_effect = _histogram
-    return provider, instruments
 
 
 def _llm() -> MagicMock:
@@ -46,7 +29,9 @@ def _llm() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_enricher_emits_gen_ai_tokens_total_from_response():
+async def test_enricher_emits_gen_ai_tokens_total_from_response(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+):
     """Test that one ``complete`` increments ``gen_ai_tokens_total`` once per token type.
 
     **Why this test is important:**
@@ -57,7 +42,7 @@ async def test_enricher_emits_gen_ai_tokens_total_from_response():
       - it receives ``inc(42, step="generate", model="nova", type="input")`` and
         ``inc(7, step="generate", model="nova", type="output")``, nothing else
     """
-    provider, instruments = _metrics()
+    provider, instruments = metrics_mock
     enricher = AiSpanEnricher(_llm(), step="generate", capture_content=False, metrics=provider)
 
     with patch(f"{_MODULE}.trace.get_current_span", return_value=MagicMock()):
@@ -73,7 +58,7 @@ async def test_enricher_emits_gen_ai_tokens_total_from_response():
 
 
 @pytest.mark.asyncio
-async def test_enricher_observes_request_duration():
+async def test_enricher_observes_request_duration(metrics_mock: tuple[MagicMock, dict[str, MagicMock]]):
     """Test that one ``complete`` observes its wall time on ``gen_ai_request_duration_seconds``.
 
     **Why this test is important:**
@@ -84,7 +69,7 @@ async def test_enricher_observes_request_duration():
       - the histogram is declared with labels ``[step, model]`` and buckets 0.05 … 60
       - a call timed 10.0 → 12.5 s observes exactly 2.5 with ``step="generate", model="nova"``
     """
-    provider, instruments = _metrics()
+    provider, instruments = metrics_mock
     enricher = AiSpanEnricher(_llm(), step="generate", capture_content=False, metrics=provider)
 
     with (
@@ -104,17 +89,60 @@ async def test_enricher_observes_request_duration():
     )
 
 
+@pytest.mark.asyncio
+async def test_enricher_reports_metrics_and_fact_under_the_served_model(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+) -> None:
+    """Test that metrics and the fact carry the served model and the fact is stamped at call start.
+
+    **Why this test is important:**
+      - Token cost is priced per served model; an alias or inference profile in the request would
+        price the call wrongly.
+      - A fact stamped at the call's end lands a long generation in the next time bucket.
+
+    **What it tests:**
+      - with ``LLMConfig(model="nova-alias")`` and a response from ``nova``, the token counter and
+        the fact's ``model`` dim are ``nova``
+      - the fact's ``ts`` is the clock's first reading (12:00), not the later one (12:05)
+    """
+    provider, instruments = metrics_mock
+    facts = MagicMock(spec=FactPublisher)
+    start, end = datetime(2026, 10, 9, 12, 0, tzinfo=UTC), datetime(2026, 10, 9, 12, 5, tzinfo=UTC)
+    enricher = AiSpanEnricher(
+        _llm(),
+        step="generate",
+        capture_content=False,
+        metrics=provider,
+        facts=facts,
+        fact_dimensions=lambda: {"org_id": "org-1"},
+    )
+
+    with (
+        patch(f"{_MODULE}.trace.get_current_span", return_value=_span(1, 2)),
+        patch(f"{_MODULE}._utcnow", side_effect=[start, end]),
+    ):
+        await enricher.complete([LLMMessage(role="user", content="hi")], LLMConfig(model="nova-alias"))
+
+    assert instruments["gen_ai_tokens_total"].inc.call_args_list == [
+        call(42, step="generate", model="nova", type="input"),
+        call(7, step="generate", model="nova", type="output"),
+    ]
+    (fact,) = facts.publish.call_args.args[0]
+    assert fact.dims["model"] == "nova"
+    assert fact.ts == start
+
+
 def _span(trace_id: int, span_id: int) -> MagicMock:
     """A mock current span whose context carries the given (valid) trace and span ids."""
-    from opentelemetry.trace import SpanContext
-
     span = MagicMock()
     span.get_span_context.return_value = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
     return span
 
 
 @pytest.mark.asyncio
-async def test_enricher_emits_one_fact_per_call_with_configured_dims():
+async def test_enricher_emits_one_fact_per_call_with_configured_dims(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+):
     """Test that each model call publishes exactly one ``genai_calls`` fact with the product dims.
 
     **Why this test is important:**
@@ -128,12 +156,7 @@ async def test_enricher_emits_one_fact_per_call_with_configured_dims():
       - ``idempotency_key`` is ``<trace_id>:<span_id>:<step>`` in hex and ``ts`` is the clock's now
       - Prometheus labels stay ``{step, model, type}`` (no product dims leak into them)
     """
-    from datetime import UTC, datetime
-
-    from techai_webutils.core.interfaces.fact_publisher import FactPublisher
-    from techai_webutils.core.types.fact import Fact
-
-    provider, instruments = _metrics()
+    provider, instruments = metrics_mock
     facts = MagicMock(spec=FactPublisher)
     now = datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
     enricher = AiSpanEnricher(
@@ -188,8 +211,6 @@ async def test_enricher_fact_publish_error_never_fails_call():
         returns the exact inner response
       - a fact without an ``org_id`` dimension is not published
     """
-    from techai_webutils.core.interfaces.fact_publisher import FactPublisher
-
     raising_publisher = MagicMock(spec=FactPublisher)
     raising_publisher.publish.side_effect = RuntimeError("queue gone")
     quiet_publisher = MagicMock(spec=FactPublisher)

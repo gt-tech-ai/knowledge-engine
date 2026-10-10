@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
@@ -78,11 +79,14 @@ func (f Fact) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes the analytics.fact wire form; a malformed body or
-// timestamp is CodeInvalidInput.
+// timestamp, or a schema other than FactSchemaVersion, is CodeInvalidInput.
 func (f *Fact) UnmarshalJSON(b []byte) error {
 	var w factWire
 	if err := json.Unmarshal(b, &w); err != nil {
 		return errors.Wrap(err, errors.CodeInvalidInput, "fact: decode")
+	}
+	if w.Schema != FactSchemaVersion {
+		return errors.New(errors.CodeInvalidInput, "fact: unknown schema version "+strconv.Itoa(w.Schema))
 	}
 	ts, err := time.Parse(time.RFC3339Nano, w.TS)
 	if err != nil {

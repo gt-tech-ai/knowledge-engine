@@ -66,10 +66,10 @@ func TestNewTxWorkflow_RunsPipelineInOneTransaction(t *testing.T) {
 //     with that code and a zero output
 func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 	t.Parallel()
-	ctrl := gomock.NewController(t)
 
 	t.Run("pipeline error", func(t *testing.T) {
 		t.Parallel()
+		ctrl := gomock.NewController(t)
 		txMgr := mocks.NewMockTransactionManager(ctrl)
 		pipe := mocks.NewMockPipeline[string, int](ctrl)
 		txMgr.EXPECT().WithTransaction(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -85,6 +85,7 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 
 	t.Run("commit error", func(t *testing.T) {
 		t.Parallel()
+		ctrl := gomock.NewController(t)
 		txMgr := mocks.NewMockTransactionManager(ctrl)
 		pipe := mocks.NewMockPipeline[string, int](ctrl)
 		txMgr.EXPECT().WithTransaction(gomock.Any(), gomock.Any()).DoAndReturn(

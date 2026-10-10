@@ -48,9 +48,13 @@ type Plan struct {
 // field) plus Detail and encoded dimensions, computes every shelf and encoded
 // measure, and carries the filter, range, grain and sort. Each pane's mark is the
 // spec's Mark or the inference O×O→text, O×Q→bar, T×Q→line, Q×Q→point. A cube
-// mismatch, an undeclared grain or a count_distinct measure (which additive
-// partials cannot answer) is CodeInvalidInput.
+// mismatch, a cube without Fields, an undeclared grain, a count_distinct measure
+// (which additive partials cannot answer) or a sort key the query neither groups
+// by nor computes is CodeInvalidInput.
 func Compile(spec types.VizSpec, cube CubeSchema) (Plan, error) {
+	if cube.Fields == nil {
+		return Plan{}, invalid("cube " + cube.Name + " has no field allow-list")
+	}
 	if spec.Cube != cube.Name {
 		return Plan{}, invalid("spec cube " + spec.Cube + " does not match " + cube.Name)
 	}
@@ -73,7 +77,8 @@ func Compile(spec types.VizSpec, cube CubeSchema) (Plan, error) {
 	return plan, nil
 }
 
-// aggregateQuery derives the group-by and measure lists of the spec's one query.
+// aggregateQuery derives the group-by and measure lists of the spec's one query
+// and checks that every sort key is one of them.
 func aggregateQuery(spec types.VizSpec, rows, cols []Tuple) (types.AggregateQuery, error) {
 	q := types.AggregateQuery{
 		Cube: spec.Cube, Filter: spec.Filter, TimeRange: spec.TimeRange, Grain: spec.Grain, Sort: spec.Sort,
@@ -105,6 +110,11 @@ func aggregateQuery(spec types.VizSpec, rows, cols []Tuple) (types.AggregateQuer
 	for _, ref := range refs {
 		if err := add(ref); err != nil {
 			return types.AggregateQuery{}, err
+		}
+	}
+	for _, o := range spec.Sort {
+		if !slices.Contains(q.GroupBy, o.Field) && !seenMeasure[o.Field] {
+			return types.AggregateQuery{}, invalid("sort key " + o.Field + " is neither grouped by nor computed")
 		}
 	}
 	return q, nil

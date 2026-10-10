@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
+from redis.asyncio import Redis
 
 from techai_webutils.clients.token_ledger import TokenLedgerConfig, TokenLedgerKind, token_ledger_from_config
 from techai_webutils.core.interfaces.token_ledger import UsageRecord, UsageScope
@@ -19,14 +20,10 @@ from techai_webutils.core.interfaces.token_ledger import UsageRecord, UsageScope
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from redis.asyncio import Redis
-
 
 @pytest_asyncio.fixture
 async def redis_client(redis_container: object) -> AsyncIterator[Redis]:
     """A ``decode_responses`` async client bound to the session's Redis container."""
-    from redis.asyncio import Redis
-
     host = redis_container.get_container_host_ip()  # type: ignore[attr-defined]
     port = int(redis_container.get_exposed_port(redis_container.port))  # type: ignore[attr-defined]
     client = Redis(host=host, port=port, decode_responses=True)

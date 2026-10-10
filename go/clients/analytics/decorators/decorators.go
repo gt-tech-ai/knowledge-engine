@@ -32,7 +32,7 @@ type Builder struct {
 	cb interfaces.CircuitBreaker
 	// name labels this store instance.
 	name string
-	// timeout bounds opening a stream and each write (0 = off).
+	// timeout bounds opening a stream, each write and each compaction (0 = off).
 	timeout time.Duration
 }
 
@@ -54,7 +54,8 @@ func (b *Builder) WithTracer(t interfaces.Tracer) *Builder { b.tracer = t; retur
 // WithCircuitBreaker sheds operations while the breaker is open (CodeUnavailable).
 func (b *Builder) WithCircuitBreaker(cb interfaces.CircuitBreaker) *Builder { b.cb = cb; return b }
 
-// WithTimeout bounds opening a stream and each write; an expired deadline is CodeTimeout.
+// WithTimeout bounds opening a stream, each write and each compaction; an
+// expired deadline is CodeTimeout.
 func (b *Builder) WithTimeout(d time.Duration) *Builder { b.timeout = d; return b }
 
 // Build returns the decorated store.
@@ -69,7 +70,25 @@ func (b *Builder) Build() interfaces.AnalyticsStore {
 			func(ctx context.Context, facts []types.Fact) (struct{}, error) {
 				return struct{}{}, b.base.Write(ctx, facts)
 			})),
+		compact: chain(b, "compact", execFunc[compactArgs, struct{}](
+			func(ctx context.Context, a compactArgs) (struct{}, error) {
+				c, ok := b.base.(interfaces.AnalyticsCompactor)
+				if !ok {
+					return struct{}{}, coreerr.New(coreerr.CodeInvalidInput, "analytics: store does not compact")
+				}
+				return struct{}{}, c.Compact(ctx, a.cube, a.grain, a.org, a.bucket)
+			})),
 	}
+}
+
+// compactArgs are one Compact call's arguments.
+type compactArgs struct {
+	// bucket is the bucket start.
+	bucket time.Time
+	// cube, org name the partition.
+	cube, org string
+	// grain is the table's grain.
+	grain types.Grain
 }
 
 // chain applies the layers to one operation, innermost first.
@@ -79,7 +98,9 @@ func chain[In, Out any](b *Builder, op string, e decorator.Executor[In, Out]) de
 		e = &codedTimeout[In, Out]{inner: decorator.Timeout(e, b.timeout)}
 	}
 	if b.cb != nil {
-		e = &breaker[In, Out]{inner: e, cb: b.cb}
+		e = decorator.CircuitBreaker(e, b.cb, func(err error) error {
+			return coreerr.Wrap(err, coreerr.CodeUnavailable, "analytics: circuit breaker open")
+		})
 	}
 	if b.tracer != nil {
 		e = decorator.Tracing(e, b.tracer, tier, name)
@@ -100,6 +121,8 @@ type store struct {
 	aggregate decorator.Executor[types.AggregateQuery, interfaces.RowStream]
 	// write is the decorated Write.
 	write decorator.Executor[[]types.Fact, struct{}]
+	// compact is the decorated Compact.
+	compact decorator.Executor[compactArgs, struct{}]
 }
 
 // Start starts the base store.
@@ -119,14 +142,11 @@ func (s *store) Write(ctx context.Context, facts []types.Fact) error {
 	return err
 }
 
-// Compact forwards to the base store's compactor; a base without one is
+// Compact runs the decorated Compact; a base without a compactor is
 // CodeInvalidInput.
 func (s *store) Compact(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time) error {
-	c, ok := s.base.(interfaces.AnalyticsCompactor)
-	if !ok {
-		return coreerr.New(coreerr.CodeInvalidInput, "analytics: store does not compact")
-	}
-	return c.Compact(ctx, cube, grain, org, bucket)
+	_, err := s.compact.Execute(ctx, compactArgs{bucket: bucket, cube: cube, org: org, grain: grain})
+	return err
 }
 
 // execFunc adapts a function to decorator.Executor.
@@ -146,31 +166,6 @@ func (d *codedTimeout[In, Out]) Execute(ctx context.Context, in In) (Out, error)
 	out, err := d.inner.Execute(ctx, in)
 	if err != nil && coreerr.StdIs(err, context.DeadlineExceeded) && coreerr.Code(err) != coreerr.CodeTimeout {
 		return out, coreerr.Wrap(err, coreerr.CodeTimeout, "analytics: operation timed out")
-	}
-	return out, err
-}
-
-// breaker runs each operation through a circuit breaker; a rejection without
-// running the operation (an open breaker) is CodeUnavailable.
-type breaker[In, Out any] struct {
-	// inner is the protected executor.
-	inner decorator.Executor[In, Out]
-	// cb decides whether to run it.
-	cb interfaces.CircuitBreaker
-}
-
-// Execute runs inner through the breaker.
-func (d *breaker[In, Out]) Execute(ctx context.Context, in In) (Out, error) {
-	var out Out
-	ran := false
-	err := d.cb.Execute(func() error {
-		ran = true
-		var inner error
-		out, inner = d.inner.Execute(ctx, in)
-		return inner
-	})
-	if err != nil && !ran {
-		return out, coreerr.Wrap(err, coreerr.CodeUnavailable, "analytics: circuit breaker open")
 	}
 	return out, err
 }

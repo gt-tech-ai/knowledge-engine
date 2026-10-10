@@ -7,6 +7,8 @@ Inside the async context a sender task takes up to ten facts at a time (waiting 
 ``SendMessageBatch``. The injected ``MessagePublisher`` carries its own retry, so this layer does not
 retry: a failed batch is dropped and counted (``reason="publish_error"``). Exiting the context drains
 the buffer within ``drain_timeout_s``; facts still buffered after it are counted (``reason="shutdown"``).
+Once closing — after ``aclose`` begins, or after the sender task died unexpectedly (logged with its
+exception) — ``publish`` drops and counts every fact (``reason="closed"``) instead of buffering it.
 """
 
 from __future__ import annotations
@@ -78,7 +80,14 @@ class MessagingFactPublisher(FactPublisher):
             self._dropped.inc(count, reason=reason)
 
     def publish(self, facts: Sequence[Fact]) -> None:
-        """Enqueue each fact's JSON without waiting; a full buffer drops and counts the fact."""
+        """Enqueue each fact's JSON without waiting; a full buffer drops and counts the fact.
+
+        A closing publisher (``aclose`` begun, or its sender died) drops and counts every fact.
+        """
+        if self._closing.is_set():
+            if facts:
+                self._drop(len(facts), "closed")
+            return
         for fact in facts:
             try:
                 self._buffer.put_nowait(fact.to_json())
@@ -89,7 +98,20 @@ class MessagingFactPublisher(FactPublisher):
         """Start the sender task."""
         self._closing.clear()
         self._sender = asyncio.create_task(self._run())
+        self._sender.add_done_callback(self._on_sender_done)
         return self
+
+    def _on_sender_done(self, task: asyncio.Task[None]) -> None:
+        """Log a sender that died with an exception and close the publisher, so it is not silent."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is None:
+            return
+        self._closing.set()
+        self._logger.error(
+            "fact sender stopped; later facts are dropped", queue=self._queue_name, exc_info=exc
+        )
 
     async def __aexit__(
         self,
@@ -101,18 +123,26 @@ class MessagingFactPublisher(FactPublisher):
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Drain buffered facts within ``drain_timeout_s``, count any left over, and stop the sender."""
+        """Drain buffered facts within ``drain_timeout_s``, count any left over, and stop the sender.
+
+        A sender that already died is not awaited again (its exception was logged when it died).
+        """
         self._closing.set()
-        if self._sender is None:
+        sender, self._sender = self._sender, None
+        if sender is None:
+            return
+        if sender.done():
+            # The sender died (its done-callback logged why); nothing will drain the buffer.
+            if self._buffer.qsize():
+                self._drop(self._buffer.qsize(), "shutdown")
             return
         try:
             await asyncio.wait_for(self._buffer.join(), timeout=self._drain_timeout_s)
         except TimeoutError:
             self._drop(self._buffer.qsize(), "shutdown")
-        self._sender.cancel()
+        sender.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await self._sender
-        self._sender = None
+            await sender
 
     async def _next_batch(self) -> list[bytes]:
         """Wait for one fact, then gather up to ``BATCH_SIZE`` within ``flush_interval_s``."""

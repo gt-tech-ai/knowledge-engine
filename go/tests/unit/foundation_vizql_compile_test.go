@@ -129,7 +129,9 @@ func TestCompile_DerivesOneAggregateQuery(t *testing.T) {
 //     aggregate the partials cannot answer must fail loudly, not return wrong data
 //
 // What it tests:
-//   - a cube mismatch, an undeclared grain and count_distinct are CodeInvalidInput
+//   - a cube mismatch, an undeclared grain, count_distinct, a sort on a key the
+//     query neither groups by nor computes, and a cube without an allow-list
+//     are CodeInvalidInput
 func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -139,11 +141,17 @@ func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 		"cube mismatch":  {Cube: "other", Rows: leaf("team", "")},
 		"grain":          {Cube: "genai_calls", Rows: leaf("team", ""), Grain: types.GrainMonth},
 		"count_distinct": {Cube: "genai_calls", Rows: leaf("user_id", types.AggCountDistinct)},
+		"sort off the query": {
+			Cube: "genai_calls", Rows: leaf("team", ""), Sort: []types.OrderField{{Field: "model"}},
+		},
 	} {
 		_, err := vizql.Compile(spec, cube)
 		require.Error(t, err, name)
 		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), name)
 	}
+
+	_, err := vizql.Compile(types.VizSpec{Cube: "genai_calls", Rows: leaf("team", "")}, vizql.CubeSchema{Name: "genai_calls"})
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")
 }
 
 // TestDrill_TeamToWorkspace tests drilling a dimension down one hierarchy level.
@@ -153,8 +161,10 @@ func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 //     field everywhere and leave the caller's spec untouched
 //
 // What it tests:
-//   - drilling "team" in team × model (detail team) yields workspace × model
-//     (detail workspace); the input spec is unchanged
+//   - drilling "team" in team × model (detail team, sorted by team desc then
+//     sum(tokens_in)) yields workspace × model (detail workspace, sorted by
+//     workspace desc then sum(tokens_in)); the input spec is unchanged
+//   - drilling with a cube that has no allow-list is CodeInvalidInput
 //   - drilling the hierarchy's last level, or a field in no hierarchy, is CodeInvalidInput
 func TestDrill_TeamToWorkspace(t *testing.T) {
 	t.Parallel()
@@ -163,10 +173,15 @@ func TestDrill_TeamToWorkspace(t *testing.T) {
 		Cube:   "genai_calls",
 		Rows:   &types.AlgebraExpr{Op: types.AlgebraCross, Args: []*types.AlgebraExpr{leaf("team", ""), leaf("model", "")}},
 		Detail: []types.FieldRef{{Name: "team"}},
+		Sort:   []types.OrderField{{Field: "team", Desc: true}, {Field: "sum(tokens_in)"}},
 	}
 
 	drilled, err := vizql.Drill(spec, vizCube(), "team")
 	require.NoError(t, err)
+	assert.Equal(t, []types.OrderField{{Field: "workspace", Desc: true}, {Field: "sum(tokens_in)"}}, drilled.Sort)
+	assert.Equal(t, "team", spec.Sort[0].Field, "input sort unchanged")
+	_, err = vizql.Drill(spec, vizql.CubeSchema{Hierarchies: vizCube().Hierarchies}, "team")
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")
 
 	assert.Equal(t, &types.FieldRef{Name: "workspace"}, drilled.Rows.Args[0].Field)
 	assert.Equal(t, &types.FieldRef{Name: "model"}, drilled.Rows.Args[1].Field)

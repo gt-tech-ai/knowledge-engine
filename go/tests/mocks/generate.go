@@ -4,7 +4,7 @@
 // The mock_*.go files are committed. CI regenerates them before it builds and
 // tests but does not check them for drift, so regenerate and commit them whenever
 // a mocked interface changes; local runs use the committed files.
-//go:generate mockgen -destination=mock_analytics.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AnalyticsStore,RowStream
+//go:generate mockgen -destination=mock_analytics.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces AnalyticsStore,AnalyticsCompactor,RowStream
 //go:generate mockgen -destination=mock_bulkhead.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Bulkhead
 //go:generate mockgen -destination=mock_cache.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces ByteCache
 //go:generate mockgen -destination=mock_cassandra.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra Session,Query,Iter,Batch
@@ -27,6 +27,8 @@
 //go:generate mockgen -destination=mock_metrics.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Metrics,Counter,Histogram,Gauge
 //go:generate mockgen -destination=mock_observer.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces ExecutionObserver
 //go:generate mockgen -destination=mock_outbox.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces OutboxStore,OutboxSink
+//go:generate mockgen -destination=mock_outbox_s3_api.go -package=mocks -mock_names=API=MockOutboxS3API github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/s3 API
+//go:generate mockgen -destination=mock_outbox_sqs_api.go -package=mocks -mock_names=API=MockOutboxSQSAPI github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/sqs API
 //go:generate mockgen -destination=mock_pipeline.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces Pipeline
 //go:generate mockgen -destination=mock_rate_limiter.go -package=mocks github.com/gt-tech-ai/knowledge-engine/go/core/interfaces RateLimiter
 //go:generate mockgen -destination=mock_reader.go -package=mocks io ReadCloser

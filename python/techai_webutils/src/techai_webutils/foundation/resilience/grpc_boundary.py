@@ -31,7 +31,8 @@ if TYPE_CHECKING:
 # ``RESOURCE_EXHAUSTED`` code, which is neither transient nor permanent. The one exception is an
 # explicit rate-limit pushback (``grpc-retry-pushback-ms`` or ``retry-after`` in the trailers): the
 # server named a delay after which the call will succeed, so the boundary raises a transient
-# ``UNAVAILABLE`` carrying that delay in ``details["retry_after_ms"]``.
+# ``UNAVAILABLE`` carrying that delay in ``details["retry_after_ms"]``, which ``RetryProxy`` and
+# ``retry_transient_async`` wait out before the next attempt.
 _TRANSIENT_GRPC_CODES = frozenset(
     {
         grpc.StatusCode.UNAVAILABLE,

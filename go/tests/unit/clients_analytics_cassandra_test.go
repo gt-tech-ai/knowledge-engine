@@ -224,8 +224,10 @@ func TestCassandraStore_WriteUpsertsOnePartialRowPerGrain(t *testing.T) {
 //
 // What it tests:
 //   - Aggregate with an undeclared cube, an undeclared grain, no org, or an open
-//     range, and Write with an undeclared cube, no org, or an empty idempotency
-//     key, each return CodeInvalidInput (no session call is made)
+//     range, and Write with an undeclared cube, no org, an empty idempotency
+//     key or an unknown schema version, each return CodeInvalidInput (no
+//     session call is made)
+//   - New with an unknown grain, or an unknown bucket width, is CodeInvalidInput
 func TestCassandraStore_RejectsInvalidQueriesAndFacts(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +246,205 @@ func TestCassandraStore_RejectsInvalidQueriesAndFacts(t *testing.T) {
 	for name, f := range map[string]types.Fact{
 		"cube": {Cube: "other", OrgID: "o", IdempotencyKey: "k"},
 		"org":  {Cube: "genai_calls", IdempotencyKey: "k"},
-		"key":  {Cube: "genai_calls", OrgID: "o"},
+		"key":    {Cube: "genai_calls", OrgID: "o"},
+		"schema": {Cube: "genai_calls", OrgID: "o", IdempotencyKey: "k", Schema: types.FactSchemaVersion + 1},
 	} {
 		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(store.Write(ctx, []types.Fact{f})), name)
 	}
+	for name, cfg := range map[string]analyticscassandra.Config{
+		"grain": {
+			Cubes:       map[string][]types.Grain{"genai_calls": {"fortnight"}},
+			BucketWidth: map[types.Grain]types.Grain{"fortnight": types.GrainMonth},
+		},
+		"bucket width": {
+			Cubes:       map[string][]types.Grain{"genai_calls": {types.GrainDay}},
+			BucketWidth: map[types.Grain]types.Grain{types.GrainDay: "quarter"},
+		},
+	} {
+		_, err := analyticscassandra.New(mocks.NewMockSession(gomock.NewController(t)), cfg)
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), name)
+	}
+}
+
+// TestCassandraStore_PageErrorIsTerminal tests that a failed page read ends
+// the stream instead of being skipped.
+//
+// Why this test is important:
+//   - Skipping a failed page gives the consumer a shorter result that looks
+//     complete, so the aggregates under-count and nothing reports an error
+//
+// What it tests:
+//   - when the first bucket's read fails with an UNAVAILABLE error, Next returns
+//     that error with no rows and more=false, and every later Next returns the
+//     same error; the second bucket's rows are never delivered
+func TestCassandraStore_PageErrorIsTerminal(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	session := mocks.NewMockSession(ctrl)
+	store := newCassandraStore(t, session)
+	from, to := day(time.September, 15), day(time.October, 15)
+	query := mocks.NewMockQuery(ctrl)
+	iter := mocks.NewMockIter(ctrl)
+	session.EXPECT().Query(gomock.Any(), "org-1", "genai_calls", day(time.September, 1), from, to).Return(query)
+	query.EXPECT().WithContext(gomock.Any()).Return(query)
+	query.EXPECT().PageSize(100).Return(query)
+	query.EXPECT().PageState(gomock.Nil()).Return(query)
+	query.EXPECT().Idempotent(true).Return(query)
+	query.EXPECT().Iter().Return(iter)
+	iter.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any()).Return(false)
+	iter.EXPECT().PageState().Return(nil)
+	iter.EXPECT().Close().Return(apperr.New(apperr.CodeUnavailable, "read timed out"))
+	expectPage(ctrl, session, day(time.October, 1), from, to, []storedRow{{
+		ts: day(time.October, 2), dims: map[string]string{"team": "t-1"},
+		partials: map[string][]byte{"tokens_in": encoded(t, 1)},
+	}})
+
+	stream, err := store.Aggregate(context.Background(), types.AggregateQuery{
+		Cube: "genai_calls", OrgID: "org-1", Grain: types.GrainDay,
+		Measures:  []types.MeasureRef{{Name: "tokens_in", Agg: types.AggSum}},
+		TimeRange: types.TimeRange{From: from, To: to},
+	})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, stream.Close()) }()
+
+	for range 2 {
+		rows, more, err := stream.Next(context.Background())
+		assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
+		assert.Nil(t, rows)
+		assert.False(t, more)
+	}
+}
+
+// TestCassandraStore_ResumeTokenIsBoundToItsQuery tests that a resume token only
+// resumes the query that issued it.
+//
+// Why this test is important:
+//   - A token from one query applied to another would skip buckets of the new
+//     query and return a silently incomplete answer
+//
+// What it tests:
+//   - the token returned after the first of two buckets is rejected as
+//     INVALID_INPUT when presented with a different org, with no read issued
+func TestCassandraStore_ResumeTokenIsBoundToItsQuery(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	session := mocks.NewMockSession(ctrl)
+	store := newCassandraStore(t, session)
+	from, to := day(time.September, 15), day(time.October, 15)
+	for _, b := range []time.Time{day(time.September, 1), day(time.October, 1)} {
+		expectPage(ctrl, session, b, from, to, nil)
+	}
+	q := types.AggregateQuery{
+		Cube: "genai_calls", OrgID: "org-1", Grain: types.GrainDay,
+		Measures:  []types.MeasureRef{{Name: "tokens_in", Agg: types.AggSum}},
+		TimeRange: types.TimeRange{From: from, To: to},
+	}
+	stream, err := store.Aggregate(context.Background(), q)
+	require.NoError(t, err)
+	_, more, err := stream.Next(context.Background())
+	require.NoError(t, err)
+	require.True(t, more)
+	token := stream.ResumeToken()
+	require.NoError(t, stream.Close())
+	require.NotEmpty(t, token)
+
+	q.OrgID, q.ResumeToken = "org-2", token
+	_, err = store.Aggregate(context.Background(), q)
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
+}
+
+// newTTLStore builds the store over a mock session with the genai_calls cube
+// rolled up hourly (daily buckets) and hourly rows kept for ttl.
+func newTTLStore(t *testing.T, session *mocks.MockSession, ttl time.Duration) *analyticscassandra.Store {
+	t.Helper()
+	store, err := analyticscassandra.New(session, analyticscassandra.Config{
+		Cubes:       map[string][]types.Grain{"genai_calls": {types.GrainHour}},
+		BucketWidth: map[types.Grain]types.Grain{types.GrainHour: types.GrainDay},
+		TTL:         map[types.Grain]time.Duration{types.GrainHour: ttl},
+		PageSize:    100,
+	})
+	require.NoError(t, err)
+	return store
+}
+
+// TestCassandraStore_CompactionKeepsTheBucketsRetention tests that compaction
+// writes the merged row with the retention left on its bucket, not a fresh TTL.
+//
+// Why this test is important:
+//   - A fresh TTL on every compaction would extend retention each time a bucket
+//     is compacted, keeping data past the configured lifetime
+//
+// What it tests:
+//   - compacting a bucket that closed a day ago, with a 10-day TTL, upserts the
+//     merged row USING TTL the seconds left until bucket end + 10 days (at most
+//     5 s below the value computed just before the call) and deletes the fact row
+//   - compacting a bucket whose bucket end + TTL has passed makes no session
+//     call at all and returns nil (its rows expire on their own)
+func TestCassandraStore_CompactionKeepsTheBucketsRetention(t *testing.T) {
+	t.Parallel()
+	ttl := 10 * 24 * time.Hour
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	t.Run("within retention", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		session := mocks.NewMockSession(ctrl)
+		query := mocks.NewMockQuery(ctrl)
+		iter := mocks.NewMockIter(ctrl)
+		batch := mocks.NewMockBatch(ctrl)
+		bucket := today.AddDate(0, 0, -2)
+		ts := bucket.Add(9 * time.Hour)
+		dims := map[string]string{"team": "t-1"}
+
+		session.EXPECT().Query(gomock.Any(), "org-1", "genai_calls", bucket).Return(query)
+		query.EXPECT().WithContext(gomock.Any()).Return(query)
+		query.EXPECT().PageSize(100).Return(query)
+		query.EXPECT().PageState(gomock.Nil()).Return(query)
+		query.EXPECT().Idempotent(true).Return(query)
+		query.EXPECT().Iter().Return(iter)
+		served := false
+		iter.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(dest ...any) bool {
+			if served {
+				return false
+			}
+			served = true
+			*dest[0].(*time.Time) = ts
+			*dest[1].(*string) = "team=t-1"
+			*dest[2].(*string) = "k-1"
+			*dest[3].(*map[string]string) = dims
+			*dest[4].(*map[string][]byte) = map[string][]byte{"tokens_in": encoded(t, 7)}
+			return true
+		}).Times(2)
+		iter.EXPECT().PageState().Return(nil)
+		iter.EXPECT().Close().Return(nil)
+
+		want := int(bucket.AddDate(0, 0, 1).Add(ttl).Sub(time.Now()) / time.Second)
+		session.EXPECT().Batch(gomock.Any()).Return(batch)
+		batch.EXPECT().WithContext(gomock.Any()).Return(batch)
+		batch.EXPECT().Query(
+			"INSERT INTO genai_calls_hour (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, '', ?, ?) USING TTL ?",
+			"org-1", "genai_calls", bucket, ts, "team=t-1", dims, gomock.Any(), gomock.Any(),
+		).Do(func(_ string, values ...any) {
+			got := values[7].(int)
+			assert.LessOrEqual(t, got, want)
+			assert.GreaterOrEqual(t, got, want-5)
+		})
+		batch.EXPECT().Query(
+			"DELETE FROM genai_calls_hour WHERE org_id = ? AND cube = ? AND bucket = ? AND ts = ? AND dims_key = ? AND idempotency_key = ?",
+			"org-1", "genai_calls", bucket, ts, "team=t-1", "k-1",
+		)
+		session.EXPECT().ExecuteBatch(batch).Return(nil)
+
+		require.NoError(t, newTTLStore(t, session, ttl).Compact(context.Background(), "genai_calls", types.GrainHour, "org-1", bucket))
+	})
+
+	t.Run("past retention", func(t *testing.T) {
+		t.Parallel()
+		session := mocks.NewMockSession(gomock.NewController(t))
+		bucket := today.AddDate(0, 0, -12)
+
+		require.NoError(t, newTTLStore(t, session, ttl).Compact(context.Background(), "genai_calls", types.GrainHour, "org-1", bucket))
+	})
 }

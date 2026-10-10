@@ -96,6 +96,8 @@ func (residual) OrderOrdinal(string, []string, bool) struct{} { return struct{}{
 func (residual) OrderDerived(types.DerivedSort, bool) struct{} { return struct{}{} }
 
 // compareString applies op to a dimension value; operands are compared as text.
+// OpLike is a case-insensitive substring match: unlike a SQL LIKE, `%` and `_`
+// are literal characters here, not wildcards.
 func compareString(got string, op types.FilterOperator, v any) bool {
 	switch op {
 	case types.OpEq:

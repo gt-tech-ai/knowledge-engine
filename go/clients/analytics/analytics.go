@@ -45,8 +45,9 @@ func New(kind Kind, opts ...options.Option[Config]) (interfaces.AnalyticsStore, 
 	return NewFromConfig(&cfg)
 }
 
-// NewFromConfig creates an AnalyticsStore from cfg. The cassandra kind dials its
-// session from cfg.Cassandra; an unknown kind is CodeInvalidInput.
+// NewFromConfig creates an AnalyticsStore from cfg without I/O. The cassandra
+// kind dials its session from cfg.Cassandra at Start; an unknown kind is
+// CodeInvalidInput.
 func NewFromConfig(cfg *Config) (interfaces.AnalyticsStore, error) {
 	switch cfg.Kind {
 	case KindStub:
@@ -56,11 +57,8 @@ func NewFromConfig(cfg *Config) (interfaces.AnalyticsStore, error) {
 		if dial == nil {
 			dial = cassandra.NewFromConfig
 		}
-		session, err := dial(&cfg.Cassandra)
-		if err != nil {
-			return nil, err
-		}
-		return analyticscassandra.New(session, analyticscassandra.Config{
+		sessionCfg := cfg.Cassandra
+		store, err := analyticscassandra.NewLazy(func() (cassandra.Session, error) { return dial(&sessionCfg) }, analyticscassandra.Config{
 			Keyspace:             cfg.Cassandra.Keyspace,
 			Cubes:                cfg.Cubes,
 			BucketWidth:          cfg.BucketWidth,
@@ -68,6 +66,10 @@ func NewFromConfig(cfg *Config) (interfaces.AnalyticsStore, error) {
 			PageSize:             cfg.Cassandra.PageSize,
 			MaxConcurrentBuckets: cfg.MaxConcurrentBuckets,
 		})
+		if err != nil {
+			return nil, err
+		}
+		return store, nil
 	default:
 		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf("unknown analytics kind: %v", cfg.Kind))
 	}

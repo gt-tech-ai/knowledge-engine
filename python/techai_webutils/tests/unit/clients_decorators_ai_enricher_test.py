@@ -49,8 +49,8 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
     **What it tests:**
       - the inner result is returned unchanged
       - the current span receives exactly ``gen_ai.system``, ``gen_ai.step``,
-        ``gen_ai.request.model``, ``gen_ai.usage.input_tokens``, ``gen_ai.usage.output_tokens``
-        and ``gen_ai.response.finish_reason`` with the response's values
+        ``gen_ai.request.model``, ``gen_ai.response.model``, ``gen_ai.usage.input_tokens``,
+        ``gen_ai.usage.output_tokens`` and ``gen_ai.response.finish_reason`` with the response's values
       - no span is opened (no span ``end``)
     """
     response = LLMResponse(
@@ -68,6 +68,7 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
         "gen_ai.system": "unknown",
         "gen_ai.step": "generate",
         "gen_ai.request.model": "nova-lite",
+        "gen_ai.response.model": "nova-lite",
         "gen_ai.usage.input_tokens": 42,
         "gen_ai.usage.output_tokens": 7,
         "gen_ai.response.finish_reason": "stop",
@@ -139,10 +140,75 @@ async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
         "gen_ai.system": "unknown",
         "gen_ai.step": "generate",
         "gen_ai.request.model": "nova-lite",
+        "gen_ai.response.model": "nova-lite",
         "gen_ai.usage.input_tokens": 30,
         "gen_ai.usage.output_tokens": 2,
         "gen_ai.response.finish_reason": "end_turn",
     }
+
+
+@pytest.mark.asyncio
+async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
+    """Test that ``stream_with_usage`` is enriched and still hands the caller its ``StreamUsage``.
+
+    **Why this test is important:**
+      - A caller that reads usage itself (cost accounting) calls ``stream_with_usage`` directly;
+        passing it through unwrapped left those generations off the span, metrics and facts.
+
+    **What it tests:**
+      - the caller sees exactly ``["Hel", "lo", usage]`` (the usage item is not swallowed)
+      - the span gets the requested model from the config and the served model from the usage
+    """
+    usage = StreamUsage(model="nova-lite-v1", input_tokens=30, output_tokens=2, finish_reason="end_turn")
+    inner = MagicMock(spec=LLMProvider)
+    inner.stream_with_usage = AsyncMock(return_value=_usage_stream("Hel", "lo", usage))
+    span = MagicMock()
+    enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
+
+    with patch(_SPAN_SOURCE, return_value=span):
+        iterator = await enricher.stream_with_usage(_messages(), LLMConfig(model="nova-lite"))
+        items = [t async for t in iterator]
+
+    assert items == ["Hel", "lo", usage]
+    assert _attributes(span) == {
+        "gen_ai.system": "unknown",
+        "gen_ai.step": "generate",
+        "gen_ai.request.model": "nova-lite",
+        "gen_ai.response.model": "nova-lite-v1",
+        "gen_ai.usage.input_tokens": 30,
+        "gen_ai.usage.output_tokens": 2,
+        "gen_ai.response.finish_reason": "end_turn",
+    }
+
+
+@pytest.mark.asyncio
+async def test_ai_span_enricher_reports_requested_and_served_model():
+    """Test that ``complete`` stamps the requested and the served model separately.
+
+    **Why this test is important:**
+      - A request may name an alias or an inference profile while another model serves it; cost
+        and latency must be attributed to the model that ran, not the one asked for.
+
+    **What it tests:**
+      - with ``LLMConfig(model="nova-alias")`` and a response from ``nova-lite-v1``,
+        ``gen_ai.request.model == "nova-alias"`` and ``gen_ai.response.model == "nova-lite-v1"``
+      - with no config, both are the response's model
+    """
+    response = LLMResponse(
+        content="hi", model="nova-lite-v1", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
+    aliased, plain = MagicMock(), MagicMock()
+    enricher = AiSpanEnricher(_llm(response), step="generate", capture_content=False)
+
+    with patch(_SPAN_SOURCE, return_value=aliased):
+        await enricher.complete(_messages(), LLMConfig(model="nova-alias"))
+    with patch(_SPAN_SOURCE, return_value=plain):
+        await enricher.complete(_messages())
+
+    assert _attributes(aliased)["gen_ai.request.model"] == "nova-alias"
+    assert _attributes(aliased)["gen_ai.response.model"] == "nova-lite-v1"
+    assert _attributes(plain)["gen_ai.request.model"] == "nova-lite-v1"
+    assert _attributes(plain)["gen_ai.response.model"] == "nova-lite-v1"
 
 
 def _result(i: int) -> RetrievalResult:

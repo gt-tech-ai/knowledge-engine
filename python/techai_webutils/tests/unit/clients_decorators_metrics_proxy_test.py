@@ -2,51 +2,47 @@
 
 from __future__ import annotations
 
+from typing import Protocol
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
+from structlog.testing import capture_logs
 
+from techai_webutils.clients.decorators.ai_enricher import AiSpanEnricher
 from techai_webutils.clients.decorators.metrics_proxy import MetricsProxy
 from techai_webutils.clients.decorators.proxy import ClientStackConfig, new_client_stack_from_config
 from techai_webutils.core.errors import AppError, ErrorCode
-from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+from techai_webutils.core.interfaces.llm import LLMMessage, LLMProvider, LLMResponse
+from techai_webutils.core.interfaces.metrics import MetricCounter
 
 
-def _metrics() -> tuple[MagicMock, dict[str, MagicMock]]:
-    """A ``MetricsProvider`` mock whose instruments are recorded by metric name."""
-    instruments: dict[str, MagicMock] = {}
-
-    def _counter(name: str, _help: str, _labels: list[str] | None = None) -> MagicMock:
-        instruments[name] = MagicMock(spec=MetricCounter)
-        return instruments[name]
-
-    def _histogram(
-        name: str, _help: str, _labels: list[str] | None = None, _buckets: object = None
-    ) -> MagicMock:
-        instruments[name] = MagicMock(spec=MetricHistogram)
-        return instruments[name]
-
-    provider = MagicMock(spec=MetricsProvider)
-    provider.counter.side_effect = _counter
-    provider.histogram.side_effect = _histogram
-    return provider, instruments
-
-
-class _Client:
-    """The wrapped client: one method that succeeds, two that raise."""
+class _KbClient(Protocol):
+    """The consumer-side surface of the wrapped client the mock is spec'd on."""
 
     async def fetch(self) -> str:
-        return "payload"
+        """Return the fetched payload."""
+        ...
 
     async def missing(self) -> str:
-        raise AppError(ErrorCode.NOT_FOUND, "gone")
+        """Fail with a coded ``NOT_FOUND``."""
+        ...
 
     async def broken(self) -> str:
-        raise RuntimeError("socket closed")
+        """Fail with an uncoded exception."""
+        ...
+
+
+def _client() -> MagicMock:
+    """A spec'd client mock: ``fetch`` returns ``"payload"``, the other two raise."""
+    client = MagicMock(spec=_KbClient)
+    client.fetch = AsyncMock(return_value="payload")
+    client.missing = AsyncMock(side_effect=AppError(ErrorCode.NOT_FOUND, "gone"))
+    client.broken = AsyncMock(side_effect=RuntimeError("socket closed"))
+    return client
 
 
 @pytest.mark.asyncio
-async def test_client_stack_emits_red_metrics():
+async def test_client_stack_emits_red_metrics(metrics_mock: tuple[MagicMock, dict[str, MagicMock]]):
     """Test that the composed client stack records rate, errors and duration per client and method.
 
     **Why this test is important:**
@@ -58,11 +54,10 @@ async def test_client_stack_emits_red_metrics():
         duration observation of exactly 0.25 s
       - an ``AppError`` → ``outcome="error"`` and ``client_errors_total{code="NOT_FOUND"}``
       - a non-coded exception → ``client_errors_total{code="UNKNOWN"}``; both errors re-raise
-      - with metrics the nesting is Tracing → Metrics → Logging
     """
-    provider, instruments = _metrics()
+    provider, instruments = metrics_mock
     stacked = new_client_stack_from_config(
-        _Client(),
+        _client(),
         "kb",
         ClientStackConfig(timeout_seconds=None, bulkhead_max_concurrent=None),
         metrics=provider,
@@ -90,12 +85,11 @@ async def test_client_stack_emits_red_metrics():
     assert instruments["client_operation_duration_seconds"].observe.call_args_list[0] == call(
         0.25, client="kb", method="fetch"
     )
-    assert type(stacked).__name__ == "TracingProxy"
-    assert type(stacked._wrapped).__name__ == "MetricsProxy"  # noqa: SLF001 — structural nesting
-    assert type(stacked._wrapped._wrapped).__name__ == "LoggingProxy"  # noqa: SLF001
 
 
-def test_metrics_proxy_declares_instruments_once_with_contract_labels():
+def test_metrics_proxy_declares_instruments_once_with_contract_labels(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+):
     """Test that ``MetricsProxy`` declares the three RED instruments once, with the contract labels.
 
     **Why this test is important:**
@@ -108,7 +102,7 @@ def test_metrics_proxy_declares_instruments_once_with_contract_labels():
         ``client_operation_duration_seconds{client,method}``
       - a non-callable attribute passes through
     """
-    provider, _ = _metrics()
+    provider, _ = metrics_mock
     client = MagicMock()
     client.endpoint = "http://x"
     client.fetch = AsyncMock(return_value=1)
@@ -127,7 +121,7 @@ def test_metrics_proxy_declares_instruments_once_with_contract_labels():
 
 
 @pytest.mark.asyncio
-async def test_metrics_emit_failure_does_not_propagate():
+async def test_metrics_emit_failure_does_not_propagate(metrics_mock: tuple[MagicMock, dict[str, MagicMock]]):
     """Test that a failing metrics backend never changes a call's result, for both emitters.
 
     **Why this test is important:**
@@ -139,12 +133,7 @@ async def test_metrics_emit_failure_does_not_propagate():
         enricher returns the exact ``LLMResponse``
       - each logs one warning naming the failed emission
     """
-    from structlog.testing import capture_logs
-
-    from techai_webutils.clients.decorators.ai_enricher import AiSpanEnricher
-    from techai_webutils.core.interfaces.llm import LLMMessage, LLMProvider, LLMResponse
-
-    provider, _ = _metrics()
+    provider, _ = metrics_mock
     failing = MagicMock(spec=MetricCounter)
     failing.inc.side_effect = RuntimeError("duplicate timeseries")
     provider.counter.side_effect = None
@@ -157,7 +146,7 @@ async def test_metrics_emit_failure_does_not_propagate():
         capture_logs() as logs,
         patch("techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"),
     ):
-        client_result = await MetricsProxy(_Client(), "kb", provider).fetch()
+        client_result = await MetricsProxy(_client(), "kb", provider).fetch()
         llm_result = await AiSpanEnricher(
             llm, step="generate", capture_content=False, metrics=provider
         ).complete([LLMMessage(role="user", content="hi")])

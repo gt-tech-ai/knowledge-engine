@@ -1,12 +1,20 @@
 package vizql
 
-import "github.com/gt-tech-ai/knowledge-engine/go/core/types"
+import (
+	"slices"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
+)
 
 // Drill returns a copy of spec with the dimension field replaced, wherever it is
-// used as a dimension (shelves, detail, encodings), by its child in the cube's
-// hierarchy. The input spec is not modified. A field in no hierarchy, at a
-// hierarchy's last level, or whose child the cube does not declare is CodeInvalidInput.
+// used as a dimension (shelves, detail, encodings, sort keys), by its child in
+// the cube's hierarchy. The input spec is not modified. A cube without Fields, a
+// field in no hierarchy, at a hierarchy's last level, or whose child the cube does
+// not declare is CodeInvalidInput.
 func Drill(spec types.VizSpec, cube CubeSchema, field string) (types.VizSpec, error) {
+	if cube.Fields == nil {
+		return types.VizSpec{}, invalid("cube " + cube.Name + " has no field allow-list")
+	}
 	child, ok := childOf(cube.Hierarchies, field)
 	if !ok {
 		return types.VizSpec{}, invalid("field " + field + " has no child level to drill into")
@@ -28,6 +36,14 @@ func Drill(spec types.VizSpec, cube CubeSchema, field string) (types.VizSpec, er
 	}
 	if spec.Detail == nil {
 		out.Detail = nil
+	}
+	if spec.Sort != nil {
+		out.Sort = slices.Clone(spec.Sort)
+		for i := range out.Sort {
+			if out.Sort[i].Field == field {
+				out.Sort[i].Field = child
+			}
+		}
 	}
 	enc := []**types.FieldRef{&out.Encodings.Color, &out.Encodings.Size, &out.Encodings.Shape, &out.Encodings.Label}
 	for _, slot := range enc {

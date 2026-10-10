@@ -37,7 +37,8 @@ type TestCassandra struct {
 }
 
 // NewTestCassandra starts a single-node Cassandra 5 with a small heap and waits
-// (up to 4 minutes) until cqlsh can query system.local.
+// (up to 4 minutes) until cqlsh can query system.local. Each wait step gets the
+// same 4-minute budget: the per-step default (60s) is shorter than a cold start.
 func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 	req := testcontainers.ContainerRequest{
 		Image:        cassandraImage,
@@ -52,7 +53,7 @@ func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 			wait.ForListeningPort(cqlPort),
 			wait.ForExec([]string{"cqlsh", "-e", "SELECT release_version FROM system.local"}).
 				WithExitCodeMatcher(func(code int) bool { return code == 0 }),
-		).WithDeadline(4 * time.Minute),
+		).WithStartupTimeoutDefault(4 * time.Minute).WithDeadline(4 * time.Minute),
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,

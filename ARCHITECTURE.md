@@ -95,27 +95,37 @@ collaborator or zero timeout skips its layer (the service builder always adds re
   `foundation/decorate` (`OpMiddleware`, `Chain`, `Exec[R]` for custom repository/service ops), and
   `clients/decorators` (the client-boundary `Stack`: `Run`, `RunStream`, `StackFromConfig`).
   `foundation/decorator` (Go and Python) exposes `Unwrap` so tests can reach the wrapped unit.
+  Its generic `CircuitBreaker(inner, cb, onOpen)` codes only an open-breaker rejection as
+  `UNAVAILABLE`; the operation's own error passes through with its code.
 - **Go — workflow helpers.** `decorators.Decorate(wf, op, logger, metrics, tracer, cfg)` is the
   standard workflow stack (the builder with `cfg.Timeout` from `schema/workflows.Load`), and
   `workflow.NewTxWorkflow(txMgr, pipe)` runs a command pipeline inside one transaction.
-- **Python — `__getattr__` proxies** in `clients/decorators/proxy.py` (`LoggingProxy`,
-  `RetryProxy`, `CircuitBreakerProxy`, …) apply their concern around each awaited call;
-  `new_client_stack_from_config` composes them. Tier builders reuse `foundation/decorator.py`.
+- **Python — `__getattr__` proxies** in `clients/decorators/proxy.py` (`LoggingProxy`, `RetryProxy`,
+  `CircuitBreakerProxy`, …) apply their concern around each awaited call;
+  `new_client_stack_from_config` composes them. `RetryProxy` (async) and `retry_transient_async`
+  wait out a server pushback (`details["retry_after_ms"]`, read by `retry_after_s`) before the next
+  attempt, capped by `max_pushback_s` / the retry's max delay. Tier builders reuse
+  `foundation/decorator.py`.
 - **Python — GenAI span enrichment.** `clients/decorators/ai_enricher.AiSpanEnricher` wraps an
   `LLMProvider` or `RetrievalEngine` and stamps the span already current (the step's) with
-  `gen_ai.system`, `gen_ai.step`, `gen_ai.request.model`, `gen_ai.usage.{input,output}_tokens`,
+  `gen_ai.system`, `gen_ai.step`, `gen_ai.request.model` (the model asked for),
+  `gen_ai.response.model` (the model that served the call), `gen_ai.usage.{input,output}_tokens`,
   `gen_ai.response.finish_reason`, or `retrieval.{top_k,result_count,document_ids}`; it opens no span.
-  Streamed calls go through `LLMProvider.stream_with_usage`, whose last item is a `StreamUsage`.
+  Both `stream` and `stream_with_usage` are wrapped (the latter re-yields its trailing
+  `StreamUsage`). Around a `FallbackLlmProvider`, `gen_ai.system` names the fallback, not the member
+  that served; wrap each member in its own enricher to attribute it.
   Optional content capture records `gen_ai.content.{prompt,completion}` events, PII-redacted by
   `foundation/logger/redact.redact_pii` (the Go `RedactPII` port; both suites read
   `testdata/redact_vectors.json`) and capped at 4 KiB. With an injected `MetricsProvider` it emits
-  `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}`; with an
-  injected `FactPublisher` it publishes one `genai_calls` analytics fact per model call, whose
+  `gen_ai_tokens_total{step,model,type}` and `gen_ai_request_duration_seconds{step,model}` under the
+  served model; with an injected `FactPublisher` it publishes one `genai_calls` analytics fact per
+  model call (stamped with the call's start time), whose
   product dimensions come from an injected `fact_dimensions` callable (the KE names no product
   dimension). A stamping or emission failure is logged, never raised.
 - **Python — client RED metrics.** `clients/decorators/metrics_proxy.MetricsProxy` (the client
   stack's Metrics layer) emits `client_operations_total{client,method,outcome}`,
   `client_errors_total{client,method,code}` and `client_operation_duration_seconds{client,method}`.
+  A streamed call is measured at open only, not over the stream's lifetime.
 
 Inner logging layers (client stack, repository, service, pipeline, workflow) log failures at Debug
 so the outermost recovery/transport seam logs the Error once; the lock and replay-buffer loggers
@@ -173,13 +183,13 @@ index yields an unthreaded trace; a malformed `traceparent` drops only the link.
 (`concat`, `cross`, `nest`) over one cube's fields, plus detail, encodings, a listquery filter,
 sort, time range, grain and an optional mark. `foundation/vizql` is the pure compiler (no I/O):
 `Parse` validates the JSON spec against the cube's `listquery.Map` (a field's `Role` — dimension,
-measure or time — and the `Aggregates` a measure permits; depth ≤ 8; every rejection
-`CodeInvalidInput`), `Normalize` builds the tuple table, `Compile` derives one `AggregateQuery`
-plus the panes and a mark per pane (O×O text, O×Q bar, T×Q line, Q×Q point), `Drill` swaps a
-dimension for its hierarchy child, and the reducer merges `Partial`s (sum, count, min, max and a
-1%-accurate DDSketch for p50/p95/p99). Facts travel as `core/types.Fact`, whose JSON is
-byte-identical to Python's `core/types/fact.Fact` (both suites assert
-`testdata/analytics_fact.golden.json`).
+measure or time — and the `Aggregates` a measure permits; a sort key must name a placed dimension or
+aggregated measure; depth ≤ 8; every rejection `CodeInvalidInput`), `Normalize` builds the tuple
+table, `Compile` derives one `AggregateQuery` plus the panes and a mark per pane (O×O text, O×Q bar,
+T×Q line, Q×Q point), `Drill` swaps a dimension for its hierarchy child (sort keys included), and
+the reducer merges `Partial`s (sum, count, min, max and a 1%-accurate DDSketch for p50/p95/p99).
+Facts travel as `core/types.Fact`, whose JSON is byte-identical to Python's `core/types/fact.Fact`
+(both suites assert `testdata/analytics_fact.golden.json`).
 
 `core/interfaces.AnalyticsStore` (`Aggregate` → a pull-based, page-at-a-time `RowStream`; idempotent
 `Write`; optional `AnalyticsCompactor`) is built by `clients/analytics` (`KindStub` default,
@@ -187,20 +197,30 @@ byte-identical to Python's `core/types/fact.Fact` (both suites assert
 (self-managed, token- and DC-aware) or `KindKeyspaces` (Amazon Keyspaces: TLS + SigV4) — and keeps
 to the CQL both share: one table per cube and grain, partition `((org_id, cube, bucket))`,
 clustering `(ts, dims_key, idempotency_key)`, one partial row per fact (a redelivery overwrites it),
-dimension filters applied in Go (time clauses also narrow the clustering range), and compaction in
-single-partition logged batches of at most 30 statements.
+dimension filters applied in Go (time clauses also narrow the clustering range; `OpLike` is a
+case-insensitive substring match with `%` and `_` literal), and compaction in single-partition
+logged batches of at most 30 statements. `NewFromConfig` does no I/O: the Cassandra store is built
+by `NewLazy` and dials at `Start` (an operation before it is `CodeUnavailable`); Keyspaces defaults
+to port `DefaultPort` (9142) and loads the AWS credentials chain on first use. A stream's first read
+error is terminal, a resume token is bound to the query that issued it, and a compacted row keeps
+the bucket's retention: it expires at bucket end + the grain's TTL (CQL `TTL()` cannot be read off a
+non-frozen map, so the TTL is anchored to the bucket, not to each fact's write).
 
 The transactional outbox is split by tier. `core/interfaces.OutboxStore` (`Claim` leases due rows,
 `MarkSent` / `Retry` / `Park` / `Stats`) is supplied by the consumer over its own table;
 `core/interfaces.OutboxSink` returns one result per record. `services/outbox.Relay.RunOnce` claims a
 batch, sends it in `SendBatch` chunks under a `Concurrency` bound, and finalizes each row by its own
 outcome: sent, retried at `now + FullJitter(min(Base·2^attempts, Max))`, or parked on its
-`MaxAttempts`th attempt (`outbox_{sent,retried,parked}_total`, `outbox_depth`,
-`outbox_lag_seconds` by lane). `clients/outbox` builds the sink (`KindStub` default, `KindSQS`,
-`KindS3`) over an injected SDK client: SQS routes each row by its `route` attribute through a
-config route → queue map with per-queue failure isolation; S3 writes one object per row by key
-template with Content-MD5 (Object Lock) and optional SSE-KMS. `go/tests/fixtures/outboxtest` is the
-store conformance suite (`Run`, `RunRouting`) plus a test-only Postgres reference store.
+`MaxAttempts`th attempt (`outbox_{sent,retried,parked}_total`, `outbox_depth`, `outbox_lag_seconds`
+by lane). With `ParkOnPermanent` a permanent failure parks the row at once; a run cancelled mid-send
+leaves its unfinished rows leased for the next claim. `LoadRelayConfig` reads a lane's `RelayConfig`
+over the defaults. `clients/outbox` builds the sink (`KindStub` default, `KindSQS`, `KindS3`) over
+an injected SDK client: SQS routes each row by its `route` attribute through a config route → queue
+map with per-queue failure isolation (a `.fifo` queue gets group id `Key`, else `Tenant`, else
+`Lane`, and deduplication id `ID`); the sinks keep an SDK error's code (`errors.CodeOr`); S3 writes
+one object per row by key template with Content-MD5 (Object Lock) and optional SSE-KMS.
+`go/tests/fixtures/outboxtest` is the store conformance suite (`Run`, `RunRouting`) plus a test-only
+Postgres reference store.
 
 ## Configuration
 

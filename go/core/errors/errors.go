@@ -202,6 +202,16 @@ func Code(err error) ErrorCode {
 	return CodeUnknown
 }
 
+// CodeOr extracts err's ErrorCode like Code, but returns fallback when err
+// carries no code (an uncoded third-party error, or nil). Use it to wrap a
+// client error without discarding a code the client already chose.
+func CodeOr(err error, fallback ErrorCode) ErrorCode {
+	if code := Code(err); code != CodeUnknown {
+		return code
+	}
+	return fallback
+}
+
 // WithDetails returns a copy of the error with additional details.
 func WithDetails(err *AppError, details map[string]string) *AppError {
 	copied := *err

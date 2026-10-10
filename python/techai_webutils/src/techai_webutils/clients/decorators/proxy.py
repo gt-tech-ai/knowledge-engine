@@ -18,6 +18,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import inspect
 import time
@@ -29,10 +30,13 @@ from opentelemetry import trace
 from techai_webutils.clients.decorators.metrics_proxy import MetricsProxy
 from techai_webutils.core.errors.errors import AppError
 from techai_webutils.foundation.logger.logger import get_logger
+from techai_webutils.foundation.resilience.async_retry import retry_after_s
 from techai_webutils.foundation.resilience.bulkhead import SemaphoreBulkhead
 from techai_webutils.foundation.resilience.timeout import with_timeout
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from techai_webutils.core.interfaces.bulkhead import Bulkhead
     from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
     from techai_webutils.core.interfaces.hedger import Hedger
@@ -179,18 +183,30 @@ class TracingProxy:
 class RetryProxy:
     """Proxy that retries failed method calls on transient errors."""
 
-    def __init__(self, wrapped: object, max_attempts: int = 3) -> None:
+    def __init__(
+        self,
+        wrapped: object,
+        max_attempts: int = 3,
+        *,
+        max_pushback_s: float = 10.0,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
         """Wrap ``wrapped``, retrying transient ``AppError``s up to ``max_attempts`` times (minimum 1).
 
         Retries are IMMEDIATE (no backoff) — the call is re-invoked in a tight loop, which suits fast,
-        idempotent calls. For exponential backoff + jitter use ``retry_transient_async`` instead; do not
-        stack both around the same target (their attempt counts multiply).
+        idempotent calls — except after an async failure carrying a server pushback
+        (``details["retry_after_ms"]``, set by the gRPC boundary): the next attempt then waits that
+        long, capped at ``max_pushback_s`` seconds, through ``sleep``. A sync method never waits. For
+        exponential backoff + jitter use ``retry_transient_async`` instead; do not stack both around
+        the same target (their attempt counts multiply).
         """
         if max_attempts < 1:
             msg = f"max_attempts must be >= 1, got {max_attempts}"
             raise ValueError(msg)
         self._wrapped = wrapped
         self._max_attempts = max_attempts
+        self._max_pushback_s = max_pushback_s
+        self._sleep = sleep
 
     def __getattr__(self, name: str) -> object:
         """Intercept attribute access and wrap callable attributes with retry logic.
@@ -209,13 +225,16 @@ class RetryProxy:
             async def awrapper(*args: object, **kwargs: object) -> object:
                 """Await the wrapped coroutine, retrying transient AppError failures."""
                 last_err: BaseException | None = None
-                for _attempt in range(self._max_attempts):
+                for attempt in range(self._max_attempts):
                     try:
                         return await attr(*args, **kwargs)
                     except AppError as e:
                         if not e.is_transient:
                             raise
                         last_err = e
+                        pushback = retry_after_s(e)
+                        if pushback is not None and attempt + 1 < self._max_attempts:
+                            await self._sleep(min(pushback, self._max_pushback_s))
                 if last_err is not None:
                     raise last_err
                 msg = "unreachable"

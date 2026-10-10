@@ -52,6 +52,8 @@ func TestAnalyticsCassandraSuite(t *testing.T) {
 	suite.Run(t, new(AnalyticsCassandraSuite))
 }
 
+// SetupSuite starts the Cassandra container, creates the keyspace and the cube's
+// hour and day tables, and opens the session every test shares.
 func (s *AnalyticsCassandraSuite) SetupSuite() {
 	s.CassandraIntegrationSuite.SetupSuite()
 	ctx := context.Background()
@@ -72,6 +74,7 @@ func (s *AnalyticsCassandraSuite) SetupSuite() {
 	s.session = session
 }
 
+// TearDownSuite closes the shared session, then stops the container.
 func (s *AnalyticsCassandraSuite) TearDownSuite() {
 	if s.session != nil {
 		s.session.Close()
@@ -306,7 +309,9 @@ func (s *AnalyticsCassandraSuite) TestCassandra_PagingResumeToken() {
 
 // crashingSession passes through to a real session but fails the first insert
 // into one table — a process dying between a fact's per-grain writes. It is a
-// fault-injecting decorator over the real Cassandra, not a stand-in for it.
+// fault-injecting decorator over the real testcontainers session, not a stand-in
+// for it: every other statement reaches the real Cassandra, so it is not a test
+// double under the policy.
 type crashingSession struct {
 	cassandra.Session
 	table   string
@@ -323,17 +328,21 @@ func (c *crashingSession) Query(stmt string, values ...any) cassandra.Query {
 	return q
 }
 
-// crashingQuery fails Exec without reaching Cassandra.
+// crashingQuery wraps the real query of the failed insert and fails Exec without
+// reaching Cassandra; its other methods delegate to the real query.
 type crashingQuery struct{ cassandra.Query }
 
+// WithContext keeps the crash armed on the context-bound query.
 func (q crashingQuery) WithContext(ctx context.Context) cassandra.Query {
 	return crashingQuery{q.Query.WithContext(ctx)}
 }
 
+// Idempotent keeps the crash armed on the idempotent query.
 func (q crashingQuery) Idempotent(b bool) cassandra.Query {
 	return crashingQuery{q.Query.Idempotent(b)}
 }
 
+// Exec fails with CodeUnavailable, as a process killed mid-write would.
 func (crashingQuery) Exec() error { return coreerr.New(coreerr.CodeUnavailable, "process killed") }
 
 // TestCassandra_CrashBetweenWritesDoesNotLoseMeasures tests that a write that

@@ -6,6 +6,7 @@ package sqs
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,6 +19,9 @@ import (
 
 // maxBatch is SendMessageBatch's per-request entry limit.
 const maxBatch = 10
+
+// fifoSuffix marks a FIFO queue's name.
+const fifoSuffix = ".fifo"
 
 // API is the part of the AWS SQS client the sink uses; *awssqs.Client satisfies it.
 //
@@ -39,13 +43,16 @@ type API interface {
 
 // Config configures the SQS sink. At least one of Queue and Routes is required.
 type Config struct {
-	// API is the SQS client (e.g. *awssqs.Client); required.
-	API API
+	// API is the SQS client (e.g. *awssqs.Client); required. It is injected by
+	// the composition root, never read from config.
+	API API `yaml:"-" mapstructure:"-"`
 	// Routes maps a record's route (its types.OutboxRouteAttribute attribute) to
 	// the queue name it is sent to.
 	Routes map[string]string `yaml:"routes" mapstructure:"routes"`
 	// Queue is the queue a record without a route is sent to ("" = such a record
-	// is rejected). Every queue must already exist.
+	// is rejected). Every queue must already exist. A queue whose name ends in
+	// ".fifo" is a FIFO queue: each message's group id is the record's Key (else
+	// its Tenant, else its Lane) and its deduplication id is the record's ID.
 	Queue string `yaml:"queue" mapstructure:"queue"`
 }
 
@@ -137,15 +144,16 @@ func (s *Sink) sendQueue(ctx context.Context, queue string, recs []types.OutboxR
 			batch[j] = recs[i]
 		}
 		out := make([]error, len(part))
-		s.sendBatch(ctx, url, batch, out)
+		s.sendBatch(ctx, url, strings.HasSuffix(queue, fifoSuffix), batch, out)
 		for j, i := range part {
 			results[i] = out[j]
 		}
 	}
 }
 
-// sendBatch sends one batch and writes each entry's outcome into results.
-func (s *Sink) sendBatch(ctx context.Context, url string, recs []types.OutboxRecord, results []error) {
+// sendBatch sends one batch and writes each entry's outcome into results; fifo
+// adds each entry's message group and deduplication ids.
+func (s *Sink) sendBatch(ctx context.Context, url string, fifo bool, recs []types.OutboxRecord, results []error) {
 	entries := make([]sqstypes.SendMessageBatchRequestEntry, len(recs))
 	for i := range recs {
 		rec := &recs[i]
@@ -158,10 +166,14 @@ func (s *Sink) sendBatch(ctx context.Context, url string, recs []types.OutboxRec
 				"lane":      stringAttr(rec.Lane),
 			},
 		}
+		if fifo {
+			entries[i].MessageGroupId = aws.String(groupID(rec))
+			entries[i].MessageDeduplicationId = aws.String(rec.ID.String())
+		}
 	}
 	out, err := s.api.SendMessageBatch(ctx, &awssqs.SendMessageBatchInput{QueueUrl: aws.String(url), Entries: entries})
 	if err != nil {
-		fill(results, coreerr.Wrap(err, codeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: send batch"))
+		fill(results, coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: send batch"))
 		return
 	}
 	fill(results, coreerr.New(coreerr.CodeInternal, "outbox sqs sink: no result for entry"))
@@ -195,7 +207,7 @@ func (s *Sink) queueURL(ctx context.Context, queue string) (string, error) {
 	}
 	out, err := s.api.GetQueueUrl(ctx, &awssqs.GetQueueUrlInput{QueueName: aws.String(queue)})
 	if err != nil {
-		return "", coreerr.Wrap(err, codeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: resolve queue "+queue)
+		return "", coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: resolve queue "+queue)
 	}
 	url = aws.ToString(out.QueueUrl)
 	s.mu.Lock()
@@ -210,6 +222,16 @@ func entryIndex(id *string, n int) (int, bool) {
 	return i, err == nil && i >= 0 && i < n
 }
 
+// groupID is rec's FIFO message group: its Key, else its Tenant, else its Lane.
+func groupID(rec *types.OutboxRecord) string {
+	for _, id := range []string{rec.Key, rec.Tenant} {
+		if id != "" {
+			return id
+		}
+	}
+	return rec.Lane
+}
+
 // stringAttr is a String message attribute.
 func stringAttr(v string) sqstypes.MessageAttributeValue {
 	return sqstypes.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(v)}
@@ -220,12 +242,4 @@ func fill(results []error, err error) {
 	for i := range results {
 		results[i] = err
 	}
-}
-
-// codeOr keeps err's code when it has one, else uses fallback.
-func codeOr(err error, fallback coreerr.ErrorCode) coreerr.ErrorCode {
-	if code := coreerr.Code(err); code != coreerr.CodeUnknown {
-		return code
-	}
-	return fallback
 }
