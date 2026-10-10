@@ -6,7 +6,7 @@ assert the provider's logic (the /api/embed request shape + the plural-key respo
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -139,13 +139,14 @@ class TestEmbeddingFactory:
             factory must override it, so a regression back to the default is a silent re-break.
 
         **What it tests:**
-          - A provider built with timeout_seconds=123.0 carries a 123.0s read timeout on its client.
+          - A provider built with timeout_seconds=123.0 opens its httpx client with a 123.0s timeout.
         """
-        provider = new_embedding_from_config(
-            EmbeddingConfig(kind=EmbeddingKind.OLLAMA, timeout_seconds=123.0),
-        )
+        with patch("httpx.AsyncClient") as client_cls:
+            provider = new_embedding_from_config(
+                EmbeddingConfig(kind=EmbeddingKind.OLLAMA, timeout_seconds=123.0),
+            )
         assert isinstance(provider, OllamaEmbeddingProvider)
-        assert provider._client.timeout.read == pytest.approx(123.0)  # noqa: SLF001
+        assert client_cls.call_args.kwargs["timeout"] == pytest.approx(123.0)
 
     def test_unknown_kind_raises(self) -> None:
         """An unknown embedding kind fails loudly."""

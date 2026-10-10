@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from techai_webutils.clients.retrieval.filtering import (
     FilteringRetrievalEngine,
@@ -90,10 +90,10 @@ class RetrievalConfig:
 
     def __post_init__(self) -> None:
         """Reject a non-numeric ``min_score`` (e.g. ``None``) here rather than on every retrieve."""
-        if isinstance(self.min_score, bool) or not isinstance(
-            self.min_score, int | float
-        ):
-            msg = f"RetrievalConfig.min_score must be a number, got {self.min_score!r}"
+        # Read as ``object``: the annotation says float, but a caller can still pass None.
+        min_score = cast("object", self.min_score)
+        if isinstance(min_score, bool) or not isinstance(min_score, int | float):
+            msg = f"RetrievalConfig.min_score must be a number, got {min_score!r}"
             raise TypeError(msg)
 
 

@@ -333,7 +333,7 @@ class TestMultiError:
           - multi.errors contains exactly 2 errors
           - str(multi) includes "2 errors" for human readability
         """
-        errs = [NotFoundError("a"), AppTimeoutError("b")]
+        errs: list[BaseException] = [NotFoundError("a"), AppTimeoutError("b")]
         multi = MultiError(errs)
         assert len(multi.errors) == 2
         assert "2 errors" in str(multi)

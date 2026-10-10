@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -31,11 +32,13 @@ def test_factory_selects_isolated_backend() -> None:
       - ``parser_from_config`` returns an ``IsolatedParser`` that is a ``DocumentParser``, carrying the
         configured memory/timeout budgets.
     """
-    parser = parser_from_config(ParserConfig(memory_bytes=123, timeout_seconds=7.0))
+    config = ParserConfig(memory_bytes=123, timeout_seconds=7.0)
+    parser = parser_from_config(config)
     assert isinstance(parser, IsolatedParser)
     assert isinstance(parser, DocumentParser)
-    assert parser._memory_bytes == 123  # noqa: SLF001 — asserting the config threaded to the backend
-    assert parser._timeout_seconds == pytest.approx(7.0)  # noqa: SLF001
+    with patch("techai_webutils.clients.parsing.isolated.IsolatedParser") as parser_cls:
+        parser_from_config(config)
+    parser_cls.assert_called_once_with(memory_bytes=123, timeout_seconds=7.0)
 
 
 def test_factory_rejects_unknown_kind() -> None:

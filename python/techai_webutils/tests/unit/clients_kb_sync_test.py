@@ -5,6 +5,7 @@ The old ``KbSyncBatcher`` dissolved into composable decorators; these preserve i
 """
 
 import asyncio
+from typing import TypedDict, Unpack
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
@@ -46,7 +47,16 @@ def _job(state: IngestionJobState, job_id: str = "job-1") -> IngestionJob:
     return IngestionJob(job_id=job_id, state=state)
 
 
-def _polling(inner: KnowledgeBaseIngestor, **kwargs: float) -> PollingIngestor:
+class _PollingOptions(TypedDict, total=False):
+    """The PollingIngestor options a test may override."""
+
+    max_poll_seconds: float
+    """The poll deadline in seconds."""
+
+
+def _polling(
+    inner: KnowledgeBaseIngestor, **kwargs: Unpack[_PollingOptions]
+) -> PollingIngestor:
     """Build a PollingIngestor with a no-op sleep + zero interval (instant poll tests)."""
     return PollingIngestor(inner, poll_interval_seconds=0.0, sleep=_noop_sleep, **kwargs)
 

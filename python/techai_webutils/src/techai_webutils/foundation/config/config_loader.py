@@ -6,7 +6,7 @@ contract from core/interfaces.
 
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from techai_webutils.core.interfaces.config_loader import ConfigLoader
 from techai_webutils.foundation.config.loader import load_config
@@ -77,7 +77,7 @@ class YamlConfigLoader(ConfigLoader):
         for part in parts:
             if not isinstance(current, dict):
                 return None
-            current = current.get(part)
+            current = cast("dict[str, object]", current).get(part)
             if current is None:
                 return None
         return current

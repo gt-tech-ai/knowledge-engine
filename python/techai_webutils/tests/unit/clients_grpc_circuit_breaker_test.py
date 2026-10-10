@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import grpc
@@ -54,7 +54,7 @@ class TestCircuitBreakerInterceptor:
         """
         # A closed breaker: entering its `with` context is a no-op that lets the call through.
         cb = MagicMock(spec=CircuitBreaker)
-        interceptor = CircuitBreakerInterceptor(cb)  # type: ignore[arg-type]
+        interceptor = CircuitBreakerInterceptor(cb)
 
         sentinel = object()
         continuation = AsyncMock(return_value=_Call(sentinel))
@@ -64,7 +64,7 @@ class TestCircuitBreakerInterceptor:
         result = await interceptor.intercept_unary_unary(
             continuation, call_details, request
         )
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         continuation.assert_awaited_once_with(call_details, request)
 
     @pytest.mark.asyncio
@@ -80,7 +80,7 @@ class TestCircuitBreakerInterceptor:
         # An open breaker: entering its `with` context raises CircuitOpenError before the call runs.
         cb = MagicMock(spec=CircuitBreaker)
         cb.__enter__.side_effect = CircuitOpenError()
-        interceptor = CircuitBreakerInterceptor(cb)  # type: ignore[arg-type]
+        interceptor = CircuitBreakerInterceptor(cb)
 
         continuation = AsyncMock()
         call_details = MagicMock()

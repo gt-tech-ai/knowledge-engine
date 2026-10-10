@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -52,8 +53,9 @@ async def test_enricher_emits_gen_ai_tokens_total_from_response(
         ``inc(7, step="generate", model="nova", type="output")``, nothing else
     """
     provider, instruments = metrics_mock
-    enricher = AiSpanEnricher(
-        _llm(), step="generate", capture_content=False, metrics=provider
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(_llm(), step="generate", capture_content=False, metrics=provider),
     )
 
     with patch(f"{_MODULE}.trace.get_current_span", return_value=MagicMock()):
@@ -85,8 +87,9 @@ async def test_enricher_observes_request_duration(
       - a call timed 10.0 → 12.5 s observes exactly 2.5 with ``step="generate", model="nova"``
     """
     provider, instruments = metrics_mock
-    enricher = AiSpanEnricher(
-        _llm(), step="generate", capture_content=False, metrics=provider
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(_llm(), step="generate", capture_content=False, metrics=provider),
     )
 
     with (
@@ -128,13 +131,16 @@ async def test_enricher_reports_metrics_and_fact_under_the_served_model(
         datetime(2026, 10, 9, 12, 0, tzinfo=UTC),
         datetime(2026, 10, 9, 12, 5, tzinfo=UTC),
     )
-    enricher = AiSpanEnricher(
-        _llm(),
-        step="generate",
-        capture_content=False,
-        metrics=provider,
-        facts=facts,
-        fact_dimensions=lambda: {"org_id": "org-1"},
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(
+            _llm(),
+            step="generate",
+            capture_content=False,
+            metrics=provider,
+            facts=facts,
+            fact_dimensions=lambda: {"org_id": "org-1"},
+        ),
     )
 
     with (
@@ -183,13 +189,20 @@ async def test_enricher_emits_one_fact_per_call_with_configured_dims(
     provider, instruments = metrics_mock
     facts = MagicMock(spec=FactPublisher)
     now = datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
-    enricher = AiSpanEnricher(
-        _llm(),
-        step="generate",
-        capture_content=False,
-        metrics=provider,
-        facts=facts,
-        fact_dimensions=lambda: {"org_id": "org-1", "team": "t-1", "workspace": "w-1"},
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(
+            _llm(),
+            step="generate",
+            capture_content=False,
+            metrics=provider,
+            facts=facts,
+            fact_dimensions=lambda: {
+                "org_id": "org-1",
+                "team": "t-1",
+                "workspace": "w-1",
+            },
+        ),
     )
 
     with (
@@ -251,12 +264,15 @@ async def test_enricher_fact_publish_error_never_fails_call() -> None:
         for publisher, dims in cases:
             inner = _llm()
             expected = inner.complete.return_value
-            enricher = AiSpanEnricher(
-                inner,
-                step="generate",
-                capture_content=False,
-                facts=publisher,
-                fact_dimensions=dims,
+            enricher = cast(
+                "LLMProvider",
+                AiSpanEnricher(
+                    inner,
+                    step="generate",
+                    capture_content=False,
+                    facts=publisher,
+                    fact_dimensions=dims,
+                ),
             )
             assert (
                 await enricher.complete([LLMMessage(role="user", content="hi")])

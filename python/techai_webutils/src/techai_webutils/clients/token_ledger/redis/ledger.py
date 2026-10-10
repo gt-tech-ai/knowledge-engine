@@ -29,7 +29,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from techai_webutils.clients.token_ledger.cost import MICRO_DOLLAR
 from techai_webutils.core.errors.errors import AppError, ErrorCode
@@ -232,7 +232,7 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         """Sum counter rows (``HMGET`` replies) field by field; a missing field counts as 0."""
         totals = [0, 0, 0, 0]
         for row in rows:
-            for i, value in enumerate(row):  # type: ignore[arg-type]
+            for i, value in enumerate(cast("list[bytes | str | None]", row)):
                 text = _text(value)
                 totals[i] += int(text) if text else 0
         return totals[0], totals[1], totals[2], totals[3]

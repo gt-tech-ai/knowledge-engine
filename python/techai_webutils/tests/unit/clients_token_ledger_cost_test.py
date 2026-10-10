@@ -44,7 +44,7 @@ _tokens = st.integers(min_value=0, max_value=10_000_000)
 
 @given(_tokens, _tokens, _tokens, st.integers(min_value=0, max_value=1_000_000))
 def test_cost_is_non_negative_monotonic_and_exact(
-    input_tokens, output_tokens, embed_tokens, extra
+    input_tokens: int, output_tokens: int, embed_tokens: int, extra: int
 ) -> None:
     """Test that cost is non-negative, monotonic in every token count, and exact to the micro-dollar.
 

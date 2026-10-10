@@ -6,7 +6,8 @@ import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from hypothesis import given
@@ -24,6 +25,9 @@ from techai_webutils.core.interfaces.fact_publisher import FactPublisher
 from techai_webutils.core.interfaces.messaging import MessagePublisher
 from techai_webutils.core.interfaces.metrics import MetricCounter, MetricsProvider
 from techai_webutils.core.types.fact import Fact
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 _GOLDEN = Path(__file__).resolve().parents[4] / "testdata" / "analytics_fact.golden.json"
 
@@ -168,14 +172,23 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
         metrics=metrics,
     )
 
-    async with publisher:
-        publisher.publish([_fact(1)])
-        sender = publisher._sender  # noqa: SLF001 — the only handle on the task whose death is under test
-        assert sender is not None
-        await asyncio.wait([sender])
-        publisher.publish([_fact(2), _fact(3)])
-        await publisher.aclose()
-        publisher.publish([_fact(4)])
+    senders: list[asyncio.Task[None]] = []
+    create_task = asyncio.create_task
+
+    def _track_sender(coro: Coroutine[object, object, None]) -> asyncio.Task[None]:
+        """Create the task as asyncio does and keep the handle whose death is under test."""
+        task = create_task(coro)
+        senders.append(task)
+        return task
+
+    with patch("asyncio.create_task", side_effect=_track_sender):
+        async with publisher:
+            publisher.publish([_fact(1)])
+            [sender] = senders
+            await asyncio.wait([sender])
+            publisher.publish([_fact(2), _fact(3)])
+            await publisher.aclose()
+            publisher.publish([_fact(4)])
 
     assert dropped.inc.call_args_list == [
         ((), {"reason": "publish_error"}),

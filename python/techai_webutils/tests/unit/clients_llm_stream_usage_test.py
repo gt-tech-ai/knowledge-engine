@@ -8,7 +8,7 @@ are not empty for streamed traffic, while ``stream()`` stays the text-only API.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -249,13 +249,15 @@ async def test_stream_filters_out_usage() -> None:
 class _TextOnlyProvider(NoOpAsyncResource, LLMProvider):
     """A provider implementing only the abstract API, as a third-party provider would."""
 
+    @override
     async def complete(
         self, messages: list[LLMMessage], config: LLMConfig | None = None
     ) -> LLMResponse:
         raise NotImplementedError
 
+    @override
     async def stream(
-        self, _messages: list[LLMMessage], _config: LLMConfig | None = None
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
     ) -> AsyncIterator[str]:
         async def _gen() -> AsyncIterator[str]:
             await asyncio.sleep(0)

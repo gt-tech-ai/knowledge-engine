@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import ray
 
@@ -35,7 +35,7 @@ def _reset_ray_client() -> None:
     """Best-effort teardown of a half-open Ray client between connect retries (never raises)."""
     with contextlib.suppress(Exception):
         if ray.is_initialized():
-            ray.shutdown()
+            cast("Callable[[], None]", ray.shutdown)()
 
 
 @ray.remote
@@ -89,7 +89,7 @@ class RealRayRuntime:
             return
         try:
             await asyncio.to_thread(
-                ray.init,
+                cast("Callable[..., object]", ray.init),
                 address=self._address,
                 namespace=self._namespace,
                 ignore_reinit_error=True,
@@ -111,7 +111,7 @@ class RealRayRuntime:
         # of re-pickling the (identical) mapper per item. fan_out drives the whole batch with
         # one mapper, so an identity check puts it exactly once; Ray caches the object on each worker.
         if fn is not self._cached_fn:
-            self._mapper_ref = ray.put(fn)
+            self._mapper_ref = cast("Callable[[object], object]", ray.put)(fn)
             self._cached_fn = fn
         # basedpyright ignores the untyped @ray.remote decorator, so `.remote` is invisible to it (the
         # dev LSP env, where ray is unresolved); the mapper arg is a ray ObjectRef held as `object`

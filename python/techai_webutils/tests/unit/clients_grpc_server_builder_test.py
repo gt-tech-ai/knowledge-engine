@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
@@ -21,10 +22,37 @@ from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import (
 )
 from techai_webutils.clients.transport.grpc.server import GracefulServer, ServerConfig
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Awaitable, Callable
+
 _HEADERS = HeaderClaimMapping(
     user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
 )
 """The gateway header contract these tests configure."""
+
+
+async def _call_unary(
+    handler: grpc.RpcMethodHandler[object, object] | None,
+    request: object,
+    context: object,
+) -> object:
+    """Invoke an aio unary-unary handler; grpc's stubs type the behavior as synchronous."""
+    assert handler is not None
+    behavior = cast("Callable[[object, object], Awaitable[object]]", handler.unary_unary)
+    return await behavior(request, context)
+
+
+def _call_stream(
+    handler: grpc.RpcMethodHandler[object, object] | None,
+    request: object,
+    context: object,
+) -> AsyncIterator[object]:
+    """Invoke an aio unary-stream handler; grpc's stubs type the behavior as synchronous."""
+    assert handler is not None
+    behavior = cast(
+        "Callable[[object, object], AsyncIterator[object]]", handler.unary_stream
+    )
+    return behavior(request, context)
 
 
 def _names(interceptors: list[grpc.aio.ServerInterceptor]) -> list[str]:
@@ -180,7 +208,7 @@ class TestMetricsServerInterceptor:
     """Behaviour of the metrics interceptor: per-RPC execution count, duration, and errors."""
 
     @staticmethod
-    def _details(method: str = "/svc/M") -> object:
+    def _details(method: str = "/svc/M") -> grpc.HandlerCallDetails:
         """Handler-call-details carrying the RPC method name (the metric label)."""
         return MagicMock(method=method)
 
@@ -211,7 +239,7 @@ class TestMetricsServerInterceptor:
             AsyncMock(return_value=real), self._details()
         )
 
-        assert await wrapped.unary_unary("req", MagicMock()) == "ok"
+        assert await _call_unary(wrapped, "req", MagicMock()) == "ok"
         executions.inc.assert_called_once()
         histogram.observe.assert_called_once()
         errors.inc.assert_not_called()
@@ -244,7 +272,7 @@ class TestMetricsServerInterceptor:
         )
 
         with pytest.raises(RuntimeError):
-            await wrapped.unary_unary("req", MagicMock())
+            await _call_unary(wrapped, "req", MagicMock())
         errors.inc.assert_called_once()
         histogram.observe.assert_called_once()
 
@@ -277,7 +305,7 @@ class TestMetricsServerInterceptor:
             AsyncMock(return_value=real), self._details()
         )
 
-        stream = wrapped.unary_stream("req", MagicMock())
+        stream = _call_stream(wrapped, "req", MagicMock())
         assert await anext(stream) == "a"
         with pytest.raises(RuntimeError):
             await anext(stream)
@@ -292,7 +320,7 @@ class TestRecoveryServerInterceptor:
     """
 
     @staticmethod
-    def _details(method: str = "/svc/M") -> object:
+    def _details(method: str = "/svc/M") -> grpc.HandlerCallDetails:
         """Handler-call-details carrying the RPC method name."""
         return MagicMock(method=method)
 
@@ -322,7 +350,7 @@ class TestRecoveryServerInterceptor:
         context = MagicMock()
         context.abort = AsyncMock()
 
-        await wrapped.unary_unary("req", context)
+        await _call_unary(wrapped, "req", context)
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.INTERNAL
 
@@ -354,7 +382,7 @@ class TestRecoveryServerInterceptor:
         context.abort = AsyncMock()
 
         with pytest.raises(grpc.aio.AbortError):
-            await wrapped.unary_unary("req", context)
+            await _call_unary(wrapped, "req", context)
         context.abort.assert_not_called()
 
     @pytest.mark.asyncio
@@ -384,7 +412,7 @@ class TestRecoveryServerInterceptor:
         context = MagicMock()
         context.abort = AsyncMock()
 
-        collected = [item async for item in wrapped.unary_stream("req", context)]
+        collected = [item async for item in _call_stream(wrapped, "req", context)]
         assert collected == ["a"]
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.INTERNAL
@@ -455,12 +483,12 @@ class TestServiceAuthInterceptor:
     """Test suite for the s2s service-token validation interceptor."""
 
     @staticmethod
-    def _details(metadata: list[tuple[str, str]]) -> object:
+    def _details(metadata: list[tuple[str, str]]) -> grpc.HandlerCallDetails:
         """Build handler-call-details carrying the given invocation metadata."""
         return MagicMock(invocation_metadata=metadata)
 
     @staticmethod
-    def _handler() -> grpc.RpcMethodHandler:
+    def _handler() -> grpc.RpcMethodHandler[object, object]:
         """Return a real unary-unary handler so the deny path can inspect its streaming shape."""
         return grpc.unary_unary_rpc_method_handler(lambda _req, _ctx: "ok")
 
@@ -519,7 +547,7 @@ class TestServiceAuthInterceptor:
         assert result is not handler  # a deny handler was substituted
         context = MagicMock()
         context.abort = AsyncMock()
-        await result.unary_unary("req", context)
+        await _call_unary(result, "req", context)
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.UNAUTHENTICATED
 

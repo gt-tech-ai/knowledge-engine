@@ -57,7 +57,7 @@ from techai_webutils.foundation.logger.logger import get_logger
 from techai_webutils.foundation.logger.redact import redact_pii
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Mapping
+    from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 
     from opentelemetry.trace import Span
 
@@ -335,7 +335,9 @@ class AiSpanEnricher:
             span = trace.get_current_span()
             started_at = _utcnow()
             start = perf_counter()
-            response: LLMResponse = await attr(*args, **kwargs)  # type: ignore[misc]
+            response = await cast("Callable[..., Awaitable[LLMResponse]]", attr)(
+                *args, **kwargs
+            )
             duration = perf_counter() - start
             requested = _requested_model(args, kwargs)
             served = response.model or requested
@@ -383,7 +385,10 @@ class AiSpanEnricher:
             # stamped later, because by exhaustion another span may be current.
             span = trace.get_current_span()
             opened = _Opened(_utcnow(), perf_counter(), _requested_model(args, kwargs))
-            items: AsyncIterator[str | StreamUsage] = await source(*args, **kwargs)  # type: ignore[misc]
+            opener = cast(
+                "Callable[..., Awaitable[AsyncIterator[str | StreamUsage]]]", source
+            )
+            items = await opener(*args, **kwargs)
             return self._relay(
                 items, span, _messages_arg(args, kwargs), opened, keep_usage=keep_usage
             )
@@ -438,7 +443,9 @@ class AiSpanEnricher:
         @functools.wraps(attr)
         async def retrieve(*args: object, **kwargs: object) -> list[RetrievalResult]:
             span = trace.get_current_span()
-            results: list[RetrievalResult] = await attr(*args, **kwargs)  # type: ignore[misc]
+            results = await cast("Callable[..., Awaitable[list[RetrievalResult]]]", attr)(
+                *args, **kwargs
+            )
             self._safely(self._stamp_retrieval, span, args, kwargs, results)
             return results
 

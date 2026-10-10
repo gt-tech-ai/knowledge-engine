@@ -27,8 +27,6 @@ from techai_webutils.foundation.decorator import (
     AsyncTracingDecoratorBase,
     LoggingDecoratorBase,
     MetricsDecoratorBase,
-    RecoveryDecoratorBase,
-    TimeoutDecoratorBase,
 )
 from techai_webutils.pipelines.base import BasePipeline
 
@@ -87,7 +85,7 @@ class _AsyncPipelineWrapper[In, Out](AsyncPipeline[In, Out]):
         # If the sync pipeline is actually BasePipeline (async-first design),
         # use its internal async implementation directly
         if isinstance(sync_pipeline, BasePipeline):
-            self._async_pipeline = sync_pipeline._async  # noqa: SLF001
+            self._async_pipeline = sync_pipeline.async_pipeline
             self._sync_pipeline = None
         else:
             # For other sync pipelines, we need to wrap them
@@ -126,22 +124,6 @@ class MetricsPipelineDecorator[In, Out](MetricsDecoratorBase[In, Out], Pipeline[
     ) -> None:
         """Wrap inner with duration-histogram metrics."""
         super().__init__(inner, name, histogram)
-
-
-class _TimeoutPipelineDecorator[In, Out](
-    TimeoutDecoratorBase[In, Out], Pipeline[In, Out]
-):
-    """Pipeline decorator that enforces a timeout on synchronous execution."""
-
-    def __init__(self, inner: Pipeline[In, Out], timeout: float) -> None:
-        """Wrap inner with a "pipeline"-labelled timeout."""
-        super().__init__(inner, timeout, noun="pipeline")
-
-
-class _RecoveryPipelineDecorator[In, Out](
-    RecoveryDecoratorBase[In, Out], Pipeline[In, Out]
-):
-    """Pipeline decorator that normalizes unexpected exceptions to InternalError."""
 
 
 class PipelineBuilder[In, Out]:

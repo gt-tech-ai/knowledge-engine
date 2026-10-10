@@ -222,7 +222,7 @@ class TestTracingServerInterceptor:
         """
         interceptor = TracingServerInterceptor("test-svc")
 
-        class _Details:
+        class _Details(grpc.HandlerCallDetails):
             method = "/svc/Method"
             invocation_metadata = ()
 
@@ -257,7 +257,7 @@ class TestTracingServerInterceptor:
 
         handler = grpc.unary_stream_rpc_method_handler(behavior)
 
-        class _Details:
+        class _Details(grpc.HandlerCallDetails):
             method = "/svc/Stream"
             invocation_metadata = ()
 
@@ -292,7 +292,7 @@ class TestTracingServerInterceptor:
 
         handler = grpc.unary_unary_rpc_method_handler(behavior)
 
-        class _Details:
+        class _Details(grpc.HandlerCallDetails):
             method = "/svc/Method"
             invocation_metadata = ()
 

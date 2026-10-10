@@ -1,7 +1,9 @@
 """Tests for the retrieval engines, the config-selected factory, and the policy filter."""
 
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any, TypedDict, Unpack
-from unittest.mock import AsyncMock, create_autospec, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
 
@@ -47,6 +49,19 @@ def _passage(doc: str, score: float = 0.9, **metadata: str) -> RetrievalResult:
     )
 
 
+@contextmanager
+def _bedrock_client(client: AsyncMock) -> Generator[None]:
+    """Make every Bedrock engine built inside the block open ``client`` on first use.
+
+    The engine opens its bedrock-agent-runtime client through ``aiobotocore``'s session, so this
+    mocks that SDK boundary rather than reaching into the engine.
+    """
+    session = MagicMock()
+    session.create_client.return_value.__aenter__.return_value = client
+    with patch("aiobotocore.session.get_session", return_value=session):
+        yield
+
+
 def _inner_returning(*passages: RetrievalResult) -> RetrievalEngine:
     """Return a mocked inner RetrievalEngine whose ``retrieve`` returns ``passages``."""
     inner = create_autospec(RetrievalEngine, instance=True)
@@ -90,18 +105,17 @@ class TestBedrockIndexRouting:
 
     @staticmethod
     def _engine(kb_default: str) -> tuple[BedrockRetrievalEngine, AsyncMock]:
-        """Return a BedrockRetrievalEngine and the mock client pre-set on it.
-
-        The pre-set client bypasses the lazy aiobotocore open.
-        """
+        """Return a BedrockRetrievalEngine and the mock client its lazy aiobotocore open yields."""
         from techai_webutils.clients.retrieval.bedrock.engine import (
             BedrockRetrievalEngine,
         )
 
-        engine = BedrockRetrievalEngine(region="us-east-1", knowledge_base_id=kb_default)
         client = AsyncMock()
         client.retrieve = AsyncMock(return_value={"retrievalResults": []})
-        engine._client = client  # noqa: SLF001 - inject the mocked bedrock-agent-runtime client
+        with _bedrock_client(client):
+            engine = BedrockRetrievalEngine(
+                region="us-east-1", knowledge_base_id=kb_default
+            )
         return engine, client
 
     @pytest.mark.asyncio
@@ -197,7 +211,13 @@ class TestBedrockIndexRouting:
         throttle = ClientError(
             {
                 "Error": {"Code": "ThrottlingException"},
-                "ResponseMetadata": {"HTTPStatusCode": 429},
+                "ResponseMetadata": {
+                    "RequestId": "",
+                    "HostId": "",
+                    "HTTPStatusCode": 429,
+                    "HTTPHeaders": {},
+                    "RetryAttempts": 0,
+                },
             },
             "Retrieve",
         )
@@ -511,7 +531,8 @@ class TestRetrievalFactory:
             scope_keys=["tenant"],
         )
 
-    def test_bedrock_kind_wraps_bedrock_in_filter(self) -> None:
+    @pytest.mark.asyncio
+    async def test_bedrock_kind_wraps_bedrock_in_filter(self) -> None:
         """kind=bedrock builds a filtering engine wrapping the Bedrock engine.
 
         **Why this test is important:**
@@ -519,17 +540,20 @@ class TestRetrievalFactory:
             wrap it exactly as it wraps the stub.
 
         **What it tests:**
-          - The engine is a FilteringRetrievalEngine whose inner is a BedrockRetrievalEngine.
+          - The engine is a FilteringRetrievalEngine whose retrieve reaches Bedrock's Retrieve on
+            the configured knowledge base.
         """
-        from techai_webutils.clients.retrieval.bedrock import BedrockRetrievalEngine
-
-        engine = new_retrieval_engine_from_config(
-            RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb"),
-            policies=[],
-        )
+        client = AsyncMock()
+        client.retrieve.return_value = {"retrievalResults": []}
+        with _bedrock_client(client):
+            engine = new_retrieval_engine_from_config(
+                RetrievalConfig(kind=RetrievalKind.BEDROCK, knowledge_base_id="kb"),
+                policies=[],
+            )
 
         assert isinstance(engine, FilteringRetrievalEngine)
-        assert isinstance(engine._inner, BedrockRetrievalEngine)  # noqa: SLF001
+        assert await engine.retrieve("q") == []
+        assert client.retrieve.call_args.kwargs["knowledgeBaseId"] == "kb"
 
     def test_unknown_kind_raises(self) -> None:
         """An unknown retrieval kind fails loudly.
@@ -569,7 +593,20 @@ class TestRetrievalFactory:
 
         assert [r.document_id for r in results] == ["keep"]
 
-    def test_bedrock_config_threads_search_type_and_reranker(self) -> None:
+    @staticmethod
+    async def _factory_vector_config(config: RetrievalConfig) -> dict[str, Any]:
+        """Build a Bedrock engine through the factory and return the vectorSearchConfiguration it sends."""
+        client = AsyncMock()
+        client.retrieve.return_value = {"retrievalResults": []}
+        with _bedrock_client(client):
+            engine = new_retrieval_engine_from_config(config, policies=[])
+        await engine.retrieve("q")
+        return client.retrieve.call_args.kwargs["retrievalConfiguration"][
+            "vectorSearchConfiguration"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_bedrock_config_threads_search_type_and_reranker(self) -> None:
         """kind=bedrock threads the config-selected search_type + reranker into the Bedrock engine.
 
         **Why this test is important:**
@@ -577,50 +614,43 @@ class TestRetrievalFactory:
             either would silently fall back to semantic-only, no-rerank retrieval.
 
         **What it tests:**
-          - search_type=hybrid + reranking_kind=bedrock_rerank + a model id reach the engine.
+          - search_type=hybrid + reranking_kind=bedrock_rerank + a model id reach the Retrieve request.
         """
-        from techai_webutils.clients.retrieval.bedrock import BedrockRetrievalEngine
-
-        engine = new_retrieval_engine_from_config(
+        vsc = await self._factory_vector_config(
             RetrievalConfig(
                 kind=RetrievalKind.BEDROCK,
                 knowledge_base_id="kb",
                 search_type="hybrid",
                 reranking_kind="bedrock_rerank",
                 reranking_model="cohere.rerank-v3-5:0",
-            ),
-            policies=[],
+            )
         )
-        assert isinstance(engine, FilteringRetrievalEngine)
-        inner = engine._inner  # noqa: SLF001
-        assert isinstance(inner, BedrockRetrievalEngine)
-        assert inner._search_type == "hybrid"  # noqa: SLF001
-        assert inner._reranking_model == "cohere.rerank-v3-5:0"  # noqa: SLF001
+        assert vsc["overrideSearchType"] == "HYBRID"
+        assert vsc["rerankingConfiguration"]["bedrockRerankingConfiguration"][
+            "modelConfiguration"
+        ]["modelArn"].endswith("/cohere.rerank-v3-5:0")
 
-    def test_reranking_kind_none_disables_reranker_even_with_a_model_id(self) -> None:
+    @pytest.mark.asyncio
+    async def test_reranking_kind_none_disables_reranker_even_with_a_model_id(
+        self,
+    ) -> None:
         """reranking_kind=none disables the reranker regardless of a stray model id.
 
         **Why this test is important:**
           - The kind is the switch; a leftover model id must not quietly turn on (and bill for) reranking.
 
         **What it tests:**
-          - reranking_kind=none with a model id set builds an engine with an empty reranking_model.
+          - reranking_kind=none with a model id set sends no rerankingConfiguration.
         """
-        from techai_webutils.clients.retrieval.bedrock import BedrockRetrievalEngine
-
-        engine = new_retrieval_engine_from_config(
+        vsc = await self._factory_vector_config(
             RetrievalConfig(
                 kind=RetrievalKind.BEDROCK,
                 knowledge_base_id="kb",
                 reranking_kind="none",
                 reranking_model="cohere.rerank-v3-5:0",
-            ),
-            policies=[],
+            )
         )
-        assert isinstance(engine, FilteringRetrievalEngine)
-        inner = engine._inner  # noqa: SLF001
-        assert isinstance(inner, BedrockRetrievalEngine)
-        assert not inner._reranking_model  # noqa: SLF001
+        assert "rerankingConfiguration" not in vsc
 
     @pytest.mark.asyncio
     async def test_factory_threads_the_bedrock_seams(self) -> None:
@@ -633,21 +663,23 @@ class TestRetrievalFactory:
           - A factory-built Bedrock engine sends the injected filter and resolves ids with the injected
             resolver.
         """
-        engine = new_retrieval_engine_from_config(
-            RetrievalConfig(
-                kind=RetrievalKind.BEDROCK, knowledge_base_id="kb-1", min_score=0.0
-            ),
-            policies=[],
-            filter_builder=lambda f: {"equals": {"key": "tenant", "value": f["tenant"]}},
-            document_id_resolver=lambda metadata, _filters: metadata["doc"],
-        )
         client = AsyncMock()
         client.retrieve.return_value = {
             "retrievalResults": [
                 {"content": {"text": "c"}, "score": 0.1, "metadata": {"doc": "d1"}}
             ]
         }
-        engine._inner._client = client  # type: ignore[attr-defined]  # noqa: SLF001
+        with _bedrock_client(client):
+            engine = new_retrieval_engine_from_config(
+                RetrievalConfig(
+                    kind=RetrievalKind.BEDROCK, knowledge_base_id="kb-1", min_score=0.0
+                ),
+                policies=[],
+                filter_builder=lambda f: {
+                    "equals": {"key": "tenant", "value": f["tenant"]}
+                },
+                document_id_resolver=lambda metadata, _filters: metadata["doc"],
+            )
 
         results = await engine.retrieve("q", filters={"tenant": "t1"})
 
@@ -668,12 +700,12 @@ class TestBedrockRetrievalEngineRequest:
             BedrockRetrievalEngine,
         )
 
-        engine = BedrockRetrievalEngine(
-            region="us-east-1", knowledge_base_id="kb-1", **engine_kwargs
-        )
         client = AsyncMock()
         client.retrieve.return_value = {"retrievalResults": []}
-        engine._client = client  # noqa: SLF001 - inject the mocked bedrock-agent-runtime client
+        with _bedrock_client(client):
+            engine = BedrockRetrievalEngine(
+                region="us-east-1", knowledge_base_id="kb-1", **engine_kwargs
+            )
         await engine.retrieve("q", top_k=25, filters={"tenant": "t1"})
         config = client.retrieve.call_args.kwargs["retrievalConfiguration"]
         return config["vectorSearchConfiguration"]
@@ -781,12 +813,12 @@ class TestBedrockRetrieveContract:
             BedrockRetrievalEngine,
         )
 
-        engine = BedrockRetrievalEngine(
-            region="us-east-1", knowledge_base_id="kb-1", **engine_kwargs
-        )
         client = AsyncMock()
         client.retrieve.return_value = self._retrieve_payload(*metadatas)
-        engine._client = client  # noqa: SLF001 - inject the mocked bedrock-agent-runtime client
+        with _bedrock_client(client):
+            engine = BedrockRetrievalEngine(
+                region="us-east-1", knowledge_base_id="kb-1", **engine_kwargs
+            )
         return await engine.retrieve("q", filters={"tenant": "t1"})
 
     @pytest.mark.asyncio

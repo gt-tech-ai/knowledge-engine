@@ -94,7 +94,8 @@ async def _tokens(
     ``model`` is the requested model, reported when the ``done`` chunk names none.
     """
     async for chunk in chunks:
-        token = (chunk.get("message") or {}).get("content", "")
+        message: dict[str, Any] = chunk.get("message") or {}
+        token = message.get("content", "")
         if token:
             yield token
         if chunk.get("done"):
@@ -154,7 +155,7 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
             body = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise _to_app_error(exc) from exc
-        message = body.get("message") or {}
+        message: dict[str, Any] = body.get("message") or {}
         return LLMResponse(
             content=message.get("content", ""),
             model=body.get("model", self._model),

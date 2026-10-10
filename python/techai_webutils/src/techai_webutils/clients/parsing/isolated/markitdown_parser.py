@@ -53,6 +53,40 @@ class _Converter(Protocol):
         ...
 
 
+class _PdfPage(Protocol):
+    """The slice of a pymupdf ``Page`` the parser reads."""
+
+    def get_text(self) -> object:
+        """Return the page's plain text (pymupdf types it as ``str | list | dict``)."""
+        ...
+
+
+class _PdfDocument(Protocol):
+    """The slice of a pymupdf ``Document`` the parser reads (pymupdf leaves these untyped)."""
+
+    @property
+    def page_count(self) -> int:
+        """Number of pages in the document."""
+        ...
+
+    def load_page(self, page_id: int) -> _PdfPage:
+        """Load the zero-based page ``page_id``."""
+        ...
+
+
+def _page_texts(doc: object) -> list[Page]:
+    """Extract per-page text from an open pymupdf document, numbering pages from 1.
+
+    Iterates by index: pymupdf's ``Document`` has no typed ``__iter__``, and its ``page_count`` /
+    ``load_page`` are untyped, so the document is read through the ``_PdfDocument`` view.
+    """
+    pdf = cast("_PdfDocument", doc)
+    return [
+        Page(page_number=index + 1, text=str(pdf.load_page(index).get_text()))
+        for index in range(pdf.page_count)
+    ]
+
+
 class MarkItDownParser:
     """Parse document bytes into Markdown + (for PDFs) per-page text.
 
@@ -127,12 +161,7 @@ class MarkItDownParser:
 
         try:
             with pymupdf.open(stream=content, filetype="pdf") as doc:
-                # Iterate by index: pymupdf's Document has no typed __iter__, so enumerate(doc)
-                # fails typecheck even though it works at runtime.
-                return [
-                    Page(page_number=index + 1, text=str(doc.load_page(index).get_text()))
-                    for index in range(doc.page_count)
-                ]
+                return _page_texts(doc)
         except Exception:  # PDF page extraction is best-effort supplementary data
             return []
 
@@ -209,9 +238,6 @@ class MarkItDownParser:
 
         try:
             with pymupdf.open(path, filetype="pdf") as doc:
-                return [
-                    Page(page_number=index + 1, text=str(doc.load_page(index).get_text()))
-                    for index in range(doc.page_count)
-                ]
+                return _page_texts(doc)
         except Exception:  # PDF page extraction is best-effort supplementary data
             return []

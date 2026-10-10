@@ -118,6 +118,7 @@ async def test_xadd_entry_reads_back_with_contract_fields(
     await ledger.record(_record(ts))
 
     entries = await redis_client.xrange(stream)
+    assert entries is not None
     assert len(entries) == 1
     assert entries[0][1] == {
         "org_id": "org-1",

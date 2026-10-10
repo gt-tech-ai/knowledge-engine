@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from io import StringIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import grpc
@@ -126,7 +126,7 @@ class TestRetryInterceptor:
             continuation, MagicMock(), MagicMock()
         )
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         continuation.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -152,7 +152,7 @@ class TestRetryInterceptor:
             continuation, MagicMock(), MagicMock()
         )
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         assert continuation.await_count == 2
 
     @pytest.mark.asyncio
@@ -232,6 +232,7 @@ class TestTimeoutInterceptor:
             continuation, self._details(None), request
         )
 
+        assert continuation.await_args is not None
         passed_details, passed_request = continuation.await_args.args
         assert passed_details.timeout == pytest.approx(12.5)
         assert passed_request is request
@@ -252,6 +253,7 @@ class TestTimeoutInterceptor:
 
         await interceptor.intercept_unary_unary(continuation, details, object())
 
+        assert continuation.await_args is not None
         passed_details = continuation.await_args.args[0]
         assert passed_details is details
         assert passed_details.timeout == pytest.approx(3.0)
@@ -283,7 +285,7 @@ class TestLoggingInterceptor:
         details = MagicMock(method="/svc/Method")
 
         result = await interceptor.intercept_unary_unary(continuation, details, object())
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
 
         records = [
             json.loads(line) for line in output.getvalue().strip().split("\n") if line
@@ -347,7 +349,7 @@ class TestMetricsInterceptor:
 
         result = await interceptor.intercept_unary_unary(continuation, details, object())
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         counter.increment.assert_called_once_with(method="/svc/Method", status="ok")
         histogram.observe.assert_called_once()
 

@@ -27,8 +27,6 @@ from techai_webutils.foundation.decorator import (
     AsyncTracingDecoratorBase,
     LoggingDecoratorBase,
     MetricsDecoratorBase,
-    RecoveryDecoratorBase,
-    TimeoutDecoratorBase,
 )
 from techai_webutils.workflows.base import BaseWorkflow
 
@@ -87,7 +85,7 @@ class _AsyncWorkflowWrapper[In, Out](AsyncWorkflow[In, Out]):
         # If the sync workflow is actually BaseWorkflow (async-first design),
         # use its internal async implementation directly
         if isinstance(sync_workflow, BaseWorkflow):
-            self._async_workflow = sync_workflow._async  # noqa: SLF001
+            self._async_workflow = sync_workflow.async_workflow
             self._sync_workflow = None
         else:
             # For other sync workflows, we need to wrap them
@@ -131,22 +129,6 @@ class MetricsWorkflowDecorator[In, Out](MetricsDecoratorBase[In, Out], Workflow[
     ) -> None:
         """Wrap inner with duration histogram and optional execution/error counters."""
         super().__init__(inner, name, histogram, executions, errors)
-
-
-class _TimeoutWorkflowDecorator[In, Out](
-    TimeoutDecoratorBase[In, Out], Workflow[In, Out]
-):
-    """Workflow decorator that enforces a timeout on synchronous execution."""
-
-    def __init__(self, inner: Workflow[In, Out], timeout: float) -> None:
-        """Wrap inner with a "workflow"-labelled timeout."""
-        super().__init__(inner, timeout, noun="workflow")
-
-
-class _RecoveryWorkflowDecorator[In, Out](
-    RecoveryDecoratorBase[In, Out], Workflow[In, Out]
-):
-    """Workflow decorator that normalizes unexpected exceptions to InternalError."""
 
 
 class WorkflowBuilder[In, Out]:

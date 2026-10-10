@@ -25,7 +25,7 @@ import resource
 import time
 import traceback
 from queue import Empty
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from techai_webutils.clients.parsing.isolated.detect import detect_format
 from techai_webutils.clients.parsing.isolated.markitdown_parser import MarkItDownParser
@@ -34,6 +34,7 @@ from techai_webutils.core.domain import ParsedDocument
 if TYPE_CHECKING:
     from collections.abc import Callable
     from multiprocessing.process import BaseProcess
+    from multiprocessing.queues import Queue
 
 # _DEFAULT_MEMORY_BYTES is the per-parse address-space cap (512 MiB, sized under the 1Gi pod
 # limit so several parses can run concurrently without tripping the container OOM-killer).
@@ -96,7 +97,7 @@ def _worker[T](
     fn: Callable[..., T],
     args: tuple[object, ...],
     memory_bytes: int,
-    result_queue: mp.Queue,  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]],
 ) -> None:
     """Subprocess entry: apply the memory cap, run fn, and return its result or error."""
     if memory_bytes > 0:
@@ -132,7 +133,7 @@ def run_isolated[T](
     if the child dies without producing a result or the task itself raised.
     """
     ctx = _MP_CONTEXT
-    result_queue: mp.Queue = ctx.Queue()  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]] = ctx.Queue()
     proc = ctx.Process(target=_worker, args=(fn, args, memory_bytes, result_queue))
     proc.start()
 
@@ -150,12 +151,12 @@ def run_isolated[T](
     status, payload = result
     if status == "err":
         raise IsolationError(str(payload))
-    return payload  # type: ignore[no-any-return]
+    return cast("T", payload)
 
 
 def _await_result(
     proc: BaseProcess,
-    result_queue: mp.Queue,  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]],
     timeout_seconds: float,
 ) -> tuple[str, object]:
     """Poll for the worker's ``(status, payload)`` result, killing it on overrun.

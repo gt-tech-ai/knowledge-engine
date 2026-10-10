@@ -19,7 +19,7 @@ class TimeoutInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: ignore[
 
     async def intercept_unary_unary(  # type: ignore[override]
         self,
-        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall]],
+        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall[object, object]]],
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:

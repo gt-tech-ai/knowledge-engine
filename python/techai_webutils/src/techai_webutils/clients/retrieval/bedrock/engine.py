@@ -209,12 +209,16 @@ def _to_result(
     """
     metadata_raw = item.get("metadata", {})
     metadata = (
-        {str(k): str(v) for k, v in metadata_raw.items()}
+        {str(k): str(v) for k, v in cast("dict[object, object]", metadata_raw).items()}
         if isinstance(metadata_raw, dict)
         else {}
     )
     content = item.get("content", {})
-    text = content.get("text", "") if isinstance(content, dict) else ""
+    text = (
+        cast("dict[str, object]", content).get("text", "")
+        if isinstance(content, dict)
+        else ""
+    )
     page = metadata.get("page_number")
     return RetrievalResult(
         document_id=resolve_document_id(metadata, filters),

@@ -26,7 +26,7 @@ _RESPONSE_PROPAGATOR = TraceContextTextMapPropagator()
 deterministic regardless of process-wide propagator setup — mirroring the Go connect interceptor."""
 
 
-def _set_trace_response(context: grpc.aio.ServicerContext) -> None:
+def _set_trace_response(context: grpc.aio.ServicerContext[object, object]) -> None:
     """Return the active span's trace id to the caller as ``traceresponse`` trailing metadata.
 
     The gRPC analogue of the Go connect interceptor's ``traceresponse`` header: serialize
@@ -93,7 +93,7 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
             inner_unary = handler.unary_unary
 
             async def traced_unary(
-                request: object, context: grpc.aio.ServicerContext
+                request: object, context: grpc.aio.ServicerContext[object, object]
             ) -> object:
                 """Run the wrapped unary handler inside a SERVER span (failure -> ERROR status)."""
                 with tracer.start_as_current_span(
@@ -119,7 +119,7 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
             inner_stream = handler.unary_stream
 
             async def traced_stream(
-                request: object, context: grpc.aio.ServicerContext
+                request: object, context: grpc.aio.ServicerContext[object, object]
             ) -> Any:  # noqa: ANN401
                 """Run the wrapped server-streaming handler under one SERVER span for the whole stream.
 

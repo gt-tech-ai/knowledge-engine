@@ -41,7 +41,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from techai_webutils.foundation.config.loader import load_config
 
@@ -69,7 +69,7 @@ def _flatten_config(config: dict[str, Any], prefix: str = "") -> list[tuple[str,
     for key, value in config.items():
         env_key = f"{prefix}_{key.upper()}" if prefix else key.upper()
         if isinstance(value, dict):
-            items.extend(_flatten_config(value, env_key))
+            items.extend(_flatten_config(cast("dict[str, Any]", value), env_key))
         elif isinstance(value, bool):
             # bool is an int subclass — handle before the int/float/str branch so it
             # stringifies as "True"/"False" (Pydantic parses either casing).

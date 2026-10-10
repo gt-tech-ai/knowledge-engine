@@ -27,7 +27,7 @@ class TestBaseCrudService:
         """
         repo = MagicMock(spec=Repository)
         repo.get.return_value = "entity-1"
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         assert await svc.get("1") == "entity-1"
         repo.get.assert_awaited_once_with("1")
@@ -46,7 +46,7 @@ class TestBaseCrudService:
         """
         repo = MagicMock(spec=Repository)
         repo.get.side_effect = NotFoundError("not found: missing")
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         with pytest.raises(NotFoundError):
             await svc.get("missing")
@@ -65,7 +65,7 @@ class TestBaseCrudService:
         """
         repo = MagicMock(spec=Repository)
         repo.create.return_value = "new"
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         result = await svc.create("new")
         assert result == "new"
@@ -87,7 +87,7 @@ class TestBaseCrudService:
         repo.list.return_value = Page(
             items=["a", "b"], total=2, page_size=10, page_number=1
         )
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         page = await svc.list({}, PageRequest(page_size=10, page_number=1))
         assert page.total == 2
@@ -107,7 +107,7 @@ class TestBaseCrudService:
         """
         repo = MagicMock(spec=Repository)
         repo.update.return_value = "new"
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         result = await svc.update("1", "new")
         assert result == "new"
@@ -126,7 +126,7 @@ class TestBaseCrudService:
           - delete is delegated to the repository with the requested ID
         """
         repo = MagicMock(spec=Repository)
-        svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        svc: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         await svc.delete("1")
         repo.delete.assert_awaited_once_with("1")

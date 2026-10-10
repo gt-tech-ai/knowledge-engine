@@ -9,7 +9,7 @@ Why this suite matters:
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pytest
@@ -39,7 +39,8 @@ def _client(**do_config: object) -> MagicMock:
     client the stack wraps. ``do.await_count`` gives the invocation count the old fake tracked by hand.
     """
     client = MagicMock()
-    client.do = AsyncMock(**do_config)
+    client.do = AsyncMock()
+    client.do.configure_mock(**do_config)
     return client
 
 
@@ -261,7 +262,7 @@ async def test_rate_limit_proxy_gates_each_call_through_the_limiter() -> None:
     limiter = create_autospec(RateLimiter, instance=True)
     limiter.allow.return_value = True
     target = _Target()
-    proxied = RateLimitProxy(target, limiter)
+    proxied = cast("_Target", RateLimitProxy(target, limiter))
 
     assert await proxied.do() == "ok"
     assert await proxied.do() == "ok"

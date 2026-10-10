@@ -1,10 +1,16 @@
 """Tests for the async bounded-concurrency fan-out engine."""
 
 import asyncio
+from typing import override
 
 import pytest
 
-from techai_webutils.core.interfaces.execution import BatchResult, StepResult, StepStatus
+from techai_webutils.core.interfaces.execution import (
+    BatchResult,
+    NopObserver,
+    StepResult,
+    StepStatus,
+)
 from techai_webutils.execution.engine.fan_out import fan_out
 
 
@@ -141,15 +147,18 @@ class TestFanOut:
         started: list[int] = []
         finished: list[BatchResult] = []
 
-        class Obs:
-            def on_batch_start(self, _name: str, total: int) -> None:
+        class Obs(NopObserver):
+            @override
+            def on_batch_start(self, name: str, total: int) -> None:
                 started.append(total)
 
+            @override
             def on_step_complete(self, result: StepResult) -> None:
                 completed.append(result)
 
+            @override
             def on_batch_complete(
-                self, _name: str, result: BatchResult, _elapsed: float
+                self, name: str, result: BatchResult, elapsed: float
             ) -> None:
                 finished.append(result)
 

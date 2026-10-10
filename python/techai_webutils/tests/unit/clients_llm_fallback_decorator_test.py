@@ -52,7 +52,13 @@ def _client_error(code: str, status: int) -> ClientError:
     return ClientError(
         {
             "Error": {"Code": code, "Message": "boom"},
-            "ResponseMetadata": {"HTTPStatusCode": status},
+            "ResponseMetadata": {
+                "RequestId": "",
+                "HostId": "",
+                "HTTPStatusCode": status,
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
         },
         "Converse",
     )
@@ -71,6 +77,13 @@ def _response(model: str) -> LLMResponse:
 
 def _providers(primary_error: Exception, fallback_result: object) -> FallbackLlmProvider:
     """Wire a FallbackLlmProvider whose primary raises and whose fallback returns/raises the given value."""
+    return _providers_with_fallback(primary_error, fallback_result)[0]
+
+
+def _providers_with_fallback(
+    primary_error: Exception, fallback_result: object
+) -> tuple[FallbackLlmProvider, AsyncMock]:
+    """Wire the provider as ``_providers`` does and also return the fallback mock to assert on."""
     primary = AsyncMock()
     primary.complete.side_effect = primary_error
     fallback = AsyncMock()
@@ -78,7 +91,7 @@ def _providers(primary_error: Exception, fallback_result: object) -> FallbackLlm
         fallback.complete.side_effect = fallback_result
     else:
         fallback.complete.return_value = fallback_result
-    return FallbackLlmProvider(primary, fallback)
+    return FallbackLlmProvider(primary, fallback), fallback
 
 
 _MESSAGES = [LLMMessage(role="user", content="hi")]
@@ -116,10 +129,12 @@ async def test_both_models_fail_raises_unavailable() -> None:
 @pytest.mark.asyncio
 async def test_non_retryable_error_reraises_without_fallback() -> None:
     """A non-transient error (validation 400) is re-raised and the fallback is never invoked."""
-    provider = _providers(_client_error("ValidationException", 400), _response("haiku"))
+    provider, fallback = _providers_with_fallback(
+        _client_error("ValidationException", 400), _response("haiku")
+    )
     with pytest.raises(ClientError):
         await provider.complete(_MESSAGES)
-    provider._fallback.complete.assert_not_awaited()  # noqa: SLF001 - assert the fallback was skipped
+    fallback.complete.assert_not_awaited()
 
 
 def _coded_provider_error(code: str, status: int) -> AppError:
@@ -156,13 +171,15 @@ async def test_coded_provider_error_is_classified_through_its_cause(
       - A throttle or 5xx wrapped as the provider wraps it routes the request to the fallback model;
         a wrapped non-transient error (access denied) re-raises without invoking the fallback.
     """
-    provider = _providers(_coded_provider_error(code, status), _response("haiku"))
+    provider, fallback = _providers_with_fallback(
+        _coded_provider_error(code, status), _response("haiku")
+    )
     if falls_back:
         assert (await provider.complete(_MESSAGES)).model == "haiku"
         return
     with pytest.raises(AppError):
         await provider.complete(_MESSAGES)
-    provider._fallback.complete.assert_not_awaited()  # noqa: SLF001 - assert the fallback was skipped
+    fallback.complete.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -178,10 +195,12 @@ async def test_error_without_botocore_shape_reraises() -> None:
       - A primary RuntimeError with no ``.response`` re-raises and the fallback is
         never invoked.
     """
-    provider = _providers(RuntimeError("unexpected"), _response("haiku"))
+    provider, fallback = _providers_with_fallback(
+        RuntimeError("unexpected"), _response("haiku")
+    )
     with pytest.raises(RuntimeError):
         await provider.complete(_MESSAGES)
-    provider._fallback.complete.assert_not_awaited()  # noqa: SLF001
+    fallback.complete.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -100,7 +100,7 @@ dev = [
     # `ray` extra so the ray:// driver matches the cluster (see the extra above).
     "ray==2.56.1",
     "ruff==0.16.9",
-    "basedpyright>=1.31",
+    "basedpyright==1.40.1",
     # asyncpg in dev so basedpyright resolves `import asyncpg` in the postgres lock backend and the
     # real-Postgres integration test can run; production consumers pull it via the `postgres` extra.
     "asyncpg>=0.30.0",
@@ -116,6 +116,8 @@ dev = [
     "ty>=0.0.38",
     # hypothesis drives the property tests (e.g. the token-ledger Decimal cost arithmetic).
     "hypothesis>=6.168.5",
+    "asyncpg-stubs==0.31.3",
+    "types-aiobotocore-lite[s3,sesv2,sqs]==3.9.0",
 ]
 
 [tool.pytest.ini_options]
@@ -242,11 +244,26 @@ max-args = 10
 max-branches = 20
 max-returns = 20
 
+# Strict type-checking over src and tests. include is an allowlist, so tests are analyzed
+# only because they are listed here.
 [tool.pyright]
 pythonVersion = "3.12"
-typeCheckingMode = "standard"
-include = ["src/techai_webutils"]
-exclude = ["tests"]
+typeCheckingMode = "strict"
+include = ["src/techai_webutils", "tests"]
+
+# Mock-noise relaxation for the test tree: pytest fixtures and unittest.mock doubles are
+# intentionally untyped, so the reportUnknown* family and the mock attribute-access probes
+# (.assert_called_once / .await_args_list, which resolve on an autospec'd MethodType, not on
+# the Mock) are pure noise there. src/ stays fully strict, and every other strict diagnostic
+# (argument types, optional access, private usage) is still enforced in tests.
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownVariableType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
+reportAttributeAccessIssue = "none"
 
 [tool.uv.build-backend]
 module-name = "techai_webutils"

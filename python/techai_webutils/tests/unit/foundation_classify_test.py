@@ -22,7 +22,16 @@ def _http_status_error(status: int) -> httpx.HTTPStatusError:
 def _client_error(code: str, status: int) -> ClientError:
     """Build a botocore ClientError with the given error code + HTTP status."""
     return ClientError(
-        {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        {
+            "Error": {"Code": code},
+            "ResponseMetadata": {
+                "RequestId": "",
+                "HostId": "",
+                "HTTPStatusCode": status,
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
+        },
         "SendMessage",
     )
 

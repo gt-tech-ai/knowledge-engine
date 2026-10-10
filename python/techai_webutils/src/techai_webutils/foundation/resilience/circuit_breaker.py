@@ -9,7 +9,9 @@ from __future__ import annotations
 import threading
 import time
 from enum import StrEnum
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
+
+from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
 
 if TYPE_CHECKING:
     import types
@@ -35,7 +37,7 @@ class CircuitOpenError(Exception):
         super().__init__(message)
 
 
-class CircuitBreaker:
+class CircuitBreaker(CircuitBreakerInterface):
     """Context manager-based circuit breaker.
 
     Usage:
@@ -83,6 +85,17 @@ class CircuitBreaker:
                 self._state = CircuitState.HALF_OPEN
             return self._state
 
+    @override
+    def execute(self, fn: Callable[[], object]) -> object:
+        """Run ``fn`` through the breaker, exactly as the context-manager form gates it.
+
+        Raises ``CircuitOpenError`` without calling ``fn`` while the circuit is open;
+        otherwise returns ``fn``'s result and records its outcome.
+        """
+        with self:
+            return fn()
+
+    @override
     def __enter__(self) -> Self:
         """Enter the circuit breaker context.
 
@@ -95,17 +108,19 @@ class CircuitBreaker:
             raise CircuitOpenError()
         return self
 
+    @override
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
-    ) -> bool:
+    ) -> None:
         """Exit the circuit breaker context and record the call outcome.
 
         On success the failure counter resets and the circuit closes. On
         failure the counter increments; once the threshold is reached the
-        circuit transitions to open. The exception is never suppressed.
+        circuit transitions to open. The exception is never suppressed (the
+        method returns ``None``, as the interface declares).
         """
         with self._lock:
             # A success — OR a non-failure exception (permanent domain error,
@@ -119,11 +134,9 @@ class CircuitBreaker:
             ):
                 self._failure_count = 0
                 self._state = CircuitState.CLOSED
-                return False
+                return
 
             self._failure_count += 1
             self._last_failure_time = time.monotonic()
             if self._failure_count >= self._failure_threshold:
                 self._state = CircuitState.OPEN
-
-        return False

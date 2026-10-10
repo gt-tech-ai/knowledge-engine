@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -158,10 +158,13 @@ async def test_metrics_emit_failure_does_not_propagate(
         capture_logs() as logs,
         patch("techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"),
     ):
-        client_result = await MetricsProxy(_client(), "kb", provider).fetch()
-        llm_result = await AiSpanEnricher(
-            llm, step="generate", capture_content=False, metrics=provider
-        ).complete([LLMMessage(role="user", content="hi")])
+        client = cast("_KbClient", MetricsProxy(_client(), "kb", provider))
+        enricher = cast(
+            "LLMProvider",
+            AiSpanEnricher(llm, step="generate", capture_content=False, metrics=provider),
+        )
+        client_result = await client.fetch()
+        llm_result = await enricher.complete([LLMMessage(role="user", content="hi")])
 
     assert client_result == "payload"
     assert llm_result is response

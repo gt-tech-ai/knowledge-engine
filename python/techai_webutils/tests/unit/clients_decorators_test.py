@@ -9,6 +9,7 @@ plus the async-first behaviour: an awaited failure is logged/traced, transient e
 import asyncio
 import json
 from io import StringIO
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -83,7 +84,7 @@ class TestLoggingProxy:
         **What it tests:**
           - result equals {"id": "123", "name": "test"} from the wrapped service
         """
-        proxy = LoggingProxy(mock_service, logger_name="test")
+        proxy = cast("MagicMock", LoggingProxy(mock_service, logger_name="test"))
 
         result = proxy.get_item("123")
         assert result == {"id": "123", "name": "test"}
@@ -127,7 +128,7 @@ class TestLoggingProxy:
             async def do(self) -> str:
                 return "ok"
 
-        proxy = LoggingProxy(_Svc(), logger_name="clienttest")
+        proxy = cast("_Svc", LoggingProxy(_Svc(), logger_name="clienttest"))
         assert await proxy.do() == "ok"
 
         lines = [line for line in output.getvalue().strip().split("\n") if line]
@@ -159,7 +160,7 @@ class TestLoggingProxy:
         output = StringIO()
         configure_logging(level="DEBUG", stream=output)
 
-        proxy = LoggingProxy(_AsyncBoom(), logger_name="asynctest")
+        proxy = cast("_AsyncBoom", LoggingProxy(_AsyncBoom(), logger_name="asynctest"))
         with pytest.raises(AppError):
             await proxy.run()
 
@@ -186,7 +187,7 @@ class TestTracingProxy:
         **What it tests:**
           - result equals {"id": "new", "name": "new-item"} from the wrapped service
         """
-        proxy = TracingProxy(mock_service, service_name="test")
+        proxy = cast("MagicMock", TracingProxy(mock_service, service_name="test"))
 
         result = proxy.create_item("new-item")
         assert result == {"id": "new", "name": "new-item"}
@@ -207,9 +208,12 @@ class TestDecoratorChain:
           - result equals {"id": "456", "name": "test"} through Logging -> Tracing -> Service
         """
         # Chain: Logging -> Tracing -> Service
-        decorated = LoggingProxy(
-            TracingProxy(mock_service, service_name="test"),
-            logger_name="test",
+        decorated = cast(
+            "MagicMock",
+            LoggingProxy(
+                TracingProxy(mock_service, service_name="test"),
+                logger_name="test",
+            ),
         )
 
         result = decorated.get_item("456")
@@ -226,9 +230,12 @@ class TestDecoratorChain:
         **What it tests:**
           - RuntimeError with "intentional failure" message propagates through the chain
         """
-        decorated = LoggingProxy(
-            TracingProxy(mock_service, service_name="test"),
-            logger_name="test",
+        decorated = cast(
+            "MagicMock",
+            LoggingProxy(
+                TracingProxy(mock_service, service_name="test"),
+                logger_name="test",
+            ),
         )
 
         with pytest.raises(RuntimeError, match="intentional failure"):
@@ -250,7 +257,7 @@ class TestRetryProxy:
           - run() fails transiently twice then returns ``ok``; the proxy returns ``ok`` after 3 calls.
         """
         svc = _AsyncFlaky(fail_times=2)
-        proxy = RetryProxy(svc, max_attempts=3)
+        proxy = cast("_AsyncFlaky", RetryProxy(svc, max_attempts=3))
 
         assert await proxy.run() == "ok"
         assert svc.calls == 3
@@ -267,7 +274,7 @@ class TestRetryProxy:
           - A method raising a non-transient AppError raises immediately after exactly one call.
         """
         svc = _AsyncPermanentBoom()
-        proxy = RetryProxy(svc, max_attempts=3)
+        proxy = cast("_AsyncPermanentBoom", RetryProxy(svc, max_attempts=3))
 
         with pytest.raises(AppError):
             await proxy.run()
@@ -305,7 +312,10 @@ class TestRetryProxy:
                 "ok",
             ]
         )
-        proxy = RetryProxy(svc, max_attempts=4, max_pushback_s=2.0, sleep=_record_sleep)
+        proxy = cast(
+            "MagicMock",
+            RetryProxy(svc, max_attempts=4, max_pushback_s=2.0, sleep=_record_sleep),
+        )
 
         assert await proxy.run() == "ok"
         assert delays == [0.3, 2.0]
@@ -341,7 +351,7 @@ class TestCircuitBreakerProxy:
         """
         breaker = CircuitBreaker(failure_threshold=1)
         svc = _AsyncBoom()
-        proxy = CircuitBreakerProxy(svc, breaker)
+        proxy = cast("_AsyncBoom", CircuitBreakerProxy(svc, breaker))
 
         with pytest.raises(AppError):
             await proxy.run()

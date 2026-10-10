@@ -34,7 +34,8 @@ def _repo_mock(*, seed: dict[str, object] | None = None, delay: float = 0.0) -> 
     ``seed`` pre-populates the backing dict (the old ``FakeRepository.seed`` helper);
     ``delay`` sleeps before every op, driving the timeout decorator.
     """
-    data: dict[object, object] = dict(seed or {})
+    data: dict[object, object] = {}
+    data.update((seed or {}).items())
     counter = {"n": 0}
     mock = AsyncMock(spec=Repository)
 
@@ -112,7 +113,7 @@ class TestServiceBuilder:
           - Logger captures a 'service.get' message after a get call
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
         svc = ServiceBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -133,7 +134,7 @@ class TestServiceBuilder:
           - Entity is returned when the authorization check passes
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def allow(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -156,7 +157,7 @@ class TestServiceBuilder:
           - ForbiddenError is raised when the authorization check fails
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def deny(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -180,7 +181,7 @@ class TestServiceBuilder:
           - Original exception is preserved as the cause
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         # Inject an unexpected exception by overriding get
         async def failing_get(_id: str) -> str:
@@ -209,7 +210,7 @@ class TestServiceBuilder:
           - Logger captures at least one message
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
 
         async def allow(_action: str) -> bool:
@@ -248,7 +249,7 @@ class TestServiceResilienceDecorators:
           - Service get returns the seeded entity when completing before the deadline
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(5.0).build()
 
         result = await svc.get("1")
@@ -269,7 +270,7 @@ class TestServiceResilienceDecorators:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         with pytest.raises(AppTimeoutError):
@@ -290,7 +291,7 @@ class TestServiceResilienceDecorators:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         # Recovery re-raises AppErrors (which TimeoutError is), so it still raises
@@ -320,7 +321,7 @@ class TestTimeoutServiceDecoratorExtended:
           - Page items contain the seeded entity
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(5.0).build()
 
         from techai_webutils.core.domain_types.types import PageRequest
@@ -344,7 +345,7 @@ class TestTimeoutServiceDecoratorExtended:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         from techai_webutils.core.domain_types.types import PageRequest
@@ -365,7 +366,7 @@ class TestTimeoutServiceDecoratorExtended:
           - Created entity is returned successfully
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(5.0).build()
 
         result = await svc.create("new-entity")
@@ -386,7 +387,7 @@ class TestTimeoutServiceDecoratorExtended:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         with pytest.raises(AppTimeoutError):
@@ -405,7 +406,7 @@ class TestTimeoutServiceDecoratorExtended:
           - Updated entity value is returned successfully
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(5.0).build()
 
         result = await svc.update("1", "updated")
@@ -426,7 +427,7 @@ class TestTimeoutServiceDecoratorExtended:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         with pytest.raises(AppTimeoutError):
@@ -445,7 +446,7 @@ class TestTimeoutServiceDecoratorExtended:
           - Entity no longer exists in the repository after deletion
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(5.0).build()
 
         await svc.delete("1")
@@ -467,7 +468,7 @@ class TestTimeoutServiceDecoratorExtended:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         repo = _repo_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         svc = ServiceBuilder(base, "users").with_timeout(0.01).build()
 
         with pytest.raises(AppTimeoutError):
@@ -490,7 +491,7 @@ class TestLoggingServiceDecoratorExtended:
           - Logger captures a 'service.list' message
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
         svc = ServiceBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -514,7 +515,7 @@ class TestLoggingServiceDecoratorExtended:
           - Logger captures a 'service.created' completion message
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
         svc = ServiceBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -536,7 +537,7 @@ class TestLoggingServiceDecoratorExtended:
           - Logger captures a 'service.update' message
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
         svc = ServiceBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -557,7 +558,7 @@ class TestLoggingServiceDecoratorExtended:
           - Logger captures a 'service.delete' message
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
         logger = MagicMock()
         svc = ServiceBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -582,7 +583,7 @@ class TestAuthServiceDecoratorExtended:
           - Page total matches seeded entity count
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def allow(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -608,7 +609,7 @@ class TestAuthServiceDecoratorExtended:
           - ForbiddenError is raised before the operation executes
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def deny(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -634,7 +635,7 @@ class TestAuthServiceDecoratorExtended:
           - Created entity is returned successfully
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def allow(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -658,7 +659,7 @@ class TestAuthServiceDecoratorExtended:
           - ForbiddenError is raised before the operation executes
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def deny(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -682,7 +683,7 @@ class TestAuthServiceDecoratorExtended:
           - Updated entity value is returned successfully
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def allow(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -706,7 +707,7 @@ class TestAuthServiceDecoratorExtended:
           - ForbiddenError is raised before the operation executes
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def deny(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -730,7 +731,7 @@ class TestAuthServiceDecoratorExtended:
           - Entity no longer exists in the repository after deletion
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def allow(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -754,7 +755,7 @@ class TestAuthServiceDecoratorExtended:
           - ForbiddenError is raised before the operation executes
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def deny(_action: str) -> bool:
             await asyncio.sleep(0)
@@ -783,7 +784,7 @@ class TestRecoveryServiceDecoratorExtended:
           - Original exception is preserved as the cause
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def failing_list(_params, _page) -> Never:  # type: ignore[no-untyped-def]
             await asyncio.sleep(0)
@@ -813,7 +814,7 @@ class TestRecoveryServiceDecoratorExtended:
           - Original exception is preserved as the cause
         """
         repo = _repo_mock()
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def failing_create(_entity) -> Never:  # type: ignore[no-untyped-def]
             await asyncio.sleep(0)
@@ -841,7 +842,7 @@ class TestRecoveryServiceDecoratorExtended:
           - Original exception is preserved as the cause
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def failing_update(_id, _entity) -> Never:  # type: ignore[no-untyped-def]
             await asyncio.sleep(0)
@@ -869,7 +870,7 @@ class TestRecoveryServiceDecoratorExtended:
           - Original exception is preserved as the cause
         """
         repo = _repo_mock(seed={"1": "entity"})
-        base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
+        base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
         async def failing_delete(_id) -> Never:  # type: ignore[no-untyped-def]
             await asyncio.sleep(0)

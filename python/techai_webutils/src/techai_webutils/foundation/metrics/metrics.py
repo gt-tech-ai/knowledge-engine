@@ -97,10 +97,12 @@ class PrometheusMetricsProvider(MetricsProvider):
         are an internal contract; a major prometheus_client bump could rename them, which
         ``tests/foundation/test_metrics_idempotent.py`` exercises against the pinned version.
         """
-        existing = self._registry._names_to_collectors.get(name)  # noqa: SLF001
+        internals = vars(self._registry)
+        names_to_collectors = cast("dict[str, object]", internals["_names_to_collectors"])
+        existing = names_to_collectors.get(name)
         if existing is not None:
             return existing
-        for collector in self._registry._collector_to_names:  # noqa: SLF001
+        for collector in cast("dict[object, object]", internals["_collector_to_names"]):
             if getattr(collector, "_name", None) == name:
                 return collector
         return None

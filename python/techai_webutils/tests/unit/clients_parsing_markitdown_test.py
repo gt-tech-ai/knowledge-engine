@@ -1,7 +1,7 @@
 """Tests for MarkItDownParser (unified Markdown conversion + pymupdf PDF page extraction)."""
 
+from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 
 import pymupdf
 
@@ -18,10 +18,17 @@ def _make_pdf(*lines: str) -> bytes:
     return doc.tobytes()
 
 
+@dataclass
+class _Converted:
+    """A MarkItDown-shaped conversion result carrying only ``text_content``."""
+
+    text_content: str
+
+
 class _FailingConverter:
     """A MarkItDown-shaped converter that always raises (drives the graceful-error path)."""
 
-    def convert_stream(self, stream: object, **kwargs: object) -> object:  # noqa: ARG002
+    def convert_stream(self, stream: object, **kwargs: object) -> _Converted:  # noqa: ARG002
         msg = "boom"
         raise RuntimeError(msg)
 
@@ -29,8 +36,8 @@ class _FailingConverter:
 class _FixedMarkdownConverter:
     """A converter that returns fixed Markdown regardless of input (isolates the page-extract path)."""
 
-    def convert_stream(self, stream: object, **kwargs: object) -> object:  # noqa: ARG002
-        return SimpleNamespace(text_content="converted markdown")
+    def convert_stream(self, stream: object, **kwargs: object) -> _Converted:  # noqa: ARG002
+        return _Converted(text_content="converted markdown")
 
 
 class TestMarkItDownParser:

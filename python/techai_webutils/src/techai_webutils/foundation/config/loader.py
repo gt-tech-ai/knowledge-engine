@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -29,9 +29,12 @@ def _substitute_env_vars(value: object) -> object:
     if isinstance(value, str):
         return _ENV_VAR_PATTERN.sub(_resolve_var, value)
     if isinstance(value, dict):
-        return {k: _substitute_env_vars(v) for k, v in value.items()}
+        return {
+            k: _substitute_env_vars(v)
+            for k, v in cast("dict[object, object]", value).items()
+        }
     if isinstance(value, list):
-        return [_substitute_env_vars(item) for item in value]
+        return [_substitute_env_vars(item) for item in cast("list[object]", value)]
     return value
 
 
@@ -58,7 +61,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     result = base.copy()
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
+            result[key] = _deep_merge(result[key], cast("dict[str, Any]", value))
         else:
             result[key] = value
     return result

@@ -33,6 +33,7 @@ from typing import NoReturn
 import pytest
 
 from techai_webutils.core.errors.errors import AppTimeoutError, UnavailableError
+from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
 from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
@@ -193,6 +194,36 @@ class TestCircuitBreaker:
         # Should still be able to call (not open)
         with cb:
             pass
+
+    def test_implements_the_core_interface(self) -> None:
+        """Test that CircuitBreaker is the core ``CircuitBreakerInterface`` and runs ``execute``.
+
+        **Why this test is important:**
+          - The client, cache and repository decorators accept a ``CircuitBreakerInterface``;
+            the shipped breaker must satisfy that contract to be injected into them
+          - ``execute`` is the interface's call path, so it must gate exactly like the
+            context-manager form
+
+        **What it tests:**
+          - a ``CircuitBreaker`` is an instance of ``CircuitBreakerInterface``
+          - ``execute`` returns the function's result while closed
+          - once the threshold is reached, ``execute`` raises ``CircuitOpenError`` without
+            calling the function
+        """
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+        calls: list[int] = []
+
+        def _work() -> str:
+            calls.append(1)
+            return "ok"
+
+        assert isinstance(cb, CircuitBreakerInterface)
+        assert cb.execute(_work) == "ok"
+        with pytest.raises(UnavailableError):
+            cb.execute(_raise_unavailable)
+        with pytest.raises(CircuitOpenError):
+            cb.execute(_work)
+        assert calls == [1]
 
 
 class TestTimeout:

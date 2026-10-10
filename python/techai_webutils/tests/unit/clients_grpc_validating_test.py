@@ -8,6 +8,7 @@ validation library, and must not import an app-specific generated proto — a la
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
@@ -23,17 +24,29 @@ from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
-def _details(method: str = "/svc/M") -> object:
+
+def _details(method: str = "/svc/M") -> grpc.HandlerCallDetails:
     """Handler-call-details carrying the RPC method name."""
     return MagicMock(method=method)
 
 
-async def _wrap(handler_fn: AsyncMock) -> grpc.RpcMethodHandler:
-    """Wrap a unary handler through the validate interceptor and return the rebuilt handler."""
+async def _wrap(
+    handler_fn: AsyncMock,
+) -> Callable[[object, object], Awaitable[object]]:
+    """Wrap a unary handler through the validate interceptor and return its unary behavior.
+
+    grpc's stubs type the behavior as synchronous; the aio server awaits it.
+    """
     real = grpc.unary_unary_rpc_method_handler(handler_fn)
     [interceptor] = ServerInterceptorBuilder().with_validation().build()
-    return await interceptor.intercept_service(AsyncMock(return_value=real), _details())
+    wrapped = await interceptor.intercept_service(
+        AsyncMock(return_value=real), _details()
+    )
+    assert wrapped is not None
+    return cast("Callable[[object, object], Awaitable[object]]", wrapped.unary_unary)
 
 
 _HEADERS = HeaderClaimMapping(
@@ -74,7 +87,7 @@ class TestValidatingServerInterceptor:
             ),
             pytest.raises(grpc.aio.AbortError),
         ):
-            await wrapped.unary_unary(empty_pb2.Empty(), context)
+            await wrapped(empty_pb2.Empty(), context)
 
         assert context.abort.await_args.args[0] == grpc.StatusCode.INVALID_ARGUMENT
         handler_fn.assert_not_awaited()
@@ -96,7 +109,7 @@ class TestValidatingServerInterceptor:
         context.abort = AsyncMock()
 
         with patch.object(protovalidate, "validate", return_value=None):
-            result = await wrapped.unary_unary(empty_pb2.Empty(), context)
+            result = await wrapped(empty_pb2.Empty(), context)
 
         assert result == "ok"
         handler_fn.assert_awaited_once()
@@ -121,7 +134,7 @@ class TestValidatingServerInterceptor:
         context.abort = AsyncMock()
 
         with patch.object(protovalidate, "validate") as mock_validate:
-            result = await wrapped.unary_unary("not-a-proto", context)
+            result = await wrapped("not-a-proto", context)
 
         assert result == "ok"
         mock_validate.assert_not_called()

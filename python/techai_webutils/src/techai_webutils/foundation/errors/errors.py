@@ -108,6 +108,10 @@ class IngestionErrors(ExceptionGroup[IngestionError]):
         """
         return super().__new__(cls, message, errors)
 
+    def __init__(self, message: str, errors: list[IngestionError]) -> None:
+        """Initialize the group with the same arguments ``__new__`` received."""
+        super().__init__(message, errors)
+
     def derive(self, excs: list[BaseException]) -> IngestionErrors:  # type: ignore[override]
         """Derive a new ``IngestionErrors`` group from a subset of exceptions.
 

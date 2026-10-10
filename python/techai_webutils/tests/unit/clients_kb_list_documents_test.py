@@ -5,7 +5,7 @@ empty listing, and — critically — that ``list_documents`` delegates through 
 ``PollingIngestor`` and ``RetryingIngestor`` decorators so the composed stack still instantiates.
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -34,7 +34,7 @@ class TestKbDocumentFromPayload:
         **What it tests:**
           - identifier.s3.uri, status, and statusReason are lifted verbatim onto KnowledgeBaseDocument.
         """
-        detail = {
+        detail: dict[str, object] = {
             "status": "INDEXED",
             "identifier": {"dataSourceType": "S3", "s3": {"uri": "s3://b/docs/f.pdf"}},
             "statusReason": "",
@@ -53,7 +53,7 @@ class TestKbDocumentFromPayload:
         **What it tests:**
           - A detail with a non-S3 identifier (and one with no identifier) maps to s3_uri == "".
         """
-        custom = {
+        custom: dict[str, object] = {
             "status": "FAILED",
             "identifier": {"dataSourceType": "CUSTOM", "custom": {"id": "x"}},
         }
@@ -103,8 +103,12 @@ class TestBedrockListDocuments:
         fake_client = AsyncMock()
         fake_client.list_knowledge_base_documents.side_effect = [page1, page2]
 
-        ingestor = BedrockKnowledgeBaseIngestor(region="us-east-1")
-        ingestor._client = fake_client  # inject the fake bedrock-agent client  # noqa: SLF001
+        # The ingestor opens its bedrock-agent client through aiobotocore's session on first use;
+        # mock that SDK boundary so the open yields the fake client.
+        session = MagicMock()
+        session.create_client.return_value.__aenter__.return_value = fake_client
+        with patch("aiobotocore.session.get_session", return_value=session):
+            ingestor = BedrockKnowledgeBaseIngestor(region="us-east-1")
 
         docs = await ingestor.list_documents(
             knowledge_base_id="kb1", data_source_id="ds1"

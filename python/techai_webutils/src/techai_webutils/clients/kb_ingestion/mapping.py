@@ -7,6 +7,8 @@ Imports no AWS SDK, so it stays on the dev/stub path's import graph without pull
 
 from __future__ import annotations
 
+from typing import cast
+
 from techai_webutils.core.interfaces.kb_ingestion import (
     IngestionJob,
     IngestionJobState,
@@ -42,10 +44,14 @@ def kb_document_from_payload(detail: dict[str, object]) -> KnowledgeBaseDocument
     caller can skip it rather than crash on an unexpected identifier shape.
     """
     identifier = detail.get("identifier")
-    s3 = identifier.get("s3") if isinstance(identifier, dict) else None
+    s3 = (
+        cast("dict[str, object]", identifier).get("s3")
+        if isinstance(identifier, dict)
+        else None
+    )
     # Guard the VALUE type, not just key presence: a present-but-null uri must degrade to "" (which a
     # caller can skip), not become the literal string "None" via str(None).
-    uri = s3.get("uri") if isinstance(s3, dict) else None
+    uri = cast("dict[str, object]", s3).get("uri") if isinstance(s3, dict) else None
     s3_uri = uri if isinstance(uri, str) else ""
     return KnowledgeBaseDocument(
         s3_uri=s3_uri,
@@ -63,5 +69,5 @@ def _flatten_reasons(reasons: object) -> str:
     if not reasons:
         return ""
     if isinstance(reasons, list):
-        return "; ".join(str(reason) for reason in reasons)
+        return "; ".join(str(reason) for reason in cast("list[object]", reasons))
     return str(reasons)

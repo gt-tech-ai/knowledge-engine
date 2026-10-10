@@ -259,9 +259,9 @@ def test_base_app_settings_has_correct_model_config() -> None:
     from techai_webutils.foundation.config.settings import BaseAppSettings
 
     # Assert
-    assert not BaseAppSettings.model_config["env_prefix"]
-    assert BaseAppSettings.model_config["frozen"] is True
-    assert BaseAppSettings.model_config["extra"] == "ignore"
+    assert not BaseAppSettings.model_config.get("env_prefix")
+    assert BaseAppSettings.model_config.get("frozen") is True
+    assert BaseAppSettings.model_config.get("extra") == "ignore"
 
 
 def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) -> None:

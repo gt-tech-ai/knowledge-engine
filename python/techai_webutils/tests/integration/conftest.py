@@ -20,6 +20,7 @@ optional local check).
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
@@ -292,7 +293,7 @@ def ray_cluster(request: pytest.FixtureRequest) -> object:
         num_cpus=2,
         ignore_reinit_error=True,
         include_dashboard=False,
-        logging_level="ERROR",
+        logging_level=logging.ERROR,
     )
     ray.cloudpickle.register_pickle_by_value(request.module)
     yield

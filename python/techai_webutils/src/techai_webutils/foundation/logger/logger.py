@@ -83,9 +83,13 @@ def _redact_value(value: object) -> object:
     if isinstance(value, str):
         return redact_pii(value)
     if isinstance(value, dict):
-        return {k: _redact_value(v) for k, v in value.items()}  # pyright: ignore[reportUnknownVariableType]
+        return {
+            k: _redact_value(v) for k, v in cast("dict[object, object]", value).items()
+        }
     if isinstance(value, list | tuple):
-        return [_redact_value(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
+        return [
+            _redact_value(v) for v in cast("list[object] | tuple[object, ...]", value)
+        ]
     return value
 
 

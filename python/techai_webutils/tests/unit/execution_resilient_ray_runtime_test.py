@@ -9,6 +9,7 @@ transient error, and ``submit`` connects-then-dispatches without retrying the ta
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import TypedDict
 from unittest.mock import create_autospec
 
 import pytest
@@ -18,8 +19,20 @@ from techai_webutils.core.interfaces.execution import StepResult
 from techai_webutils.execution.executor.ray_runtime import RayRuntime
 from techai_webutils.execution.executor.resilient_ray_runtime import ResilientRayRuntime
 
+
 # Near-zero backoff so the retry tests do not actually sleep through the exponential waits.
-_FAST = {"max_attempts": 5, "base_delay": 0.0, "max_delay": 0.0}
+class _RetryOptions(TypedDict):
+    """The ResilientRayRuntime retry options the tests pass."""
+
+    max_attempts: int
+    """Connect attempts before giving up."""
+    base_delay: float
+    """First backoff delay in seconds."""
+    max_delay: float
+    """Backoff ceiling in seconds."""
+
+
+_FAST: _RetryOptions = {"max_attempts": 5, "base_delay": 0.0, "max_delay": 0.0}
 
 
 async def _ok(item: int) -> StepResult:

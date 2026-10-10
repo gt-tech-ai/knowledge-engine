@@ -21,7 +21,7 @@ from typing import Any
 
 import grpc
 from grpc_health.v1 import health_pb2, health_pb2_grpc
-from grpc_health.v1.health import aio as health_aio  # pyright: ignore[reportAttributeAccessIssue]  # no stub for the aio submodule
+from grpc_health.v1.health import aio as health_aio
 
 _16MB = 16 * 1024 * 1024
 """Default gRPC max send/receive message size, in bytes (16 MiB)."""

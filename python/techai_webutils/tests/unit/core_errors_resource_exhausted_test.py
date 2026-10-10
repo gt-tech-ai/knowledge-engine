@@ -4,6 +4,7 @@ A spent quota or budget must reach callers as HTTP 429 / gRPC RESOURCE_EXHAUSTED
 retried by the resiliency stack, because a retry inside the window only burns another quota check.
 """
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -66,7 +67,7 @@ async def test_retry_proxy_does_not_retry_quota_exceeded() -> None:
     raised = QuotaExceededError("spent", org_id="org-1", reason="budget_exhausted")
     inner = AsyncMock()
     inner.call.side_effect = raised
-    proxy = RetryProxy(inner, max_attempts=3)
+    proxy = cast("AsyncMock", RetryProxy(inner, max_attempts=3))
 
     with pytest.raises(QuotaExceededError) as caught:
         await proxy.call()
