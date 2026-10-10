@@ -35,7 +35,8 @@ import (
 //     swapping without consumer changes
 //
 // What it tests:
-//   - circuitbreaker.New with KindGoBreaker returns a non-nil CircuitBreaker without error
+//   - circuitbreaker.New with KindGoBreaker returns a non-nil CircuitBreaker without
+//     error
 //   - Execute with a no-op function succeeds
 func TestCircuitBreaker_FactoryReturnsInterface(t *testing.T) {
 	t.Parallel()
@@ -556,7 +557,7 @@ func TestRetry_DefaultConfig(t *testing.T) {
 	assert.Equal(t, retry.KindExponential, cfg.Kind)
 	assert.Equal(t, 3, cfg.MaxRetries)
 	assert.Equal(t, 100*time.Millisecond, cfg.InitialInterval)
-	assert.Equal(t, 2.0, cfg.Multiplier)
+	assert.InDelta(t, 2.0, cfg.Multiplier, 0)
 }
 
 // TestRetry_UnknownKind tests that the factory rejects unsupported retry
@@ -690,7 +691,7 @@ func TestBulkhead_LimitsConcurrency(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	err = bh.TryExecute(func() error { return nil })
-	assert.ErrorIs(t, err, bulkhead.ErrBulkheadFull)
+	require.ErrorIs(t, err, bulkhead.ErrBulkheadFull)
 
 	close(blocker)
 }
@@ -914,7 +915,7 @@ func TestRateLimiter_DefaultConfig(t *testing.T) {
 
 	cfg := ratelimiter.DefaultConfig()
 	assert.Equal(t, ratelimiter.KindToken, cfg.Kind)
-	assert.Equal(t, float64(100), cfg.Rate)
+	assert.InDelta(t, float64(100), cfg.Rate, 0)
 	assert.Equal(t, 10, cfg.Burst)
 }
 

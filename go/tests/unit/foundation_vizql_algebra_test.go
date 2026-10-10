@@ -8,10 +8,11 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
 )
 
 // randShelf is a randomly generated shelf expression for the algebra property tests.
@@ -21,7 +22,12 @@ type randShelf struct {
 }
 
 // shelfLeaves are the field references random shelves draw from.
-var shelfLeaves = []types.FieldRef{{Name: "team"}, {Name: "model"}, {Name: "workspace"}, {Name: "tokens_in", Agg: types.AggSum}}
+var shelfLeaves = []types.FieldRef{
+	{Name: "team"},
+	{Name: "model"},
+	{Name: "workspace"},
+	{Name: "tokens_in", Agg: types.AggSum},
+}
 
 // genShelf builds a random expression at most depth levels deep.
 func genShelf(r *rand.Rand, depth int) *types.AlgebraExpr {
@@ -29,7 +35,11 @@ func genShelf(r *rand.Rand, depth int) *types.AlgebraExpr {
 		leaf := shelfLeaves[r.Intn(len(shelfLeaves))]
 		return &types.AlgebraExpr{Field: &leaf}
 	}
-	opsList := []types.AlgebraOp{types.AlgebraCross, types.AlgebraConcat, types.AlgebraNest}
+	opsList := []types.AlgebraOp{
+		types.AlgebraCross,
+		types.AlgebraConcat,
+		types.AlgebraNest,
+	}
 	n := 1 + r.Intn(3)
 	args := make([]*types.AlgebraExpr, n)
 	for i := range args {
@@ -77,15 +87,42 @@ func TestAlgebra_CrossDistributesOverConcat(t *testing.T) {
 	t.Parallel()
 
 	law := func(a, b, c randShelf) bool {
-		left := vizql.Normalize(op(types.AlgebraCross, a.E, op(types.AlgebraConcat, b.E, c.E)))
-		right := vizql.Normalize(op(types.AlgebraConcat, op(types.AlgebraCross, a.E, b.E), op(types.AlgebraCross, a.E, c.E)))
+		left := vizql.Normalize(
+			op(types.AlgebraCross, a.E, op(types.AlgebraConcat, b.E, c.E)),
+		)
+		right := vizql.Normalize(
+			op(
+				types.AlgebraConcat,
+				op(types.AlgebraCross, a.E, b.E),
+				op(types.AlgebraCross, a.E, c.E),
+			),
+		)
 		return slices.Equal(tupleKeys(left), tupleKeys(right))
 	}
 	require.NoError(t, quick.Check(law, &quick.Config{MaxCount: 300}))
 
-	team, model, ws := &types.AlgebraExpr{Field: &types.FieldRef{Name: "team"}}, &types.AlgebraExpr{Field: &types.FieldRef{Name: "model"}}, &types.AlgebraExpr{Field: &types.FieldRef{Name: "workspace"}}
-	assert.Equal(t, []string{"team,model", "team,workspace"}, tupleKeys(vizql.Normalize(op(types.AlgebraCross, team, op(types.AlgebraConcat, model, ws)))))
-	assert.Equal(t, []vizql.Tuple{{}}, vizql.Normalize(nil), "an empty shelf is the cross identity")
+	team, model, ws := &types.AlgebraExpr{
+		Field: &types.FieldRef{Name: "team"},
+	}, &types.AlgebraExpr{
+		Field: &types.FieldRef{Name: "model"},
+	}, &types.AlgebraExpr{
+		Field: &types.FieldRef{Name: "workspace"},
+	}
+	assert.Equal(
+		t,
+		[]string{"team,model", "team,workspace"},
+		tupleKeys(
+			vizql.Normalize(
+				op(types.AlgebraCross, team, op(types.AlgebraConcat, model, ws)),
+			),
+		),
+	)
+	assert.Equal(
+		t,
+		[]vizql.Tuple{{}},
+		vizql.Normalize(nil),
+		"an empty shelf is the cross identity",
+	)
 }
 
 // TestAlgebra_NestIsSubsetOfCross tests that nesting yields the cross product's
@@ -108,7 +145,10 @@ func TestAlgebra_NestIsSubsetOfCross(t *testing.T) {
 			if !tuple.Nested {
 				return false
 			}
-			if _, found := slices.BinarySearch(cross, tupleKeys([]vizql.Tuple{tuple})[0]); !found {
+			if _, found := slices.BinarySearch(
+				cross,
+				tupleKeys([]vizql.Tuple{tuple})[0],
+			); !found {
 				return false
 			}
 		}
@@ -116,7 +156,11 @@ func TestAlgebra_NestIsSubsetOfCross(t *testing.T) {
 	}
 	require.NoError(t, quick.Check(law, &quick.Config{MaxCount: 300}))
 
-	team, model := &types.AlgebraExpr{Field: &types.FieldRef{Name: "team"}}, &types.AlgebraExpr{Field: &types.FieldRef{Name: "model"}}
+	team, model := &types.AlgebraExpr{
+		Field: &types.FieldRef{Name: "team"},
+	}, &types.AlgebraExpr{
+		Field: &types.FieldRef{Name: "model"},
+	}
 	for _, tuple := range vizql.Normalize(op(types.AlgebraCross, team, model)) {
 		assert.False(t, tuple.Nested)
 	}

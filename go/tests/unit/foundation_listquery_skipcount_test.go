@@ -12,19 +12,21 @@ import (
 )
 
 // TestRun_SkipCount tests the WithSkipCount context flag: a Count:true reader whose
-// context carries the flag skips the bounded total_count entirely (Total 0, no runner Count call),
-// while the flag stays scoped to its own call and never leaks to a sibling List.
+// context carries the flag skips the bounded total_count entirely (Total 0, no runner
+// Count call), while the flag stays scoped to its own call and never leaks to a sibling
+// List.
 //
 // Why this test is important:
-//   - The count-cache decorator injects a cached total and MUST suppress the store's own recompute,
-//     else the cache saves nothing. But the suppression is a context flag; if it leaked to an
-//     unrelated List on the same base context, that List would silently return Total 0 for a real
-//     total — a correctness bug worse than a slow count. This pins both the skip and its isolation.
+//   - The count-cache decorator injects a cached total and MUST suppress the store's own
+//     recompute, else the cache saves nothing. But the suppression is a context flag; if
+//     it leaked to an unrelated List on the same base context, that List would silently
+//     return Total 0 for a real total — a correctness bug worse than a slow count. This
+//     pins both the skip and its isolation.
 //
 // What it tests:
-//   - flag set → Total 0 and the runner's Count is never called; flag unset → the bounded total is
-//     computed (Count called with cap+1); a skip-count child used for one call does NOT affect a
-//     second List run on the ORIGINAL context.
+//   - flag set → Total 0 and the runner's Count is never called; flag unset → the bounded
+//     total is computed (Count called with cap+1); a skip-count child used for one call
+//     does NOT affect a second List run on the ORIGINAL context.
 func TestRun_SkipCount(t *testing.T) {
 	t.Parallel()
 

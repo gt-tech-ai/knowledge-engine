@@ -22,9 +22,23 @@ func TestCodeOr_KeepsCodeElseFallsBack(t *testing.T) {
 	t.Parallel()
 	conflict := coreerr.New(coreerr.CodeConflict, "dup")
 
-	assert.Equal(t, coreerr.CodeConflict, coreerr.CodeOr(conflict, coreerr.CodeUnavailable))
-	assert.Equal(t, coreerr.CodeConflict,
-		coreerr.CodeOr(coreerr.Wrap(conflict, coreerr.CodeConflict, "ctx"), coreerr.CodeUnavailable))
-	assert.Equal(t, coreerr.CodeUnavailable, coreerr.CodeOr(coreerr.Sentinel("sdk"), coreerr.CodeUnavailable))
+	assert.Equal(
+		t,
+		coreerr.CodeConflict,
+		coreerr.CodeOr(conflict, coreerr.CodeUnavailable),
+	)
+	assert.Equal(
+		t,
+		coreerr.CodeConflict,
+		coreerr.CodeOr(
+			coreerr.Wrap(conflict, coreerr.CodeConflict, "ctx"),
+			coreerr.CodeUnavailable,
+		),
+	)
+	assert.Equal(
+		t,
+		coreerr.CodeUnavailable,
+		coreerr.CodeOr(coreerr.Sentinel("sdk"), coreerr.CodeUnavailable),
+	)
 	assert.Equal(t, coreerr.CodeInternal, coreerr.CodeOr(nil, coreerr.CodeInternal))
 }

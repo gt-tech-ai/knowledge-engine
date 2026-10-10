@@ -49,15 +49,19 @@ func TestLockConfigValidate(t *testing.T) {
 
 	badKind := infra.DefaultLockConfig()
 	badKind.Kind = "zookeeper"
-	assert.Error(t, badKind.Validate(), "an unknown lock kind must be rejected")
+	require.Error(t, badKind.Validate(), "an unknown lock kind must be rejected")
 
 	badTTL := infra.DefaultLockConfig()
 	badTTL.TTL = 0
-	assert.Error(t, badTTL.Validate(), "a non-positive ttl must be rejected")
+	require.Error(t, badTTL.Validate(), "a non-positive ttl must be rejected")
 
 	badRenew := infra.DefaultLockConfig()
 	badRenew.RenewInterval = 0
-	assert.Error(t, badRenew.Validate(), "a non-positive renew_interval must be rejected")
+	require.Error(
+		t,
+		badRenew.Validate(),
+		"a non-positive renew_interval must be rejected",
+	)
 
 	tooFast := infra.DefaultLockConfig()
 	tooFast.RenewInterval = 20 * time.Second // > ttl/3 (30s/3 = 10s)

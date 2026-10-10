@@ -148,7 +148,8 @@ func TestWatermillSubscriber_InterfaceCompliance(t *testing.T) {
 	require.NotNil(t, sub, "expected non-nil MessageConsumer")
 }
 
-// TestSQSAdapter_QueueURL tests that the SQS adapter constructs correct queue URLs from a base URL and topic name.
+// TestSQSAdapter_QueueURL tests that the SQS adapter constructs correct queue URLs from a
+// base URL and topic name.
 //
 // Why this test is important:
 //   - Incorrect queue URL construction routes messages to the wrong SQS queue

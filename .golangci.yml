@@ -1,6 +1,9 @@
 version: "2"
 run:
   modules-download-mode: readonly
+  # Load the integration-tagged files too, so they are linted and formatted like the rest.
+  build-tags:
+    - integration
 linters:
   enable:
     # Existing linters
@@ -85,7 +88,7 @@ linters:
     forbidigo:
       # Every error crossing a boundary carries an ErrorCode via
       # core/errors Wrap/New. A code-less fmt.Errorf is forbidden in production
-      # code (test files are globally excluded under exclusions.paths below).
+      # code and in tests (a test that needs an uncoded error uses apperr.Sentinel).
       # Specifying `forbid` REPLACES forbidigo's default fmt.Print* patterns, so
       # only fmt.Errorf is banned — fmt.Println/Printf are untouched.
       forbid:
@@ -216,6 +219,7 @@ linters:
         enforce-core-errors:
           files:
             - "**/go/**/*.go"
+            - "!**/go/**/*_test.go"
             - "!**/go/core/errors/*.go"
             - "!**/go/core/errors/**/*.go"
           deny:
@@ -226,6 +230,7 @@ linters:
         enforce-foundation-logger:
           files:
             - "**/go/**/*.go"
+            - "!**/go/**/*_test.go"
             - "!**/go/foundation/logger/*.go"
             - "!**/go/foundation/logger/**/*.go"
           deny:
@@ -285,10 +290,23 @@ linters:
       - linters:
           - lll
         source: '^\s*\w+\s+[\w.*\[\]]+\s+`(\w+:"[^"]*"\s*)+`$'
+      # Test code is linted like production code except for the linters whose findings are
+      # noise there: duplicated table-driven bodies (dupl), length and complexity of a
+      # test that walks a scenario (funlen, gocyclo), unchecked cleanup errors (errcheck),
+      # fixture credentials and file modes (gosec), and a literal repeated as an expected
+      # value (goconst: a test's literal is its expected value; naming it hides the spec
+      # from the assertion).
+      - path: _test\.go
+        linters:
+          - dupl
+          - errcheck
+          - funlen
+          - gocyclo
+          - gosec
+          - goconst
     paths:
       - .*\.pb\.go$
       - .*\.gen\.go$
-      - .*_test\.go$
       - gen
       - vendor
       - node_modules
@@ -323,7 +341,6 @@ formatters:
     paths:
       - .*\.pb\.go$
       - .*\.gen\.go$
-      - .*_test\.go$
       - gen
       - vendor
       - node_modules

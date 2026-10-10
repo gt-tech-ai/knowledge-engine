@@ -50,7 +50,7 @@ func TestOSFS_RoundTrips(t *testing.T) {
 	moved := filepath.Join(sub, "g.txt")
 	require.NoError(t, fs.Rename(file, moved))
 	_, err = fs.Stat(file)
-	assert.Error(t, err, "old path is gone after Rename")
+	require.Error(t, err, "old path is gone after Rename")
 	_, err = fs.Stat(moved)
 	assert.NoError(t, err, "new path exists after Rename")
 

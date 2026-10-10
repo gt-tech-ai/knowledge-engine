@@ -7,12 +7,11 @@ import (
 	"database/sql"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // pgx database/sql driver for the assertion query
 	"github.com/stretchr/testify/require"
 
 	riverclient "github.com/gt-tech-ai/knowledge-engine/go/clients/jobs/river"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/postgres"
-
-	_ "github.com/jackc/pgx/v5/stdlib" // pgx database/sql driver for the assertion query
 )
 
 // TestRiverMigrate_CreatesRiverSchema verifies that river.Migrate creates River's

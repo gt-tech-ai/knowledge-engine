@@ -13,9 +13,10 @@ import (
 // TestParseUUIDCursor tests the shared keyset-cursor id parser.
 //
 // Why this test is important:
-//   - Keyset pagination binds the cursor's id (as the secondary sort key) into the seek predicate; the
-//     ParseID callback must turn the cursor's id string back into a uuid.UUID, rejecting a malformed id
-//     rather than binding a zero/garbage value that would corrupt the page boundary.
+//   - Keyset pagination binds the cursor's id (as the secondary sort key) into the seek
+//     predicate; the ParseID callback must turn the cursor's id string back into a
+//     uuid.UUID, rejecting a malformed id rather than binding a zero/garbage value that
+//     would corrupt the page boundary.
 //
 // What it tests:
 //   - A valid UUID string parses to the equal uuid.UUID (returned as any).

@@ -148,7 +148,12 @@ func TestRunnerBuilder_DryRunSkipsExecution(t *testing.T) {
 	inner.EXPECT().Exists(gomock.Any()).Return(true).AnyTimes()
 	inner.EXPECT().RequireTool(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	r := system.NewBuilder(inner).
-		WithLogging(func(format string, a ...any) { logs = append(logs, fmt.Sprintf(format, a...)) }).
+		WithLogging(func(
+			format string,
+			a ...any,
+		) {
+			logs = append(logs, fmt.Sprintf(format, a...))
+		}).
 		WithDryRun(true).
 		Build()
 

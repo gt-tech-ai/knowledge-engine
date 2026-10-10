@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
-	"github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
+	"github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
 )
 
 // TestResourceExhausted_MapsGRPC8AndHTTP429 tests that the quota code maps to
@@ -30,8 +31,12 @@ func TestResourceExhausted_MapsGRPC8AndHTTP429(t *testing.T) {
 
 	err := apperr.New(apperr.CodeResourceExhausted, "org token budget spent")
 
-	assert.Equal(t, apperr.ErrorCode("RESOURCE_EXHAUSTED"), apperr.CodeResourceExhausted)
-	assert.Equal(t, http.StatusTooManyRequests, apperr.ToHTTPStatus(apperr.CodeResourceExhausted))
+	assert.Equal(t, apperr.CodeResourceExhausted, apperr.ErrorCode("RESOURCE_EXHAUSTED"))
+	assert.Equal(
+		t,
+		http.StatusTooManyRequests,
+		apperr.ToHTTPStatus(apperr.CodeResourceExhausted),
+	)
 	code, msg := rpc.Sanitize(err)
 	assert.Equal(t, connect.CodeResourceExhausted, code)
 	assert.Equal(t, connect.Code(8), code)

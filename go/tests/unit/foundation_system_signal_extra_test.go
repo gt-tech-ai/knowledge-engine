@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 )
 
 // TestRunner_CancelTearsDownProcessGroup tests that cancelling the context tears

@@ -6,15 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // testFilterMap is the shared allow-list the parser tests exercise: a string, a second
-// string, an int, and a time field — enough to cover scalar + slice + type-mismatch paths.
+// string, an int, and a time field — enough to cover scalar + slice + type-mismatch
+// paths.
 func testFilterMap() *listquery.Map {
 	return listquery.NewMap().Add(
 		listquery.String("name"),

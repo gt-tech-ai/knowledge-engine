@@ -195,8 +195,8 @@ func TestJSONAPI_ActionIsMetaOnly200(t *testing.T) {
 // TestJSONAPI_RolesProduceExpectedEnvelope tests the status + body shape per role.
 //
 // Why this test is important:
-//   - The role→contract FSM is the whole point of the route table; each role must produce its
-//     exact status and envelope deterministically.
+//   - The role→contract FSM is the whole point of the route table; each role must produce
+//     its exact status and envelope deterministically.
 //
 // What it tests:
 //   - GET_ONE → 200 {data:object}; LIST → 200 {data:[]}+meta; UPDATE → 200

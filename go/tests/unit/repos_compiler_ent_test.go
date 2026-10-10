@@ -13,17 +13,17 @@ import (
 	entcompiler "github.com/gt-tech-ai/knowledge-engine/go/repos/repository/compiler/ent"
 )
 
-// renderPred applies a compiled Ent predicate to a fresh Postgres selector over "documents" and
-// returns the rendered SQL + bound args, so a test can assert the predicate is parameterized
-// (values as $N placeholders, never inlined).
-func renderPred(pred entcompiler.EntPredicate) (string, []any) {
+// renderPred applies a compiled Ent predicate to a fresh Postgres selector over
+// "documents" and returns the rendered SQL + bound args, so a test can assert the
+// predicate is parameterized (values as $N placeholders, never inlined).
+func renderPred(pred entcompiler.EntPredicate) (query string, args []any) {
 	sel := entsql.Dialect(dialect.Postgres).Select("*").From(entsql.Table("documents"))
 	pred(sel)
 	return sel.Query()
 }
 
-// renderOrder applies compiled order options to a fresh Postgres selector and returns the SQL,
-// so a test can assert the ORDER BY column list + tiebreakers.
+// renderOrder applies compiled order options to a fresh Postgres selector and returns the
+// SQL, so a test can assert the ORDER BY column list + tiebreakers.
 func renderOrder(orders []entcompiler.EntPredicate) string {
 	sel := entsql.Dialect(dialect.Postgres).Select("*").From(entsql.Table("documents"))
 	for _, o := range orders {
@@ -36,14 +36,16 @@ func renderOrder(orders []entcompiler.EntPredicate) string {
 // TestEntBackend_Clauses tests the Ent backend's leaf-clause and Empty interpretation.
 //
 // Why this test is important:
-//   - This is the SQL-safety boundary: every operator must render a *parameterized* predicate
-//     ($N placeholders, values in the args list) so no client value is ever concatenated into SQL.
-//     A one-character bug (wrong operator, an inlined value, the wrong column) would change the
-//     asserted SQL or args, so the test catches it.
+//   - This is the SQL-safety boundary: every operator must render a *parameterized*
+//     predicate ($N placeholders, values in the args list) so no client value is ever
+//     concatenated into SQL. A one-character bug (wrong operator, an inlined value, the
+//     wrong column) would change the asserted SQL or args, so the test catches it.
 //
 // What it tests:
-//   - Each of the 9 operators renders the expected parameterized fragment on the given column.
-//   - The slice operators ($in / $not_in) accept the parser's []any value and expand to $N, $N.
+//   - Each of the 9 operators renders the expected parameterized fragment on the given
+//     column.
+//   - The slice operators ($in / $not_in) accept the parser's []any value and expand to
+//     $N, $N.
 //   - Empty() adds no WHERE clause.
 func TestEntBackend_Clauses(t *testing.T) {
 	t.Parallel()
@@ -108,20 +110,23 @@ func TestEntBackend_Clauses(t *testing.T) {
 	})
 }
 
-// TestEntBackend_CompositeAndOrder tests the Ent backend's boolean composition + order rendering
-// through the shared fold.
+// TestEntBackend_CompositeAndOrder tests the Ent backend's boolean composition + order
+// rendering through the shared fold.
 //
 // Why this test is important:
-//   - Composition (And/Or) and multi-column ordering are where a wrong combinator or a lost
-//     tiebreaker silently corrupts results or breaks keyset pagination. Driving them through the
-//     real fold (Compile/CompileOrder) with the Ent backend proves the full path produces the
-//     expected parameterized SQL and a stable, fully-deterministic ORDER BY.
+//   - Composition (And/Or) and multi-column ordering are where a wrong combinator or a
+//     lost tiebreaker silently corrupts results or breaks keyset pagination. Driving them
+//     through the real fold (Compile/CompileOrder) with the Ent backend proves the full
+//     path produces the expected parameterized SQL and a stable, fully-deterministic
+//     ORDER BY.
 //
 // What it tests:
-//   - A nested and(eq, or(like, in)) folds to parameterized AND/OR SQL with args in clause order.
-//   - CompileOrder resolves name->title, then appends created_at DESC, id DESC tiebreakers.
-//   - The tiebreakers dedup symmetrically: neither created_at nor id is duplicated when it is the
-//     primary sort field.
+//   - A nested and(eq, or(like, in)) folds to parameterized AND/OR SQL with args in
+//     clause order.
+//   - CompileOrder resolves name->title, then appends created_at DESC, id DESC
+//     tiebreakers.
+//   - The tiebreakers dedup symmetrically: neither created_at nor id is duplicated when
+//     it is the primary sort field.
 func TestEntBackend_CompositeAndOrder(t *testing.T) {
 	t.Parallel()
 	b := entcompiler.New()
@@ -206,8 +211,9 @@ func TestEntBackend_CompositeAndOrder(t *testing.T) {
 		"join-table keyset column replaces the created_at tiebreaker",
 		func(t *testing.T) {
 			t.Parallel()
-			// A membership join table keyed on joined_at passes its keyset column so the ORDER BY never
-			// references a non-existent created_at column — the fix that unblocks org_member/team_member.
+			// A membership join table keyed on joined_at passes its keyset column so the
+			// ORDER BY never references a non-existent created_at column — the fix that
+			// unblocks org_member/team_member.
 			orders := listquery.CompileOrder[entcompiler.EntPredicate, entcompiler.EntPredicate](
 				b,
 				resolveNameToTitle,
@@ -229,18 +235,19 @@ func TestEntBackend_CompositeAndOrder(t *testing.T) {
 	)
 }
 
-// TestEntBackend_ExistsClauseHonorsCaseInsensitive tests that a joined $like predicate honors the join's
-// CaseInsensitive flag: folding when set, case-sensitive when clear.
+// TestEntBackend_ExistsClauseHonorsCaseInsensitive tests that a joined $like predicate
+// honors the join's CaseInsensitive flag: folding when set, case-sensitive when clear.
 //
 // Why this test is important:
-//   - JoinTarget.CaseInsensitive is a contract field the proto/type/generator all carry; if the ent
-//     backend ignored it (the prior dead-plumbing state), the contract would lie — setting
-//     case_insensitive:false on a $like joined field would silently still fold. This pins that the flag
-//     actually drives the rendered predicate.
+//   - JoinTarget.CaseInsensitive is a contract field the proto/type/generator all carry;
+//     if the ent backend ignored it (the prior dead-plumbing state), the contract would
+//     lie — setting case_insensitive:false on a $like joined field would silently still
+//     fold. This pins that the flag actually drives the rendered predicate.
 //
 // What it tests:
-//   - ExistsClause with OpLike + CaseInsensitive:true renders a case-folding match (ILIKE), while
-//     CaseInsensitive:false renders a plain case-sensitive LIKE (not ILIKE), both parameterized.
+//   - ExistsClause with OpLike + CaseInsensitive:true renders a case-folding match
+//     (ILIKE), while CaseInsensitive:false renders a plain case-sensitive LIKE (not
+//     ILIKE), both parameterized.
 func TestEntBackend_ExistsClauseHonorsCaseInsensitive(t *testing.T) {
 	t.Parallel()
 	b := entcompiler.New()
@@ -267,20 +274,22 @@ func TestEntBackend_ExistsClauseHonorsCaseInsensitive(t *testing.T) {
 }
 
 // TestEntBackend_OrderJoin tests that a joined sort directive renders an ORDER BY over a
-// correlated scalar subquery per join column, with the direction-aware NULLS clause — the real SQL a
-// joined column sort produces against Postgres.
+// correlated scalar subquery per join column, with the direction-aware NULLS clause — the
+// real SQL a joined column sort produces against Postgres.
 //
 // Why this test is important:
-//   - A joined column has no base-table column to ORDER BY; the correlated subquery is the mechanism. A
-//     malformed subquery (wrong correlation, missing NULLS, or a base JOIN that multiplies rows) would
-//     ship a broken or non-deterministic sort. This pins the emitted SQL shape.
+//   - A joined column has no base-table column to ORDER BY; the correlated subquery is
+//     the mechanism. A malformed subquery (wrong correlation, missing NULLS, or a base
+//     JOIN that multiplies rows) would ship a broken or non-deterministic sort. This pins
+//     the emitted SQL shape.
 //
 // What it tests:
-//   - OrderJoin over users.first_name+last_name emits one correlated `(SELECT … WHERE users.id =
-//     documents.user_id …)` term per column, ascending → `NULLS LAST`; descending → `NULLS FIRST`.
-//   - A join with TargetSoftDeletes adds an `AND <target>.deleted_at IS NULL` guard to the correlated
-//     subquery (mirroring ExistsClause), so the sort never reads a soft-deleted target's stale value; a
-//     join without it has no such guard.
+//   - OrderJoin over users.first_name+last_name emits one correlated `(SELECT … WHERE
+//     users.id = documents.user_id …)` term per column, ascending → `NULLS LAST`;
+//     descending → `NULLS FIRST`.
+//   - A join with TargetSoftDeletes adds an `AND <target>.deleted_at IS NULL` guard to
+//     the correlated subquery (mirroring ExistsClause), so the sort never reads a
+//     soft-deleted target's stale value; a join without it has no such guard.
 func TestEntBackend_OrderJoin(t *testing.T) {
 	t.Parallel()
 	b := entcompiler.New()
@@ -290,13 +299,15 @@ func TestEntBackend_OrderJoin(t *testing.T) {
 	}
 
 	asc := renderOrder([]entcompiler.EntPredicate{b.OrderJoin(join, false)})
-	// One correlated subquery per column, correlated to the base documents.user_id, ascending → NULLS LAST.
+	// One correlated subquery per column, correlated to the base documents.user_id,
+	// ascending → NULLS LAST.
 	assert.Contains(t, asc, `"users"."first_name"`)
 	assert.Contains(t, asc, `"users"."last_name"`)
 	assert.Contains(t, asc, `"documents"."user_id"`)
 	assert.Contains(t, asc, "NULLS LAST")
 	assert.NotContains(t, asc, "NULLS FIRST")
-	// The base query is NOT joined — the correlation lives inside the ORDER BY subquery only.
+	// The base query is NOT joined — the correlation lives inside the ORDER BY subquery
+	// only.
 	assert.NotContains(t, asc, "JOIN")
 	// A live-target join (no TargetSoftDeletes) emits no soft-delete guard.
 	assert.NotContains(t, asc, "deleted_at")
@@ -305,8 +316,9 @@ func TestEntBackend_OrderJoin(t *testing.T) {
 	assert.Contains(t, desc, "NULLS FIRST")
 	assert.NotContains(t, desc, "NULLS LAST")
 
-	// A soft-deleting target adds the `deleted_at IS NULL` guard to the correlated subquery, so the sort
-	// excludes a soft-deleted target (matching ExistsClause's filter) instead of sorting its stale value.
+	// A soft-deleting target adds the `deleted_at IS NULL` guard to the correlated
+	// subquery, so the sort excludes a soft-deleted target (matching ExistsClause's
+	// filter) instead of sorting its stale value.
 	softDel := types.JoinTarget{
 		Table: "connectors", LocalKey: "connector_id", TargetKey: "id",
 		Columns: []string{"name"}, TargetSoftDeletes: true,
@@ -315,18 +327,21 @@ func TestEntBackend_OrderJoin(t *testing.T) {
 	assert.Contains(t, guarded, `"connectors"."deleted_at" IS NULL`)
 }
 
-// TestEntBackend_OrderOrdinal tests that a value-ordinal sort directive renders an
-// `ORDER BY CASE col WHEN … THEN i … ELSE len END <dir>` with the values as bound parameters — the real
-// SQL a meaning-ordered enum sort produces (e.g. access_level admin<write<read = owner<editor<viewer).
+// TestEntBackend_OrderOrdinal tests that a value-ordinal sort directive renders an `ORDER
+// BY CASE col WHEN … THEN i … ELSE len END <dir>` with the values as bound parameters —
+// the real SQL a meaning-ordered enum sort produces (e.g. access_level admin<write<read =
+// owner<editor<viewer).
 //
 // Why this test is important:
-//   - An enum column sorted lexically gives a meaningless order (admin<read<write); the CASE ordinal is
-//     the mechanism that yields the semantic order. A wrong CASE (missing ELSE, unbound values, wrong
-//     direction) would misorder or SQL-inject. This pins the emitted shape + parameterization.
+//   - An enum column sorted lexically gives a meaningless order (admin<read<write); the
+//     CASE ordinal is the mechanism that yields the semantic order. A wrong CASE (missing
+//     ELSE, unbound values, wrong direction) would misorder or SQL-inject. This pins the
+//     emitted shape + parameterization.
 //
 // What it tests:
-//   - OrderOrdinal over access_level [admin,write,read] emits a CASE mapping each value to THEN 0/1/2 +
-//     ELSE 3, the values inlined as quoted literals (trusted proto DATA), ascending → " ASC", desc → " DESC".
+//   - OrderOrdinal over access_level [admin,write,read] emits a CASE mapping each value
+//     to THEN 0/1/2 + ELSE 3, the values inlined as quoted literals (trusted proto DATA),
+//     ascending → " ASC", desc → " DESC".
 func TestEntBackend_OrderOrdinal(t *testing.T) {
 	t.Parallel()
 	b := entcompiler.New()
@@ -337,7 +352,8 @@ func TestEntBackend_OrderOrdinal(t *testing.T) {
 	)
 	assert.Contains(t, asc, "CASE")
 	assert.Contains(t, asc, `"access_level"`)
-	// Values are inlined as quoted literals (trusted sort_ordinal DATA, not client input) with the ordinal.
+	// Values are inlined as quoted literals (trusted sort_ordinal DATA, not client input)
+	// with the ordinal.
 	assert.Contains(t, asc, "WHEN 'admin' THEN 0")
 	assert.Contains(t, asc, "WHEN 'read' THEN 2")
 	assert.Contains(t, asc, "ELSE 3")
@@ -349,21 +365,24 @@ func TestEntBackend_OrderOrdinal(t *testing.T) {
 	assert.Contains(t, desc, "END DESC")
 }
 
-// TestEntBackend_OrderDerived tests that a derived sort directive renders the correct SQL for
-// its two shapes — a correlated aggregate (a Documents/Members count) and a timestamp-plus-interval (a
-// connector's Next Sync) — with the direction-aware NULLS clause and no base JOIN.
+// TestEntBackend_OrderDerived tests that a derived sort directive renders the correct SQL
+// for its two shapes — a correlated aggregate (a Documents/Members count) and a
+// timestamp-plus-interval (a connector's Next Sync) — with the direction-aware NULLS
+// clause and no base JOIN.
 //
 // Why this test is important:
-//   - A computed count and a schedule-derived Next Sync have no base column to ORDER BY; the correlated
-//     aggregate / computed interval IS the mechanism. A wrong correlation, a missing soft-delete guard,
-//     or a base JOIN that multiplies rows would ship a broken or non-deterministic sort. This pins the
-//     emitted SQL shape (renderOrder's base table is "documents").
+//   - A computed count and a schedule-derived Next Sync have no base column to ORDER BY;
+//     the correlated aggregate / computed interval IS the mechanism. A wrong correlation,
+//     a missing soft-delete guard, or a base JOIN that multiplies rows would ship a
+//     broken or non-deterministic sort. This pins the emitted SQL shape (renderOrder's
+//     base table is "documents").
 //
 // What it tests:
 //   - An aggregate COUNT emits `(SELECT COUNT(*) FROM child WHERE child.fk = base.pk AND
-//     child.deleted_at IS NULL) <dir>` with no base JOIN; ascending → NULLS LAST, descending → NULLS FIRST.
-//   - An interval emits `(base.ts + CASE base.disc WHEN 'v' THEN make_interval(secs => n) … ELSE NULL
-//     END) <dir>`, the seconds inlined as trusted spec literals.
+//     child.deleted_at IS NULL) <dir>` with no base JOIN; ascending → NULLS LAST,
+//     descending → NULLS FIRST.
+//   - An interval emits `(base.ts + CASE base.disc WHEN 'v' THEN make_interval(secs => n)
+//     … ELSE NULL END) <dir>`, the seconds inlined as trusted spec literals.
 func TestEntBackend_OrderDerived(t *testing.T) {
 	t.Parallel()
 	b := entcompiler.New()
@@ -376,7 +395,8 @@ func TestEntBackend_OrderDerived(t *testing.T) {
 	assert.Contains(t, asc, "COUNT(*)")
 	assert.Contains(t, asc, `FROM "team_members"`)
 	assert.Contains(t, asc, `"team_members"."team_id"`)
-	// The correlation targets the base row (renderOrder's base table is documents) — no base JOIN.
+	// The correlation targets the base row (renderOrder's base table is documents) — no
+	// base JOIN.
 	assert.Contains(t, asc, `"documents"."id"`)
 	assert.Contains(t, asc, `"team_members"."deleted_at" IS NULL`)
 	assert.Contains(t, asc, "NULLS LAST")
@@ -403,7 +423,8 @@ func TestEntBackend_OrderDerived(t *testing.T) {
 	assert.Contains(t, ivSQL, "NULLS LAST")
 }
 
-// assertOrderedColumns asserts each fragment appears in q in the given left-to-right order.
+// assertOrderedColumns asserts each fragment appears in q in the given left-to-right
+// order.
 func assertOrderedColumns(t *testing.T, q string, fragments ...string) {
 	t.Helper()
 	prev := -1

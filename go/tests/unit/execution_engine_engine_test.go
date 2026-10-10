@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
@@ -66,7 +67,11 @@ func newFanOutJob(
 	j := mocks.NewMockAnyJob(gomock.NewController(t))
 	j.EXPECT().Meta().Return(types.JobMeta{Name: "fanout"}).AnyTimes()
 	j.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ interfaces.CommandRunner, _ string) (types.StepResults, error) {
+		func(
+			ctx context.Context,
+			_ interfaces.CommandRunner,
+			_ string,
+		) (types.StepResults, error) {
 			results := engine.FanOut(
 				ctx, items, len(items),
 				func(_ context.Context, item string) types.StepResult {
@@ -124,9 +129,10 @@ func TestFanOut_AllUnitsCollected(t *testing.T) {
 	require.Len(t, results, len(items))
 	var failed, passed int
 	for _, r := range results {
-		if r.Status == types.StatusFail {
+		switch r.Status {
+		case types.StatusFail:
 			failed++
-		} else if r.Status == types.StatusPass {
+		case types.StatusPass:
 			passed++
 		}
 	}
@@ -173,9 +179,9 @@ func TestFanOut_BoundedConcurrency(t *testing.T) {
 		},
 	)
 
-	assert.False(
+	assert.LessOrEqual(
 		t,
-		peak > maxWorkers,
+		peak, int64(maxWorkers),
 		"peak concurrency %d exceeded maxWorkers %d",
 		peak,
 		maxWorkers,
@@ -242,7 +248,10 @@ func TestFanOut_CtxCancelStopsFeeding(t *testing.T) {
 	results := make(chan types.StepResults, 1)
 	go func() {
 		// numWorkers=1: only one item runs at a time, others queue at semaphore
-		results <- engine.FanOut(ctx, items, 1, func(_ context.Context, item int) types.StepResult {
+		results <- engine.FanOut(ctx, items, 1, func(
+			_ context.Context,
+			item int,
+		) types.StepResult {
 			if item == 0 {
 				close(started) // signal first item started
 				<-released     // hold semaphore until test releases
@@ -590,7 +599,7 @@ func TestNewStep_PassOnSuccess(t *testing.T) {
 //   - An erroring step produces StatusFail and a non-empty Error string.
 func TestNewStep_FailOnError(t *testing.T) {
 	s := engine.NewStep("typecheck", "quality", func(_ context.Context) error {
-		return fmt.Errorf("type error")
+		return apperr.Sentinel("type error")
 	})
 	result := s.Execute(context.Background())
 	assert.Equal(t, types.StatusFail, result.Status)
@@ -612,7 +621,7 @@ func TestNewStep_FailOnError(t *testing.T) {
 func TestNewStep_WarnOnly_DowngradesFailure(t *testing.T) {
 	s := engine.NewStep(
 		"shellcheck", "infra",
-		func(_ context.Context) error { return fmt.Errorf("shell issue") },
+		func(_ context.Context) error { return apperr.Sentinel("shell issue") },
 		engine.StepWarnOnly(),
 	)
 	result := s.Execute(context.Background())

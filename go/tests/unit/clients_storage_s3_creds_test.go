@@ -69,19 +69,20 @@ func TestUseStaticCredentials(t *testing.T) {
 	}
 }
 
-// TestNewConnectorClientBuilder verifies the shared per-connector S3-client builder both connector
-// composition roots use.
+// TestNewConnectorClientBuilder verifies the shared per-connector S3-client builder both
+// connector composition roots use.
 //
 // Why this test is important:
-//   - The two roots previously duplicated this ~30-line closure verbatim; it is now the single source,
-//     so a bug here breaks BOTH roots' credential-scoped connector client (the crawl would sign with the
-//     wrong creds/region). It also guards that the builder stays constructible offline (no lateral
-//     go/clients/connector import, no network on build).
+//   - The two roots previously duplicated this ~30-line closure verbatim; it is now the
+//     single source, so a bug here breaks BOTH roots' credential-scoped connector client
+//     (the crawl would sign with the wrong creds/region). It also guards that the builder
+//     stays constructible offline (no lateral go/clients/connector import, no network on
+//     build).
 //
 // What it tests:
-//   - The returned builder produces a non-nil StorageClient for an explicit region, and falls back to
-//     the base region when the per-connector region is empty — both constructed offline (the AWS client
-//     is lazy).
+//   - The returned builder produces a non-nil StorageClient for an explicit region, and
+//     falls back to the base region when the per-connector region is empty — both
+//     constructed offline (the AWS client is lazy).
 func TestNewConnectorClientBuilder(t *testing.T) {
 	t.Parallel()
 	build := s3.NewConnectorClientBuilder(infra.S3Config{

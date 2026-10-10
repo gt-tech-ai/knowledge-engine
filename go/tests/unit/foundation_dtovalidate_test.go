@@ -9,15 +9,17 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/dtovalidate"
 )
 
-// TestDtovalidate_LeafRules tests the leaf rule library the generated DTO Validate() methods compose
+// TestDtovalidate_LeafRules tests the leaf rule library the generated DTO Validate()
+// methods compose
 //
 // Why this test is important:
-//   - these are the primitives every generated DTO check calls; a wrong bound or a mis-reused stdlib
-//     call would silently pass bad input or reject good input across every DTO at once.
+//   - these are the primitives every generated DTO check calls; a wrong bound or a
+//     mis-reused stdlib call would silently pass bad input or reject good input across
+//     every DTO at once.
 //
 // What it tests:
-//   - each rule accepts a valid value and rejects the boundary violation, and the string rules reuse
-//     stdlib (uuid/url/filepath) rather than a hand-rolled pattern.
+//   - each rule accepts a valid value and rejects the boundary violation, and the string
+//     rules reuse stdlib (uuid/url/filepath) rather than a hand-rolled pattern.
 func TestDtovalidate_LeafRules(t *testing.T) {
 	require.NoError(t, dtovalidate.UUID("id", "11111111-1111-1111-1111-111111111111"))
 	require.Error(t, dtovalidate.UUID("id", "not-a-uuid"))

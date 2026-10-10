@@ -20,7 +20,7 @@ import (
 // validSpanCtx returns a context carrying a fixed, valid W3C span context and the
 // traceparent string it serializes to — so a test can assert the interceptor returns
 // exactly that id to the caller.
-func validSpanCtx(t *testing.T) (context.Context, string) {
+func validSpanCtx(t *testing.T) (ctx context.Context, traceParent string) {
 	t.Helper()
 	traceID, err := trace.TraceIDFromHex("0123456789abcdef0123456789abcdef")
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func validSpanCtx(t *testing.T) (context.Context, string) {
 		SpanID:     spanID,
 		TraceFlags: trace.FlagsSampled,
 	})
-	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+	ctx = trace.ContextWithSpanContext(context.Background(), sc)
 	return ctx, tracer.TraceParentFromContext(ctx)
 }
 
@@ -86,7 +86,8 @@ func TestTracingInterceptor_UnarySetsTraceResponseHeader(t *testing.T) {
 //     value that a client might trust.
 //
 // What it tests:
-//   - With a tracer that yields no valid span context, the response has no `traceresponse`.
+//   - With a tracer that yields no valid span context, the response has no
+//     `traceresponse`.
 func TestTracingInterceptor_UnaryNoHeaderWithoutValidSpan(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -142,7 +143,8 @@ func TestTracingInterceptor_UnaryNilResponseNoPanic(t *testing.T) {
 //
 // Why this test is important:
 //   - Streaming response headers flush with the first Send, so the trace id must be set
-//     before the handler starts producing frames — otherwise the client never receives it.
+//     before the handler starts producing frames — otherwise the client never receives
+//     it.
 //
 // What it tests:
 //   - The `traceresponse` header equals the server span's traceparent and is already

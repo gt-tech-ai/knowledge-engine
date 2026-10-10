@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/job/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -95,7 +94,7 @@ func TestTracingDecorator_MetaDelegatesToInner(t *testing.T) {
 	inner := mocks.NewMockAnyJob(ctrl)
 	inner.EXPECT().Meta().Return(types.JobMeta{Name: "vet", Group: "quality"}).AnyTimes()
 
-	var traced interfaces.AnyJob = decorators.Wrap(inner).
+	traced := decorators.Wrap(inner).
 		WithTracing(fixtures.NopTracer()).
 		Build()
 

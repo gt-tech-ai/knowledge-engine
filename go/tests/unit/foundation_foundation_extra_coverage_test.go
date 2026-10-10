@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	schemares "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/reswire"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestReswire_NewRetrier_ErrorPaths tests that NewRetrier surfaces both a config

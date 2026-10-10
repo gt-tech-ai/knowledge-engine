@@ -4,14 +4,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // baseWithDB writes a minimal base.yaml with a database + storage section into a
@@ -35,24 +36,24 @@ storage:
 // bindingSchema is a consumer root config: the loader derives an env binding for
 // every leaf, under the consumer's prefix, from these mapstructure/envalias tags.
 type bindingSchema struct {
-	// Database is the database section (database.*).
-	Database infra.DatabaseConfig `mapstructure:"database"`
-	// Storage groups the object store under storage.s3.
-	Storage struct {
-		// S3 is the object-store section (storage.s3.*).
-		S3 infra.S3Config `mapstructure:"s3"`
-	} `mapstructure:"storage"`
-	// Auth is the auth section (auth.*).
-	Auth infra.AuthConfig `mapstructure:"auth"`
-	// Redis is the cache section (redis.*).
-	Redis infra.RedisConfig `mapstructure:"redis"`
 	// Messaging groups the queue backend under messaging.sqs.
 	Messaging struct {
 		// SQS is the queue section (messaging.sqs.*).
 		SQS infra.SQSConfig `mapstructure:"sqs"`
 	} `mapstructure:"messaging"`
+	// Auth is the auth section (auth.*).
+	Auth infra.AuthConfig `mapstructure:"auth"`
 	// Tracing is the tracing section (tracing.*).
 	Tracing infra.TracingConfig `mapstructure:"tracing"`
+	// Storage groups the object store under storage.s3.
+	Storage struct {
+		// S3 is the object-store section (storage.s3.*).
+		S3 infra.S3Config `mapstructure:"s3"`
+	} `mapstructure:"storage"`
+	// Database is the database section (database.*).
+	Database infra.DatabaseConfig `mapstructure:"database"`
+	// Redis is the cache section (redis.*).
+	Redis infra.RedisConfig `mapstructure:"redis"`
 }
 
 // loadWithSchema builds the loader over dir with bindingSchema and the MYAPP prefix,
@@ -104,7 +105,12 @@ messaging:
 		"MYAPP_DATABASE_MAX_CONNECTIONS must bind database.max_connections")
 	var sqs infra.SQSConfig
 	require.NoError(t, cfg.UnmarshalKey("messaging.sqs", &sqs))
-	assert.Equal(t, "eu-west-1", sqs.Region, "MYAPP_MESSAGING_SQS_REGION must bind messaging.sqs.region")
+	assert.Equal(
+		t,
+		"eu-west-1",
+		sqs.Region,
+		"MYAPP_MESSAGING_SQS_REGION must bind messaging.sqs.region",
+	)
 }
 
 // TestConfig_EnvAlias_Resolves tests that the flat aliases from the schema's envalias
@@ -112,8 +118,8 @@ messaging:
 //
 // Why this test is important:
 //   - Deployments set flat names such as DB_HOST or the OpenTelemetry-standard
-//     OTEL_EXPORTER_OTLP_ENDPOINT; a dropped alias silently falls back to the YAML default
-//     (wrong DB host, bucket or collector).
+//     OTEL_EXPORTER_OTLP_ENDPOINT; a dropped alias silently falls back to the YAML
+//     default (wrong DB host, bucket or collector).
 //
 // What it tests:
 //   - DB_HOST overrides database.host, S3_BUCKET overrides storage.s3.bucket and
@@ -148,8 +154,8 @@ tracing:
 		"OTEL_EXPORTER_OTLP_ENDPOINT must override tracing.endpoint")
 }
 
-// TestConfig_EmptyPrefix_BindsBarePath tests that with no env prefix (the default) a schema
-// leaf binds its bare <PATH> name.
+// TestConfig_EmptyPrefix_BindsBarePath tests that with no env prefix (the default) a
+// schema leaf binds its bare <PATH> name.
 //
 // Why this test is important:
 //   - The default prefix is empty; if the empty-prefix branch produced "_DATABASE_…" or
@@ -171,15 +177,21 @@ func TestConfig_EmptyPrefix_BindsBarePath(t *testing.T) {
 
 	var db infra.DatabaseConfig
 	require.NoError(t, cfg.UnmarshalKey("database", &db))
-	assert.Equal(t, 33, db.MaxConnections, "DATABASE_MAX_CONNECTIONS must bind with no prefix")
+	assert.Equal(
+		t,
+		33,
+		db.MaxConnections,
+		"DATABASE_MAX_CONNECTIONS must bind with no prefix",
+	)
 }
 
 // TestConfig_CustomPrefixOwnsDerivedEnvBindings tests that the consumer's env prefix, and
 // only it, names the env vars derived from the schema.
 //
 // Why this test is important:
-//   - A consumer that sets its own prefix must control which env vars override its config;
-//     an env var under someone else's prefix silently changing a value is a config leak.
+//   - A consumer that sets its own prefix must control which env vars override its
+//     config; an env var under someone else's prefix silently changing a value is a
+//     config leak.
 //
 // What it tests:
 //   - With prefix MYAPP and a schema, MYAPP_STORAGE_S3_PUBLIC_ENDPOINT (key absent from
@@ -196,8 +208,18 @@ func TestConfig_CustomPrefixOwnsDerivedEnvBindings(t *testing.T) {
 
 	var s3 infra.S3Config
 	require.NoError(t, cfg.UnmarshalKey("storage.s3", &s3))
-	assert.Equal(t, "from-myapp-env", s3.PublicEndpoint, "the consumer's prefix must name the derived env var")
-	assert.Equal(t, "from-yaml", s3.Bucket, "an env var under a different prefix must not override")
+	assert.Equal(
+		t,
+		"from-myapp-env",
+		s3.PublicEndpoint,
+		"the consumer's prefix must name the derived env var",
+	)
+	assert.Equal(
+		t,
+		"from-yaml",
+		s3.Bucket,
+		"an env var under a different prefix must not override",
+	)
 	assert.Empty(t, s3.Region, "an env var under a different prefix must not bind")
 }
 
@@ -205,12 +227,13 @@ func TestConfig_CustomPrefixOwnsDerivedEnvBindings(t *testing.T) {
 // replaces the binding the schema derived for it, as the option documents.
 //
 // Why this test is important:
-//   - ExtraEnv is how a consumer repoints a field at its own variable (e.g. PGHOST instead
-//     of the DB_HOST alias). If the schema's alias still won, a stray DB_HOST in the pod
-//     would silently connect the service to the wrong database.
+//   - ExtraEnv is how a consumer repoints a field at its own variable (e.g. PGHOST
+//     instead of the DB_HOST alias). If the schema's alias still won, a stray DB_HOST in
+//     the pod would silently connect the service to the wrong database.
 //
 // What it tests:
-//   - With ExtraEnv{database.host: [PGHOST]} and both DB_HOST and PGHOST set, PGHOST wins.
+//   - With ExtraEnv{database.host: [PGHOST]} and both DB_HOST and PGHOST set, PGHOST
+//     wins.
 //   - With only DB_HOST set, the replaced alias no longer binds (the YAML value stands).
 func TestConfig_ExtraEnvReplacesSchemaBinding(t *testing.T) {
 	dir := baseWithDB(t)
@@ -220,7 +243,12 @@ func TestConfig_ExtraEnvReplacesSchemaBinding(t *testing.T) {
 
 	var db infra.DatabaseConfig
 	require.NoError(t, loadWithSchema(t, dir, repoint).UnmarshalKey("database", &db))
-	assert.Equal(t, "from-extra", db.Host, "the ExtraEnv name must win over the schema alias")
+	assert.Equal(
+		t,
+		"from-extra",
+		db.Host,
+		"the ExtraEnv name must win over the schema alias",
+	)
 
 	t.Setenv("PGHOST", "")
 	require.NoError(t, loadWithSchema(t, dir, repoint).UnmarshalKey("database", &db))
@@ -230,27 +258,28 @@ func TestConfig_ExtraEnvReplacesSchemaBinding(t *testing.T) {
 // squashRoot is a consumer root that embeds a section with ",squash" and uses tag options
 // and an untagged field, the way mapstructure lets a consumer write its structs.
 type squashRoot struct {
-	// DatabaseConfig is flattened into the root: its keys are host, port, ….
-	infra.DatabaseConfig `mapstructure:",squash"`
 	// Label carries a tag option after the name.
 	Label string `mapstructure:"label,omitempty"`
-	// Replicas has no tag, so mapstructure matches it by field name.
-	Replicas int
 	// Skipped is excluded from decoding.
 	Skipped string `mapstructure:"-"`
+	// DatabaseConfig is flattened into the root: its keys are host, port, ….
+	infra.DatabaseConfig `mapstructure:",squash"`
+	// Replicas has no tag, so mapstructure matches it by field name.
+	Replicas int
 }
 
-// TestConfig_SchemaTagForms_Bind tests that the derived bindings follow mapstructure's own
-// reading of the tags: the name before the comma, ",squash" flattening, and the field-name
-// fallback for an untagged field.
+// TestConfig_SchemaTagForms_Bind tests that the derived bindings follow mapstructure's
+// own reading of the tags: the name before the comma, ",squash" flattening, and the
+// field-name fallback for an untagged field.
 //
 // Why this test is important:
-//   - WithSchema takes consumer structs; binding the raw tag (",squash.host", "label,omitempty")
-//     or skipping untagged fields silently ignores every env-only override of those fields.
+//   - WithSchema takes consumer structs; binding the raw tag (",squash.host",
+//     "label,omitempty") or skipping untagged fields silently ignores every env-only
+//     override of those fields.
 //
 // What it tests:
-//   - For keys absent from the YAML: the squashed section's DB_HOST alias and MYAPP_PORT bind
-//     host and port at the root, MYAPP_LABEL binds the "label,omitempty" field, and
+//   - For keys absent from the YAML: the squashed section's DB_HOST alias and MYAPP_PORT
+//     bind host and port at the root, MYAPP_LABEL binds the "label,omitempty" field, and
 //     MYAPP_REPLICAS binds the untagged Replicas field; Unmarshal sees them all.
 //   - A "-" field gets no binding.
 func TestConfig_SchemaTagForms_Bind(t *testing.T) {
@@ -279,15 +308,20 @@ func TestConfig_SchemaTagForms_Bind(t *testing.T) {
 	assert.Equal(t, 3, root.Replicas, "an untagged field binds by its field name")
 	loader, ok := cfg.(*viperloader.Loader)
 	require.True(t, ok)
-	assert.NotContains(t, loader.Viper().AllKeys(), "skipped", "a \"-\" field must not be bound")
+	assert.NotContains(
+		t,
+		loader.Viper().AllKeys(),
+		"skipped",
+		"a \"-\" field must not be bound",
+	)
 }
 
-// TestConfig_InvalidSchemaRejected tests that a Schema that is not a struct (or a pointer to
-// one) fails Load instead of silently deriving nothing.
+// TestConfig_InvalidSchemaRejected tests that a Schema that is not a struct (or a pointer
+// to one) fails Load instead of silently deriving nothing.
 //
 // Why this test is important:
-//   - A consumer passing a map or a scalar would otherwise lose every derived env override
-//     with no error pointing at the cause.
+//   - A consumer passing a map or a scalar would otherwise lose every derived env
+//     override with no error pointing at the cause.
 //
 // What it tests:
 //   - A map, a scalar and a pointer to a pointer each make config.New return
@@ -301,7 +335,11 @@ func TestConfig_InvalidSchemaRejected(t *testing.T) {
 		"scalar":             42,
 		"pointer to pointer": &root,
 	} {
-		_, err := config.New(config.KindViper, config.WithBaseDir(dir), config.WithSchema(schema))
+		_, err := config.New(
+			config.KindViper,
+			config.WithBaseDir(dir),
+			config.WithSchema(schema),
+		)
 		assert.True(t, apperr.Is(err, apperr.CodeInvalidInput), "%s: %v", name, err)
 	}
 }
@@ -344,6 +382,7 @@ auth:
 			"orders":  "otok",
 		},
 		auth.ServiceTokens,
-		"SERVICE_AUTH_TOKENS must decode into the auth.service_tokens map, preserving the rotation-pair ','",
+		"SERVICE_AUTH_TOKENS must decode into the auth.service_tokens map, preserving the "+
+			"rotation-pair ','",
 	)
 }

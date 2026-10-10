@@ -50,7 +50,11 @@ func TestRunGateNoRunner_GuardRunnerRejectsEveryCommandCall(t *testing.T) {
 	probe := mocks.NewMockAnyJob(ctrl)
 	probe.EXPECT().Meta().Return(types.JobMeta{Name: "probe"}).AnyTimes()
 	probe.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, runner interfaces.CommandRunner, _ string) (types.StepResults, error) {
+		func(
+			ctx context.Context,
+			runner interfaces.CommandRunner,
+			_ string,
+		) (types.StepResults, error) {
 			runErr = runner.Run(ctx, "/dir", "echo", "hi")
 			runEnvErr = runner.RunWithEnv(ctx, "/dir", []string{"K=V"}, "echo", "hi")
 			buf = runner.RunBuffered(ctx, "/dir", "echo", "hi")

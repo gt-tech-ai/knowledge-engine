@@ -105,7 +105,7 @@ func TestUniqueDirs(t *testing.T) {
 func TestTruncate(t *testing.T) {
 	require.Equal(t, "hello", helpers.Truncate("hello world", 5))
 	require.Equal(t, "hi", helpers.Truncate("hi", 10))
-	require.Equal(t, "", helpers.Truncate("", 5))
+	require.Empty(t, helpers.Truncate("", 5))
 }
 
 // TestIsAllDigits tests that IsAllDigits recognises non-empty all-ASCII-digit

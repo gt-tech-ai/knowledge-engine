@@ -157,7 +157,8 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 //     failure at Debug (suppressed in staging/prod); only the outermost seam logs Error.
 //
 // What it tests:
-//   - A base error triggers a Debug failure log (and the metrics path runs via NopMetrics)
+//   - A base error triggers a Debug failure log (and the metrics path runs via
+//     NopMetrics)
 func TestStorageDecorator_LogsAndCountsOnError(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +171,15 @@ func TestStorageDecorator_LogsAndCountsOnError(t *testing.T) {
 	logger := mocks.NewMockLogger(ctrl)
 	logger.EXPECT().WithContext(gomock.Any()).Return(logger).AnyTimes()
 	logger.EXPECT().
-		Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Debug(
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+		).
 		MinTimes(1)
 
 	client := storagedecorators.NewBuilder(base, "docs").

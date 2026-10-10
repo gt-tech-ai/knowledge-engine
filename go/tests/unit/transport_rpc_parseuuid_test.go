@@ -14,13 +14,14 @@ import (
 // TestParseUUID tests the shared proto-id-field UUID parser.
 //
 // Why this test is important:
-//   - Every list/get/mutate RPC parses caller-supplied id strings through this one seam; a malformed
-//     id must be rejected as CodeInvalidInput at the transport edge (naming the offending field), never
-//     silently coerced or reaching a store as a zero UUID.
+//   - Every list/get/mutate RPC parses caller-supplied id strings through this one seam;
+//     a malformed id must be rejected as CodeInvalidInput at the transport edge (naming
+//     the offending field), never silently coerced or reaching a store as a zero UUID.
 //
 // What it tests:
 //   - A valid UUID string parses to the equal uuid.UUID with no error.
-//   - A malformed string returns uuid.Nil + a CodeInvalidInput error whose message names the field.
+//   - A malformed string returns uuid.Nil + a CodeInvalidInput error whose message names
+//     the field.
 func TestParseUUID(t *testing.T) {
 	t.Parallel()
 

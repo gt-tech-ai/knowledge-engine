@@ -7,19 +7,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	platformgrpc "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	platformgrpc "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
 )
 
-// TestGRPCServerFactory tests that the server factory creates a working gRPC server with a registered health service.
+// TestGRPCServerFactory tests that the server factory creates a working gRPC server with
+// a registered health service.
 //
 // Why this test is important:
 //   - Kubernetes liveness and readiness probes depend on gRPC health checks
 //   - A broken server factory prevents all gRPC services from starting
-//   - Validates the full server lifecycle: create, register health, listen, serve, health check responds
+//   - Validates the full server lifecycle: create, register health, listen, serve, health
+//     check responds
 //
 // What it tests:
 //   - NewServer returns a non-nil gRPC server
@@ -60,11 +62,14 @@ func TestGRPCServerFactory(t *testing.T) {
 	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.Status)
 }
 
-// TestGRPCClientFactory tests that the client factory establishes a connection and can call the health service.
+// TestGRPCClientFactory tests that the client factory establishes a connection and can
+// call the health service.
 //
 // Why this test is important:
-//   - Validates end-to-end client-server connectivity to catch misconfigured defaults early
-//   - The client factory encapsulates connection options (timeouts, credentials, interceptors)
+//   - Validates end-to-end client-server connectivity to catch misconfigured defaults
+//     early
+//   - The client factory encapsulates connection options (timeouts, credentials,
+//     interceptors)
 //   - A broken client factory would prevent all inter-service gRPC communication
 //
 // What it tests:

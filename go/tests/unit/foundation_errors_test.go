@@ -1,15 +1,15 @@
 package unit_test
 
 import (
-	"errors"
 	"testing"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	repoerrors "github.com/gt-tech-ai/knowledge-engine/go/repos/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	repoerrors "github.com/gt-tech-ai/knowledge-engine/go/repos/errors"
 )
 
 // TestErrorClassification tests that errors are correctly classified as
@@ -119,16 +119,16 @@ func TestDBErrorMapping(t *testing.T) {
 			mappedErr := mapper(tt.err)
 
 			if tt.expectedNil {
-				assert.Nil(t, mappedErr, "mapper must return nil for nil input")
+				assert.NoError(t, mappedErr, "mapper must return nil for nil input")
 				return
 			}
 
-			require.NotNil(t, mappedErr, "mapper must return non-nil error")
+			require.Error(t, mappedErr, "mapper must return non-nil error")
 
 			var appErr *coreerrors.AppError
-			require.True(
+			require.ErrorAs(
 				t,
-				errors.As(mappedErr, &appErr),
+				mappedErr, &appErr,
 				"mapped error must be *AppError, got %T",
 				mappedErr,
 			)

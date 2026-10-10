@@ -14,15 +14,18 @@ import (
 // TestSeekFilter_Expansion tests the keyset seek's lexicographic OR-expansion.
 //
 // Why this test is important:
-//   - The seek predicate is what makes keyset pagination correct: it must select exactly the rows
-//     strictly after the cursor in the query's total order. Expressed as a types.Filter it is folded
-//     by the same backend as the user filter, so a wrong operator or a missing tie term would silently
-//     dup or skip rows at every page boundary. The direction (ASC → `>`, DESC → `<`) and the
-//     eq-then-recurse tie structure are the correctness core.
+//   - The seek predicate is what makes keyset pagination correct: it must select exactly
+//     the rows strictly after the cursor in the query's total order. Expressed as a
+//     types.Filter it is folded by the same backend as the user filter, so a wrong
+//     operator or a missing tie term would silently dup or skip rows at every page
+//     boundary. The direction (ASC → `>`, DESC → `<`) and the eq-then-recurse tie
+//     structure are the correctness core.
 //
 // What it tests:
-//   - A single ascending column yields `col > v`; a single descending column yields `col < v`.
-//   - Two columns yield `strict(c0) OR (eq(c0) AND strict(c1))` with per-column direction.
+//   - A single ascending column yields `col > v`; a single descending column yields `col
+//     < v`.
+//   - Two columns yield `strict(c0) OR (eq(c0) AND strict(c1))` with per-column
+//     direction.
 func TestSeekFilter_Expansion(t *testing.T) {
 	t.Parallel()
 

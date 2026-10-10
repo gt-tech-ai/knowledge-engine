@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/pipelines/pipeline"
 	"github.com/gt-tech-ai/knowledge-engine/go/pipelines/pipeline/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestBasePipeline tests that BasePipeline wraps a transform function and

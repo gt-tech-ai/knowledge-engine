@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cache"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cache/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestCacheBuilder_DefaultConfig tests that the cache factory provides sensible
@@ -100,7 +100,9 @@ func TestDecoratorBuilder_WithMetrics(t *testing.T) {
 		Counter("cache_misses_total", "Total cache misses", "cache").
 		Return(mockMisses)
 	mockMetrics.EXPECT().
-		Histogram("cache_operation_duration_seconds", "Cache operation duration", gomock.Any(), "cache").
+		Histogram(
+			"cache_operation_duration_seconds", "Cache operation duration", gomock.Any(), "cache",
+		).
 		Return(mockDuration)
 
 	decorated := decorators.NewBuilder(mockCache, "test").WithMetrics(mockMetrics).Build()

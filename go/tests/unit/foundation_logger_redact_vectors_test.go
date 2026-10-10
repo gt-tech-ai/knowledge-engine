@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
 )
 
 // redactVector is one shared PII-redaction case: an input and its exact redacted form.
@@ -34,7 +35,9 @@ type redactVector struct {
 func TestRedactPII_SharedVectors(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "redact_vectors.json"))
+	raw, err := os.ReadFile(
+		filepath.Join("..", "..", "..", "testdata", "redact_vectors.json"),
+	)
 	require.NoError(t, err)
 	var vectors []redactVector
 	require.NoError(t, json.Unmarshal(raw, &vectors))

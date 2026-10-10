@@ -24,9 +24,10 @@ import (
 // mocks for the dynamic pub/sub capability interfaces satisfy their contracts.
 //
 // Why this test is important:
-//   - DynamicConsumer and PatternConsumer are core capability interfaces that
-//     compose with MessageConsumer (ARCHITECTURE.md#interface-composition); a consumer of the Redis backend
-//     depends on them, so their shape and their generated mocks must stay in lockstep.
+//   - DynamicConsumer and PatternConsumer are core capability interfaces that compose
+//     with MessageConsumer (ARCHITECTURE.md#interface-composition); a consumer of the
+//     Redis backend depends on them, so their shape and their generated mocks must stay
+//     in lockstep.
 //
 // What it tests:
 //   - The mockgen-generated MockDynamicConsumer / MockPatternConsumer are assignable

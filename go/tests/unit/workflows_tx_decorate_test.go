@@ -41,12 +41,18 @@ func TestNewTxWorkflow_RunsPipelineInOneTransaction(t *testing.T) {
 	pipe.EXPECT().Execute(gomock.Any(), "order-7").Times(1).DoAndReturn(
 		func(ctx context.Context, in string) (int, error) {
 			if !interfaces.InTx(ctx) {
-				return 0, coreerr.New(coreerr.CodeInternal, "pipeline ran outside the transaction")
+				return 0, coreerr.New(
+					coreerr.CodeInternal,
+					"pipeline ran outside the transaction",
+				)
 			}
 			return 42, nil
 		})
 
-	out, err := workflow.NewTxWorkflow[string, int](txMgr, pipe).Execute(context.Background(), "order-7")
+	out, err := workflow.NewTxWorkflow[string, int](
+		txMgr,
+		pipe,
+	).Execute(context.Background(), "order-7")
 
 	require.NoError(t, err)
 	assert.Equal(t, 42, out)
@@ -74,9 +80,14 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 		pipe := mocks.NewMockPipeline[string, int](ctrl)
 		txMgr.EXPECT().WithTransaction(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) })
-		pipe.EXPECT().Execute(gomock.Any(), "dup").Return(7, coreerr.New(coreerr.CodeConflict, "duplicate"))
+		pipe.EXPECT().
+			Execute(gomock.Any(), "dup").
+			Return(7, coreerr.New(coreerr.CodeConflict, "duplicate"))
 
-		out, err := workflow.NewTxWorkflow[string, int](txMgr, pipe).Execute(context.Background(), "dup")
+		out, err := workflow.NewTxWorkflow[string, int](
+			txMgr,
+			pipe,
+		).Execute(context.Background(), "dup")
 
 		require.Error(t, err)
 		assert.Equal(t, coreerr.CodeConflict, coreerr.Code(err))
@@ -97,7 +108,10 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 			})
 		pipe.EXPECT().Execute(gomock.Any(), "ok").Return(9, nil)
 
-		out, err := workflow.NewTxWorkflow[string, int](txMgr, pipe).Execute(context.Background(), "ok")
+		out, err := workflow.NewTxWorkflow[string, int](
+			txMgr,
+			pipe,
+		).Execute(context.Background(), "ok")
 
 		require.Error(t, err)
 		assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
@@ -127,16 +141,24 @@ func TestDecorate_AppliesTimeoutAndRecovery(t *testing.T) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	})
-	_, err := decorators.Decorate[string, string](slow, "slow.op", fixtures.NopLogger(), nil, nil,
-		workflowscfg.Config{Timeout: 5 * time.Millisecond}).Execute(ctx, "in")
+	_, err := decorators.Decorate[string, string](
+		slow,
+		"slow.op",
+		fixtures.NopLogger(),
+		nil,
+		nil,
+		workflowscfg.Config{Timeout: 5 * time.Millisecond},
+	).Execute(ctx, "in")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
-	plain := workflow.NewBaseWorkflow(func(ctx context.Context, in string) (string, error) {
-		if _, ok := ctx.Deadline(); ok {
-			return "", coreerr.New(coreerr.CodeInternal, "unexpected deadline")
-		}
-		return in + "-done", nil
-	})
+	plain := workflow.NewBaseWorkflow(
+		func(ctx context.Context, in string) (string, error) {
+			if _, ok := ctx.Deadline(); ok {
+				return "", coreerr.New(coreerr.CodeInternal, "unexpected deadline")
+			}
+			return in + "-done", nil
+		},
+	)
 	out, err := decorators.Decorate[string, string](plain, "plain.op", nil, nil, nil,
 		workflowscfg.DefaultConfig()).Execute(ctx, "in")
 	require.NoError(t, err)

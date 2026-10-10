@@ -10,23 +10,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestServiceDecorator_RecoveryIsOutermost tests that the recovery decorator
 // catches panics from inner service operations and converts them to errors.
 //
 // Why this test is important:
-//   - Unrecovered panics crash the entire service process, causing downtime for all tenants
-//   - The recovery decorator is the last line of defense against programming errors in business logic
+//   - Unrecovered panics crash the entire service process, causing downtime for all
+//     tenants
+//   - The recovery decorator is the last line of defense against programming errors in
+//     business logic
 //   - Validates that panics are converted to errors for proper HTTP 500 responses
 //
 // What it tests:
@@ -45,7 +48,8 @@ func TestServiceDecorator_RecoveryIsOutermost(t *testing.T) {
 // prevents access when the auth check fails.
 //
 // Why this test is important:
-//   - Authorization enforcement is a security-critical requirement for multi-tenant isolation
+//   - Authorization enforcement is a security-critical requirement for multi-tenant
+//     isolation
 //   - A bypassed auth check would allow unauthorized access to other tenants' data
 //   - Validates that the decorator pattern correctly enforces auth before business logic
 //
@@ -55,7 +59,10 @@ func TestServiceDecorator_AuthBlocks(t *testing.T) {
 	authErr := context.DeadlineExceeded
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
-	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(_ context.Context, _ string) error {
+	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
+		_ context.Context,
+		_ string,
+	) error {
 		return authErr
 	}).Build()
 
@@ -68,8 +75,10 @@ func TestServiceDecorator_AuthBlocks(t *testing.T) {
 // decorators compose correctly and allow authorized requests through.
 //
 // Why this test is important:
-//   - Production services use all three decorators together; composition must work correctly
-//   - Validates the end-to-end decorator chain matches the production wiring configuration
+//   - Production services use all three decorators together; composition must work
+//     correctly
+//   - Validates the end-to-end decorator chain matches the production wiring
+//     configuration
 //   - Ensures authorized requests flow through without data corruption or latency issues
 //
 // What it tests:
@@ -240,7 +249,8 @@ func TestBaseService_List(t *testing.T) {
 // name.
 //
 // Why this test is important:
-//   - Service names are used in logging, metrics, and tracing to identify which service is active
+//   - Service names are used in logging, metrics, and tracing to identify which service
+//     is active
 //   - An incorrect name would make production debugging and monitoring misleading
 //   - Validates the constructor correctly stores the identity parameter
 //
@@ -289,7 +299,8 @@ func TestServiceDecorator_ListWithLogging(t *testing.T) {
 // transparently delegates Create operations.
 //
 // Why this test is important:
-//   - Create operations trigger downstream events (SQS messages) and must return correct data
+//   - Create operations trigger downstream events (SQS messages) and must return correct
+//     data
 //   - Logging must capture creation details without altering the returned entity
 //   - Validates the decorator does not interfere with entity identity assignment
 //
@@ -356,8 +367,10 @@ func TestServiceDecorator_DeleteWithLogging(t *testing.T) {
 // prevents List when auth fails.
 //
 // Why this test is important:
-//   - List endpoints expose collections of tenant-scoped data; unauthorized listing is a data breach
-//   - Validates that authorization is enforced before any data is fetched from the repository
+//   - List endpoints expose collections of tenant-scoped data; unauthorized listing is a
+//     data breach
+//   - Validates that authorization is enforced before any data is fetched from the
+//     repository
 //   - Ensures multi-tenant isolation for collection endpoints
 //
 // What it tests:
@@ -366,7 +379,10 @@ func TestServiceDecorator_AuthBlocksList(t *testing.T) {
 	authErr := errors.New("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
-	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(_ context.Context, _ string) error {
+	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
+		_ context.Context,
+		_ string,
+	) error {
 		return authErr
 	}).Build()
 
@@ -380,7 +396,8 @@ func TestServiceDecorator_AuthBlocksList(t *testing.T) {
 //
 // Why this test is important:
 //   - Unauthorized creation would allow data injection into other tenants' data
-//   - Validates that authorization is enforced before any write operation reaches the store
+//   - Validates that authorization is enforced before any write operation reaches the
+//     store
 //   - Ensures resource creation is gated by tenant-scoped permissions
 //
 // What it tests:
@@ -389,7 +406,10 @@ func TestServiceDecorator_AuthBlocksCreate(t *testing.T) {
 	authErr := errors.New("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
-	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(_ context.Context, _ string) error {
+	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
+		_ context.Context,
+		_ string,
+	) error {
 		return authErr
 	}).Build()
 
@@ -412,7 +432,10 @@ func TestServiceDecorator_AuthBlocksUpdate(t *testing.T) {
 	authErr := errors.New("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
-	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(_ context.Context, _ string) error {
+	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
+		_ context.Context,
+		_ string,
+	) error {
 		return authErr
 	}).Build()
 
@@ -435,7 +458,10 @@ func TestServiceDecorator_AuthBlocksDelete(t *testing.T) {
 	authErr := errors.New("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
-	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(_ context.Context, _ string) error {
+	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
+		_ context.Context,
+		_ string,
+	) error {
 		return authErr
 	}).Build()
 
@@ -452,7 +478,8 @@ func TestServiceDecorator_AuthBlocksDelete(t *testing.T) {
 // List without interfering with normal execution.
 //
 // Why this test is important:
-//   - Recovery decorators must be transparent during normal operation (no false positives)
+//   - Recovery decorators must be transparent during normal operation (no false
+//     positives)
 //   - Validates that the panic recovery mechanism does not add overhead or alter results
 //   - Ensures List operations are not accidentally caught by the recovery handler
 //
@@ -474,8 +501,10 @@ func TestServiceDecorator_RecoveryList(t *testing.T) {
 // Create without interfering with normal execution.
 //
 // Why this test is important:
-//   - Create is a write operation; the recovery decorator must not lose data on normal paths
-//   - Validates that entity creation succeeds identically with or without recovery wrapping
+//   - Create is a write operation; the recovery decorator must not lose data on normal
+//     paths
+//   - Validates that entity creation succeeds identically with or without recovery
+//     wrapping
 //   - Ensures the recovery mechanism does not introduce side effects on success paths
 //
 // What it tests:
@@ -495,7 +524,8 @@ func TestServiceDecorator_RecoveryCreate(t *testing.T) {
 // Update without interfering with normal execution.
 //
 // Why this test is important:
-//   - Update operations modify persistent state; recovery must not corrupt the update result
+//   - Update operations modify persistent state; recovery must not corrupt the update
+//     result
 //   - Validates that the decorator returns the actual updated entity, not a stale copy
 //   - Ensures the recovery handler does not interfere with mutation semantics
 //
@@ -516,8 +546,10 @@ func TestServiceDecorator_RecoveryUpdate(t *testing.T) {
 // Delete without interfering with normal execution.
 //
 // Why this test is important:
-//   - Delete operations are irreversible; the recovery decorator must not block valid deletions
-//   - Validates that the decorator does not accidentally catch normal execution as a panic
+//   - Delete operations are irreversible; the recovery decorator must not block valid
+//     deletions
+//   - Validates that the decorator does not accidentally catch normal execution as a
+//     panic
 //   - Ensures destructive operations succeed identically with recovery wrapping
 //
 // What it tests:
@@ -541,7 +573,8 @@ func TestServiceDecorator_RecoveryDelete(t *testing.T) {
 // Why this test is important:
 //   - Error propagation is critical for correct HTTP status code mapping in controllers
 //   - The logging decorator must record errors without swallowing them
-//   - Validates that all operation types propagate errors identically through the logging layer
+//   - Validates that all operation types propagate errors identically through the logging
+//     layer
 //
 // What it tests:
 //   - Get, List, Create, Update, and Delete all return errors from a failing service
@@ -568,19 +601,19 @@ func TestServiceDecorator_LoggingErrorPaths(t *testing.T) {
 
 	// Get error path
 	_, err := svc.Get(ctx, "1")
-	assert.Error(t, err, "expected error from Get")
+	require.Error(t, err, "expected error from Get")
 
 	// List error path
 	_, err = svc.List(ctx, fixtures.TestParams{}, types.PageRequest{})
-	assert.Error(t, err, "expected error from List")
+	require.Error(t, err, "expected error from List")
 
 	// Create error path
 	_, err = svc.Create(ctx, &fixtures.TestEntity{ID: "1"})
-	assert.Error(t, err, "expected error from Create")
+	require.Error(t, err, "expected error from Create")
 
 	// Update error path
 	_, err = svc.Update(ctx, "1", &fixtures.TestEntity{ID: "1"})
-	assert.Error(t, err, "expected error from Update")
+	require.Error(t, err, "expected error from Update")
 
 	// Delete error path
 	err = svc.Delete(ctx, "1")

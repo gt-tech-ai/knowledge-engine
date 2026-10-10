@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 )
 
 // TestCircuitBreakerOptions_FailureRatioAndMinRequests tests that the

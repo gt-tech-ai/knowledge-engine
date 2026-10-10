@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	grpcinterceptors "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc/interceptors"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -13,6 +11,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	grpcinterceptors "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc/interceptors"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
 
 // TestServiceAuthClientInterceptors_AttachBearer tests that the unary and stream
@@ -65,10 +66,14 @@ func TestServiceAuthClientInterceptors_AttachBearer(t *testing.T) {
 				_ ...grpc.CallOption,
 			) (grpc.ClientStream, error) {
 				got = bearerOf(ctx)
-				return nil, nil
+				return fixtures.StubClientStream(ctx, nil), nil
 			}
 			_, err := grpcinterceptors.ServiceAuthStreamClientInterceptor(tc.token)(
-				context.Background(), &grpc.StreamDesc{}, nil, "/test.v1.Probe/Watch", streamer,
+				context.Background(),
+				&grpc.StreamDesc{},
+				nil,
+				"/test.v1.Probe/Watch",
+				streamer,
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
@@ -126,7 +131,9 @@ func TestGRPCStreamingClientBuilder_WithServiceAuth_AuthenticatesEveryRPC(t *tes
 		return errCaptured
 	}
 
-	opts := grpcinterceptors.NewStreamingClientBuilder().WithServiceAuth("tok-svc").Build()
+	opts := grpcinterceptors.NewStreamingClientBuilder().
+		WithServiceAuth("tok-svc").
+		Build()
 	conn, err := grpc.NewClient(
 		"passthrough:///streaming-service-auth-test",
 		append(opts,
@@ -138,13 +145,24 @@ func TestGRPCStreamingClientBuilder_WithServiceAuth_AuthenticatesEveryRPC(t *tes
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	_, err = conn.NewStream(context.Background(), &grpc.StreamDesc{}, "/test.Service/Stream")
+	_, err = conn.NewStream(
+		context.Background(),
+		&grpc.StreamDesc{},
+		"/test.Service/Stream",
+	)
 	require.ErrorIs(t, err, errCaptured)
-	require.ErrorIs(t, conn.Invoke(context.Background(), "/test.Service/Unary", nil, nil), errCaptured)
+	require.ErrorIs(
+		t,
+		conn.Invoke(context.Background(), "/test.Service/Unary", nil, nil),
+		errCaptured,
+	)
 
 	assert.Equal(t, "Bearer tok-svc", streamBearer, "the stream open carries the token")
 	assert.Equal(t, "Bearer tok-svc", unaryBearer, "the unary call carries the token")
-	assert.Nil(t, grpcinterceptors.NewStreamingClientBuilder().WithServiceAuth("").Build())
+	assert.Nil(
+		t,
+		grpcinterceptors.NewStreamingClientBuilder().WithServiceAuth("").Build(),
+	)
 }
 
 // TestGRPCClientBuilders_ServiceAuth_OneBearerPerRPC tests that service auth presents
@@ -192,7 +210,11 @@ func TestGRPCClientBuilders_ServiceAuth_OneBearerPerRPC(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = conn.Close() })
 
-		_, err = conn.NewStream(context.Background(), &grpc.StreamDesc{}, "/test.Service/Stream")
+		_, err = conn.NewStream(
+			context.Background(),
+			&grpc.StreamDesc{},
+			"/test.Service/Stream",
+		)
 		require.Error(t, err)
 		require.Len(t, perAttempt, 3, "the retrier makes three attempts")
 		for i, got := range perAttempt {
@@ -212,7 +234,9 @@ func TestGRPCClientBuilders_ServiceAuth_OneBearerPerRPC(t *testing.T) {
 		}
 		opts := append(
 			grpcinterceptors.NewClientBuilder().WithServiceAuth("tok-svc").Build(),
-			grpcinterceptors.NewStreamingClientBuilder().WithServiceAuth("tok-svc").Build()...,
+			grpcinterceptors.NewStreamingClientBuilder().
+				WithServiceAuth("tok-svc").
+				Build()...,
 		)
 		conn, err := grpc.NewClient(
 			"passthrough:///combined-service-auth-test",

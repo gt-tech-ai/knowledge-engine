@@ -26,8 +26,8 @@ import (
 
 // RedisCacheSuite holds a real Redis container and a fresh Cache client per test.
 type RedisCacheSuite struct {
-	testsuite.RedisIntegrationSuite
 	cache *rediscache.Cache
+	testsuite.RedisIntegrationSuite
 }
 
 // TestRedisCacheSuite runs all Redis cache integration tests.
@@ -67,7 +67,9 @@ func (s *RedisCacheSuite) newCache(mutate func(*rediscache.Config)) *rediscache.
 
 // unreachableCache builds a cache whose address refuses connections (a port reserved
 // and released), with mutate adjusting the config first.
-func (s *RedisCacheSuite) unreachableCache(mutate func(*rediscache.Config)) *rediscache.Cache {
+func (s *RedisCacheSuite) unreachableCache(
+	mutate func(*rediscache.Config),
+) *rediscache.Cache {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	s.Require().NoError(err)
 	addr := lis.Addr().String()
@@ -274,7 +276,9 @@ func (s *RedisCacheSuite) TestTTLSelection() {
 	s.LessOrEqual(ttlOf(s.cache, explicit), 60*time.Second)
 	s.Greater(ttlOf(s.cache, explicit), 50*time.Second, "TTL should be close to 60s")
 
-	short := s.newCache(func(cfg *rediscache.Config) { cfg.DefaultTTL = 30 * time.Second })
+	short := s.newCache(
+		func(cfg *rediscache.Config) { cfg.DefaultTTL = 30 * time.Second },
+	)
 	configured := s.uniqueKey("configured")
 	short.Set(ctx, configured, []byte("v"), 0)
 	s.Greater(ttlOf(short, configured), time.Duration(0), "a zero TTL takes the default")
@@ -373,7 +377,9 @@ func (s *RedisCacheSuite) TestInvalidatePrefix() {
 //     after it.
 func (s *RedisCacheSuite) TestInvalidateAll() {
 	ctx := context.Background()
-	c := s.newCache(func(cfg *rediscache.Config) { cfg.DB = 15 }) // FLUSHDB stays in DB 15
+	c := s.newCache(
+		func(cfg *rediscache.Config) { cfg.DB = 15 },
+	) // FLUSHDB stays in DB 15
 	c.Set(ctx, "k1", []byte("v1"), time.Minute)
 	c.Set(ctx, "k2", []byte("v2"), time.Minute)
 
@@ -485,8 +491,8 @@ func (s *RedisCacheSuite) TestUnreachable_Lifecycle() {
 	lc, ok := any(s.unreachableCache(nil)).(interfaces.Client)
 	s.Require().True(ok)
 
-	s.NoError(lc.Liveness(ctx), "the pool is constructed by New")
-	s.Error(lc.Start(ctx), "a refused address fails the Ping")
-	s.Error(lc.Readiness(ctx))
+	s.Require().NoError(lc.Liveness(ctx), "the pool is constructed by New")
+	s.Require().Error(lc.Start(ctx), "a refused address fails the Ping")
+	s.Require().Error(lc.Readiness(ctx))
 	s.NoError(lc.Stop(ctx))
 }

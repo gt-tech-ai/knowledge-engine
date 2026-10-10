@@ -102,7 +102,7 @@ func TestRiverRuntime_HealthAndLifecycle(t *testing.T) {
 
 	readyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	assert.Error(
+	require.Error(
 		t,
 		rt.Readiness(readyCtx),
 		"readiness pings the database, which is unreachable",
@@ -110,7 +110,7 @@ func TestRiverRuntime_HealthAndLifecycle(t *testing.T) {
 
 	startCtx, cancelStart := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelStart()
-	assert.Error(
+	require.Error(
 		t,
 		rt.Start(startCtx),
 		"an empty worker bundle cannot start working jobs",

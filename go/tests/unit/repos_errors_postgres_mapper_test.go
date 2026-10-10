@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/errors/postgres"
@@ -49,7 +50,7 @@ func TestPostgresMapDBError_Classifies(t *testing.T) {
 		})
 	}
 
-	assert.Nil(t, postgres.MapDBError(nil), "nil in → nil out")
+	require.NoError(t, postgres.MapDBError(nil), "nil in → nil out")
 
 	// An already-coded error passes through unchanged (no re-wrap to Internal).
 	coded := coreerr.New(coreerr.CodeNotFound, "already classified")

@@ -45,7 +45,13 @@ func TestStorageMemory_ErrorPaths(t *testing.T) {
 	id, err := c.CreateMultipartUpload(ctx, "b", "intended", "application/octet-stream")
 	require.NoError(t, err)
 	err = c.CompleteMultipartUpload(ctx, "b", "elsewhere", id, nil)
-	require.Equal(t, coreerrors.CodeNotFound, coreerrors.Code(err), "a mismatched key is not the upload: %v", err)
+	require.Equal(
+		t,
+		coreerrors.CodeNotFound,
+		coreerrors.Code(err),
+		"a mismatched key is not the upload: %v",
+		err,
+	)
 	exists, err := c.Exists(ctx, "b", "elsewhere")
 	require.NoError(t, err)
 	require.False(t, exists, "a mismatched complete must not write an object")

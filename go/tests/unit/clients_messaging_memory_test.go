@@ -12,17 +12,17 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// TestMessagingMemory_PublishReceive tests that a message published to a topic reaches a subscriber
-// built from the SAME broker, and that a separate broker is isolated.
+// TestMessagingMemory_PublishReceive tests that a message published to a topic reaches a
+// subscriber built from the SAME broker, and that a separate broker is isolated.
 //
 // Why this test is important:
-//   - The memory backend only stands in for SQS if a publish reaches a subscriber on the same
-//     broker; and separate brokers must NOT share a queue, or parallel tests reusing a topic name
-//     would cross-talk. Both properties must hold.
+//   - The memory backend only stands in for SQS if a publish reaches a subscriber on the
+//     same broker; and separate brokers must NOT share a queue, or parallel tests reusing
+//     a topic name would cross-talk. Both properties must hold.
 //
 // What it tests:
-//   - publish → the subscriber's handler receives the payload; a subscriber on a different broker
-//     receives nothing within the window.
+//   - publish → the subscriber's handler receives the payload; a subscriber on a
+//     different broker receives nothing within the window.
 func TestMessagingMemory_PublishReceive(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +30,10 @@ func TestMessagingMemory_PublishReceive(t *testing.T) {
 	pub := memory.NewPublisher(broker)
 	sub := memory.NewSubscriber(broker)
 	received := make(chan []byte, 1)
-	handler := func(_ context.Context, msg *interfaces.Message) error {
+	var handler interfaces.MessageHandler = func(
+		_ context.Context,
+		msg *interfaces.Message,
+	) error {
 		received <- msg.Payload
 		return nil
 	}
@@ -46,7 +49,8 @@ func TestMessagingMemory_PublishReceive(t *testing.T) {
 	}
 	require.NoError(t, sub.Close())
 
-	// Isolation: a subscriber on a DIFFERENT broker sees none of the first broker's messages.
+	// Isolation: a subscriber on a DIFFERENT broker sees none of the first broker's
+	// messages.
 	other := memory.NewSubscriber(memory.NewBroker())
 	otherRecv := make(chan []byte, 1)
 	go func() {
@@ -67,15 +71,17 @@ func TestMessagingMemory_PublishReceive(t *testing.T) {
 	require.NoError(t, other.Close())
 }
 
-// TestMessaging_KindMemory_Selected tests that the messaging factory selects the in-memory backend
-// for KindMemory (the config-selects-impl contract, ARCHITECTURE.md#swappable-components).
+// TestMessaging_KindMemory_Selected tests that the messaging factory selects the
+// in-memory backend for KindMemory (the config-selects-impl contract,
+// ARCHITECTURE.md#swappable-components).
 //
 // Why this test is important:
-//   - The memory backend is opted into by the tier Kind; if NewPublisher/NewSubscriber ignored
-//     KindMemory the configured no-infra behavior would never take effect.
+//   - The memory backend is opted into by the tier Kind; if NewPublisher/NewSubscriber
+//     ignored KindMemory the configured no-infra behavior would never take effect.
 //
 // What it tests:
-//   - NewPublisher(KindMemory) / NewSubscriber(KindMemory) return the in-memory implementations.
+//   - NewPublisher(KindMemory) / NewSubscriber(KindMemory) return the in-memory
+//     implementations.
 func TestMessaging_KindMemory_Selected(t *testing.T) {
 	t.Parallel()
 

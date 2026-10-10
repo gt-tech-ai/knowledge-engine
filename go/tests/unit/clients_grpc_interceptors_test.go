@@ -7,11 +7,6 @@ import (
 	"testing"
 	"time"
 
-	grpcinterceptors "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc/interceptors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -24,6 +19,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	grpcinterceptors "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc/interceptors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
 // signalMetrics builds a generated MockMetrics whose counter Inc pushes the last
@@ -63,21 +64,25 @@ func signalSpan(
 	ended chan struct{},
 ) (*mocks.MockSpan, *interfaces.SpanStatusCode) {
 	sp := mocks.NewMockSpan(ctrl)
-	status := new(interfaces.SpanStatusCode)
+	st := new(interfaces.SpanStatusCode)
 	sp.EXPECT().SetAttribute(gomock.Any(), gomock.Any()).AnyTimes()
 	sp.EXPECT().RecordError(gomock.Any()).AnyTimes()
 	sp.EXPECT().
 		SetStatus(gomock.Any(), gomock.Any()).
-		Do(func(code interfaces.SpanStatusCode, _ string) { *status = code }).AnyTimes()
+		Do(func(code interfaces.SpanStatusCode, _ string) { *st = code }).AnyTimes()
 	sp.EXPECT().End().Do(func() { close(ended) }).Times(1)
-	return sp, status
+	return sp, st
 }
 
 // signalTracer builds a generated MockTracer that always hands out sp.
 func signalTracer(ctrl *gomock.Controller, sp interfaces.Span) *mocks.MockTracer {
 	tr := mocks.NewMockTracer(ctrl)
 	tr.EXPECT().Start(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ string, _ ...interfaces.SpanOption) (context.Context, interfaces.Span) {
+		func(
+			ctx context.Context,
+			_ string,
+			_ ...interfaces.SpanOption,
+		) (context.Context, interfaces.Span) {
 			return ctx, sp
 		},
 	).
@@ -112,7 +117,8 @@ func signalLogger(ctrl *gomock.Controller, logged chan string) *mocks.MockLogger
 // Why this test is important:
 //   - Unrecovered panics crash the entire gRPC server, terminating all client connections
 //   - The recovery interceptor is the last defense against handler bugs in production
-//   - Structured error codes allow gRPC clients to distinguish server faults from client errors
+//   - Structured error codes allow gRPC clients to distinguish server faults from client
+//     errors
 //
 // What it tests:
 //   - A panicking handler returns nil response and a codes.Internal gRPC error
@@ -165,11 +171,13 @@ func TestGRPCRecoveryServerInterceptor_PassesThroughNormal(t *testing.T) {
 // recovery interceptor preserves original handler error codes without interference.
 //
 // Why this test is important:
-//   - gRPC status codes carry semantic meaning that clients use for retry and fallback decisions
+//   - gRPC status codes carry semantic meaning that clients use for retry and fallback
+//     decisions
 //   - Re-wrapping errors as Internal would mask the true cause and break client logic
 //
 // What it tests:
-//   - A handler returning codes.NotFound propagates as NotFound (not swallowed or re-wrapped)
+//   - A handler returning codes.NotFound propagates as NotFound (not swallowed or
+//     re-wrapped)
 func TestGRPCRecoveryServerInterceptor_PassesThroughError(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -222,7 +230,8 @@ func TestGRPCRateLimitServerInterceptor_AllowsWithinLimit(t *testing.T) {
 // exceeding the rate limit are rejected before reaching the handler.
 //
 // Why this test is important:
-//   - Rate limiting protects downstream gRPC services from overload and resource exhaustion
+//   - Rate limiting protects downstream gRPC services from overload and resource
+//     exhaustion
 //   - The handler must not execute when the limit is exceeded to preserve server capacity
 //   - Correct status codes allow gRPC clients to implement backoff strategies
 //
@@ -239,7 +248,7 @@ func TestGRPCRateLimitServerInterceptor_RejectsWhenExceeded(t *testing.T) {
 		&grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"},
 		func(_ context.Context, _ any) (any, error) {
 			require.FailNow(t, "handler should not be called when rate limited")
-			return nil, nil
+			return nil, status.Error(codes.Internal, "unreachable")
 		},
 	)
 	require.Error(t, err, "expected error when rate limited")
@@ -275,7 +284,7 @@ func TestBulkheadServerInterceptor_ShedsWhenFull(t *testing.T) {
 		context.Background(), nil, info,
 		func(context.Context, any) (any, error) {
 			t.Error("handler must not run when the bulkhead is full")
-			return nil, nil
+			return nil, status.Error(codes.Internal, "unreachable")
 		},
 	)
 	require.Error(t, err)
@@ -318,11 +327,13 @@ func TestGRPCLoggingServerInterceptor_LogsSuccess(t *testing.T) {
 // interceptor propagates handler errors unchanged.
 //
 // Why this test is important:
-//   - gRPC status codes carry semantic meaning used by clients for retry and fallback decisions
+//   - gRPC status codes carry semantic meaning used by clients for retry and fallback
+//     decisions
 //   - The logging layer must never re-wrap or swallow errors
 //
 // What it tests:
-//   - A handler returning codes.Internal propagates as an error through the logging interceptor
+//   - A handler returning codes.Internal propagates as an error through the logging
+//     interceptor
 func TestGRPCLoggingServerInterceptor_LogsError(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -344,7 +355,8 @@ func TestGRPCLoggingServerInterceptor_LogsError(t *testing.T) {
 //
 // Why this test is important:
 //   - Client-side logging must be transparent and never interfere with outgoing calls
-//   - A broken logging interceptor could silently drop or alter inter-service communication
+//   - A broken logging interceptor could silently drop or alter inter-service
+//     communication
 //
 // What it tests:
 //   - A successful invoker call completes with no error
@@ -359,7 +371,14 @@ func TestGRPCLoggingClientInterceptor_LogsSuccess(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -374,7 +393,8 @@ func TestGRPCLoggingClientInterceptor_LogsSuccess(t *testing.T) {
 //   - Client-side logging must not re-wrap or swallow errors from downstream services
 //
 // What it tests:
-//   - An invoker returning codes.Internal propagates as an error through the logging interceptor
+//   - An invoker returning codes.Internal propagates as an error through the logging
+//     interceptor
 func TestGRPCLoggingClientInterceptor_LogsError(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -386,7 +406,14 @@ func TestGRPCLoggingClientInterceptor_LogsError(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return status.Errorf(codes.Internal, "boom")
 		},
 	)
@@ -428,7 +455,8 @@ func TestGRPCMetricsServerInterceptor_RecordsMetrics(t *testing.T) {
 //
 // Why this test is important:
 //   - Client-side metrics collection must be transparent to outgoing calls
-//   - A broken metrics interceptor could silently interfere with inter-service communication
+//   - A broken metrics interceptor could silently interfere with inter-service
+//     communication
 //
 // What it tests:
 //   - A successful invoker call completes with no error
@@ -443,7 +471,14 @@ func TestGRPCMetricsClientInterceptor_RecordsMetrics(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -500,7 +535,14 @@ func TestGRPCTracingClientInterceptor_CreatesSpan(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -561,7 +603,14 @@ func TestGRPCTracingClientInterceptor_InjectsTraceparent(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(ic context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			ic context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			got, _ = metadata.FromOutgoingContext(ic)
 			return nil
 		},
@@ -601,7 +650,13 @@ func TestGRPCTracingStreamClientInterceptor_InjectsTraceparent(t *testing.T) {
 		&grpc.StreamDesc{},
 		nil,
 		"/test.Service/Stream",
-		func(sc context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption) (grpc.ClientStream, error) {
+		func(
+			sc context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
+		) (grpc.ClientStream, error) {
 			got, _ = metadata.FromOutgoingContext(sc)
 			return nil, status.Error(codes.Unavailable, "stop before span bookkeeping")
 		},
@@ -640,7 +695,14 @@ func TestGRPCTimeoutClientInterceptor_CompletesBeforeDeadline(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -666,7 +728,14 @@ func TestGRPCTimeoutClientInterceptor_ExceedsDeadline(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			ctx context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			<-ctx.Done()
 			return ctx.Err()
 		},
@@ -703,7 +772,14 @@ func TestGRPCTimeoutClientInterceptor_CancelledContextReturnsCanceled(t *testing
 		nil,
 		nil,
 		nil,
-		func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			ctx context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return ctx.Err()
 		},
 	)
@@ -744,7 +820,14 @@ func TestGRPCTimeoutClientInterceptor_PassesThroughNonContextError(t *testing.T)
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return sentinel
 		},
 	)
@@ -781,7 +864,14 @@ func TestGRPCCircuitBreakerClientInterceptor_PassesWhenClosed(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -797,7 +887,8 @@ func TestGRPCCircuitBreakerClientInterceptor_PassesWhenClosed(t *testing.T) {
 //   - Unavailable status signals callers to use fallback or retry later
 //
 // What it tests:
-//   - A call with an open circuit returns codes.Unavailable without invoking the downstream service
+//   - A call with an open circuit returns codes.Unavailable without invoking the
+//     downstream service
 func TestGRPCCircuitBreakerClientInterceptor_RejectsWhenOpen(t *testing.T) {
 	t.Parallel()
 	cb := fixtures.StubCircuitBreaker(true)
@@ -809,7 +900,14 @@ func TestGRPCCircuitBreakerClientInterceptor_RejectsWhenOpen(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			require.FailNow(t, "invoker should not be called when circuit is open")
 			return nil
 		},
@@ -826,7 +924,8 @@ func TestGRPCCircuitBreakerClientInterceptor_RejectsWhenOpen(t *testing.T) {
 //   - Callers need accurate status codes for correct retry and fallback decisions
 //
 // What it tests:
-//   - An invoker returning codes.NotFound propagates as NotFound through the closed circuit
+//   - An invoker returning codes.NotFound propagates as NotFound through the closed
+//     circuit
 func TestGRPCCircuitBreakerClientInterceptor_PropagatesInnerError(t *testing.T) {
 	t.Parallel()
 	cb := fixtures.StubCircuitBreaker(false)
@@ -838,7 +937,14 @@ func TestGRPCCircuitBreakerClientInterceptor_PropagatesInnerError(t *testing.T) 
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return status.Errorf(codes.NotFound, "not found")
 		},
 	)
@@ -870,7 +976,14 @@ func TestGRPCRetryClientInterceptor_SucceedsFirstAttempt(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			return nil
 		},
 	)
@@ -885,7 +998,8 @@ func TestGRPCRetryClientInterceptor_SucceedsFirstAttempt(t *testing.T) {
 //     retry; without retries, every transient failure surfaces as a user error
 //
 // What it tests:
-//   - An invoker failing twice with Unavailable then succeeding results in 3 total attempts
+//   - An invoker failing twice with Unavailable then succeeding results in 3 total
+//     attempts
 //   - The final successful result returns no error
 func TestGRPCRetryClientInterceptor_RetriesTransientError(t *testing.T) {
 	t.Parallel()
@@ -899,7 +1013,14 @@ func TestGRPCRetryClientInterceptor_RetriesTransientError(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			attempts++
 			if attempts <= 2 {
 				return status.Errorf(codes.Unavailable, "transient")
@@ -933,7 +1054,14 @@ func TestGRPCRetryClientInterceptor_StopsOnPermanentError(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			attempts++
 			return status.Errorf(codes.InvalidArgument, "bad request")
 		},
@@ -965,7 +1093,14 @@ func TestGRPCRetryClientInterceptor_StopsOnResourceExhausted(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		func(_ context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		func(
+			_ context.Context,
+			_ string,
+			_,
+			_ any,
+			_ *grpc.ClientConn,
+			_ ...grpc.CallOption,
+		) error {
 			attempts++
 			return status.Errorf(codes.ResourceExhausted, "rate limited")
 		},
@@ -1013,7 +1148,8 @@ func TestGRPCClientBuilder_BreakerWrapsRetry_OpenFailsFast(t *testing.T) {
 		t,
 		0,
 		attempts(),
-		"the built conn must place the breaker outside retry: an open breaker fails fast without reaching the retrier",
+		"the built conn must place the breaker outside retry: an open breaker fails fast "+
+			"without reaching the retrier",
 	)
 }
 
@@ -1044,7 +1180,8 @@ func TestGRPCServerBuilder_EmptyBuildReturnsNil(t *testing.T) {
 //     interceptors are added; multiple separate options would apply in the wrong order
 //
 // What it tests:
-//   - A fully-configured ServerBuilder produces exactly 1 non-nil ChainUnaryInterceptor option
+//   - A fully-configured ServerBuilder produces exactly 1 non-nil ChainUnaryInterceptor
+//     option
 func TestGRPCServerBuilder_FullComposition(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -1112,7 +1249,8 @@ func TestGRPCClientBuilder_EmptyBuildReturnsNil(t *testing.T) {
 //     interceptor or wrong composition order would silently bypass observability
 //
 // What it tests:
-//   - A fully-configured ClientBuilder produces exactly 1 non-nil WithChainUnaryInterceptor option
+//   - A fully-configured ClientBuilder produces exactly 1 non-nil
+//     WithChainUnaryInterceptor option
 func TestGRPCClientBuilder_FullComposition(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -1161,9 +1299,13 @@ func TestGRPCTimeoutStreamClientInterceptor_CompletesBeforeDeadline(t *testing.T
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -1196,7 +1338,11 @@ func TestGRPCTimeoutStreamClientInterceptor_OpenExceedsDeadline(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			ctx context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			<-ctx.Done() // models a hung open, aborted by the interceptor
 			return nil, ctx.Err()
@@ -1235,7 +1381,11 @@ func TestGRPCTimeoutStreamClientInterceptor_CancelledParentReturnsCanceledAtOpen
 		nil,
 		"/test.Service/Method",
 		func(
-			ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			ctx context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return nil, ctx.Err()
 		},
@@ -1277,9 +1427,13 @@ func TestGRPCTimeoutStreamClientInterceptor_PassesThroughNonContextError(t *test
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil, sentinel), nil
+			return fixtures.StubClientStream(context.Background(), nil, sentinel), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -1317,7 +1471,11 @@ func TestGRPCTimeoutStreamClientInterceptor_CreationFailsWithNonContextError(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return nil, sentinel
 		},
@@ -1356,9 +1514,13 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_PassesWhenClosed(t *testing.T
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1375,7 +1537,8 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_PassesWhenClosed(t *testing.T
 //   - Unavailable status signals callers to use fallback or retry later
 //
 // What it tests:
-//   - Stream creation with an open circuit returns codes.Unavailable without invoking streamer
+//   - Stream creation with an open circuit returns codes.Unavailable without invoking
+//     streamer
 func TestGRPCCircuitBreakerStreamClientInterceptor_RejectsWhenOpen(t *testing.T) {
 	t.Parallel()
 	cb := fixtures.StubCircuitBreaker(true)
@@ -1387,10 +1550,14 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_RejectsWhenOpen(t *testing.T)
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			require.FailNow(t, "streamer should not be called when circuit is open")
-			return nil, nil
+			return nil, status.Error(codes.Internal, "unreachable")
 		},
 	)
 	require.Error(t, err, "expected error when circuit is open")
@@ -1405,7 +1572,8 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_RejectsWhenOpen(t *testing.T)
 //   - Callers need accurate status codes for correct retry and fallback decisions
 //
 // What it tests:
-//   - A streamer returning codes.NotFound propagates as NotFound through the closed circuit
+//   - A streamer returning codes.NotFound propagates as NotFound through the closed
+//     circuit
 func TestGRPCCircuitBreakerStreamClientInterceptor_PropagatesInnerError(t *testing.T) {
 	t.Parallel()
 	cb := fixtures.StubCircuitBreaker(false)
@@ -1417,7 +1585,11 @@ func TestGRPCCircuitBreakerStreamClientInterceptor_PropagatesInnerError(t *testi
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return nil, status.Errorf(codes.NotFound, "not found")
 		},
@@ -1451,9 +1623,13 @@ func TestGRPCRetryStreamClientInterceptor_SucceedsFirstAttempt(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1469,7 +1645,8 @@ func TestGRPCRetryStreamClientInterceptor_SucceedsFirstAttempt(t *testing.T) {
 //     retry; without retries, every transient failure surfaces as a user error
 //
 // What it tests:
-//   - A streamer failing twice with Unavailable then succeeding results in 3 total attempts
+//   - A streamer failing twice with Unavailable then succeeding results in 3 total
+//     attempts
 //   - The final successful result returns no error
 func TestGRPCRetryStreamClientInterceptor_RetriesTransientError(t *testing.T) {
 	t.Parallel()
@@ -1483,13 +1660,17 @@ func TestGRPCRetryStreamClientInterceptor_RetriesTransientError(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			attempts++
 			if attempts <= 2 {
 				return nil, status.Errorf(codes.Unavailable, "transient")
 			}
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1519,7 +1700,11 @@ func TestGRPCRetryStreamClientInterceptor_StopsOnPermanentError(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			attempts++
 			return nil, status.Errorf(codes.InvalidArgument, "bad request")
@@ -1555,9 +1740,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsMetrics(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1585,7 +1774,11 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsCreationFailure(t *testing.T)
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return nil, status.Errorf(codes.Unavailable, "unreachable")
 		},
@@ -1615,10 +1808,14 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsRecvMsgFailure(t *testing.T) 
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				nil,
+				context.Background(),
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -1656,9 +1853,13 @@ func TestGRPCTracingStreamClientInterceptor_CreatesSpan(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1686,7 +1887,11 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnCreationFailure(t *testing
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return nil, status.Errorf(codes.Unavailable, "unreachable")
 		},
@@ -1716,10 +1921,14 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnRecvMsgFailure(t *testing.
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				nil,
+				context.Background(),
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -1742,7 +1951,8 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnRecvMsgFailure(t *testing.
 //
 // Why this test is important:
 //   - Client-side logging must be transparent and never interfere with outgoing streams
-//   - A broken logging interceptor could silently drop or alter inter-service communication
+//   - A broken logging interceptor could silently drop or alter inter-service
+//     communication
 //
 // What it tests:
 //   - A stream that completes cleanly reports io.EOF unchanged
@@ -1757,9 +1967,13 @@ func TestGRPCLoggingStreamClientInterceptor_LogsSuccess(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error")
@@ -1774,7 +1988,8 @@ func TestGRPCLoggingStreamClientInterceptor_LogsSuccess(t *testing.T) {
 //   - Client-side logging must not re-wrap or swallow errors from downstream services
 //
 // What it tests:
-//   - A stream whose RecvMsg returns codes.Internal propagates as an error through the logging interceptor
+//   - A stream whose RecvMsg returns codes.Internal propagates as an error through the
+//     logging interceptor
 func TestGRPCLoggingStreamClientInterceptor_LogsError(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -1786,10 +2001,14 @@ func TestGRPCLoggingStreamClientInterceptor_LogsError(t *testing.T) {
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
 			return fixtures.StubClientStream(
-				nil,
+				context.Background(),
 				nil,
 				status.Errorf(codes.Internal, "boom"),
 			), nil
@@ -1829,7 +2048,8 @@ func TestGRPCStreamingClientBuilder_EmptyBuildReturnsNil(t *testing.T) {
 //     interceptor or wrong composition order would silently bypass observability
 //
 // What it tests:
-//   - A fully-configured StreamingClientBuilder produces exactly 1 non-nil WithChainStreamInterceptor option
+//   - A fully-configured StreamingClientBuilder produces exactly 1 non-nil
+//     WithChainStreamInterceptor option
 func TestGRPCStreamingClientBuilder_FullComposition(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -1896,7 +2116,8 @@ func TestGRPCStreamingClientBuilder_BreakerWrapsRetry_OpenFailsFast(t *testing.T
 		t,
 		0,
 		attempts(),
-		"the built conn must place the breaker outside retry: an open breaker fails fast without reaching the retrier",
+		"the built conn must place the breaker outside retry: an open breaker fails fast "+
+			"without reaching the retrier",
 	)
 }
 
@@ -1975,7 +2196,11 @@ func TestGRPCStreamingClientBuilder_ComposesFullOrder(t *testing.T) {
 			func(_ context.Context, op func() error) error { return op() },
 		),
 		tracer.EXPECT().Start(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, _ string, _ ...interfaces.SpanOption) (context.Context, interfaces.Span) {
+			func(
+				ctx context.Context,
+				_ string,
+				_ ...interfaces.SpanOption,
+			) (context.Context, interfaces.Span) {
 				return ctx, span
 			},
 		),
@@ -2045,9 +2270,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsAbandonedCancellation(t *test
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2093,9 +2322,13 @@ func TestGRPCTracingStreamClientInterceptor_EndsSpanOnAbandonedCancellation(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2135,9 +2368,13 @@ func TestGRPCLoggingStreamClientInterceptor_LogsAbandonedCancellation(t *testing
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2196,9 +2433,13 @@ func TestGRPCMetricsStreamClientInterceptor_RecordsOnceWhenDrainedThenCancelled(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2255,9 +2496,13 @@ func TestGRPCTracingStreamClientInterceptor_DrainedThenCancelledEndsSpanOK(t *te
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")
@@ -2312,9 +2557,13 @@ func TestGRPCLoggingStreamClientInterceptor_DrainedThenCancelledLogsNoError(
 		nil,
 		"/test.Service/Method",
 		func(
-			_ context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption,
+			_ context.Context,
+			_ *grpc.StreamDesc,
+			_ *grpc.ClientConn,
+			_ string,
+			_ ...grpc.CallOption,
 		) (grpc.ClientStream, error) {
-			return fixtures.StubClientStream(nil, nil), nil
+			return fixtures.StubClientStream(context.Background(), nil), nil
 		},
 	)
 	require.NoError(t, err, "unexpected error creating stream")

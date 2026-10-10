@@ -32,8 +32,17 @@ func TestGRPCInterceptors_ErrorBranches(t *testing.T) {
 	ctx := context.Background()
 	boom := status.Error(codes.Internal, "handler fault")
 
-	failHandler := func(context.Context, any) (any, error) { return nil, boom }
-	failInvoker := func(context.Context, string, any, any, *grpc.ClientConn, ...grpc.CallOption) error {
+	var failHandler grpc.UnaryHandler = func(context.Context, any) (any, error) {
+		return nil, boom
+	}
+	failInvoker := func(
+		context.Context,
+		string,
+		any,
+		any,
+		*grpc.ClientConn,
+		...grpc.CallOption,
+	) error {
 		return boom
 	}
 

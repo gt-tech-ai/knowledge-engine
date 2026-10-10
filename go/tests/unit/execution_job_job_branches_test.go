@@ -110,7 +110,7 @@ func TestSingle_RelativeDirJoinsRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		filepath.Join("/repo", "sub/dir"),
+		filepath.FromSlash("/repo/sub/dir"),
 		gotDir,
 		"relative dir must be resolved against root",
 	)

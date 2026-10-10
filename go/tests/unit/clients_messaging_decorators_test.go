@@ -66,8 +66,13 @@ func TestHandlerObservability_RecordsHandleMetrics(t *testing.T) {
 	})
 	require.Error(t, bad(context.Background(), &interfaces.Message{Topic: "t", ID: "m2"}))
 
-	require.Equal(t, 2.0, counterValue(t, reg, "messaging_handle_total", "t"))
-	require.Equal(t, 1.0, counterValue(t, reg, "messaging_handle_failures_total", "t"))
+	require.InDelta(t, 2.0, counterValue(t, reg, "messaging_handle_total", "t"), 0)
+	require.InDelta(
+		t,
+		1.0,
+		counterValue(t, reg, "messaging_handle_failures_total", "t"),
+		0,
+	)
 }
 
 // TestWrapPublisher_LogsPublishFailure tests that the logging decorator records a
@@ -246,8 +251,8 @@ func TestWrapPublisher_BatchFailureLoggedAndMeasured(t *testing.T) {
 	)
 }
 
-// TestHandlerObservability_LogsHandleFailure tests that the handler logging decorator records
-// a nacked message and propagates the handler's error unchanged.
+// TestHandlerObservability_LogsHandleFailure tests that the handler logging decorator
+// records a nacked message and propagates the handler's error unchanged.
 //
 // Why this test is important:
 //   - Per-message failure visibility must live in a composed layer, not inline in
@@ -275,7 +280,8 @@ func TestHandlerObservability_LogsHandleFailure(t *testing.T) {
 	require.NotEmpty(t, (*spy.ChildErrorCalls), "handle failure should be logged")
 }
 
-// TestHandlerObservability_QuietOnSuccess tests that a successful handle is not error-logged.
+// TestHandlerObservability_QuietOnSuccess tests that a successful handle is not
+// error-logged.
 //
 // Why this test is important:
 //   - Error-logging every acked message would drown the real nacks in noise
@@ -368,5 +374,5 @@ func TestWrapPublisher_RecordsClientOperationMetric(t *testing.T) {
 	)
 	require.NoError(t, pub.Publish(context.Background(), "topic", []byte("payload")))
 
-	require.Equal(t, 1.0, clientOpCounter(t, reg, "topic"))
+	require.InDelta(t, 1.0, clientOpCounter(t, reg, "topic"), 0)
 }

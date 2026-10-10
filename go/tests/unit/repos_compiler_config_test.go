@@ -13,8 +13,9 @@ import (
 // TestCompilerConfig_Validate tests the repos.compiler.kind config validation.
 //
 // Why this test is important:
-//   - The config selects the query-compiler backend; accepting an unimplemented kind would fail
-//     opaquely at query time instead of loudly at config load. Validate is the loud-failure gate.
+//   - The config selects the query-compiler backend; accepting an unimplemented kind
+//     would fail opaquely at query time instead of loudly at config load. Validate is the
+//     loud-failure gate.
 //
 // What it tests:
 //   - The default kind is "ent" and validates; an unimplemented/unknown kind is rejected.
@@ -22,20 +23,20 @@ func TestCompilerConfig_Validate(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "ent", reposcfg.DefaultCompilerConfig().Kind)
 	require.NoError(t, reposcfg.CompilerConfig{Kind: "ent"}.Validate())
-	assert.Error(t, reposcfg.CompilerConfig{Kind: "mongo"}.Validate())
+	require.Error(t, reposcfg.CompilerConfig{Kind: "mongo"}.Validate())
 	assert.Error(t, reposcfg.CompilerConfig{Kind: ""}.Validate())
 }
 
 // TestCompilerNew_SelectsBackendByKind tests the composition-root backend selection.
 //
 // Why this test is important:
-//   - New is the single selection point that maps a configured Kind to a backend; it must return
-//     the Ent backend for the implemented kind and fail loudly (coded error) for a reserved one,
-//     never silently return nil.
+//   - New is the single selection point that maps a configured Kind to a backend; it must
+//     return the Ent backend for the implemented kind and fail loudly (coded error) for a
+//     reserved one, never silently return nil.
 //
 // What it tests:
-//   - ParseKind round-trips the config token; New(KindEnt) yields a usable backend; a reserved
-//     kind (KindMongo) returns a coded error.
+//   - ParseKind round-trips the config token; New(KindEnt) yields a usable backend; a
+//     reserved kind (KindMongo) returns a coded error.
 func TestCompilerNew_SelectsBackendByKind(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +45,7 @@ func TestCompilerNew_SelectsBackendByKind(t *testing.T) {
 	assert.Equal(t, compiler.KindEnt, kind)
 
 	_, err = compiler.ParseKind("bogus")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	backend, err := compiler.New(compiler.KindEnt)
 	require.NoError(t, err)

@@ -47,11 +47,19 @@ func TestEnvSource_MissingAndUnmappedAreNotFound(t *testing.T) {
 
 	unmapped := env.New(map[types.Ref]string{})
 	_, err := unmapped.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unmapped ref must be not-found")
+	require.True(
+		t,
+		coreerr.Is(err, coreerr.CodeNotFound),
+		"unmapped ref must be not-found",
+	)
 
 	unset := env.New(map[types.Ref]string{ref: "KE_DEFINITELY_UNSET_VAR_XYZ_9137"})
 	_, err = unset.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unset variable must be not-found")
+	require.True(
+		t,
+		coreerr.Is(err, coreerr.CodeNotFound),
+		"unset variable must be not-found",
+	)
 }
 
 // TestEnvSource_PutIsUnsupported tests that writing to the env Source fails loudly.

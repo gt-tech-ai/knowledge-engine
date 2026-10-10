@@ -1,16 +1,17 @@
 package unit_test
 
 import (
-	"strings"
 	"context"
+	"strings"
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 )
 
 // prevTraceparent is the previous turn's root span used across the conversation tests.
@@ -37,14 +38,20 @@ func TestInjectConversation_SetsBaggageKeys(t *testing.T) {
 	_, bad := tracer.ParseTraceparent("not-a-traceparent")
 	assert.False(t, bad)
 
-	ctx := tracer.InjectConversation(context.Background(), tracer.Conversation{ID: "conv_42", TurnIndex: 3, Prev: prev})
+	ctx := tracer.InjectConversation(
+		context.Background(),
+		tracer.Conversation{ID: "conv_42", TurnIndex: 3, Prev: prev},
+	)
 	bag := baggage.FromContext(ctx)
 
 	assert.Equal(t, "conv_42", bag.Member("vv.conversation.id").Value())
 	assert.Equal(t, "3", bag.Member("vv.turn.index").Value())
 	assert.Equal(t, prevTraceparent, bag.Member("vv.prev.traceparent").Value())
 
-	untouched := tracer.InjectConversation(context.Background(), tracer.Conversation{ID: "a@b.com", TurnIndex: 1})
+	untouched := tracer.InjectConversation(
+		context.Background(),
+		tracer.Conversation{ID: "a@b.com", TurnIndex: 1},
+	)
 	assert.Equal(t, 0, baggage.FromContext(untouched).Len())
 }
 
@@ -64,7 +71,10 @@ func TestConversationStartOptions_LinksPrevTurn(t *testing.T) {
 	prev, ok := tracer.ParseTraceparent(prevTraceparent)
 	require.True(t, ok)
 
-	cfg := trace.NewSpanStartConfig(tracer.ConversationStartOptions(tracer.Conversation{ID: "c1", TurnIndex: 2, Prev: prev})...)
+	cfg := trace.NewSpanStartConfig(
+		tracer.ConversationStartOptions(
+			tracer.Conversation{ID: "c1", TurnIndex: 2, Prev: prev},
+		)...)
 
 	assert.Equal(t, []attribute.KeyValue{
 		attribute.String("conversation.id", "c1"),
@@ -86,7 +96,8 @@ func TestConversationStartOptions_LinksPrevTurn(t *testing.T) {
 func TestConversationStartOptions_FirstTurnHasNoLink(t *testing.T) {
 	t.Parallel()
 
-	cfg := trace.NewSpanStartConfig(tracer.ConversationStartOptions(tracer.Conversation{ID: "c1", TurnIndex: 0})...)
+	cfg := trace.NewSpanStartConfig(
+		tracer.ConversationStartOptions(tracer.Conversation{ID: "c1", TurnIndex: 0})...)
 
 	assert.Len(t, cfg.Attributes(), 2)
 	assert.Empty(t, cfg.Links())

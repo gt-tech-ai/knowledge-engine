@@ -79,7 +79,11 @@ func TestFileSource_PutRefusesNonIgnoredPath(t *testing.T) {
 	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
 
 	_, statErr := os.Stat(path)
-	assert.True(t, os.IsNotExist(statErr), "must not create a non-git-ignored credential file")
+	assert.True(
+		t,
+		os.IsNotExist(statErr),
+		"must not create a non-git-ignored credential file",
+	)
 }
 
 // TestFileSource_GetMissingKeyIsNotFound tests that Get for a key absent from the file
@@ -119,8 +123,9 @@ func TestFileSource_GetMissingKeyIsNotFound(t *testing.T) {
 //     exact failure seen in the field.
 //
 // What it tests:
-//   - `export CLIENT_SECRET="the-secret"` and a single-quoted domain both parse to the bare
-//     value; a plain `KEY=value` line still works; and a Put preserves the `export ` prefix.
+//   - `export CLIENT_SECRET="the-secret"` and a single-quoted domain both parse to the
+//     bare value; a plain `KEY=value` line still works; and a Put preserves the `export `
+//     prefix.
 func TestFileSource_ReadsExportAndQuotedDotenv(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".secrets.env")
 	require.NoError(t, os.WriteFile(path, []byte(

@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/workflows/workflow"
 	"github.com/gt-tech-ai/knowledge-engine/go/workflows/workflow/decorators"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestBaseWorkflow tests that BaseWorkflow wraps an orchestration function

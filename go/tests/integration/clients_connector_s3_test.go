@@ -23,9 +23,9 @@ import (
 	miniofix "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/minio"
 )
 
-// minioS3Client builds a connector-scoped StorageClient against the MinIO endpoint — the test's
-// S3ClientBuilder, mirroring the app composition root's closure (the seam that keeps
-// go/clients/connector free of a lateral storage import).
+// minioS3Client builds a connector-scoped StorageClient against the MinIO endpoint — the
+// test's S3ClientBuilder, mirroring the app composition root's closure (the seam that
+// keeps go/clients/connector free of a lateral storage import).
 func minioS3Client(endpoint string) connectors3.S3ClientBuilder {
 	return func(
 		ctx context.Context,
@@ -45,19 +45,22 @@ func minioS3Client(endpoint string) connectors3.S3ClientBuilder {
 	}
 }
 
-// TestConnectorS3Source_TestConnection_RealMinIO drives the pkg S3 ConnectorSource end-to-end against a
-// real MinIO container (via the family SourceBuilder + a connector-scoped, credential-bearing
-// StorageClient): it counts exactly the objects under the prefix, and classifies a missing bucket.
+// TestConnectorS3Source_TestConnection_RealMinIO drives the pkg S3 ConnectorSource
+// end-to-end against a real MinIO container (via the family SourceBuilder + a
+// connector-scoped, credential-bearing StorageClient): it counts exactly the objects
+// under the prefix, and classifies a missing bucket.
 //
 // Why this test is important:
-//   - TestConnection's whole value is a REAL reachability + credential check; only a live S3-compatible
-//     endpoint proves the connector-scoped client (built from the access-key strategy + the injected
-//     builder) authenticates, lists a bounded page, and counts — and that a bad bucket is surfaced as a
-//     truthful, correctly-coded error, not a cryptic crypto/transport failure.
+//   - TestConnection's whole value is a REAL reachability + credential check; only a live
+//     S3-compatible endpoint proves the connector-scoped client (built from the
+//     access-key strategy + the injected builder) authenticates, lists a bounded page,
+//     and counts — and that a bad bucket is surfaced as a truthful, correctly-coded
+//     error, not a cryptic crypto/transport failure.
 //
 // What it tests:
-//   - the SourceBuilder (s3 kind, access-key auth) builds a source whose TestConnection returns the
-//     number of objects under bucket/prefix; a nonexistent bucket yields CodeInvalidInput.
+//   - the SourceBuilder (s3 kind, access-key auth) builds a source whose TestConnection
+//     returns the number of objects under bucket/prefix; a nonexistent bucket yields
+//     CodeInvalidInput.
 func TestConnectorS3Source_TestConnection_RealMinIO(t *testing.T) {
 	ctx := context.Background()
 	m, err := miniofix.NewTestMinIO(ctx)
@@ -111,7 +114,8 @@ func TestConnectorS3Source_TestConnection_RealMinIO(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "only the two docs/ objects are under the prefix")
 
-	// A nonexistent bucket is a client-fault error → CodeInvalidInput (not a transport error).
+	// A nonexistent bucket is a client-fault error → CodeInvalidInput (not a transport
+	// error).
 	badCfg := cfg
 	badCfg.Bucket = "does-not-exist"
 	badCfg.Prefix = ""

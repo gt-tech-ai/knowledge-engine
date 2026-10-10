@@ -157,7 +157,13 @@ func TestMetricsMW_RecordsCountAndError(t *testing.T) {
 		Counter("repository_errors_total", gomock.Any(), "repo", "operation").
 		Return(errs)
 	m.EXPECT().
-		Histogram("repository_operation_duration_seconds", gomock.Any(), gomock.Any(), "repo", "operation").
+		Histogram(
+			"repository_operation_duration_seconds",
+			gomock.Any(),
+			gomock.Any(),
+			"repo",
+			"operation",
+		).
 		Return(dur)
 
 	spec := decorate.MetricsSpec{

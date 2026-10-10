@@ -5,15 +5,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/decorators"
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestDecorators_TimeoutReturnsCodedTimeout tests that an analytics operation
@@ -31,11 +32,15 @@ func TestDecorators_TimeoutReturnsCodedTimeout(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	base := mocks.NewMockAnalyticsStore(ctrl)
-	base.EXPECT().Write(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, _ []types.Fact) error {
-		<-ctx.Done()
-		return ctx.Err()
-	})
-	store := decorators.NewBuilder(base, "facts").WithTimeout(20 * time.Millisecond).Build()
+	base.EXPECT().
+		Write(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ []types.Fact) error {
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	store := decorators.NewBuilder(base, "facts").
+		WithTimeout(20 * time.Millisecond).
+		Build()
 
 	err := store.Write(context.Background(), []types.Fact{{Cube: "c"}})
 
@@ -67,12 +72,27 @@ func TestDecorators_OpenBreakerReturnsUnavailable(t *testing.T) {
 	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
 
 	closed := mocks.NewMockCircuitBreaker(ctrl)
-	closed.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error { return fn() }).Times(2)
-	base.EXPECT().Write(gomock.Any(), gomock.Any()).Return(apperr.New(apperr.CodeInvalidInput, "bad fact"))
-	base.EXPECT().Write(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, []types.Fact) error { panic("boom") })
+	closed.EXPECT().
+		Execute(gomock.Any()).
+		DoAndReturn(func(fn func() error) error { return fn() }).
+		Times(2)
+	base.EXPECT().
+		Write(gomock.Any(), gomock.Any()).
+		Return(apperr.New(apperr.CodeInvalidInput, "bad fact"))
+	base.EXPECT().
+		Write(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, []types.Fact) error { panic("boom") })
 	passing := decorators.NewBuilder(base, "facts").WithCircuitBreaker(closed).Build()
-	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(passing.Write(context.Background(), nil)))
-	assert.Equal(t, apperr.CodeInternal, apperr.Code(passing.Write(context.Background(), nil)))
+	assert.Equal(
+		t,
+		apperr.CodeInvalidInput,
+		apperr.Code(passing.Write(context.Background(), nil)),
+	)
+	assert.Equal(
+		t,
+		apperr.CodeInternal,
+		apperr.Code(passing.Write(context.Background(), nil)),
+	)
 }
 
 // TestDecorators_SessionRetriesOnlyIdempotentStatements tests the Cassandra
@@ -91,12 +111,14 @@ func TestDecorators_SessionRetriesOnlyIdempotentStatements(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	inner := mocks.NewMockSession(ctrl)
 	retrier := mocks.NewMockRetrier(ctrl)
-	retrier.EXPECT().Retry(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, fn func() error) error {
-		if err := fn(); err != nil {
-			return fn()
-		}
-		return nil
-	})
+	retrier.EXPECT().
+		Retry(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, fn func() error) error {
+			if err := fn(); err != nil {
+				return fn()
+			}
+			return nil
+		})
 	stack := clientdecorators.New("cassandra").WithRetrier(retrier)
 	session := decorators.Session(inner, stack)
 
@@ -108,7 +130,10 @@ func TestDecorators_SessionRetriesOnlyIdempotentStatements(t *testing.T) {
 		upsert.EXPECT().Exec().Return(apperr.New(apperr.CodeUnavailable, "replica down")),
 		upsert.EXPECT().Exec().Return(nil),
 	)
-	require.NoError(t, session.Query("UPSERT").WithContext(context.Background()).Idempotent(true).Exec())
+	require.NoError(
+		t,
+		session.Query("UPSERT").WithContext(context.Background()).Idempotent(true).Exec(),
+	)
 
 	once := mocks.NewMockQuery(ctrl)
 	inner.EXPECT().Query("ONCE").Return(once)
@@ -142,20 +167,63 @@ func TestDecorators_CompactRunsThroughTheChain(t *testing.T) {
 	bucket := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 
 	ctrl := gomock.NewController(t)
-	base := compactingStore{mocks.NewMockAnalyticsStore(ctrl), mocks.NewMockAnalyticsCompactor(ctrl)}
-	base.MockAnalyticsCompactor.EXPECT().Compact(gomock.Any(), "c", types.GrainDay, "o", bucket).DoAndReturn(
-		func(ctx context.Context, _ string, _ types.Grain, _ string, _ time.Time) error {
-			<-ctx.Done()
-			return ctx.Err()
-		})
-	slow := decorators.NewBuilder(base, "facts").WithTimeout(20 * time.Millisecond).Build()
-	assert.Equal(t, apperr.CodeTimeout, apperr.Code(slow.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
+	base := compactingStore{
+		mocks.NewMockAnalyticsStore(ctrl),
+		mocks.NewMockAnalyticsCompactor(ctrl),
+	}
+	base.MockAnalyticsCompactor.EXPECT().
+		Compact(gomock.Any(), "c", types.GrainDay, "o", bucket).
+		DoAndReturn(
+			func(ctx context.Context, _ string, _ types.Grain, _ string, _ time.Time) error {
+				<-ctx.Done()
+				return ctx.Err()
+			})
+	slow := decorators.NewBuilder(base, "facts").
+		WithTimeout(20 * time.Millisecond).
+		Build()
+	assert.Equal(
+		t,
+		apperr.CodeTimeout,
+		apperr.Code(
+			slow.(interfaces.AnalyticsCompactor).Compact(
+				ctx,
+				"c",
+				types.GrainDay,
+				"o",
+				bucket,
+			),
+		),
+	)
 
 	open := mocks.NewMockCircuitBreaker(ctrl)
 	open.EXPECT().Execute(gomock.Any()).Return(apperr.Sentinel("circuit breaker is open"))
 	shed := decorators.NewBuilder(base, "facts").WithCircuitBreaker(open).Build()
-	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(shed.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
+	assert.Equal(
+		t,
+		apperr.CodeUnavailable,
+		apperr.Code(
+			shed.(interfaces.AnalyticsCompactor).Compact(
+				ctx,
+				"c",
+				types.GrainDay,
+				"o",
+				bucket,
+			),
+		),
+	)
 
 	plain := decorators.NewBuilder(mocks.NewMockAnalyticsStore(ctrl), "facts").Build()
-	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(plain.(interfaces.AnalyticsCompactor).Compact(ctx, "c", types.GrainDay, "o", bucket)))
+	assert.Equal(
+		t,
+		apperr.CodeInvalidInput,
+		apperr.Code(
+			plain.(interfaces.AnalyticsCompactor).Compact(
+				ctx,
+				"c",
+				types.GrainDay,
+				"o",
+				bucket,
+			),
+		),
+	)
 }

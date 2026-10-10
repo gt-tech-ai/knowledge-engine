@@ -42,7 +42,11 @@ func TestDecorators_RecoveryConvertsPanic(t *testing.T) {
 	job := mocks.NewMockAnyJob(ctrl)
 	job.EXPECT().Meta().Return(types.JobMeta{Name: "relay"}).AnyTimes()
 	job.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, interfaces.CommandRunner, string) (types.StepResults, error) {
+		DoAndReturn(func(
+			context.Context,
+			interfaces.CommandRunner,
+			string,
+		) (types.StepResults, error) {
 			panic("boom")
 		})
 

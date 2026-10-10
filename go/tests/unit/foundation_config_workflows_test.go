@@ -52,7 +52,9 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "2s"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).DoAndReturn(setTimeout(2 * time.Second))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			DoAndReturn(setTimeout(2 * time.Second))
 
 		cfg, err := workflowscfg.Load(loader)
 
@@ -64,7 +66,9 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "-1s"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).DoAndReturn(setTimeout(-time.Second))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			DoAndReturn(setTimeout(-time.Second))
 
 		_, err := workflowscfg.Load(loader)
 
@@ -76,7 +80,9 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "soon"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).Return(coreerr.Sentinel("bad duration"))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			Return(coreerr.Sentinel("bad duration"))
 
 		_, err := workflowscfg.Load(loader)
 

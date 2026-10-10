@@ -3,23 +3,24 @@ package unit_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/budget"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/budget"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
 // testHeaders is the gateway header contract the interceptor tests send, passed to
@@ -59,7 +60,8 @@ func newTestResponse() connect.AnyResponse {
 // Why this test is important:
 //   - Unrecovered panics crash the entire process, taking down all connections
 //   - The recovery interceptor is the last line of defense against handler bugs
-//   - Structured error codes allow clients to distinguish server faults from client errors
+//   - Structured error codes allow clients to distinguish server faults from client
+//     errors
 //
 // What it tests:
 //   - A panicking handler returns nil response and a CodeInternal Connect error
@@ -114,7 +116,8 @@ func TestRecoveryInterceptor_PassesThroughNormal(t *testing.T) {
 //   - Re-wrapping errors as Internal would mask the true cause and break client logic
 //
 // What it tests:
-//   - A handler returning CodeNotFound propagates as CodeNotFound (not swallowed or re-wrapped)
+//   - A handler returning CodeNotFound propagates as CodeNotFound (not swallowed or
+//     re-wrapped)
 func TestRecoveryInterceptor_PassesThroughError(t *testing.T) {
 	t.Parallel()
 	logger := fixtures.NopLogger()
@@ -180,7 +183,7 @@ func TestRateLimitInterceptor_RejectsWhenExceeded(t *testing.T) {
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			require.FailNow(t, "handler should not be called when rate limited")
-			return nil, nil
+			return nil, apperr.Sentinel("unreachable")
 		},
 	)
 
@@ -428,7 +431,7 @@ func TestCircuitBreakerInterceptor_RejectsWhenOpen(t *testing.T) {
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			require.FailNow(t, "handler should not be called when circuit is open")
-			return nil, nil
+			return nil, apperr.Sentinel("unreachable")
 		},
 	)
 
@@ -445,7 +448,8 @@ func TestCircuitBreakerInterceptor_RejectsWhenOpen(t *testing.T) {
 //   - Clients need accurate error codes for correct retry and fallback decisions
 //
 // What it tests:
-//   - A handler returning CodeNotFound propagates as CodeNotFound through the closed circuit
+//   - A handler returning CodeNotFound propagates as CodeNotFound through the closed
+//     circuit
 func TestCircuitBreakerInterceptor_PropagatesInnerError(t *testing.T) {
 	t.Parallel()
 	cb := fixtures.StubCircuitBreaker(false)
@@ -502,7 +506,8 @@ func TestRetryInterceptor_SucceedsFirstAttempt(t *testing.T) {
 //   - Correct attempt counting ensures the retry budget is consumed as expected
 //
 // What it tests:
-//   - A handler failing twice with CodeUnavailable then succeeding results in 3 total attempts
+//   - A handler failing twice with CodeUnavailable then succeeding results in 3 total
+//     attempts
 //   - The final successful response is returned with no error
 func TestRetryInterceptor_RetriesTransientError(t *testing.T) {
 	t.Parallel()
@@ -534,7 +539,8 @@ func TestRetryInterceptor_RetriesTransientError(t *testing.T) {
 // does not retry non-retryable errors like CodeInvalidArgument.
 //
 // Why this test is important:
-//   - Retrying permanent errors wastes resources and delays the error response to the client
+//   - Retrying permanent errors wastes resources and delays the error response to the
+//     client
 //   - Client-side mistakes (bad input) will never succeed on retry
 //   - Preserving the original error code is critical for correct client-side handling
 //
@@ -639,7 +645,8 @@ func TestClientBuilder_BreakerWrapsRetry_OpenFailsFast(t *testing.T) {
 		t,
 		0,
 		attempts(),
-		"the built client must place the breaker outside retry: an open breaker fails fast without reaching the retrier",
+		"the built client must place the breaker outside retry: an open breaker fails fast "+
+			"without reaching the retrier",
 	)
 }
 
@@ -727,7 +734,8 @@ func TestClientBuilder_PerAttemptTimeout_HungAttemptIsRetried(t *testing.T) {
 		t,
 		2,
 		attempts,
-		"a hung first attempt is timed out per-attempt (DeadlineExceeded stays retryable) and retried",
+		"a hung first attempt is timed out per-attempt (DeadlineExceeded stays retryable) "+
+			"and retried",
 	)
 }
 
@@ -754,7 +762,8 @@ func TestServerBuilder_EmptyBuildReturnsNil(t *testing.T) {
 // available interceptors into a single handler option.
 //
 // Why this test is important:
-//   - The full middleware stack (recovery, rate limit, metrics, tracing, logging, auth, validation) must compose without errors
+//   - The full middleware stack (recovery, rate limit, metrics, tracing, logging, auth,
+//     validation) must compose without errors
 //   - Interceptor ordering and compatibility issues would break every service at startup
 //   - Validates the builder pattern wires all dependencies correctly
 //
@@ -826,8 +835,10 @@ func TestClientBuilder_EmptyBuildReturnsNil(t *testing.T) {
 // available client interceptors into a single client option.
 //
 // Why this test is important:
-//   - The full client middleware stack (timeout, retry, circuit breaker, metrics, tracing, logging) must compose without errors
-//   - Client interceptor ordering affects resilience behavior (e.g., timeout wrapping retry)
+//   - The full client middleware stack (timeout, retry, circuit breaker, metrics,
+//     tracing, logging) must compose without errors
+//   - Client interceptor ordering affects resilience behavior (e.g., timeout wrapping
+//     retry)
 //   - Validates the builder pattern wires all client-side dependencies correctly
 //
 // What it tests:
@@ -862,7 +873,8 @@ func TestClientBuilder_FullComposition(t *testing.T) {
 //
 // Why this test is important:
 //   - Identity propagation via context is the foundation of multi-tenant authorization
-//   - Data corruption in any claim field could grant unauthorized access or deny valid users
+//   - Data corruption in any claim field could grant unauthorized access or deny valid
+//     users
 //   - Every handler depends on this contract to enforce tenant isolation
 //
 // What it tests:
@@ -890,7 +902,8 @@ func TestWithAuthClaims_GetAuthClaims_RoundTrip(t *testing.T) {
 //
 // Why this test is important:
 //   - Treating zero-value claims as valid identity would bypass authorization checks
-//   - Handlers must be able to distinguish "no auth" from "authenticated with empty fields"
+//   - Handlers must be able to distinguish "no auth" from "authenticated with empty
+//     fields"
 //
 // What it tests:
 //   - An empty context returns ok=false from GetAuthClaims
@@ -914,7 +927,8 @@ func newTestRequestWithHeaders(headers map[string]string) connect.AnyRequest {
 // all identity headers and stores them as AuthClaims in context.
 //
 // Why this test is important:
-//   - The auth interceptor is the entry point for identity propagation in Connect services
+//   - The auth interceptor is the entry point for identity propagation in Connect
+//     services
 //   - Missing or misparse of any header field breaks downstream authorization decisions
 //   - Role splitting must handle the comma-separated format used by the API gateway
 //
@@ -955,7 +969,8 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 // claims when no X-User-Sub header is present.
 //
 // Why this test is important:
-//   - Storing empty claims would cause handlers to treat unauthenticated requests as authenticated
+//   - Storing empty claims would cause handlers to treat unauthenticated requests as
+//     authenticated
 //   - The interceptor must allow unauthenticated requests through for public endpoints
 //   - Downstream auth-required checks depend on claims absence to enforce access control
 //
@@ -988,7 +1003,8 @@ func TestAuthInterceptor_NoSub(t *testing.T) {
 //
 // Why this test is important:
 //   - nil vs empty-slice semantics affect role-checking logic downstream
-//   - Handlers use nil Roles to distinguish "no roles assigned" from "roles checked but empty"
+//   - Handlers use nil Roles to distinguish "no roles assigned" from "roles checked but
+//     empty"
 //
 // What it tests:
 //   - Claims are stored with Sub populated and Roles nil
@@ -1022,7 +1038,8 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 // in nil Roles rather than a slice with an empty string.
 //
 // Why this test is important:
-//   - A single-element slice containing "" would match empty-string role checks spuriously
+//   - A single-element slice containing "" would match empty-string role checks
+//     spuriously
 //   - Edge case handling of empty headers prevents authorization bypass
 //
 // What it tests:
@@ -1173,7 +1190,11 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	require.True(t, ok, "expected claims in context")
 	assert.Equal(t, "real-user-from-gateway", claims.Sub)
 	assert.Equal(t, "real-org-from-gateway", claims.TenantID)
-	assert.False(t, claims.Synthetic, "header-derived claims must not be marked Synthetic")
+	assert.False(
+		t,
+		claims.Synthetic,
+		"header-derived claims must not be marked Synthetic",
+	)
 }
 
 // ---------------------------------------------------------------------------
@@ -1215,7 +1236,8 @@ func TestLoggingInterceptor_Success(t *testing.T) {
 //   - The logging layer must never re-wrap or swallow errors
 //
 // What it tests:
-//   - A handler returning CodeNotFound propagates as CodeNotFound through the logging interceptor
+//   - A handler returning CodeNotFound propagates as CodeNotFound through the logging
+//     interceptor
 func TestLoggingInterceptor_Error(t *testing.T) {
 	t.Parallel()
 
@@ -1338,7 +1360,8 @@ func TestLoggingInterceptor_4xxCodeLogsAtWarn(t *testing.T) {
 //
 // Why this test is important:
 //   - CodeInternal represents unexpected server failures that operators must investigate.
-//   - These must reach Error level (and any server-error alert), unlike 4xx client errors.
+//   - These must reach Error level (and any server-error alert), unlike 4xx client
+//     errors.
 //
 // What it tests:
 //   - CodeInternal -> Error on child logger, zero Warn calls on child logger.
@@ -1378,7 +1401,10 @@ func TestLoggingInterceptor_CanceledLogsAtWarn(t *testing.T) {
 
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			return nil, connect.NewError(connect.CodeCanceled, errors.New("client canceled"))
+			return nil, connect.NewError(
+				connect.CodeCanceled,
+				errors.New("client canceled"),
+			)
 		},
 	)
 
@@ -1427,7 +1453,8 @@ func TestMetricsInterceptor_Success(t *testing.T) {
 //   - Metrics recording must not interfere with error propagation
 //
 // What it tests:
-//   - A handler returning CodeInternal propagates as an error through the metrics interceptor
+//   - A handler returning CodeInternal propagates as an error through the metrics
+//     interceptor
 func TestMetricsInterceptor_Error(t *testing.T) {
 	t.Parallel()
 
@@ -1513,7 +1540,8 @@ func TestTracingInterceptor_Success(t *testing.T) {
 //   - Tracing must record errors for observability without altering the error chain
 //
 // What it tests:
-//   - A handler returning CodeInternal propagates as CodeInternal through the tracing interceptor
+//   - A handler returning CodeInternal propagates as CodeInternal through the tracing
+//     interceptor
 func TestTracingInterceptor_Error(t *testing.T) {
 	t.Parallel()
 
@@ -1537,14 +1565,16 @@ func TestTracingInterceptor_Error(t *testing.T) {
 //
 // Why this test is important:
 //   - Without trace context extraction, each service starts a new root trace
-//   - Distributed tracing requires spans to be parented correctly across service boundaries
+//   - Distributed tracing requires spans to be parented correctly across service
+//     boundaries
 //   - W3C Trace Context is the standard propagation format for HTTP-based RPC
 //
 // What it tests:
 //   - A request with traceparent header passes through the interceptor without error
 //   - The interceptor calls otel.GetTextMapPropagator().Extract() (verified by no panic)
 func TestTracingInterceptor_ExtractsTraceContext(t *testing.T) {
-	// NOT parallel: this test mutates the global OTel propagator via otel.SetTextMapPropagator.
+	// NOT parallel: this test mutates the global OTel propagator via
+	// otel.SetTextMapPropagator.
 	prev := otel.GetTextMapPropagator()
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	t.Cleanup(func() { otel.SetTextMapPropagator(prev) })
@@ -1607,8 +1637,10 @@ func TestTracingInterceptor_ExtractsTraceContext(t *testing.T) {
 //
 // Why this test is important:
 //   - X-Request-ID from the gateway is used for correlation with gateway logs
-//   - Recording it as a span attribute enables cross-referencing between gateway and service traces
-//   - Bridges two separate correlation systems (the gateway's request ID and OTel's trace ID)
+//   - Recording it as a span attribute enables cross-referencing between gateway and
+//     service traces
+//   - Bridges two separate correlation systems (the gateway's request ID and OTel's trace
+//     ID)
 //
 // What it tests:
 //   - A request with X-Request-ID header results in http.request_id span attribute
@@ -1653,8 +1685,9 @@ func TestTracingInterceptor_RecordsRequestID(t *testing.T) {
 // What it tests:
 //   - A client interceptor with a context containing trace state injects headers
 func TestClientTracingInterceptor_InjectsTraceContext(t *testing.T) {
-	// NOT parallel: this test mutates the global OTel propagator via otel.SetTextMapPropagator.
-	// Running in parallel could race with other tests that call otel.GetTextMapPropagator().
+	// NOT parallel: this test mutates the global OTel propagator via
+	// otel.SetTextMapPropagator. Running in parallel could race with other tests that
+	// call otel.GetTextMapPropagator().
 
 	// Set up a real W3C TraceContext propagator so Inject() produces a traceparent header.
 	// NopTracer.Start() returns ctx unchanged, preserving the span context we embed below.
@@ -1746,7 +1779,8 @@ func TestServerBuilder_TracingOnly(t *testing.T) {
 // interceptor chain with only auth configured.
 //
 // Why this test is important:
-//   - Services may run with auth-only middleware for identity enforcement without observability
+//   - Services may run with auth-only middleware for identity enforcement without
+//     observability
 //   - The builder must support partial configurations without requiring all interceptors
 //
 // What it tests:
@@ -1788,7 +1822,8 @@ func TestServerBuilder_ValidationOnly(t *testing.T) {
 // returns the last error when all retry attempts are exhausted.
 //
 // Why this test is important:
-//   - Exhausted retries must surface the final error rather than hanging or succeeding silently
+//   - Exhausted retries must surface the final error rather than hanging or succeeding
+//     silently
 //   - Clients need the error to trigger fallback logic or alert the user
 //   - Prevents infinite retry loops that would consume resources indefinitely
 //
@@ -1820,11 +1855,13 @@ func TestRetryInterceptor_RetriesExhausted(t *testing.T) {
 //
 // Why this test is important:
 //   - End-to-end composition validates that all interceptors are compatible when chained
-//   - A single handler option simplifies server registration and reduces misconfiguration risk
+//   - A single handler option simplifies server registration and reduces misconfiguration
+//     risk
 //   - This is the integration point that every Connect service depends on at startup
 //
 // What it tests:
-//   - A full ServerBuilder with all interceptors produces exactly 1 non-nil handler option
+//   - A full ServerBuilder with all interceptors produces exactly 1 non-nil handler
+//     option
 func TestServerBuilder_FullChain_ExecuteRequest(t *testing.T) {
 	t.Parallel()
 
@@ -1893,7 +1930,7 @@ func TestRetryInterceptor_NonRetryableCodes(t *testing.T) {
 
 			handler := interceptor.WrapUnary(
 				func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-					return nil, connect.NewError(tt.code, fmt.Errorf("permanent"))
+					return nil, connect.NewError(tt.code, apperr.Sentinel("permanent"))
 				},
 			)
 

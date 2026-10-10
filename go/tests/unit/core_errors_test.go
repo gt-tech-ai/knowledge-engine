@@ -5,15 +5,15 @@ package unit_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestNewError tests that New constructs an AppError with the correct code and
@@ -52,10 +52,11 @@ func TestWrapError(t *testing.T) {
 	cause := errors.New("connection refused")
 	err := apperr.Wrap(cause, apperr.ErrUnavailable, "database connection failed")
 
-	appErr, ok := err.(*apperr.AppError)
+	appErr := &apperr.AppError{}
+	ok := errors.As(err, &appErr)
 	require.True(t, ok, "expected error to be of type *AppError")
 	assert.Equal(t, apperr.ErrUnavailable, appErr.Code)
-	assert.True(t, errors.Is(err, cause), "wrapped error should chain to cause")
+	assert.ErrorIs(t, err, cause, "wrapped error should chain to cause")
 }
 
 // TestWrapNilReturnsNil tests that Wrap(nil, ...) returns nil.
@@ -70,7 +71,7 @@ func TestWrapNilReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	result := apperr.Wrap(nil, apperr.ErrInternal, "should not wrap")
-	assert.Nil(t, result, "Wrap(nil, ...) must return nil")
+	assert.NoError(t, result, "Wrap(nil, ...) must return nil")
 }
 
 // TestIsErrorCode tests that Is correctly matches an error against its own code
@@ -100,20 +101,20 @@ func TestIsErrorCode(t *testing.T) {
 	)
 }
 
-// TestIsWrappedError tests that Is unwraps through fmt.Errorf %w chains to
-// match the underlying AppError code.
+// TestIsWrappedError tests that Is unwraps through a non-AppError wrapper (a Join)
+// to match the underlying AppError code.
 //
 // Why this test is important:
 //   - Middleware wraps errors before returning them; Is must see through multiple
 //     layers or every wrapped error would be misclassified
 //
 // What it tests:
-//   - Is(fmt.Errorf("outer: %w", notFoundErr), ErrNotFound) returns true
+//   - Is(Join(notFoundErr), ErrNotFound) returns true
 func TestIsWrappedError(t *testing.T) {
 	t.Parallel()
 
 	inner := apperr.NotFound("inner error")
-	wrapped := fmt.Errorf("outer context: %w", inner)
+	wrapped := apperr.Join(inner)
 
 	assert.True(
 		t,

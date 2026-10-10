@@ -14,16 +14,19 @@ import (
 // TestPageToken_RoundTrip tests the opaque page-token codec.
 //
 // Why this test is important:
-//   - The token is the ONLY thing a client round-trips to page a list, and it is opaque bytes (no
-//     proto). If Encode→Decode lost the offset page, the keyset id, the fingerprint, or the sort
-//     values, pagination would silently reset or seek the wrong rows. An empty token must default to
-//     page 1, and a garbage token must be a clean InvalidInput (reset-to-page-1), never a panic/500.
+//   - The token is the ONLY thing a client round-trips to page a list, and it is opaque
+//     bytes (no proto). If Encode→Decode lost the offset page, the keyset id, the
+//     fingerprint, or the sort values, pagination would silently reset or seek the wrong
+//     rows. An empty token must default to page 1, and a garbage token must be a clean
+//     InvalidInput (reset-to-page-1), never a panic/500.
 //
 // What it tests:
 //   - An offset token round-trips its page number (keyset arm absent).
-//   - A keyset token round-trips its id + fingerprint; numeric sort values come back as JSON numbers
-//     (float64), which is the contract Run relies on when restoring timestamps.
-//   - An empty token decodes to offset page 1; a malformed token is a CodeInvalidInput error.
+//   - A keyset token round-trips its id + fingerprint; numeric sort values come back as
+//     JSON numbers (float64), which is the contract Run relies on when restoring
+//     timestamps.
+//   - An empty token decodes to offset page 1; a malformed token is a CodeInvalidInput
+//     error.
 func TestPageToken_RoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -52,7 +55,8 @@ func TestPageToken_RoundTrip(t *testing.T) {
 			require.NotNil(t, got.Keyset)
 			assert.Equal(t, "11111111-2222-3333-4444-555555555555", got.Keyset.ID)
 			assert.Equal(t, []byte{0xde, 0xad, 0xbe, 0xef}, got.Keyset.Fingerprint)
-			// JSON decodes numbers as float64 — Run restores a timestamp column's unix-µs from this.
+			// JSON decodes numbers as float64 — Run restores a timestamp column's unix-µs
+			// from this.
 			require.Len(t, got.Keyset.SortValues, 2)
 			assert.InDelta(t, 1_700_000_000_000_000.0, got.Keyset.SortValues[0], 1)
 			assert.Equal(t, "indexed", got.Keyset.SortValues[1])

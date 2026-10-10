@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/repos"
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/stores"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/repos"
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/stores"
 )
 
 // TestLayerConfigDefaults_MatchConsts tests the stores/repos config defaults.
@@ -51,7 +52,7 @@ func TestLayerConfigValidate_RejectsBadValues(t *testing.T) {
 
 	badPage := stores.DefaultConfig()
 	badPage.DefaultPageSize = 0
-	assert.Error(t, badPage.Validate())
+	require.Error(t, badPage.Validate())
 
 	badMax := stores.DefaultConfig()
 	badMax.MaxPageSize = 5 // below default_page_size 20

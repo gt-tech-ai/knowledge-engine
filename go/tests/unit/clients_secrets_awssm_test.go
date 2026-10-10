@@ -60,7 +60,12 @@ func TestAWSSMSource_MissingFieldIsNotFound(t *testing.T) {
 	api := mocks.NewMockSecretsManagerAPI(ctrl)
 	api.EXPECT().
 		GetSecretValue(gomock.Any(), gomock.Any()).
-		Return(&secretsmanager.GetSecretValueOutput{SecretString: aws.String(`{"client_id":"cid"}`)}, nil)
+		Return(
+			&secretsmanager.GetSecretValueOutput{
+				SecretString: aws.String(`{"client_id":"cid"}`),
+			},
+			nil,
+		)
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
@@ -75,8 +80,9 @@ func TestAWSSMSource_MissingFieldIsNotFound(t *testing.T) {
 // upstream error.
 //
 // Why this test is important:
-//   - A throttled/unavailable Secrets Manager is a transient upstream failure; classifying
-//     it correctly lets resilience decorators retry rather than treating it as fatal.
+//   - A throttled/unavailable Secrets Manager is a transient upstream failure;
+//     classifying it correctly lets resilience decorators retry rather than treating it
+//     as fatal.
 //
 // What it tests:
 //   - Get wraps a GetSecretValue error as CodeUpstream.

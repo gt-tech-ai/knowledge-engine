@@ -48,7 +48,10 @@ func TestNewFromConfig_EnvKindResolves(t *testing.T) {
 // What it tests:
 //   - NewFromConfig(KindFile) with no Runner returns CodeInvalidInput.
 func TestNewFromConfig_FileKindRequiresRunner(t *testing.T) {
-	_, err := secrets.NewFromConfig(context.Background(), secrets.Config{Kind: secrets.KindFile})
+	_, err := secrets.NewFromConfig(
+		context.Background(),
+		secrets.Config{Kind: secrets.KindFile},
+	)
 	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
 }
 
@@ -75,13 +78,17 @@ func TestNewFromConfig_FileKindBuildsWithRunner(t *testing.T) {
 // TestNewFromConfig_UnknownKindFailsLoudly tests that an unrecognized Kind is rejected.
 //
 // Why this test is important:
-//   - Fail-loud on an unknown Kind is the factory contract (ARCHITECTURE.md#swappable-components); a silent
-//     nil Source would defer the failure to a confusing later nil-panic.
+//   - Fail-loud on an unknown Kind is the factory contract
+//     (ARCHITECTURE.md#swappable-components); a silent nil Source would defer the failure
+//     to a confusing later nil-panic.
 //
 // What it tests:
 //   - NewFromConfig with an out-of-range Kind returns CodeInvalidInput.
 func TestNewFromConfig_UnknownKindFailsLoudly(t *testing.T) {
-	_, err := secrets.NewFromConfig(context.Background(), secrets.Config{Kind: secrets.Kind(99)})
+	_, err := secrets.NewFromConfig(
+		context.Background(),
+		secrets.Config{Kind: secrets.Kind(99)},
+	)
 	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
 }
 

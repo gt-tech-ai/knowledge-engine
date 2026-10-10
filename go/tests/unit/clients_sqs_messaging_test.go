@@ -69,7 +69,11 @@ type receiveResult struct {
 // forever, so the subscriber's poll loop delivers the batches once and then idles.
 func scriptedReceive(
 	results []receiveResult,
-) func(context.Context, *awssqs.ReceiveMessageInput, ...func(*awssqs.Options)) (*awssqs.ReceiveMessageOutput, error) {
+) func(
+	context.Context,
+	*awssqs.ReceiveMessageInput,
+	...func(*awssqs.Options),
+) (*awssqs.ReceiveMessageOutput, error) {
 	var mu sync.Mutex
 	i := 0
 	return func(
@@ -95,7 +99,11 @@ func scriptedReceive(
 func scriptedGetQueueURL(
 	failFirst error,
 	url string,
-) func(context.Context, *awssqs.GetQueueUrlInput, ...func(*awssqs.Options)) (*awssqs.GetQueueUrlOutput, error) {
+) func(
+	context.Context,
+	*awssqs.GetQueueUrlInput,
+	...func(*awssqs.Options),
+) (*awssqs.GetQueueUrlOutput, error) {
 	var mu sync.Mutex
 	n := 0
 	return func(
@@ -270,7 +278,11 @@ func TestSubscriber_StopsDuringBackoff(t *testing.T) {
 		AnyTimes()
 	received := make(chan struct{}, 1)
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ *awssqs.ReceiveMessageInput, _ ...func(*awssqs.Options)) (*awssqs.ReceiveMessageOutput, error) {
+		func(
+			_ context.Context,
+			_ *awssqs.ReceiveMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.ReceiveMessageOutput, error) {
 			select {
 			case received <- struct{}{}:
 			default:
@@ -315,7 +327,11 @@ func TestPublisher_ResolvesExistingQueueAndCaches(t *testing.T) {
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String(url)}, nil).Times(1)
 	var sent []string
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageOutput, error) {
 			sent = append(sent, aws.ToString(in.QueueUrl))
 			return &awssqs.SendMessageOutput{}, nil
 		},
@@ -353,7 +369,11 @@ func TestPublisher_CreatesQueueWhenMissing(t *testing.T) {
 		Return(&awssqs.CreateQueueOutput{QueueUrl: aws.String(created)}, nil)
 	var sentURL string
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageOutput, error) {
 			sentURL = aws.ToString(in.QueueUrl)
 			return &awssqs.SendMessageOutput{}, nil
 		},
@@ -418,7 +438,11 @@ func TestSubscriber_DeliversAndAcks(t *testing.T) {
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	deleted := make(chan string, 1)
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.DeleteMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.DeleteMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.DeleteMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.DeleteMessageBatchOutput, error) {
 			deleted <- aws.ToString(in.Entries[0].ReceiptHandle)
 			return &awssqs.DeleteMessageBatchOutput{}, nil
 		},
@@ -543,7 +567,11 @@ func TestPublisher_PublishBatch_SendsEachPayload(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			require.Len(t, in.Entries, 2, "both payloads in one batch")
 			return &awssqs.SendMessageBatchOutput{}, nil
 		},
@@ -577,7 +605,11 @@ func TestPublisher_PublishBatch_ChunksInto10s(t *testing.T) {
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	var sizes []int
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			sizes = append(sizes, len(in.Entries))
 			return &awssqs.SendMessageBatchOutput{}, nil
 		},
@@ -661,7 +693,11 @@ func TestSubscriber_FansOutBatchAndBatchDeletes(t *testing.T) {
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	deletedCount := make(chan int, 1)
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.DeleteMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.DeleteMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.DeleteMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.DeleteMessageBatchOutput, error) {
 			select {
 			case deletedCount <- len(in.Entries):
 			default:

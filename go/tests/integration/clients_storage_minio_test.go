@@ -36,9 +36,9 @@ const testBucket = "test-documents"
 
 // StorageMinIOSuite runs the StorageClient against a real MinIO container.
 type StorageMinIOSuite struct {
-	testsuite.MinIOIntegrationSuite
 	// client is the StorageClient under test, pointed at the test container.
 	client interfaces.StorageClient
+	testsuite.MinIOIntegrationSuite
 }
 
 // TestStorageMinIOSuite is the testify entrypoint for the MinIO integration suite.
@@ -73,11 +73,13 @@ func TestNewTestMinIO_WithImageOverridesTheDefault(t *testing.T) {
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 	ctx := context.Background()
 
-	digestOnly := "cgr.dev/chainguard/minio@" + strings.SplitN(miniodb.DefaultImage, "@", 2)[1]
+	digest := strings.SplitN(miniodb.DefaultImage, "@", 2)[1]
+	digestOnly := "cgr.dev/chainguard/minio@" + digest
 	started, err := miniodb.NewTestMinIO(ctx, miniodb.WithImage(digestOnly))
 	t.Cleanup(func() { started.Close(ctx) })
 	require.NoError(t, err, "the overriding reference starts")
-	resp, err := http.Get(started.Endpoint() + "/minio/health/ready") //nolint:noctx // test probe
+	//nolint:noctx // test probe
+	resp, err := http.Get(started.Endpoint() + "/minio/health/ready")
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -126,10 +128,10 @@ func (s *StorageMinIOSuite) rawClient() *awss3.Client {
 	})
 }
 
-// loadFixture reads a committed document fixture from testdata/.
-func (s *StorageMinIOSuite) loadFixture(name string) []byte {
-	data, err := os.ReadFile(filepath.Join("testdata", name))
-	s.Require().NoError(err, "read fixture %s", name)
+// loadFixture reads the committed sample.md document fixture from testdata/.
+func (s *StorageMinIOSuite) loadFixture() []byte {
+	data, err := os.ReadFile(filepath.Join("testdata", "sample.md"))
+	s.Require().NoError(err, "read fixture sample.md")
 	return data
 }
 
@@ -137,7 +139,7 @@ func (s *StorageMinIOSuite) loadFixture(name string) []byte {
 // the sample fixture — exercises the multipart path without committing a large
 // binary or relying on randomness.
 func (s *StorageMinIOSuite) largeFixture(minBytes int) []byte {
-	base := s.loadFixture("sample.md")
+	base := s.loadFixture()
 	return bytes.Repeat(base, (minBytes/len(base))+1)
 }
 
@@ -154,14 +156,18 @@ func (s *StorageMinIOSuite) largeFixture(minBytes int) []byte {
 func (s *StorageMinIOSuite) TestUploadDownload_SmallAndMultipart() {
 	ctx := context.Background()
 
-	small := s.loadFixture("sample.md")
+	small := s.loadFixture()
 	s.Require().
-		NoError(s.client.Upload(ctx, testBucket, "small.md", bytes.NewReader(small), "text/markdown"))
+		NoError(
+			s.client.Upload(ctx, testBucket, "small.md", bytes.NewReader(small), "text/markdown"),
+		)
 	s.Equal(small, s.download(ctx, "small.md"))
 
 	large := s.largeFixture(6 * 1024 * 1024)
 	s.Require().
-		NoError(s.client.Upload(ctx, testBucket, "large.md", bytes.NewReader(large), "text/markdown"))
+		NoError(
+			s.client.Upload(ctx, testBucket, "large.md", bytes.NewReader(large), "text/markdown"),
+		)
 	got := s.download(ctx, "large.md")
 	s.Require().Len(got, len(large))
 	s.True(bytes.Equal(large, got), "multipart round-trip must be byte-identical")
@@ -178,7 +184,7 @@ func (s *StorageMinIOSuite) TestUploadDownload_SmallAndMultipart() {
 //   - A presigned PUT stores the object; a presigned GET returns the same bytes
 func (s *StorageMinIOSuite) TestPresignedURL_PutGet() {
 	ctx := context.Background()
-	payload := s.loadFixture("sample.md")
+	payload := s.loadFixture()
 	const ct = "text/markdown"
 
 	putURL, err := s.client.PresignPutURL(ctx, testBucket, "presigned.md", 300, ct)
@@ -230,7 +236,7 @@ func (s *StorageMinIOSuite) TestPresignedURL_PutGet() {
 //   - ListObjects returns all objects under a prefix
 func (s *StorageMinIOSuite) TestStat_And_List() {
 	ctx := context.Background()
-	body := s.loadFixture("sample.md")
+	body := s.loadFixture()
 	for _, k := range []string{"docs/a.md", "docs/b.md", "other/c.md"} {
 		s.Require().
 			NoError(s.client.Upload(ctx, testBucket, k, bytes.NewReader(body), "text/markdown"))
@@ -246,22 +252,24 @@ func (s *StorageMinIOSuite) TestStat_And_List() {
 	s.Len(objs, 2, "only docs/ prefix objects")
 }
 
-// TestListObjectsPageToken_PagesToExhaustion verifies the resumable, token-paginated crawl over a REAL
-// MinIO listing that spans multiple pages.
+// TestListObjectsPageToken_PagesToExhaustion verifies the resumable, token-paginated
+// crawl over a REAL MinIO listing that spans multiple pages.
 //
 // Why this test is important:
-//   - ListObjectsPageToken is the PR's core new primitive — the memory-bounded streaming the connector
-//     sync engine crawls a large bucket with, checkpointing the continuation token to crash-resume. Real
-//     continuation-token / IsTruncated behavior (a page returns a non-empty token only while more pages
-//     remain, then "" to terminate the loop) is exactly what a mocked S3API can't verify; the sibling
+//   - ListObjectsPageToken is the PR's core new primitive — the memory-bounded streaming
+//     the connector sync engine crawls a large bucket with, checkpointing the
+//     continuation token to crash-resume. Real continuation-token / IsTruncated behavior
+//     (a page returns a non-empty token only while more pages remain, then "" to
+//     terminate the loop) is exactly what a mocked S3API can't verify; the sibling
 //     ListObjects + TestConnection have real-MinIO coverage but this primitive did not.
 //
 // What it tests:
-//   - Paging a 5-object prefix with limit=2 yields 3 pages (2 + 2 + 1) whose tokens chain, terminates on
-//     an empty token, and returns every object exactly once (no gaps, no duplicates).
+//   - Paging a 5-object prefix with limit=2 yields 3 pages (2 + 2 + 1) whose tokens
+//     chain, terminates on an empty token, and returns every object exactly once (no
+//     gaps, no duplicates).
 func (s *StorageMinIOSuite) TestListObjectsPageToken_PagesToExhaustion() {
 	ctx := context.Background()
-	body := s.loadFixture("sample.md")
+	body := s.loadFixture()
 	want := []string{"page/a", "page/b", "page/c", "page/d", "page/e"}
 	for _, k := range want {
 		s.Require().
@@ -311,9 +319,11 @@ func (s *StorageMinIOSuite) TestListObjectsPageToken_PagesToExhaustion() {
 //   - DeleteBatch removes multiple keys
 func (s *StorageMinIOSuite) TestDelete_DeleteBatch_Exists() {
 	ctx := context.Background()
-	body := s.loadFixture("sample.md")
+	body := s.loadFixture()
 	s.Require().
-		NoError(s.client.Upload(ctx, testBucket, "del/one.md", bytes.NewReader(body), "text/markdown"))
+		NoError(
+			s.client.Upload(ctx, testBucket, "del/one.md", bytes.NewReader(body), "text/markdown"),
+		)
 
 	exists, err := s.client.Exists(ctx, testBucket, "del/one.md")
 	s.Require().NoError(err)

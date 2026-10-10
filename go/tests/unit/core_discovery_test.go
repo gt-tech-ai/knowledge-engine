@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // TestDiscovererFunc_Discover tests that the interfaces.DiscovererFunc adapter forwards

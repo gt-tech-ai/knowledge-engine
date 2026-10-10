@@ -64,8 +64,13 @@ func newOutboxStore(t *testing.T) *outboxtest.SQLStore {
 // awsConfig is a static-credential AWS config for a local emulator.
 func awsConfig(t *testing.T, key, secret string) aws.Config {
 	t.Helper()
-	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion("us-east-1"),
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, "")))
+	cfg, err := awsconfig.LoadDefaultConfig(
+		context.Background(),
+		awsconfig.WithRegion("us-east-1"),
+		awsconfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(key, secret, ""),
+		),
+	)
 	require.NoError(t, err)
 	return cfg
 }
@@ -134,9 +139,14 @@ func TestRelay_EndToEnd_PostgresToSQS(t *testing.T) {
 	require.NoError(t, err, "start elasticmq")
 	t.Cleanup(func() { emq.Close(context.Background()) })
 
-	api := awssqs.NewFromConfig(awsConfig(t, elasticmqdb.AccessKey, elasticmqdb.SecretKey),
-		func(o *awssqs.Options) { o.BaseEndpoint = aws.String(emq.Endpoint()) })
-	created, err := api.CreateQueue(ctx, &awssqs.CreateQueueInput{QueueName: aws.String("outbox-e2e")})
+	api := awssqs.NewFromConfig(
+		awsConfig(t, elasticmqdb.AccessKey, elasticmqdb.SecretKey),
+		func(o *awssqs.Options) { o.BaseEndpoint = aws.String(emq.Endpoint()) },
+	)
+	created, err := api.CreateQueue(
+		ctx,
+		&awssqs.CreateQueueInput{QueueName: aws.String("outbox-e2e")},
+	)
 	require.NoError(t, err)
 
 	cfg := outboxclient.DefaultConfig()
@@ -146,7 +156,14 @@ func TestRelay_EndToEnd_PostgresToSQS(t *testing.T) {
 	require.NoError(t, err)
 
 	ids := enqueueN(t, store, "events", 25)
-	relay := outbox.NewRelay(outbox.DefaultRelayConfig("events"), store, sink, nil, nil, nil)
+	relay := outbox.NewRelay(
+		outbox.DefaultRelayConfig("events"),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+	)
 	drain(t, relay, store, "events")
 
 	got := map[string]string{}
@@ -191,11 +208,20 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 	require.NoError(t, err, "start minio")
 	t.Cleanup(func() { mio.Close(context.Background()) })
 
-	api := awss3.NewFromConfig(awsConfig(t, miniodb.RootUser, miniodb.RootPassword), func(o *awss3.Options) {
-		o.BaseEndpoint, o.UsePathStyle = aws.String(mio.Endpoint()), true
-	})
+	api := awss3.NewFromConfig(
+		awsConfig(t, miniodb.RootUser, miniodb.RootPassword),
+		func(o *awss3.Options) {
+			o.BaseEndpoint, o.UsePathStyle = aws.String(mio.Endpoint()), true
+		},
+	)
 	const bucket = "audit-worm"
-	_, err = api.CreateBucket(ctx, &awss3.CreateBucketInput{Bucket: aws.String(bucket), ObjectLockEnabledForBucket: aws.Bool(true)})
+	_, err = api.CreateBucket(
+		ctx,
+		&awss3.CreateBucketInput{
+			Bucket:                     aws.String(bucket),
+			ObjectLockEnabledForBucket: aws.Bool(true),
+		},
+	)
 	require.NoError(t, err)
 	_, err = api.PutObjectLockConfiguration(ctx, &awss3.PutObjectLockConfigurationInput{
 		Bucket: aws.String(bucket),
@@ -215,10 +241,20 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 	require.NoError(t, err)
 
 	ids := enqueueN(t, store, "audit", 5)
-	relay := outbox.NewRelay(outbox.DefaultRelayConfig("audit"), store, sink, nil, nil, nil)
+	relay := outbox.NewRelay(
+		outbox.DefaultRelayConfig("audit"),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+	)
 	drain(t, relay, store, "audit")
 
-	listed, err := api.ListObjectsV2(ctx, &awss3.ListObjectsV2Input{Bucket: aws.String(bucket)})
+	listed, err := api.ListObjectsV2(
+		ctx,
+		&awss3.ListObjectsV2Input{Bucket: aws.String(bucket)},
+	)
 	require.NoError(t, err)
 	var keys []string
 	for _, o := range listed.Contents {
@@ -235,10 +271,16 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 
 	for i, id := range ids {
 		key := aws.String("org-1/" + day + "/" + id.String())
-		head, err := api.HeadObject(ctx, &awss3.HeadObjectInput{Bucket: aws.String(bucket), Key: key})
+		head, err := api.HeadObject(
+			ctx,
+			&awss3.HeadObjectInput{Bucket: aws.String(bucket), Key: key},
+		)
 		require.NoError(t, err)
 		require.Equal(t, s3types.ObjectLockModeCompliance, head.ObjectLockMode)
-		obj, err := api.GetObject(ctx, &awss3.GetObjectInput{Bucket: aws.String(bucket), Key: key})
+		obj, err := api.GetObject(
+			ctx,
+			&awss3.GetObjectInput{Bucket: aws.String(bucket), Key: key},
+		)
 		require.NoError(t, err)
 		body, err := io.ReadAll(obj.Body)
 		_ = obj.Body.Close()
@@ -270,10 +312,19 @@ func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 	emq, err := elasticmqdb.NewTestElasticMQ(ctx)
 	require.NoError(t, err, "start elasticmq")
 	t.Cleanup(func() { emq.Close(context.Background()) })
-	api := awssqs.NewFromConfig(awsConfig(t, elasticmqdb.AccessKey, elasticmqdb.SecretKey),
-		func(o *awssqs.Options) { o.BaseEndpoint = aws.String(emq.Endpoint()) })
+	api := awssqs.NewFromConfig(
+		awsConfig(t, elasticmqdb.AccessKey, elasticmqdb.SecretKey),
+		func(o *awssqs.Options) { o.BaseEndpoint = aws.String(emq.Endpoint()) },
+	)
 
-	healthy := []string{"standard", "large", "deletion", "facet", "notification", "ordered"}
+	healthy := []string{
+		"standard",
+		"large",
+		"deletion",
+		"facet",
+		"notification",
+		"ordered",
+	}
 	routes := map[string]string{"member_removed": "q-member-removed"} // never created
 	urls := map[string]string{}
 	for _, route := range healthy {
@@ -294,24 +345,33 @@ func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 	sink, err := outboxclient.NewFromConfig(cfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 
-	outboxtest.RunRouting(t, outboxtest.Harness{Store: store, Enqueue: store.Enqueue}, outboxtest.Routing{
-		RunOnce: func(ctx context.Context, lane string) error {
-			return outbox.NewRelay(outbox.DefaultRelayConfig(lane), store, sink, nil, nil, nil).RunOnce(ctx)
-		},
-		Healthy: healthy, Broken: "member_removed",
-		Delivered: func(ctx context.Context, route string) ([]string, error) {
-			var got []string
-			for {
-				out, err := api.ReceiveMessage(ctx, &awssqs.ReceiveMessageInput{
-					QueueUrl: aws.String(urls[route]), MaxNumberOfMessages: 10, WaitTimeSeconds: 1,
-				})
-				if err != nil || len(out.Messages) == 0 {
-					return got, err
+	outboxtest.RunRouting(
+		t,
+		outboxtest.Harness{Store: store, Enqueue: store.Enqueue},
+		outboxtest.Routing{
+			RunOnce: func(ctx context.Context, lane string) error {
+				return outbox.NewRelay(outbox.DefaultRelayConfig(lane), store, sink, nil, nil, nil).
+					RunOnce(ctx)
+			},
+			Healthy: healthy, Broken: "member_removed",
+			Delivered: func(ctx context.Context, route string) ([]string, error) {
+				var got []string
+				for {
+					out, err := api.ReceiveMessage(ctx, &awssqs.ReceiveMessageInput{
+						QueueUrl: aws.String(
+							urls[route],
+						),
+						MaxNumberOfMessages: 10,
+						WaitTimeSeconds:     1,
+					})
+					if err != nil || len(out.Messages) == 0 {
+						return got, err
+					}
+					for _, m := range out.Messages {
+						got = append(got, aws.ToString(m.Body))
+					}
 				}
-				for _, m := range out.Messages {
-					got = append(got, aws.ToString(m.Body))
-				}
-			}
+			},
 		},
-	})
+	)
 }

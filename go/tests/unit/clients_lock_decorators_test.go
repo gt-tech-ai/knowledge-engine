@@ -16,8 +16,9 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// TestLockDecorators_FullStackWrapOrder tests that the decorator builder engages
-// every cross-cutting concern and nests them in the documented order (ARCHITECTURE.md#decorator-order).
+// TestLockDecorators_FullStackWrapOrder tests that the decorator builder engages every
+// cross-cutting concern and nests them in the documented order
+// (ARCHITECTURE.md#decorator-order).
 //
 // Why this test is important:
 //   - The One Idea requires the lock's business logic to be wrapped by the full

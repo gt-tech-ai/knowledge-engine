@@ -7,23 +7,39 @@ import (
 	"testing"
 	"time"
 
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
 // goldenFactPath is the analytics-fact wire fixture shared with the Python suite.
-var goldenFactPath = filepath.Join("..", "..", "..", "testdata", "analytics_fact.golden.json")
+var goldenFactPath = filepath.Join(
+	"..",
+	"..",
+	"..",
+	"testdata",
+	"analytics_fact.golden.json",
+)
 
 // goldenFact is the value the golden fixture encodes.
 func goldenFact() types.Fact {
 	return types.Fact{
-		Cube:           "genai_calls",
-		OrgID:          "org-1",
-		TS:             time.Date(2026, 10, 9, 12, 34, 56, 789_000_000, time.UTC),
-		Dims:           map[string]string{"provider": "aws.bedrock", "model": "nova-lite", "step": "generate", "team": "t-1"},
-		Measures:       map[string]float64{"tokens_in": 42, "tokens_out": 7, "duration_s": 1.25},
+		Cube:  "genai_calls",
+		OrgID: "org-1",
+		TS:    time.Date(2026, 10, 9, 12, 34, 56, 789_000_000, time.UTC),
+		Dims: map[string]string{
+			"provider": "aws.bedrock",
+			"model":    "nova-lite",
+			"step":     "generate",
+			"team":     "t-1",
+		},
+		Measures: map[string]float64{
+			"tokens_in":  42,
+			"tokens_out": 7,
+			"duration_s": 1.25,
+		},
 		IdempotencyKey: "4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b7:generate",
 		Schema:         types.FactSchemaVersion,
 	}
@@ -87,8 +103,9 @@ func TestFact_MarshalEscapesLikePython(t *testing.T) {
 
 	got, err := json.Marshal(fact)
 	require.NoError(t, err)
-	assert.Equal(t, `{"cube":"c","dims":{"team":"a\u003cb\u003e\u0026c\u2028\u2029é"},`+
-		`"idempotency_key":"k","measures":{},"org_id":"o","schema":1,"ts":"2026-10-09T00:00:00Z"}`, string(got))
+	assert.JSONEq(t, `{"cube":"c","dims":{"team":"a\u003cb\u003e\u0026c\u2028\u2029é"},`+
+		`"idempotency_key":"k","measures":{},"org_id":"o","schema":1,"ts":"2026-10-09T00:00:`+
+		`00Z"}`, string(got))
 }
 
 // TestFact_UnmarshalRejectsUnknownSchema tests the wire-version check.
@@ -102,10 +119,17 @@ func TestFact_MarshalEscapesLikePython(t *testing.T) {
 func TestFact_UnmarshalRejectsUnknownSchema(t *testing.T) {
 	t.Parallel()
 	for _, body := range []string{
-		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","schema":2,"ts":"2026-10-09T00:00:00Z"}`,
-		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","ts":"2026-10-09T00:00:00Z"}`,
+		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","schema":2,"` +
+			`ts":"2026-10-09T00:00:00Z"}`,
+		`{"cube":"c","dims":{},"idempotency_key":"k","measures":{},"org_id":"o","ts":"2026-1` +
+			`0-09T00:00:00Z"}`,
 	} {
 		var f types.Fact
-		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(json.Unmarshal([]byte(body), &f)), body)
+		assert.Equal(
+			t,
+			apperr.CodeInvalidInput,
+			apperr.Code(json.Unmarshal([]byte(body), &f)),
+			body,
+		)
 	}
 }

@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 // codesJSONPath is the committed cross-language parity table. The Python suite reads
@@ -19,10 +20,20 @@ var codesJSONPath = filepath.Join("..", "..", "core", "errors", "testdata", "cod
 // parity test asserts its ErrorCode set equals this table's keys, so a code added
 // here without its Python counterpart (or the reverse) fails one side.
 var allErrorCodes = []apperr.ErrorCode{
-	apperr.CodeUnknown, apperr.CodeInternal, apperr.CodeNotFound, apperr.CodeUnauthorized,
-	apperr.CodeForbidden, apperr.CodeInvalidInput, apperr.CodeConflict, apperr.CodeTimeout,
-	apperr.CodeCanceled, apperr.CodeUnavailable, apperr.CodeIngestion, apperr.CodeQualityFailed,
-	apperr.CodeUpstream, apperr.CodeResourceExhausted,
+	apperr.CodeUnknown,
+	apperr.CodeInternal,
+	apperr.CodeNotFound,
+	apperr.CodeUnauthorized,
+	apperr.CodeForbidden,
+	apperr.CodeInvalidInput,
+	apperr.CodeConflict,
+	apperr.CodeTimeout,
+	apperr.CodeCanceled,
+	apperr.CodeUnavailable,
+	apperr.CodeIngestion,
+	apperr.CodeQualityFailed,
+	apperr.CodeUpstream,
+	apperr.CodeResourceExhausted,
 }
 
 // codeRow is one code's transport mapping and retry classification.

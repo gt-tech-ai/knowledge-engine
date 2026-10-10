@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestStaticTokenValidator_PerCaller tests that the static validator resolves a bearer
@@ -48,8 +49,9 @@ func TestStaticTokenValidator_PerCaller(t *testing.T) {
 	assert.False(t, ok, "an empty token must never match")
 }
 
-// TestStaticTokenValidator_DualTokenWindow tests that a comma-separated {current,previous}
-// map value accepts BOTH tokens, enabling a zero-downtime rotation window.
+// TestStaticTokenValidator_DualTokenWindow tests that a comma-separated
+// {current,previous} map value accepts BOTH tokens, enabling a zero-downtime rotation
+// window.
 //
 // Why this test is important:
 //   - rotates service tokens via a dual-acceptance window; if only one value were
@@ -115,7 +117,9 @@ var _ interfaces.ServiceTokenValidator = interceptors.NewStaticTokenValidator(ni
 //   - a bare builder adds no options; adding WithServiceAuth alone makes Build non-empty
 func TestServerBuilder_WithServiceAuth(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
+	validator := interceptors.NewStaticTokenValidator(
+		map[string]string{"orders": "tok-orders"},
+	)
 	assert.Empty(t, interceptors.NewServerBuilder().Build(),
 		"no interceptors configured → no options")
 	assert.NotEmpty(t,
@@ -150,7 +154,9 @@ func bearerReq(token string) connect.AnyRequest {
 //     CodeUnauthenticated and the handler never runs
 func TestServiceAuthInterceptor_Unary(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
+	validator := interceptors.NewStaticTokenValidator(
+		map[string]string{"orders": "tok-orders"},
+	)
 	interceptor := interceptors.NewServiceAuthInterceptor(
 		validator,
 		false,
@@ -221,7 +227,9 @@ func TestServiceAuthInterceptor_Unary(t *testing.T) {
 //   - audit=true + no token → handler runs (admitted), no error
 func TestServiceAuthInterceptor_StubAndAudit(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
+	validator := interceptors.NewStaticTokenValidator(
+		map[string]string{"orders": "tok-orders"},
+	)
 
 	t.Run("stub bypass admits with synthetic caller", func(t *testing.T) {
 		t.Parallel()
@@ -277,7 +285,9 @@ func TestServiceAuthInterceptor_StubAndAudit(t *testing.T) {
 //     a valid token admits the stream with the caller on the context
 func TestServiceAuthInterceptor_Streaming(t *testing.T) {
 	t.Parallel()
-	validator := interceptors.NewStaticTokenValidator(map[string]string{"orders": "tok-orders"})
+	validator := interceptors.NewStaticTokenValidator(
+		map[string]string{"orders": "tok-orders"},
+	)
 	interceptor := interceptors.NewServiceAuthInterceptor(
 		validator,
 		false,

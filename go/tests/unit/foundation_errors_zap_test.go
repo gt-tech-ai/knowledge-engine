@@ -6,21 +6,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// TestErrorFieldAppError tests that ZapError() extracts structured fields from an AppError.
+// TestErrorFieldAppError tests that ZapError() extracts structured fields from an
+// AppError.
 //
 // Why this test is important:
-//   - Structured logging of AppError fields enables log aggregation and alerting on error_code
-//   - Without this, operators would only see the flat error string with no machine-parseable code
+//   - Structured logging of AppError fields enables log aggregation and alerting on
+//     error_code
+//   - Without this, operators would only see the flat error string with no
+//     machine-parseable code
 //
 // What it tests:
-//   - ZapError() with an AppError produces an "error" namespace field (not a plain "error" string)
+//   - ZapError() with an AppError produces an "error" namespace field (not a plain
+//     "error" string)
 //   - The namespace contains code, message, and stack sub-fields
 func TestErrorFieldAppError(t *testing.T) {
 	t.Parallel()
@@ -32,7 +36,8 @@ func TestErrorFieldAppError(t *testing.T) {
 	assert.Equal(t, zapcore.ObjectMarshalerType, field.Type)
 }
 
-// TestErrorFieldPlainError tests that ZapError() falls back to zap.Error for non-AppError errors.
+// TestErrorFieldPlainError tests that ZapError() falls back to zap.Error for non-AppError
+// errors.
 //
 // Why this test is important:
 //   - Not all errors in the system are AppErrors (e.g. stdlib, third-party)
@@ -51,11 +56,14 @@ func TestErrorFieldPlainError(t *testing.T) {
 	assert.Equal(t, zapcore.ErrorType, field.Type)
 }
 
-// TestFieldsExtraction tests that ZapFields() returns structured zap fields from an AppError.
+// TestFieldsExtraction tests that ZapFields() returns structured zap fields from an
+// AppError.
 //
 // Why this test is important:
-//   - ZapFields() is used by LogError to attach machine-parseable error context to log entries
-//   - Correct field extraction enables dashboards, alerts, and debugging from structured logs
+//   - ZapFields() is used by LogError to attach machine-parseable error context to log
+//     entries
+//   - Correct field extraction enables dashboards, alerts, and debugging from structured
+//     logs
 //
 // What it tests:
 //   - Returns error_code and error_message fields
@@ -133,7 +141,7 @@ func TestCombineAppendErrors(t *testing.T) {
 	err3 := errors.New("error three")
 
 	combined := coreerrors.Combine(nil, err1, nil, err2)
-	require.NotNil(t, combined)
+	require.Error(t, combined)
 
 	errs := coreerrors.Errors(combined)
 	require.Len(t, errs, 2)
@@ -141,17 +149,18 @@ func TestCombineAppendErrors(t *testing.T) {
 	assert.Equal(t, "error two", errs[1].Error())
 
 	result := coreerrors.Append(nil, err1)
-	require.NotNil(t, result)
+	require.Error(t, result)
 	assert.Equal(t, "error one", result.Error())
 
 	combined = coreerrors.Append(combined, err3)
 	errs = coreerrors.Errors(combined)
 	require.Len(t, errs, 3)
 
-	assert.Nil(t, coreerrors.Combine(nil, nil))
+	assert.NoError(t, coreerrors.Combine(nil, nil))
 }
 
-// TestErrorsOnSingleError tests that Errors() on a non-combined error returns a single-element slice.
+// TestErrorsOnSingleError tests that Errors() on a non-combined error returns a
+// single-element slice.
 //
 // Why this test is important:
 //   - LogErrors iterates Errors(); it must handle single errors without panicking
@@ -202,7 +211,8 @@ func TestFoundationLogErrorTransient(t *testing.T) {
 // TestLogErrorPermanent tests that LogError logs permanent errors at Error level.
 //
 // Why this test is important:
-//   - Permanent errors (not found, unauthorized) indicate real failures that need attention
+//   - Permanent errors (not found, unauthorized) indicate real failures that need
+//     attention
 //   - Error-level logging ensures they appear in alerting dashboards
 //
 // What it tests:
@@ -243,7 +253,8 @@ func TestFoundationLogErrorPlainError(t *testing.T) {
 	assert.Equal(t, "unexpected failure", entries[0].Message)
 }
 
-// TestLogErrorsMultiError tests that LogErrors emits one log per error in a combined error.
+// TestLogErrorsMultiError tests that LogErrors emits one log per error in a combined
+// error.
 //
 // Why this test is important:
 //   - Batch operations produce multi-errors; operators need a log entry for each failure
@@ -438,7 +449,8 @@ func TestMarshalLogObject_CauseAndStack(t *testing.T) {
 		"expected stack rooted at the calling function")
 }
 
-// contextFieldMap flattens the observer's ContextMap into a simple string map for assertions.
+// contextFieldMap flattens the observer's ContextMap into a simple string map for
+// assertions.
 func contextFieldMap(m map[string]any) map[string]string {
 	result := make(map[string]string)
 	for k, v := range m {

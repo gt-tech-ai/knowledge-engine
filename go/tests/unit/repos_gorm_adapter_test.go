@@ -80,14 +80,19 @@ func TestGormAdapter_LifecycleUnreachable(t *testing.T) {
 
 	// Before Start: the pool is unopened.
 	assert.Nil(t, client.DB(), "the pool is not opened until Start")
-	assert.Error(t, client.Liveness(ctx), "not started → not live")
-	assert.Error(t, client.Readiness(ctx), "not started → not ready")
-	assert.NoError(t, client.Stop(ctx), "Stop before Start is a no-op")
+	require.Error(t, client.Liveness(ctx), "not started → not live")
+	require.Error(t, client.Readiness(ctx), "not started → not ready")
+	require.NoError(t, client.Stop(ctx), "Stop before Start is a no-op")
 
 	// Start dials the unreachable host and must fail fast, keeping no pool.
 	startErr := client.Start(ctx)
 	require.Error(t, startErr, "Start against an unreachable host fails fast")
-	assert.Equal(t, coreerrors.CodeUnavailable, coreerrors.Code(startErr), "an unreachable DB is transient")
+	assert.Equal(
+		t,
+		coreerrors.CodeUnavailable,
+		coreerrors.Code(startErr),
+		"an unreachable DB is transient",
+	)
 	assert.Nil(t, client.DB(), "a failed Start keeps no pool")
 	assert.Error(t, client.Liveness(ctx), "a failed Start leaves the client not live")
 }

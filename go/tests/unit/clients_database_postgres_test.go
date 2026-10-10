@@ -52,7 +52,8 @@ func TestStartPoolStatsCollector_PublishesGauges(t *testing.T) {
 	) // publishes once synchronously
 
 	rec := httptest.NewRecorder()
-	m.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	m.Handler().
+		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
 	body, err := io.ReadAll(rec.Result().Body)
 	require.NoError(t, err)
 	out := string(body)
@@ -114,5 +115,10 @@ func TestPingDB_BadDSNFailsFast(t *testing.T) {
 	err = postgres.Ping(context.Background(), db)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "database ping failed")
-	assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err), "an unreachable DB is transient")
+	assert.Equal(
+		t,
+		coreerr.CodeUnavailable,
+		coreerr.Code(err),
+		"an unreachable DB is transient",
+	)
 }

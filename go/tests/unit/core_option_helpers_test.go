@@ -3,8 +3,9 @@ package unit_test
 import (
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
 // TestOption_IsSomeIsNoneUnwrapOrElse tests the Option predicate + lazy-fallback
@@ -16,7 +17,8 @@ import (
 //     (or vice versa).
 //
 // What it tests:
-//   - Some: IsSome true, IsNone false, UnwrapOrElse returns the value (fallback not called).
+//   - Some: IsSome true, IsNone false, UnwrapOrElse returns the value (fallback not
+//     called).
 //   - None: IsSome false, IsNone true, UnwrapOrElse returns the computed fallback.
 func TestOption_IsSomeIsNoneUnwrapOrElse(t *testing.T) {
 	t.Parallel()
@@ -38,9 +40,10 @@ func TestOption_IsSomeIsNoneUnwrapOrElse(t *testing.T) {
 // TestSomeIfNotEmpty tests the ""→None / non-empty→Some string-Option constructor.
 //
 // Why this test is important:
-//   - It is the shared transport-edge mapper for optional proto string fields (description, search
-//     filter); an empty string MUST become None (absent), not Some("") — otherwise a "clear the field"
-//     partial update is indistinguishable from "leave unchanged".
+//   - It is the shared transport-edge mapper for optional proto string fields
+//     (description, search filter); an empty string MUST become None (absent), not
+//     Some("") — otherwise a "clear the field" partial update is indistinguishable from
+//     "leave unchanged".
 //
 // What it tests:
 //   - "" yields None; a non-empty string yields Some with that value.

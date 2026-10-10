@@ -9,16 +9,15 @@ package unit_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 // ---------------------------------------------------------------------------
@@ -147,7 +146,8 @@ func TestCode_NilError(t *testing.T) {
 //     a wrong code would route the error to the wrong pipeline error handler
 //
 // What it tests:
-//   - Ingestion("parsing failed") returns non-nil error with CodeIngestion and the given message
+//   - Ingestion("parsing failed") returns non-nil error with CodeIngestion and the given
+//     message
 func TestIngestion_Constructor(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,8 @@ func TestIngestion_Constructor(t *testing.T) {
 //     full stack
 //
 // What it tests:
-//   - Wrap(cause, CodeUnavailable, "database failed").Error() returns "UNAVAILABLE: database failed: connection refused"
+//   - Wrap(cause, CodeUnavailable, "database failed").Error() returns "UNAVAILABLE:
+//     database failed: connection refused"
 func TestErrorString_WithCause(t *testing.T) {
 	t.Parallel()
 
@@ -261,7 +262,9 @@ func TestZapFields_WithMultipleDetails(t *testing.T) {
 	)
 
 	keys := fieldKeySet(apperr.ZapFields(err))
-	for _, want := range []string{"error_code", "error_message", "error_stack", "error_details"} {
+	for _, want := range []string{
+		"error_code", "error_message", "error_stack", "error_details",
+	} {
 		assert.True(t, keys[want], "expected %s field, got keys %v", want, keys)
 	}
 }
@@ -297,7 +300,7 @@ func TestCombine(t *testing.T) {
 	err2 := errors.New("err2")
 
 	combined := apperr.Combine(err1, err2)
-	require.NotNil(t, combined)
+	require.Error(t, combined)
 
 	errs := apperr.Errors(combined)
 	require.Len(t, errs, 2)
@@ -315,7 +318,7 @@ func TestCombine(t *testing.T) {
 func TestCombine_AllNils(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, apperr.Combine(nil, nil), "expected nil for all-nil combine")
+	assert.NoError(t, apperr.Combine(nil, nil), "expected nil for all-nil combine")
 }
 
 // TestAppend tests that Append incrementally builds a combined error from
@@ -332,7 +335,7 @@ func TestAppend(t *testing.T) {
 	t.Parallel()
 
 	result := apperr.Append(nil, errors.New("first"))
-	require.NotNil(t, result)
+	require.Error(t, result)
 
 	result = apperr.Append(result, errors.New("second"))
 	errs := apperr.Errors(result)
@@ -575,7 +578,7 @@ func TestStdlib_Sentinel(t *testing.T) {
 	t.Parallel()
 
 	ErrFoo := apperr.Sentinel("foo error")
-	require.NotNil(t, ErrFoo)
+	require.Error(t, ErrFoo)
 	assert.Equal(t, "foo error", ErrFoo.Error())
 }
 
@@ -593,7 +596,7 @@ func TestStdlib_StdIs(t *testing.T) {
 	t.Parallel()
 
 	target := apperr.Sentinel("sentinel")
-	wrapped := fmt.Errorf("context: %w", target)
+	wrapped := apperr.Wrap(target, apperr.ErrInternal, "context")
 
 	assert.True(t, apperr.StdIs(wrapped, target), "StdIs should match wrapped sentinel")
 	assert.False(
@@ -616,7 +619,7 @@ func TestStdlib_As(t *testing.T) {
 	t.Parallel()
 
 	appErr := apperr.NotFound("not found")
-	wrapped := fmt.Errorf("context: %w", appErr)
+	wrapped := apperr.Join(appErr)
 
 	var target *apperr.AppError
 	assert.True(t, apperr.As(wrapped, &target), "As should find *AppError in chain")
@@ -638,11 +641,11 @@ func TestStdlib_Join(t *testing.T) {
 	t.Parallel()
 
 	joined := apperr.Join(apperr.Sentinel("a"), nil, apperr.Sentinel("b"))
-	require.NotNil(t, joined)
+	require.Error(t, joined)
 	assert.Contains(t, joined.Error(), "a")
 	assert.Contains(t, joined.Error(), "b")
 
-	assert.Nil(t, apperr.Join(nil, nil), "Join of all nils should return nil")
+	assert.NoError(t, apperr.Join(nil, nil), "Join of all nils should return nil")
 }
 
 // TestStdlib_Unwrap tests that Unwrap exposes the directly wrapped error,
@@ -659,10 +662,10 @@ func TestStdlib_Unwrap(t *testing.T) {
 	t.Parallel()
 
 	cause := apperr.Sentinel("cause")
-	wrapped := fmt.Errorf("outer: %w", cause)
+	wrapped := apperr.Wrap(cause, apperr.ErrInternal, "outer")
 
 	assert.Equal(t, cause, apperr.Unwrap(wrapped))
-	assert.Nil(
+	assert.NoError(
 		t,
 		apperr.Unwrap(apperr.Sentinel("no cause")),
 		"Sentinel has no wrapped error",

@@ -8,11 +8,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/reswire"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestReswire_BreakerReadsConfig_NotFrozenDefault tests that NewBreaker honors an
@@ -91,9 +92,9 @@ func TestReswire_RetrierDefault_Builds(t *testing.T) {
 	assert.GreaterOrEqual(t, attempts, 2, "retrier must retry a transient failure")
 }
 
-// assertBulkheadLimit fills the bulkhead to `limit` concurrent held slots (each blocked in
-// Execute) and asserts the next TryExecute is rejected — a race-free proof of the effective
-// concurrency ceiling. It releases the held slots before returning.
+// assertBulkheadLimit fills the bulkhead to `limit` concurrent held slots (each blocked
+// in Execute) and asserts the next TryExecute is rejected — a race-free proof of the
+// effective concurrency ceiling. It releases the held slots before returning.
 func assertBulkheadLimit(t *testing.T, bh interfaces.Bulkhead, limit int) {
 	t.Helper()
 	entered := make(chan struct{}, limit)
@@ -113,23 +114,24 @@ func assertBulkheadLimit(t *testing.T, bh interfaces.Bulkhead, limit int) {
 	for range limit { // all `limit` slots now held
 		<-entered
 	}
-	assert.Error(t, bh.TryExecute(func() error { return nil }),
+	require.Error(t, bh.TryExecute(func() error { return nil }),
 		"an over-limit TryExecute must be rejected (bulkhead full)")
 	close(release)
 	wg.Wait()
 }
 
-// TestReswire_BulkheadReadsOverlay tests that NewBulkhead honors a resilience.adaptive_limit
-// overlay over the consumer's fallback default.
+// TestReswire_BulkheadReadsOverlay tests that NewBulkhead honors a
+// resilience.adaptive_limit overlay over the consumer's fallback default.
 //
 // Why this test is important:
-//   - The internal-service admission bulkhead was once a hardcoded const; it must
-//     be overlay-tunable per environment. This proves the overlay's max_concurrent (1)
-//     wins over the caller's fallback (5), so a deployment can tighten/loosen admission by config.
+//   - The internal-service admission bulkhead was once a hardcoded const; it must be
+//     overlay-tunable per environment. This proves the overlay's max_concurrent (1) wins
+//     over the caller's fallback (5), so a deployment can tighten/loosen admission by
+//     config.
 //
 // What it tests:
-//   - `resilience.adaptive_limit.max_concurrent: 1` yields a bulkhead that admits exactly 1
-//     concurrent op (the overlay, not the 5 fallback, is in force).
+//   - `resilience.adaptive_limit.max_concurrent: 1` yields a bulkhead that admits exactly
+//     1 concurrent op (the overlay, not the 5 fallback, is in force).
 func TestReswire_BulkheadReadsOverlay(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), `
@@ -146,17 +148,18 @@ resilience:
 	assertBulkheadLimit(t, bh, 1)
 }
 
-// TestReswire_BulkheadDefault_WhenAbsent tests that NewBulkhead uses the caller's fallback
-// default when no resilience.adaptive_limit overlay is present — the parity guarantee.
+// TestReswire_BulkheadDefault_WhenAbsent tests that NewBulkhead uses the caller's
+// fallback default when no resilience.adaptive_limit overlay is present — the parity
+// guarantee.
 //
 // Why this test is important:
 //   - The two internal-bulkhead call sites pass DefaultInternalMaxConcurrent (128) as the
-//     fallback; an absent overlay MUST preserve that behavior (not silently drop to the schema's
-//     generic default), or the reconciliation would change admission behavior.
+//     fallback; an absent overlay MUST preserve that behavior (not silently drop to the
+//     schema's generic default), or the reconciliation would change admission behavior.
 //
 // What it tests:
-//   - With no adaptive_limit section, a fallback of 1 yields a bulkhead admitting exactly 1
-//     concurrent op (the caller default is applied).
+//   - With no adaptive_limit section, a fallback of 1 yields a bulkhead admitting exactly
+//     1 concurrent op (the caller default is applied).
 func TestReswire_BulkheadDefault_WhenAbsent(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), "database:\n  host: localhost\n")
@@ -168,11 +171,13 @@ func TestReswire_BulkheadDefault_WhenAbsent(t *testing.T) {
 	assertBulkheadLimit(t, bh, 1)
 }
 
-// TestReswire_HedgeDefault_RunsOnce tests that NewHedge builds the behavior-preserving disabled
-// hedger when no resilience.hedge overlay is present — the op runs exactly once, no backup.
+// TestReswire_HedgeDefault_RunsOnce tests that NewHedge builds the behavior-preserving
+// disabled hedger when no resilience.hedge overlay is present — the op runs exactly once,
+// no backup.
 //
 // Why this test is important:
-//   - Hedging duplicates load and is only safe for idempotent paths; the default MUST be disabled
+//   - Hedging duplicates load and is only safe for idempotent paths; the default MUST be
+//     disabled
 //
 // (default-preservation), or wiring a hedger would silently double backend load.
 //
@@ -196,17 +201,18 @@ func TestReswire_HedgeDefault_RunsOnce(t *testing.T) {
 		"the disabled default hedger runs the op exactly once (no backup)")
 }
 
-// TestReswire_HedgeReadsOverlay_FiresBackup tests that a resilience.hedge overlay selecting the
-// delay kind is READ and applied — a held first attempt triggers a backup (the op runs twice).
+// TestReswire_HedgeReadsOverlay_FiresBackup tests that a resilience.hedge overlay
+// selecting the delay kind is READ and applied — a held first attempt triggers a backup
+// (the op runs twice).
 //
 // Why this test is important:
 //   - requires the hedge knob be overlay-tunable. The observable difference between the
-//     disabled default (1 op) and the configured delay kind (2 ops) proves the config selects the
-//     hedger, not a frozen default.
+//     disabled default (1 op) and the configured delay kind (2 ops) proves the config
+//     selects the hedger, not a frozen default.
 //
 // What it tests:
-//   - `resilience.hedge: {kind: delay, delay: 1ms}` yields a hedger that fires a backup when the
-//     first attempt is slow (the op is invoked a second time).
+//   - `resilience.hedge: {kind: delay, delay: 1ms}` yields a hedger that fires a backup
+//     when the first attempt is slow (the op is invoked a second time).
 func TestReswire_HedgeReadsOverlay_FiresBackup(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"),
@@ -234,25 +240,28 @@ func TestReswire_HedgeReadsOverlay_FiresBackup(t *testing.T) {
 		})
 	}()
 
-	<-first  // first attempt running
-	<-backup // backup fired — proves the delay kind was read (blocks forever if it never fires)
+	<-first // first attempt running
+	// backup fired — proves the delay kind was read (blocks forever if it never fires)
+	<-backup
 	require.NoError(t, <-done)
 	assert.Equal(t, int32(2), atomic.LoadInt32(&calls),
 		"the configured delay hedger fires a backup attempt")
 	close(release)
 }
 
-// TestReswire_AdaptiveThrottleDefault_NeverSheds tests that NewAdaptiveThrottle builds the
-// behavior-preserving disabled (no-op) throttler when no overlay is present — every op runs, and
-// the rejection probability stays 0 even under sustained failure.
+// TestReswire_AdaptiveThrottleDefault_NeverSheds tests that NewAdaptiveThrottle builds
+// the behavior-preserving disabled (no-op) throttler when no overlay is present — every
+// op runs, and the rejection probability stays 0 even under sustained failure.
 //
 // Why this test is important:
-//   - Load shedding is opt-in; enabling it blindly could shed legitimate traffic. The default MUST
+//   - Load shedding is opt-in; enabling it blindly could shed legitimate traffic. The
+//     default MUST
 //
 // be a pass-through (default-preservation).
 //
 // What it tests:
-//   - With no overlay, the throttler runs every op and never sheds (RejectionProbability == 0).
+//   - With no overlay, the throttler runs every op and never sheds (RejectionProbability
+//     == 0).
 func TestReswire_AdaptiveThrottleDefault_NeverSheds(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "base.yaml"), "database:\n  host: localhost\n")
@@ -275,20 +284,22 @@ func TestReswire_AdaptiveThrottleDefault_NeverSheds(t *testing.T) {
 	)
 }
 
-// TestReswire_AdaptiveThrottleReadsOverlay_Sheds tests that a resilience.adaptive_throttle overlay
-// selecting the enabled kind is READ and applied — sustained failures raise the rejection probability.
+// TestReswire_AdaptiveThrottleReadsOverlay_Sheds tests that a
+// resilience.adaptive_throttle overlay selecting the enabled kind is READ and applied —
+// sustained failures raise the rejection probability.
 //
 // Why this test is important:
-//   - requires the throttle knob be overlay-tunable. The observable difference between the
-//     disabled default (rejection stays 0) and the enabled kind (rejection rises under failure) proves
-//     the config selects the throttler, not a frozen default.
+//   - requires the throttle knob be overlay-tunable. The observable difference between
+//     the disabled default (rejection stays 0) and the enabled kind (rejection rises
+//     under failure) proves the config selects the throttler, not a frozen default.
 //
 // What it tests:
-//   - `resilience.adaptive_throttle: {kind: enabled}` yields a throttler that sheds a growing share
-//     of requests under sustained backend failure — some ops are shed (never invoked), so the op-run
-//     count falls below the attempt count. (The default disabled throttler runs all N; the enabled one
-//     runs < N — the observable difference proving the config selects the throttler. The SRE rejection
-//     probability rises toward ~1 under sustained failure, so shedding is effectively certain here.)
+//   - `resilience.adaptive_throttle: {kind: enabled}` yields a throttler that sheds a
+//     growing share of requests under sustained backend failure — some ops are shed
+//     (never invoked), so the op-run count falls below the attempt count. (The default
+//     disabled throttler runs all N; the enabled one runs < N — the observable difference
+//     proving the config selects the throttler. The SRE rejection probability rises
+//     toward ~1 under sustained failure, so shedding is effectively certain here.)
 func TestReswire_AdaptiveThrottleReadsOverlay_Sheds(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(
@@ -312,18 +323,21 @@ func TestReswire_AdaptiveThrottleReadsOverlay_Sheds(t *testing.T) {
 		t,
 		calls,
 		attempts,
-		"the enabled throttler sheds some ops under sustained failure (op-run count < attempts)",
+		"the enabled throttler sheds some ops under sustained failure (op-run count < "+
+			"attempts)",
 	)
 }
 
-// TestReswire_RetrierReadsConfig_MaxTries pins that a configured resilience.retry.max_retries value
-// changes retry behavior — the coverage gap the recon found (retry had only default-builds + error-path
-// tests, no positive-value overlay test, unlike the breaker's TestReswire_BreakerReadsConfig).
+// TestReswire_RetrierReadsConfig_MaxTries pins that a configured
+// resilience.retry.max_retries value changes retry behavior — the coverage gap the recon
+// found (retry had only default-builds + error-path tests, no positive-value overlay
+// test, unlike the breaker's TestReswire_BreakerReadsConfig).
 //
 // Why this test is important:
-//   - The retry budget is the point of 's config wiring; if the provider ignored the value,
-//     an operator tightening/loosening retries would have no effect. The configured max (2) attempts a
-//     persistently-failing op exactly twice — a default (3) retrier would attempt it a third time.
+//   - The retry budget is the point of 's config wiring; if the provider ignored the
+//     value, an operator tightening/loosening retries would have no effect. The
+//     configured max (2) attempts a persistently-failing op exactly twice — a default (3)
+//     retrier would attempt it a third time.
 //
 // What it tests:
 //   - `resilience.retry.max_retries: 2` (tiny intervals) yields a retrier that invokes an

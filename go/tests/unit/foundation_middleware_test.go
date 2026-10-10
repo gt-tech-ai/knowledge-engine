@@ -17,7 +17,8 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// TestRequestID_GeneratesWhenMissing tests that a UUID request ID is generated when not present in the incoming request.
+// TestRequestID_GeneratesWhenMissing tests that a UUID request ID is generated when not
+// present in the incoming request.
 //
 // Why this test is important:
 //   - Every request must have a correlation identifier for distributed tracing
@@ -38,7 +39,7 @@ func TestRequestID_GeneratesWhenMissing(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -70,7 +71,7 @@ func TestRequestID_PreservesExisting(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("X-Request-ID", "existing-id")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -78,11 +79,13 @@ func TestRequestID_PreservesExisting(t *testing.T) {
 	assert.Equal(t, "existing-id", rec.Header().Get("X-Request-ID"))
 }
 
-// TestRecovery_CatchesPanic tests that handler panics are caught and converted to 500 responses.
+// TestRecovery_CatchesPanic tests that handler panics are caught and converted to 500
+// responses.
 //
 // Why this test is important:
 //   - A single handler panic without recovery kills the entire process
-//   - Production servers must remain available even when individual requests fail catastrophically
+//   - Production servers must remain available even when individual requests fail
+//     catastrophically
 //   - The recovery middleware is the last line of defense against unhandled errors
 //
 // What it tests:
@@ -101,14 +104,15 @@ func TestRecovery_CatchesPanic(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
-// TestRecovery_PassesThroughNormally tests that non-panicking handlers pass through the recovery middleware unchanged.
+// TestRecovery_PassesThroughNormally tests that non-panicking handlers pass through the
+// recovery middleware unchanged.
 //
 // Why this test is important:
 //   - Recovery middleware must add no overhead or behavior changes on the happy path
@@ -130,14 +134,15 @@ func TestRecovery_PassesThroughNormally(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-// TestCORS_SetsHeaders tests that CORS headers are set on responses for browser-based clients.
+// TestCORS_SetsHeaders tests that CORS headers are set on responses for browser-based
+// clients.
 //
 // Why this test is important:
 //   - Single-page application clients require CORS headers to make cross-origin API calls
@@ -159,7 +164,7 @@ func TestCORS_SetsHeaders(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -205,7 +210,7 @@ func TestCORS_ExposesTraceResponseHeader(t *testing.T) {
 		),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -217,10 +222,12 @@ func TestCORS_ExposesTraceResponseHeader(t *testing.T) {
 	)
 }
 
-// TestCORS_PreflightReturns204 tests that OPTIONS preflight requests return 204 without calling the handler.
+// TestCORS_PreflightReturns204 tests that OPTIONS preflight requests return 204 without
+// calling the handler.
 //
 // Why this test is important:
-//   - Browsers send preflight OPTIONS requests before cross-origin mutations (POST, PUT, DELETE)
+//   - Browsers send preflight OPTIONS requests before cross-origin mutations (POST, PUT,
+//     DELETE)
 //   - Preflight must return 204 with CORS headers without executing business logic
 //   - Incorrect preflight handling blocks all mutating API operations from the frontend
 //
@@ -239,19 +246,21 @@ func TestCORS_PreflightReturns204(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("OPTIONS", "/", nil)
+	req := httptest.NewRequest("OPTIONS", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusNoContent, rec.Code)
 }
 
-// TestCompression_CompressesLargeResponse tests that large responses are gzip-compressed when the client supports it.
+// TestCompression_CompressesLargeResponse tests that large responses are gzip-compressed
+// when the client supports it.
 //
 // Why this test is important:
 //   - JSON-heavy API responses benefit significantly from compression (60-80% reduction)
 //   - Reduces bandwidth costs and improves perceived latency for search result payloads
-//   - Validates the full compression pipeline: encode, set Content-Encoding header, decompressible output
+//   - Validates the full compression pipeline: encode, set Content-Encoding header,
+//     decompressible output
 //
 // What it tests:
 //   - Content-Encoding header is "gzip" for large responses
@@ -267,7 +276,7 @@ func TestCompression_CompressesLargeResponse(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -292,7 +301,8 @@ func TestCompression_CompressesLargeResponse(t *testing.T) {
 // Why this test is important:
 //   - Compression overhead exceeds savings below approximately 1KB
 //   - Compressing small responses wastes CPU and may increase payload size
-//   - The threshold prevents counterproductive compression of health checks and short errors
+//   - The threshold prevents counterproductive compression of health checks and short
+//     errors
 //
 // What it tests:
 //   - Content-Encoding is NOT "gzip" for a small response body
@@ -305,7 +315,7 @@ func TestCompression_SkipsSmallResponse(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -318,7 +328,8 @@ func TestCompression_SkipsSmallResponse(t *testing.T) {
 	)
 }
 
-// TestCompression_SkipsWithoutAcceptEncoding tests that no compression occurs when the client does not request it.
+// TestCompression_SkipsWithoutAcceptEncoding tests that no compression occurs when the
+// client does not request it.
 //
 // Why this test is important:
 //   - Respects client capabilities by not forcing compression on unsupporting clients
@@ -338,7 +349,7 @@ func TestCompression_SkipsWithoutAcceptEncoding(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	// No Accept-Encoding header
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -371,7 +382,7 @@ func TestHTTPMetrics_Records200(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/v1/things", nil)
+	req := httptest.NewRequest("GET", "/api/v1/things", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -397,7 +408,7 @@ func TestHTTPMetrics_Buckets404AsNotFound(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/unknown-path", nil)
+	req := httptest.NewRequest("GET", "/unknown-path", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -427,7 +438,7 @@ func TestHTTPMetrics_PatternUsedAsRouteLabel(t *testing.T) {
 		middleware.HTTPMetrics(fixtures.NopMetrics())(inner),
 	)
 
-	req := httptest.NewRequest("GET", "/api/v1/items", nil)
+	req := httptest.NewRequest("GET", "/api/v1/items", http.NoBody)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -460,7 +471,14 @@ func TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries(t *testing.T) {
 		Counter("http_server_requests_total", gomock.Any(), "method", "route", "status").
 		Return(counter)
 	m.EXPECT().
-		Histogram("http_server_request_duration_seconds", gomock.Any(), gomock.Any(), "method", "route", "status").
+		Histogram(
+			"http_server_request_duration_seconds",
+			gomock.Any(),
+			gomock.Any(),
+			"method",
+			"route",
+			"status",
+		).
 		Return(hist)
 
 	// Both distinct-UUID paths must land on the SAME normalized label — Times(2)
@@ -479,7 +497,7 @@ func TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries(t *testing.T) {
 	} {
 		// No ServeMux: r.Pattern is "", so routeLabel falls back to the raw path,
 		// exercising the normalization branch.
-		req := httptest.NewRequest("GET", "/api/documents/"+id, nil)
+		req := httptest.NewRequest("GET", "/api/documents/"+id, http.NoBody)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 }
@@ -488,8 +506,8 @@ func TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries(t *testing.T) {
 // across every id-shape the normalizer recognizes and the no-id pass-through.
 //
 // Why this test is important:
-//   - The normalizer collapses numeric ids, UUIDs, and long hex tokens (object keys / hashes)
-//     to "{id}"; each shape is a distinct branch, and a path with a digit but no
+//   - The normalizer collapses numeric ids, UUIDs, and long hex tokens (object keys /
+//     hashes) to "{id}"; each shape is a distinct branch, and a path with a digit but no
 //     id segment must pass through unchanged — a wrong classification either leaks
 //     cardinality (missed id) or corrupts a legitimate route label (false collapse)
 //
@@ -558,7 +576,10 @@ func TestHTTPMetrics_RouteLabelNormalizationCases(t *testing.T) {
 				Counter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(counter)
 			m.EXPECT().
-				Histogram(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Histogram(
+					gomock.Any(),
+					gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+				).
 				Return(hist)
 
 			var gotRoute string
@@ -572,7 +593,7 @@ func TestHTTPMetrics_RouteLabelNormalizationCases(t *testing.T) {
 			})
 			handler := middleware.HTTPMetrics(m)(inner)
 
-			req := httptest.NewRequest("GET", tc.path, nil)
+			req := httptest.NewRequest("GET", tc.path, http.NoBody)
 			handler.ServeHTTP(httptest.NewRecorder(), req)
 
 			assert.Equal(t, tc.wantRoute, gotRoute, "route label for %s", tc.path)
@@ -602,7 +623,10 @@ func TestHTTPMetrics_EmptyPathRouteLabel(t *testing.T) {
 		Counter(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(counter)
 	m.EXPECT().
-		Histogram(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Histogram(
+			gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+		).
 		Return(hist)
 
 	var gotRoute string
@@ -616,7 +640,7 @@ func TestHTTPMetrics_EmptyPathRouteLabel(t *testing.T) {
 	})
 	handler := middleware.HTTPMetrics(m)(inner)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.URL.Path = "" // simulate a malformed request with no path
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -646,7 +670,7 @@ func TestHTTPMetrics_FlushesResponseWriter(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/stream", nil)
+	req := httptest.NewRequest("GET", "/stream", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -673,19 +697,21 @@ func TestHTTPTracing_HandlerReceivesContext(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/traced", nil)
+	req := httptest.NewRequest("GET", "/api/traced", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-// TestChain_AppliesInOrder tests that middleware chain executes in registration order (FIFO).
+// TestChain_AppliesInOrder tests that middleware chain executes in registration order
+// (FIFO).
 //
 // Why this test is important:
 //   - Middleware ordering determines correctness: request ID must be set before logging
 //   - Recovery must be outermost to catch panics from all inner middleware
-//   - Incorrect ordering causes missing context values, unlogged requests, or uncaught panics
+//   - Incorrect ordering causes missing context values, unlogged requests, or uncaught
+//     panics
 //
 // What it tests:
 //   - Execution order is m1-before, m2-before, handler, m2-after, m1-after
@@ -719,7 +745,7 @@ func TestChain_AppliesInOrder(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

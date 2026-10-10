@@ -5,7 +5,8 @@
 //   - Config: viper.DefaultConfig, viper.Loader.Viper(), secrets overlay
 //   - Logger: zap redactingHandler WithAttrs/WithGroup, redactAttr for non-string attrs
 //   - Metrics: noop counter/histogram/gauge multi-label operations
-//   - Middleware: CORS with specific origins, GetRequestID without context, compression streaming
+//   - Middleware: CORS with specific origins, GetRequestID without context, compression
+//     streaming
 //   - Resilience: RetryWithResult success/failure, budget.Remaining without budget
 package unit_test
 
@@ -24,6 +25,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
@@ -34,10 +39,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/oteltracer"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // ---------------------------------------------------------------------------
@@ -253,7 +254,8 @@ func TestZapLogger_RedactAttr_SensitiveValues(t *testing.T) {
 //     handler must process each independently without cross-contamination
 //
 // What it tests:
-//   - With() accepts string, email-containing string, and integer attributes without panic
+//   - With() accepts string, email-containing string, and integer attributes without
+//     panic
 //   - The child logger can emit log messages
 func TestZapLogger_WithAttrs_MultipleAttrs(t *testing.T) {
 	t.Parallel()
@@ -381,7 +383,7 @@ func TestNoopMetrics_HandlerReturns404(t *testing.T) {
 	m := noop.New()
 	handler := m.Handler()
 
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequest("GET", "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -422,7 +424,7 @@ func TestCORS_SpecificOrigin_Allowed(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -463,7 +465,7 @@ func TestCORS_SpecificOrigin_Disallowed(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://evil.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -503,7 +505,7 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -547,7 +549,7 @@ func TestCORS_Preflight_SpecificOrigin(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("OPTIONS", "/api/data", nil)
+	req := httptest.NewRequest("OPTIONS", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -625,7 +627,7 @@ func TestCompression_MultipleWrites(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -667,7 +669,7 @@ func TestCompression_ExactThreshold(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1114,7 +1116,8 @@ func TestOTelTracer_NewAndShutdown(t *testing.T) {
 //     and an unsupported type to an empty string.
 //   - RecordError adds one "exception" event; SetStatus maps Error (with its
 //     description), OK and Unset to the OTel codes.
-//   - WithSpanKind maps Server, Client, Producer, Consumer and Internal to the OTel kinds.
+//   - WithSpanKind maps Server, Client, Producer, Consumer and Internal to the OTel
+//     kinds.
 func TestOTelTracer_SpanConversions(t *testing.T) {
 	t.Parallel()
 
@@ -1129,7 +1132,9 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
 
 	// readOnly starts a span and returns it with OTel's read-only view of it.
-	readOnly := func(opts ...interfaces.SpanOption) (interfaces.Span, sdktrace.ReadOnlySpan) {
+	readOnly := func(opts ...interfaces.SpanOption) (
+		interfaces.Span, sdktrace.ReadOnlySpan,
+	) {
 		spanCtx, span := tr.Start(ctx, "test-operation", opts...)
 		ro, ok := oteltrace.SpanFromContext(spanCtx).(sdktrace.ReadOnlySpan)
 		require.True(t, ok, "a sampled span must be readable")
@@ -1155,7 +1160,11 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	}, ro.Attributes())
 	require.Len(t, ro.Events(), 1)
 	assert.Equal(t, "exception", ro.Events()[0].Name)
-	assert.Equal(t, sdktrace.Status{Code: codes.Error, Description: "failed"}, ro.Status())
+	assert.Equal(
+		t,
+		sdktrace.Status{Code: codes.Error, Description: "failed"},
+		ro.Status(),
+	)
 
 	span, ro = readOnly()
 	span.SetStatus(interfaces.SpanStatusOK, "")
@@ -1196,7 +1205,11 @@ func TestOTelTracer_EndUnsampledSpan(t *testing.T) {
 	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
 
 	spanCtx, span := tr.Start(ctx, "unsampled")
-	assert.False(t, oteltrace.SpanFromContext(spanCtx).IsRecording(), "SampleRate 0 must not record")
+	assert.False(
+		t,
+		oteltrace.SpanFromContext(spanCtx).IsRecording(),
+		"SampleRate 0 must not record",
+	)
 	assert.NotPanics(t, span.End)
 }
 

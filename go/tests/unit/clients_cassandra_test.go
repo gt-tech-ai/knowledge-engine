@@ -9,13 +9,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/gocql/gocql"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
 	cassandrabackend "github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/keyspaces"
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestNewFromConfig_UnknownKindIsInvalidInput tests that both the Cassandra session
@@ -72,9 +73,15 @@ func TestDefaultConfig_IsLocalQuorum(t *testing.T) {
 	assert.Equal(t, 9142, cfg.Keyspaces.Port)
 
 	cluster, err := cassandrabackend.New(&cassandrabackend.Config{
-		Hosts: []string{"c1", "c2"}, Port: 9042, LocalDC: "dc1", Keyspace: "analytics",
-		Consistency: cfg.Consistency, Timeout: cfg.Timeout, ConnectTimeout: cfg.ConnectTimeout,
-		PageSize: cfg.PageSize, NumConns: cfg.NumConns,
+		Hosts:          []string{"c1", "c2"},
+		Port:           9042,
+		LocalDC:        "dc1",
+		Keyspace:       "analytics",
+		Consistency:    cfg.Consistency,
+		Timeout:        cfg.Timeout,
+		ConnectTimeout: cfg.ConnectTimeout,
+		PageSize:       cfg.PageSize,
+		NumConns:       cfg.NumConns,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"c1", "c2"}, cluster.Hosts)
@@ -84,7 +91,9 @@ func TestDefaultConfig_IsLocalQuorum(t *testing.T) {
 	assert.NotNil(t, cluster.PoolConfig.HostSelectionPolicy)
 	assert.Nil(t, cluster.Authenticator)
 
-	_, err = cassandrabackend.New(&cassandrabackend.Config{Hosts: []string{"c1"}, Consistency: "MOSTLY"})
+	_, err = cassandrabackend.New(
+		&cassandrabackend.Config{Hosts: []string{"c1"}, Consistency: "MOSTLY"},
+	)
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 }
 
@@ -104,9 +113,15 @@ func TestKeyspacesConfig_UsesTLSAndSigV4(t *testing.T) {
 
 	provider := credentials.NewStaticCredentialsProvider("AKID", "SECRET", "TOKEN")
 	cluster, err := keyspaces.New(&keyspaces.Config{
-		Region: "us-east-1", Port: 9142, Keyspace: "analytics", Consistency: "LOCAL_QUORUM",
-		Timeout: 5 * time.Second, ConnectTimeout: 5 * time.Second, PageSize: 500, NumConns: 2,
-		Credentials: aws.CredentialsProvider(provider),
+		Region:         "us-east-1",
+		Port:           9142,
+		Keyspace:       "analytics",
+		Consistency:    "LOCAL_QUORUM",
+		Timeout:        5 * time.Second,
+		ConnectTimeout: 5 * time.Second,
+		PageSize:       500,
+		NumConns:       2,
+		Credentials:    aws.CredentialsProvider(provider),
 	})
 	require.NoError(t, err)
 
@@ -114,8 +129,12 @@ func TestKeyspacesConfig_UsesTLSAndSigV4(t *testing.T) {
 	assert.Equal(t, 9142, cluster.Port)
 	require.NotNil(t, cluster.SslOpts)
 	assert.True(t, cluster.SslOpts.EnableHostVerification)
-	assert.Equal(t, "cassandra.us-east-1.amazonaws.com", cluster.SslOpts.Config.ServerName)
-	assert.Equal(t, uint16(tls.VersionTLS12), cluster.SslOpts.Config.MinVersion)
+	assert.Equal(
+		t,
+		"cassandra.us-east-1.amazonaws.com",
+		cluster.SslOpts.ServerName,
+	)
+	assert.Equal(t, uint16(tls.VersionTLS12), cluster.SslOpts.MinVersion)
 	assert.Equal(t, gocql.LocalQuorum, cluster.Consistency)
 	assert.True(t, cluster.DisableInitialHostLookup)
 	auth, ok := cluster.Authenticator.(sigv4.AwsAuthenticator)
@@ -123,9 +142,19 @@ func TestKeyspacesConfig_UsesTLSAndSigV4(t *testing.T) {
 	assert.Equal(t, "us-east-1", auth.Region)
 	creds, err := auth.CredentialsCallback()
 	require.NoError(t, err)
-	assert.Equal(t, sigv4.SigV4Credentials{AccessKeyId: "AKID", SecretAccessKey: "SECRET", SessionToken: "TOKEN"}, creds)
+	assert.Equal(
+		t,
+		sigv4.SigV4Credentials{
+			AccessKeyId:     "AKID",
+			SecretAccessKey: "SECRET",
+			SessionToken:    "TOKEN",
+		},
+		creds,
+	)
 
-	_, err = keyspaces.New(&keyspaces.Config{Port: 9142, Credentials: aws.CredentialsProvider(provider)})
+	_, err = keyspaces.New(
+		&keyspaces.Config{Port: 9142, Credentials: aws.CredentialsProvider(provider)},
+	)
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "region is required")
 }
 
@@ -146,12 +175,16 @@ func TestClusterConfig_ZeroValuesKeepDriverDefaults(t *testing.T) {
 	t.Parallel()
 	want := gocql.NewCluster("x")
 
-	plain, err := cassandrabackend.New(&cassandrabackend.Config{Hosts: []string{"c1"}, Consistency: "ONE"})
+	plain, err := cassandrabackend.New(
+		&cassandrabackend.Config{Hosts: []string{"c1"}, Consistency: "ONE"},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, want.Timeout, plain.Timeout)
 	assert.Equal(t, want.ConnectTimeout, plain.ConnectTimeout)
 
-	ks, err := keyspaces.New(&keyspaces.Config{Region: "us-east-1", Consistency: "LOCAL_QUORUM"})
+	ks, err := keyspaces.New(
+		&keyspaces.Config{Region: "us-east-1", Consistency: "LOCAL_QUORUM"},
+	)
 	require.NoError(t, err)
 	assert.Equal(t, want.Timeout, ks.Timeout)
 	assert.Equal(t, want.ConnectTimeout, ks.ConnectTimeout)

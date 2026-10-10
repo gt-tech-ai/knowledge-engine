@@ -310,18 +310,19 @@ func TestStorageClient_ListObjects_MapsContents(t *testing.T) {
 	assert.Equal(t, `"e2"`, objs[1].ETag)
 }
 
-// TestStorageClient_ListObjectsPageToken_StreamsWithToken tests the resumable, single-request
-// streaming list: it passes the caller's continuation token through and surfaces the next token only
-// while the listing is truncated.
+// TestStorageClient_ListObjectsPageToken_StreamsWithToken tests the resumable,
+// single-request streaming list: it passes the caller's continuation token through and
+// surfaces the next token only while the listing is truncated.
 //
 // Why this test is important:
-//   - A sync engine crash-resumes by checkpointing this token; if the token weren't passed
-//     through (re-listing from the start) or the next token leaked when the listing was exhausted (an
-//     infinite loop), a large-bucket sync would loop or re-process objects.
+//   - A sync engine crash-resumes by checkpointing this token; if the token weren't
+//     passed through (re-listing from the start) or the next token leaked when the
+//     listing was exhausted (an infinite loop), a large-bucket sync would loop or
+//     re-process objects.
 //
 // What it tests:
-//   - The request carries the caller's continuation token; a truncated response yields the next token;
-//     a non-truncated response yields "" (loop terminates).
+//   - The request carries the caller's continuation token; a truncated response yields
+//     the next token; a non-truncated response yields "" (loop terminates).
 func TestStorageClient_ListObjectsPageToken_StreamsWithToken(t *testing.T) {
 	t.Parallel()
 
@@ -429,7 +430,11 @@ func TestStorageClient_DeleteBatch_ChunksOverLimit(t *testing.T) {
 	calls := 0
 	seen := map[string]int{}
 	api.EXPECT().DeleteObjects(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in *awss3.DeleteObjectsInput, _ ...func(*awss3.Options)) (*awss3.DeleteObjectsOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awss3.DeleteObjectsInput,
+			_ ...func(*awss3.Options),
+		) (*awss3.DeleteObjectsOutput, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			calls++
@@ -765,16 +770,17 @@ func TestStorageClient_Presign_UsesPublicEndpoint(t *testing.T) {
 	assert.NotContains(t, partURL, "minio:9000")
 }
 
-// TestStorageClient_Presign_EmptyPublicEndpointFallsBack tests that an empty PublicEndpoint
-// leaves the presigned URL on the client's own Endpoint (the AWS-S3 / bare-metal default,
-// where the endpoint is already browser-reachable).
+// TestStorageClient_Presign_EmptyPublicEndpointFallsBack tests that an empty
+// PublicEndpoint leaves the presigned URL on the client's own Endpoint (the AWS-S3 /
+// bare-metal default, where the endpoint is already browser-reachable).
 //
 // Why this test is important:
 //   - The public-endpoint split must be opt-in: unset ⇒ no behavior change, so AWS S3
 //     (public regional endpoint) and bare-metal MinIO (localhost) keep working untouched.
 //
 // What it tests:
-//   - With Endpoint=minio:9000 and PublicEndpoint empty, a presigned PUT keeps minio:9000.
+//   - With Endpoint=minio:9000 and PublicEndpoint empty, a presigned PUT keeps
+//     minio:9000.
 func TestStorageClient_Presign_EmptyPublicEndpointFallsBack(t *testing.T) {
 	t.Parallel()
 
@@ -806,15 +812,15 @@ func TestStorageClient_Presign_EmptyPublicEndpointFallsBack(t *testing.T) {
 // concrete presigner; no network is involved (presigning is offline).
 //
 // Why this test is important:
-//   - The signature constrains the headers listed in X-Amz-SignedHeaders, and content-type
-//     is deliberately pinned: DocumentService.PresignUpload signs the format's content type
-//     and carries that exact value back on the PresignedURL, and the browser client echoes
-//     it verbatim on the PUT (PresignedS3Client sets the Content-Type header to the returned
-//     value), so the request's Content-Type always matches the signed one. This asserts the
-//     SDK signs content-type + host and nothing extraneous — e.g. no checksum header a
-//     browser PUT could not reproduce, which would 403 against real S3 with
-//     SignatureDoesNotMatch. MinIO tolerates a mismatch, so only this signing-layer
-//     assertion guards the contract.
+//   - The signature constrains the headers listed in X-Amz-SignedHeaders, and
+//     content-type is deliberately pinned: DocumentService.PresignUpload signs the
+//     format's content type and carries that exact value back on the PresignedURL, and
+//     the browser client echoes it verbatim on the PUT (PresignedS3Client sets the
+//     Content-Type header to the returned value), so the request's Content-Type always
+//     matches the signed one. This asserts the SDK signs content-type + host and nothing
+//     extraneous — e.g. no checksum header a browser PUT could not reproduce, which would
+//     403 against real S3 with SignatureDoesNotMatch. MinIO tolerates a mismatch, so only
+//     this signing-layer assertion guards the contract.
 //
 // What it tests:
 //   - X-Amz-SignedHeaders is exactly "content-type;host", whether or not the content-type

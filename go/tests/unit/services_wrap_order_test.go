@@ -19,13 +19,13 @@ import (
 // Logging trio (Logging innermost).
 //
 // Why this test is important:
-//   - Before the service builder had this inverted (Logging outermost), so a
-//     failure was logged outside its own trace span. This test prevents a regression back
-//     to that order — it would fail if Logging (or Metrics) were reordered outside Tracing.
+//   - Before the service builder had this inverted (Logging outermost), so a failure was
+//     logged outside its own trace span. This test prevents a regression back to that
+//     order — it would fail if Logging (or Metrics) were reordered outside Tracing.
 //
 // What it tests:
-//   - On a Get, the tracing span starts before the logging entry (Tracing outside Logging)
-//     and metrics are recorded (the trio is active).
+//   - On a Get, the tracing span starts before the logging entry (Tracing outside
+//     Logging) and metrics are recorded (the trio is active).
 func TestServiceDecorator_WrapOrder_TracingOutermost(t *testing.T) {
 	t.Parallel()
 

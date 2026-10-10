@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/pipelines"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workers"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workflows"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestPipelinesDefaults_MatchConsts tests the pipeline config's multipart-upload and
@@ -103,7 +104,7 @@ func TestWorkersConfig_ValidatesSweepTimings(t *testing.T) {
 
 	bad := good
 	bad.ReaperTTL = 30 * time.Minute // <= expiry
-	assert.Error(
+	require.Error(
 		t,
 		bad.Validate(expiry),
 		"reaper_ttl <= multipart expiry must be rejected",
@@ -139,7 +140,8 @@ func TestWorkersDefaults_AreNeutralAndValid(t *testing.T) {
 		OrphanGrace:       2 * time.Hour,
 		BatchSize:         100,
 		FanOutWorkers:     8,
-	}, workers.DefaultConfig(), "no service name or port; conservative cadences, TTLs and batching")
+	}, workers.DefaultConfig(), "no service name or port; conservative cadences, TTLs "+
+		"and batching")
 	require.NoError(t, workers.DefaultConfig().Validate(60*time.Minute),
 		"the defaults must satisfy the sweep-timing invariant")
 }
@@ -154,9 +156,9 @@ func TestWorkersDefaults_AreNeutralAndValid(t *testing.T) {
 //     exact production decode path (base.yaml -> UnmarshalKey) over the shared tier.
 //
 // What it tests:
-//   - A `workers:` block overriding port, fan_out_workers, and relay_interval yields those
-//     three values on the parsed config, while an unspecified field (batch_size) keeps the
-//     seeded default — proving the overlay changes only what it names.
+//   - A `workers:` block overriding port, fan_out_workers, and relay_interval yields
+//     those three values on the parsed config, while an unspecified field (batch_size)
+//     keeps the seeded default — proving the overlay changes only what it names.
 func TestWorkersConfig_OverlayIsParsed(t *testing.T) {
 	t.Parallel()
 

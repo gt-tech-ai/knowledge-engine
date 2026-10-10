@@ -4,9 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	cfgviper "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	cfgviper "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 )
 
 // TestStringToStringMapHookFunc tests the flat-string → map[string]string decode

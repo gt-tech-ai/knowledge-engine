@@ -45,8 +45,8 @@ func TestLoggingInterceptor_StatusCodeMapping(t *testing.T) {
 		{connect.CodeUnavailable, false},
 		{connect.CodeDeadlineExceeded, false},
 		{connect.CodeInternal, false},
-		// 499 client-closed-request: the caller cancelled/disconnected — a client outcome, logged at
-		// Warn so it does not fire an Error-level alert.
+		// 499 client-closed-request: the caller cancelled/disconnected — a client
+		// outcome, logged at Warn so it does not fire an Error-level alert.
 		{connect.CodeCanceled, true},
 	}
 	for _, tc := range cases {
@@ -110,12 +110,21 @@ func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	failing := func(context.Context, *interceptors.AuthClaims) (string, error) {
-		return "", connect.NewError(connect.CodePermissionDenied, stderrors.New("not a member"))
+		return "", connect.NewError(
+			connect.CodePermissionDenied,
+			stderrors.New("not a member"),
+		)
 	}
-	claims := &interceptors.AuthClaims{Sub: "sub-1", TenantID: "tenant-1"} // non-synthetic
+	claims := &interceptors.AuthClaims{
+		Sub:      "sub-1",
+		TenantID: "tenant-1",
+	} // non-synthetic
 
 	called := false
-	handler := interceptors.NewPrincipalInterceptor[string](failing, nil).WrapStreamingHandler(
+	handler := interceptors.NewPrincipalInterceptor[string](
+		failing,
+		nil,
+	).WrapStreamingHandler(
 		func(context.Context, connect.StreamingHandlerConn) error {
 			called = true
 			return nil

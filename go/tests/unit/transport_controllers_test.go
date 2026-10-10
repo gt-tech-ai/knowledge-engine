@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/decorators"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // Request and Response types for testing
@@ -37,13 +38,14 @@ func TestHandlerFunc_Execution(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// Define a simple handler
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	// Define a simple handler; the typed declaration verifies it matches the
+	// HandlerFunc signature.
+	var handler transport.HandlerFunc[TestRequest, TestResponse] = func(
+		_ context.Context,
+		req TestRequest,
+	) (TestResponse, error) {
 		return TestResponse{Output: "processed-" + req.Input}, nil
 	}
-
-	// Type assertion to verify it matches HandlerFunc signature
-	var _ transport.HandlerFunc[TestRequest, TestResponse] = handler
 
 	// Execute
 	result, err := handler(ctx, TestRequest{Input: "test"})
@@ -65,7 +67,10 @@ func TestHandlerFunc_ErrorPropagation(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("handler failed")
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	var handler transport.HandlerFunc[TestRequest, TestResponse] = func(
+		context.Context,
+		TestRequest,
+	) (TestResponse, error) {
 		return TestResponse{}, expectedErr
 	}
 

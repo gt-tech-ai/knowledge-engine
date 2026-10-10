@@ -111,7 +111,7 @@ func TestClientStack_CircuitOpensAfterThreshold(t *testing.T) {
 
 	// Trip the breaker: gobreaker's default ReadyToTrip opens after consecutive
 	// failures; drive enough failing calls to open it.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		_, _ = decorators.Run(context.Background(), s, "op", decorators.RunOpts{},
 			func(context.Context) (string, error) { return "", errBoom })
 	}
@@ -190,7 +190,9 @@ func TestClientStack_BulkheadLimitsConcurrency(t *testing.T) {
 
 	var inFlight, peak int32
 	var wg sync.WaitGroup
-	op := func(context.Context) (string, error) {
+	// stackOp is the operation signature decorators.Run takes.
+	type stackOp func(context.Context) (string, error)
+	var op stackOp = func(context.Context) (string, error) {
 		n := atomic.AddInt32(&inFlight, 1)
 		for {
 			p := atomic.LoadInt32(&peak)
@@ -202,7 +204,7 @@ func TestClientStack_BulkheadLimitsConcurrency(t *testing.T) {
 		atomic.AddInt32(&inFlight, -1)
 		return "ok", nil
 	}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -39,12 +39,12 @@ func TestRunner_RealCommands(t *testing.T) {
 	require.Error(t, r.Run(ctx, "", "definitely-not-a-real-binary-xyz"))
 
 	res := r.RunBuffered(ctx, "", "go", "version")
-	assert.NoError(t, res.Err)
+	require.NoError(t, res.Err)
 	assert.Equal(t, 0, res.ExitCode)
 	assert.Contains(t, string(res.Stdout), "go version")
 
 	bad := r.RunBuffered(ctx, "", "definitely-not-a-real-binary-xyz")
-	assert.Error(t, bad.Err)
+	require.Error(t, bad.Err)
 	assert.Equal(t, -1, bad.ExitCode, "missing binary never starts -> exit -1")
 
 	require.NoError(t, r.RunWithEnv(ctx, "", []string{"FOO=bar"}, "go", "version"))
@@ -132,7 +132,7 @@ func TestBufferingRunner(t *testing.T) {
 	assert.Equal(t, "out-errout-err", string(b.Captured()))
 
 	assert.True(t, b.Exists("anything"), "Exists delegates")
-	assert.NoError(t, b.RequireTool("x", ""), "RequireTool delegates")
+	require.NoError(t, b.RequireTool("x", ""), "RequireTool delegates")
 
 	// Run (no env) wraps a failing inner result and still captures its output.
 	failingInner := mocks.NewMockCommandRunner(ctrl)
@@ -248,7 +248,12 @@ func TestRunner_WritesChildOutputToInjectedWriters(t *testing.T) {
 	procOut, procErr := stop()
 
 	assert.Contains(t, direct, "go1.")
-	assert.Equal(t, 2, strings.Count(out.String(), "go1."), "decorated run reaches the injected stdout")
+	assert.Equal(
+		t,
+		2,
+		strings.Count(out.String(), "go1."),
+		"decorated run reaches the injected stdout",
+	)
 	assert.NotEmpty(t, errOut.String())
 	assert.Empty(t, procOut)
 	assert.Empty(t, procErr)

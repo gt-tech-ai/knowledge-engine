@@ -45,7 +45,10 @@ var customHeaders = interceptors.HeaderMap{
 
 // serverPaths drives both server paths of an interceptor, so each seam test covers unary
 // and streaming RPCs alike.
-var serverPaths = map[string]func(connect.Interceptor, context.Context) (context.Context, error){
+var serverPaths = map[string]func(
+	connect.Interceptor,
+	context.Context,
+) (context.Context, error){
 	"unary":     invokeUnary,
 	"streaming": invokeStreaming,
 }
@@ -54,9 +57,10 @@ var serverPaths = map[string]func(connect.Interceptor, context.Context) (context
 // headers a consumer's gateway actually sets.
 //
 // Why this test is important:
-//   - Gateways name identity headers differently; a fixed header contract ties the library
-//     to one deployment.
-//   - Gateways commonly join roles with ", "; an untrimmed role never matches a role check.
+//   - Gateways name identity headers differently; a fixed header contract ties the
+//     library to one deployment.
+//   - Gateways commonly join roles with ", "; an untrimmed role never matches a role
+//     check.
 //
 // What it tests:
 //   - With a custom HeaderMap, every claim is read from the custom headers, the role list
@@ -67,53 +71,75 @@ func TestAuthInterceptor_HeaderMap(t *testing.T) {
 	t.Parallel()
 	ic := interceptors.NewAuthInterceptor(false, customHeaders)
 
-	ctx, err := invokeUnaryWith(ic, context.Background(), newTestRequestWithHeaders(map[string]string{
-		"X-Sub": "u1", "X-Tenant": "t1", "X-Mail": "u1@example.com",
-		"X-Full-Name": "User One", "X-Nick": "u1", "X-Groups": "a, b ,",
-	}))
+	ctx, err := invokeUnaryWith(
+		ic,
+		context.Background(),
+		newTestRequestWithHeaders(map[string]string{
+			"X-Sub": "u1", "X-Tenant": "t1", "X-Mail": "u1@example.com",
+			"X-Full-Name": "User One", "X-Nick": "u1", "X-Groups": "a, b ,",
+		}),
+	)
 	require.NoError(t, err)
 	claims, ok := interceptors.GetAuthClaims(ctx)
 	require.True(t, ok, "claims must be read from the custom headers")
 	assert.Equal(t, interceptors.AuthClaims{
-		Sub: "u1", TenantID: "t1", Email: "u1@example.com", Name: "User One", NickName: "u1",
-		Roles: []string{"a", "b"},
+		Sub:      "u1",
+		TenantID: "t1",
+		Email:    "u1@example.com",
+		Name:     "User One",
+		NickName: "u1",
+		Roles:    []string{"a", "b"},
 	}, *claims)
 
-	ctx, err = invokeUnaryWith(ic, context.Background(), newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub: "u1",
-	}))
+	ctx, err = invokeUnaryWith(
+		ic,
+		context.Background(),
+		newTestRequestWithHeaders(map[string]string{
+			testHeaders.Sub: "u1",
+		}),
+	)
 	require.NoError(t, err)
 	_, ok = interceptors.GetAuthClaims(ctx)
 	assert.False(t, ok, "a header outside the map must be ignored")
 }
 
 // TestInterceptorWiring_FailsLoudlyOnMisconfiguration tests that the server interceptor
-// constructors reject a wiring mistake at construction instead of misbehaving per request.
+// constructors reject a wiring mistake at construction instead of misbehaving per
+// request.
 //
 // Why this test is important:
-//   - An empty subject header treats every caller as unauthenticated (or, in stub mode, as
-//     the stub user); a nil resolver, extractor or interceptor panics on the first request;
-//     a tenant interceptor with no stampers or an unnamed session variable never scopes
-//     anything. Each is silent until production traffic hits it.
+//   - An empty subject header treats every caller as unauthenticated (or, in stub mode,
+//     as the stub user); a nil resolver, extractor or interceptor panics on the first
+//     request; a tenant interceptor with no stampers or an unnamed session variable never
+//     scopes anything. Each is silent until production traffic hits it.
 //
 // What it tests:
 //   - NewAuthInterceptor and ServerBuilder.WithAuth panic on a HeaderMap without Sub.
 //   - NewPrincipalInterceptor panics on a nil resolver.
-//   - NewTenantScopeInterceptor panics on a nil extractor, no stampers or a nil stamper, and
-//     SessionVarStamper panics on an empty variable name.
+//   - NewTenantScopeInterceptor panics on a nil extractor, no stampers or a nil stamper,
+//     and SessionVarStamper panics on an empty variable name.
 //   - ServerBuilder.WithInterceptors panics on a nil interceptor.
 func TestInterceptorWiring_FailsLoudlyOnMisconfiguration(t *testing.T) {
 	t.Parallel()
 	extract := func(context.Context) (uuid.UUID, bool) { return uuid.Nil, false }
 
-	assert.Panics(t, func() { interceptors.NewAuthInterceptor(true, interceptors.HeaderMap{Tenant: "X-T"}) },
-		"NewAuthInterceptor needs a subject header")
-	assert.Panics(t, func() { interceptors.NewServerBuilder().WithAuth(false, interceptors.HeaderMap{}) },
-		"WithAuth needs a subject header")
+	assert.Panics(
+		t,
+		func() { interceptors.NewAuthInterceptor(true, interceptors.HeaderMap{Tenant: "X-T"}) },
+		"NewAuthInterceptor needs a subject header",
+	)
+	assert.Panics(
+		t,
+		func() { interceptors.NewServerBuilder().WithAuth(false, interceptors.HeaderMap{}) },
+		"WithAuth needs a subject header",
+	)
 	assert.Panics(t, func() { interceptors.NewPrincipalInterceptor[principal](nil, nil) },
 		"NewPrincipalInterceptor needs a resolver")
-	assert.Panics(t, func() { interceptors.NewTenantScopeInterceptor(nil, interceptors.StampTenantContext) },
-		"NewTenantScopeInterceptor needs an extractor")
+	assert.Panics(
+		t,
+		func() { interceptors.NewTenantScopeInterceptor(nil, interceptors.StampTenantContext) },
+		"NewTenantScopeInterceptor needs an extractor",
+	)
 	assert.Panics(t, func() { interceptors.NewTenantScopeInterceptor(extract) },
 		"NewTenantScopeInterceptor needs a stamper")
 	assert.Panics(t, func() { interceptors.NewTenantScopeInterceptor(extract, nil) },
@@ -177,8 +203,8 @@ func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 // failures reach the caller.
 //
 // Why this test is important:
-//   - The stub must apply only to synthetic claims, or a real caller behind the gateway is
-//     silently given the stub identity.
+//   - The stub must apply only to synthetic claims, or a real caller behind the gateway
+//     is silently given the stub identity.
 //   - A resolver following the error-code convention must reach the caller with the
 //     matching Connect code: a rejected caller retried as Unavailable never sees
 //     PermissionDenied, and a transient outage reported as permanent logs the caller out.
@@ -186,28 +212,37 @@ func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 //     reach the client.
 //
 // What it tests:
-//   - Synthetic claims get the stub principal without a resolver call; real claims resolve;
-//     with no stub, synthetic claims resolve too.
+//   - Synthetic claims get the stub principal without a resolver call; real claims
+//     resolve; with no stub, synthetic claims resolve too.
 //   - On both paths a resolver error fails closed: a Connect code is kept, a core/errors
 //     code maps to its Connect code, and an uncoded error becomes Unavailable.
-//   - The client-facing message never contains the resolver's error text; the real error is
-//     captured in the request's error sink for the access log.
+//   - The client-facing message never contains the resolver's error text; the real error
+//     is captured in the request's error sink for the access log.
 func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 	t.Parallel()
-	stub := func(c *interceptors.AuthClaims) principal { return principal{Sub: c.Sub, Tenant: "stub"} }
+	stub := func(c *interceptors.AuthClaims) principal {
+		return principal{Sub: c.Sub, Tenant: "stub"}
+	}
 	resolve := func(_ context.Context, c *interceptors.AuthClaims) (principal, error) {
 		return principal{Sub: c.Sub, Tenant: "resolved"}, nil
 	}
 	synthetic := &interceptors.AuthClaims{Sub: "dev", Synthetic: true}
 
-	got, err := invokeUnary(interceptors.NewPrincipalInterceptor[principal](resolve, stub),
-		interceptors.WithAuthClaims(context.Background(), synthetic))
+	got, err := invokeUnary(
+		interceptors.NewPrincipalInterceptor[principal](resolve, stub),
+		interceptors.WithAuthClaims(context.Background(), synthetic),
+	)
 	require.NoError(t, err)
 	p, _ := coreprincipal.PrincipalFrom[principal](got)
 	assert.Equal(t, "stub", p.Tenant, "synthetic claims take the stub principal")
 
-	got, err = invokeUnary(interceptors.NewPrincipalInterceptor[principal](resolve, stub),
-		interceptors.WithAuthClaims(context.Background(), &interceptors.AuthClaims{Sub: "real"}))
+	got, err = invokeUnary(
+		interceptors.NewPrincipalInterceptor[principal](resolve, stub),
+		interceptors.WithAuthClaims(
+			context.Background(),
+			&interceptors.AuthClaims{Sub: "real"},
+		),
+	)
 	require.NoError(t, err)
 	p, _ = coreprincipal.PrincipalFrom[principal](got)
 	assert.Equal(t, "resolved", p.Tenant, "real claims resolve even with a stub set")
@@ -223,16 +258,25 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 		err  error
 		want connect.Code
 	}{
-		"connect code":   {connect.NewError(connect.CodeUnauthenticated, errors.New(secret)), connect.CodeUnauthenticated},
-		"forbidden":      {apperr.Forbidden(secret), connect.CodePermissionDenied},
-		"unauthorized":   {apperr.Unauthorized(secret), connect.CodeUnauthenticated},
-		"not found":      {apperr.NotFound(secret), connect.CodeNotFound},
-		"invalid input":  {apperr.InvalidInput(secret), connect.CodeInvalidArgument},
-		"timeout":        {apperr.Timeout(secret), connect.CodeDeadlineExceeded},
-		"unavailable":    {apperr.Unavailable(secret), connect.CodeUnavailable},
-		"internal":       {apperr.Wrap(errors.New(secret), apperr.CodeInternal, "lookup"), connect.CodeInternal},
-		"uncoded":        {errors.New(secret), connect.CodeUnavailable},
-		"wrapped coded":  {apperr.Wrap(apperr.Forbidden(secret), apperr.CodeForbidden, "resolve"), connect.CodePermissionDenied},
+		"connect code": {
+			connect.NewError(connect.CodeUnauthenticated, errors.New(secret)),
+			connect.CodeUnauthenticated,
+		},
+		"forbidden":     {apperr.Forbidden(secret), connect.CodePermissionDenied},
+		"unauthorized":  {apperr.Unauthorized(secret), connect.CodeUnauthenticated},
+		"not found":     {apperr.NotFound(secret), connect.CodeNotFound},
+		"invalid input": {apperr.InvalidInput(secret), connect.CodeInvalidArgument},
+		"timeout":       {apperr.Timeout(secret), connect.CodeDeadlineExceeded},
+		"unavailable":   {apperr.Unavailable(secret), connect.CodeUnavailable},
+		"internal": {
+			apperr.Wrap(errors.New(secret), apperr.CodeInternal, "lookup"),
+			connect.CodeInternal,
+		},
+		"uncoded": {errors.New(secret), connect.CodeUnavailable},
+		"wrapped coded": {
+			apperr.Wrap(apperr.Forbidden(secret), apperr.CodeForbidden, "resolve"),
+			connect.CodePermissionDenied,
+		},
 		"upstream coded": {apperr.Upstream(secret), connect.CodeUnavailable},
 	}
 	for path, invoke := range serverPaths {
@@ -242,32 +286,53 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 			}
 			ctx := errctx.WithSink(interceptors.WithAuthClaims(context.Background(),
 				&interceptors.AuthClaims{Sub: "u"}))
-			handled, err := invoke(interceptors.NewPrincipalInterceptor[principal](failing, nil), ctx)
+			handled, err := invoke(
+				interceptors.NewPrincipalInterceptor[principal](failing, nil),
+				ctx,
+			)
 			label := path + "/" + name
 			assert.Nil(t, handled, "%s: the handler must not run", label)
 			assert.Equal(t, tc.want, connect.CodeOf(err), label)
 			var connectErr *connect.Error
 			require.ErrorAs(t, err, &connectErr, label)
-			assert.NotContains(t, connectErr.Message(), "db-7", "%s: resolver text leaked", label)
-			assert.ErrorIs(t, errctx.Captured(ctx), tc.err, "%s: the real cause must be captured", label)
+			assert.NotContains(
+				t,
+				connectErr.Message(),
+				"db-7",
+				"%s: resolver text leaked",
+				label,
+			)
+			assert.ErrorIs(
+				t,
+				errctx.Captured(ctx),
+				tc.err,
+				"%s: the real cause must be captured",
+				label,
+			)
 		}
 	}
 }
 
-// TestPrincipalInterceptor_RejectsNilPrincipal tests that a nil principal from the resolver
-// or the stub fails the request instead of being stored as present.
+// TestPrincipalInterceptor_RejectsNilPrincipal tests that a nil principal from the
+// resolver or the stub fails the request instead of being stored as present.
 //
 // Why this test is important:
-//   - With a pointer principal type, a resolver returning (nil, nil) for an unknown caller
-//     would pass a handler's `if !ok` check and dereference nil (a 500 via recovery)
-//     instead of answering Unauthenticated.
+//   - With a pointer principal type, a resolver returning (nil, nil) for an unknown
+//     caller would pass a handler's `if !ok` check and dereference nil (a 500 via
+//     recovery) instead of answering Unauthenticated.
 //
 // What it tests:
 //   - On both paths, a nil principal from the resolver (real claims) or from the stub
 //     (synthetic claims) fails with CodeUnauthenticated and never reaches the handler.
 func TestPrincipalInterceptor_RejectsNilPrincipal(t *testing.T) {
 	t.Parallel()
-	nilResolve := func(context.Context, *interceptors.AuthClaims) (*principal, error) { return nil, nil }
+	nilResolve := func(
+		context.Context,
+		*interceptors.AuthClaims,
+	) (*principal, error) {
+		var none *principal
+		return none, nil
+	}
 	nilStub := func(*interceptors.AuthClaims) *principal { return nil }
 	ic := interceptors.NewPrincipalInterceptor[*principal](nilResolve, nilStub)
 
@@ -276,31 +341,40 @@ func TestPrincipalInterceptor_RejectsNilPrincipal(t *testing.T) {
 			"resolver": {Sub: "unknown"},
 			"stub":     {Sub: "dev", Synthetic: true},
 		} {
-			handled, err := invoke(ic, interceptors.WithAuthClaims(context.Background(), claims))
-			assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err), path+"/"+name)
+			handled, err := invoke(
+				ic,
+				interceptors.WithAuthClaims(context.Background(), claims),
+			)
+			assert.Equal(
+				t,
+				connect.CodeUnauthenticated,
+				connect.CodeOf(err),
+				path+"/"+name,
+			)
 			assert.Nil(t, handled, "%s/%s: the handler must not run", path, name)
 		}
 	}
 }
 
-// TestTenantScopeInterceptor_StampsExtractedTenant tests that the tenant interceptor stamps
-// whatever tenant the consumer's extractor resolves, with the consumer's stampers, on unary
-// and streaming RPCs.
+// TestTenantScopeInterceptor_StampsExtractedTenant tests that the tenant interceptor
+// stamps whatever tenant the consumer's extractor resolves, with the consumer's stampers,
+// on unary and streaming RPCs.
 //
 // Why this test is important:
 //   - Where the tenant comes from and how it scopes persistence (which session variable,
-//     which ORM scope) are application choices; a tenant stamped wrongly leaks data across
-//     tenants.
+//     which ORM scope) are application choices; a tenant stamped wrongly leaks data
+//     across tenants.
 //   - The nil UUID is not a tenant: stamping it would scope every tenant-less caller to
 //     one shared tenant whose rows they could all read.
 //   - A server-streaming handler left unscoped would bypass Row-Level Security.
 //
 // What it tests:
-//   - On both paths, a resolved tenant is stamped by each stamper: the core tenant context
-//     and a named SQL session variable.
+//   - On both paths, a resolved tenant is stamped by each stamper: the core tenant
+//     context and a named SQL session variable.
 //   - An unresolved tenant and the nil UUID both leave the context unstamped (no tenant
 //     context, no session variable).
-//   - Mutating the caller's stamper slice after construction does not change the stampers.
+//   - Mutating the caller's stamper slice after construction does not change the
+//     stampers.
 func TestTenantScopeInterceptor_StampsExtractedTenant(t *testing.T) {
 	t.Parallel()
 	for name, invoke := range serverPaths {
@@ -309,7 +383,8 @@ func TestTenantScopeInterceptor_StampsExtractedTenant(t *testing.T) {
 			tenant, resolved := uuid.New(), true
 			extract := func(context.Context) (uuid.UUID, bool) { return tenant, resolved }
 			stampers := []interceptors.TenantStamper{
-				interceptors.StampTenantContext, interceptors.SessionVarStamper("app.tenant"),
+				interceptors.StampTenantContext,
+				interceptors.SessionVarStamper("app.tenant"),
 			}
 			ic := interceptors.NewTenantScopeInterceptor(extract, stampers...)
 			stampers[0] = func(ctx context.Context, _ uuid.UUID) context.Context { return ctx }
@@ -358,15 +433,20 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 	var order []string
 	var seen *interceptors.AuthClaims
 	probe := func(name string) connect.Interceptor {
-		return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-			return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-				order = append(order, name)
-				if seen == nil {
-					seen, _ = interceptors.GetAuthClaims(ctx)
+		return connect.UnaryInterceptorFunc(
+			func(next connect.UnaryFunc) connect.UnaryFunc {
+				return func(
+					ctx context.Context,
+					req connect.AnyRequest,
+				) (connect.AnyResponse, error) {
+					order = append(order, name)
+					if seen == nil {
+						seen, _ = interceptors.GetAuthClaims(ctx)
+					}
+					return next(ctx, req)
 				}
-				return next(ctx, req)
-			}
-		})
+			},
+		)
 	}
 	opts := interceptors.NewServerBuilder().
 		WithValidation().
@@ -376,7 +456,12 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 		Build()
 
 	status := serveProbe(opts, map[string]string{"X-Sub": "u1", "X-Tenant": "t1"})
-	assert.NotEqual(t, http.StatusOK, status, "validation must reject the non-proto probe message")
+	assert.NotEqual(
+		t,
+		http.StatusOK,
+		status,
+		"validation must reject the non-proto probe message",
+	)
 	assert.Equal(t, []string{"first", "second", "third"}, order,
 		"caller interceptors must run in the order given, before validation")
 	require.NotNil(t, seen, "the caller interceptors must run after auth")
@@ -393,7 +478,8 @@ type probeMsg struct{}
 // nothing, since the probe calls send no payload.
 type probeCodec struct{}
 
-// Name registers probeCodec under the proto codec's name (content type application/proto).
+// Name registers probeCodec under the proto codec's name (content type
+// application/proto).
 func (probeCodec) Name() string { return "proto" }
 
 // Marshal encodes any message as an empty payload.
@@ -407,10 +493,12 @@ func (probeCodec) Unmarshal([]byte, any) error { return nil }
 // status.
 func serveProbe(opts []connect.HandlerOption, headers map[string]string) int {
 	const procedure = "/test.v1.Probe/Do"
-	handler := connect.NewUnaryHandler(procedure,
+	handler := connect.NewUnaryHandler(
+		procedure,
 		func(context.Context, *connect.Request[probeMsg]) (*connect.Response[probeMsg], error) {
 			return connect.NewResponse(&probeMsg{}), nil
-		}, append(opts, connect.WithCodec(probeCodec{}))...)
+		},
+		append(opts, connect.WithCodec(probeCodec{}))...)
 	req := httptest.NewRequest(http.MethodPost, procedure, http.NoBody)
 	req.Header.Set("Content-Type", "application/proto")
 	for k, v := range headers {
@@ -421,14 +509,14 @@ func serveProbe(opts []connect.HandlerOption, headers map[string]string) int {
 	return rec.Code
 }
 
-// invokeUnary runs ic's unary path on a minimal request against a pass-through handler and
-// returns the context the handler observed (nil when it never ran) plus the error.
+// invokeUnary runs ic's unary path on a minimal request against a pass-through handler
+// and returns the context the handler observed (nil when it never ran) plus the error.
 func invokeUnary(ic connect.Interceptor, ctx context.Context) (context.Context, error) {
 	return invokeUnaryWith(ic, ctx, newTestRequest())
 }
 
-// invokeUnaryWith runs ic's unary path on req against a pass-through handler and returns the
-// context the handler observed (nil when it never ran) plus the error.
+// invokeUnaryWith runs ic's unary path on req against a pass-through handler and returns
+// the context the handler observed (nil when it never ran) plus the error.
 func invokeUnaryWith(
 	ic connect.Interceptor, ctx context.Context, req connect.AnyRequest,
 ) (context.Context, error) {
@@ -441,14 +529,22 @@ func invokeUnaryWith(
 	return captured, err
 }
 
-// invokeStreaming runs ic's streaming-handler path against a pass-through handler and returns
-// the context the handler observed (nil when it never ran) plus the error. The seam
-// interceptors never touch the conn, so none is passed.
-func invokeStreaming(ic connect.Interceptor, ctx context.Context) (context.Context, error) {
+// invokeStreaming runs ic's streaming-handler path against a pass-through handler and
+// returns the context the handler observed (nil when it never ran) plus the error. The
+// seam interceptors never touch the conn, so none is passed.
+func invokeStreaming(
+	ic connect.Interceptor,
+	ctx context.Context,
+) (context.Context, error) {
 	var captured context.Context
-	err := ic.WrapStreamingHandler(func(c context.Context, _ connect.StreamingHandlerConn) error {
-		captured = c
-		return nil
-	})(ctx, nil)
+	err := ic.WrapStreamingHandler(
+		func(c context.Context, _ connect.StreamingHandlerConn) error {
+			captured = c
+			return nil
+		},
+	)(
+		ctx,
+		nil,
+	)
 	return captured, err
 }

@@ -6,10 +6,11 @@ package unit_test
 import (
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/repos/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/repos/errors"
 )
 
 // TestErrorsBuilder_KindPostgres tests that the DB error mapper factory
@@ -32,15 +33,15 @@ func TestErrorsBuilder_KindPostgres(t *testing.T) {
 
 	// pgx.ErrNoRows maps to a non-nil error (CodeNotFound)
 	result := mapper(pgx.ErrNoRows)
-	assert.NotNil(t, result, "expected non-nil error for pgx.ErrNoRows")
+	assert.Error(t, result, "expected non-nil error for pgx.ErrNoRows")
 }
 
 // TestErrorsBuilder_NilError tests that the DB error mapper is a no-op for nil
 // errors.
 //
 // Why this test is important:
-//   - Repository methods pass all errors through the mapper, including nil on
-//     success; a mapper that wraps nil into an error would turn every success into a failure
+//   - Repository methods pass all errors through the mapper, including nil on success; a
+//     mapper that wraps nil into an error would turn every success into a failure
 //
 // What it tests:
 //   - mapper(nil) returns nil
@@ -49,7 +50,7 @@ func TestErrorsBuilder_NilError(t *testing.T) {
 
 	mapper, _ := errors.NewDBMapper(errors.KindPostgres)
 	result := mapper(nil)
-	assert.Nil(t, result, "mapper must return nil for nil input")
+	assert.NoError(t, result, "mapper must return nil for nil input")
 }
 
 // TestErrorsBuilder_UnknownKindReturnsError tests that the factory rejects

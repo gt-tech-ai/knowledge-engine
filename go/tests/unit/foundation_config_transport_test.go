@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/transport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/transport"
 )
 
 // TestTransportDefaults_Permissive tests that the transport config defaults are
@@ -54,7 +55,7 @@ func TestTransportValidate_RejectsEnabledZeroRate(t *testing.T) {
 	bad := transport.DefaultConfig()
 	bad.RateLimit.Enabled = true
 	bad.RateLimit.Rate = 0
-	assert.Error(t, bad.Validate(), "enabled limiter with rate 0 must be rejected")
+	require.Error(t, bad.Validate(), "enabled limiter with rate 0 must be rejected")
 
 	badWS := transport.DefaultConfig()
 	badWS.WS.IdleTimeout = -1
@@ -62,19 +63,20 @@ func TestTransportValidate_RejectsEnabledZeroRate(t *testing.T) {
 }
 
 // TestTransportWS_HeartbeatDefaults tests the WebSocket liveness knobs on the
-// transport.ws config surface: the ping cadence, the new pong deadline, and the read limit that
-// the WS server threads into SetReadLimit instead of a hardcoded constant.
+// transport.ws config surface: the ping cadence, the new pong deadline, and the read
+// limit that the WS server threads into SetReadLimit instead of a hardcoded constant.
 //
 // Why this test is important:
-//   - hardens the WS hub with heartbeat/idle/oversize behaviour; threads those
-//     timings through config (ARCHITECTURE.md#configuration) rather than re-declaring package constants. If
-//     PongTimeout defaulted to zero the heartbeat would wait forever for a pong (a dead peer is
-//     never reaped), and if MaxMessageBytes stayed at the old 1 MiB default the WS read limit would
-//     silently diverge from the intended 64 KiB oversize→1009 cap.
+//   - hardens the WS hub with heartbeat/idle/oversize behaviour; threads those timings
+//     through config (ARCHITECTURE.md#configuration) rather than re-declaring package
+//     constants. If PongTimeout defaulted to zero the heartbeat would wait forever for a
+//     pong (a dead peer is never reaped), and if MaxMessageBytes stayed at the old 1 MiB
+//     default the WS read limit would silently diverge from the intended 64 KiB
+//     oversize→1009 cap.
 //
 // What it tests:
-//   - DefaultConfig sets WS.PingInterval=30s, WS.PongTimeout=10s, and WS.MaxMessageBytes=64 KiB;
-//     Validate rejects a negative pong timeout.
+//   - DefaultConfig sets WS.PingInterval=30s, WS.PongTimeout=10s, and
+//     WS.MaxMessageBytes=64 KiB; Validate rejects a negative pong timeout.
 func TestTransportWS_HeartbeatDefaults(t *testing.T) {
 	t.Parallel()
 

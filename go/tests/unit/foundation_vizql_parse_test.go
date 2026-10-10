@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // vizCubeMap is the allow-list of the genai_calls test cube: three dimensions, a
@@ -60,13 +61,21 @@ func TestVizqlParse_AcceptsValidSpec(t *testing.T) {
 	assert.Equal(t, "genai_calls", spec.Cube)
 	assert.Equal(t, types.AlgebraCross, spec.Rows.Op)
 	assert.Equal(t, &types.FieldRef{Name: "team"}, spec.Rows.Args[0].Field)
-	assert.Equal(t, &types.FieldRef{Name: "tokens_in", Agg: types.AggSum}, spec.Columns.Field)
+	assert.Equal(
+		t,
+		&types.FieldRef{Name: "tokens_in", Agg: types.AggSum},
+		spec.Columns.Field,
+	)
 	assert.Equal(t, []types.FieldRef{{Name: "workspace"}}, spec.Detail)
 	assert.Equal(t, &types.FieldRef{Name: "model"}, spec.Encodings.Color)
 	assert.Equal(t, []types.OrderField{{Field: "sum(tokens_in)", Desc: true}}, spec.Sort)
 	assert.Equal(t, types.GrainDay, spec.Grain)
 	assert.Equal(t, types.MarkBar, spec.Mark)
-	assert.Equal(t, types.FilterClause{Field: "team", Operator: types.OpEq, Value: "t-1"}, spec.Filter)
+	assert.Equal(
+		t,
+		types.FilterClause{Field: "team", Operator: types.OpEq, Value: "t-1"},
+		spec.Filter,
+	)
 
 	again, err := json.Marshal(spec)
 	require.NoError(t, err)
@@ -77,7 +86,13 @@ func TestVizqlParse_AcceptsValidSpec(t *testing.T) {
 
 // nested wraps a leaf in depth cross operators.
 func nested(depth int) string {
-	return strings.Repeat(`{"op":"cross","args":[`, depth) + `{"field":"team"}` + strings.Repeat(`]}`, depth)
+	return strings.Repeat(
+		`{"op":"cross","args":[`,
+		depth,
+	) + `{"field":"team"}` + strings.Repeat(
+		`]}`,
+		depth,
+	)
 }
 
 // TestVizqlParse_RejectsWithCodedInvalidInput tests that every class of bad spec is
@@ -99,24 +114,29 @@ func TestVizqlParse_RejectsWithCodedInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"unknown field":          `{"cube":"genai_calls","rows":{"field":"cost"}}`,
-		"disallowed aggregate":   `{"cube":"genai_calls","rows":{"field":"tokens_in","agg":"p99"}}`,
+		"unknown field": `{"cube":"genai_calls","rows":{"field":"cost"}}`,
+		"disallowed aggregate": `{"cube":"genai_calls","rows":{"field":"tokens_in","agg":"` +
+			`p99"}}`,
 		"aggregate on dimension": `{"cube":"genai_calls","rows":{"field":"team","agg":"sum"}}`,
 		"measure without agg":    `{"cube":"genai_calls","rows":{"field":"tokens_in"}}`,
 		"over-deep nesting":      `{"cube":"genai_calls","rows":` + nested(9) + `}`,
 		"undeclared group-by":    `{"cube":"genai_calls","detail":[{"field":"region"}]}`,
 		"group-by on a measure":  `{"cube":"genai_calls","detail":[{"field":"tokens_in"}]}`,
-		"unknown operator":       `{"cube":"genai_calls","rows":{"op":"join","args":[{"field":"team"}]}}`,
-		"operator without args":  `{"cube":"genai_calls","rows":{"op":"cross","args":[]}}`,
-		"unknown grain":          `{"cube":"genai_calls","grain":"fortnight"}`,
-		"unknown mark":           `{"cube":"genai_calls","mark":"pie"}`,
-		"inverted time range":    `{"cube":"genai_calls","time_range":{"from":"2026-10-09T00:00:00Z","to":"2026-10-01T00:00:00Z"}}`,
-		"bad filter field":       `{"cube":"genai_calls","filter":{"$eq":{"secret":"x"}}}`,
-		"sort on unknown key":    `{"cube":"genai_calls","sort":[{"field":"avg(tokens_in)"}]}`,
-		"sort on raw measure":    `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"field":"tokens_in"}]}`,
-		"sort off the shelves":   `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"field":"model"}]}`,
-		"missing cube":           `{"rows":{"field":"team"}}`,
-		"malformed JSON":         `{"cube":`,
+		"unknown operator": `{"cube":"genai_calls","rows":{"op":"join","args":[{"field` +
+			`":"team"}]}}`,
+		"operator without args": `{"cube":"genai_calls","rows":{"op":"cross","args":[]}}`,
+		"unknown grain":         `{"cube":"genai_calls","grain":"fortnight"}`,
+		"unknown mark":          `{"cube":"genai_calls","mark":"pie"}`,
+		"inverted time range": `{"cube":"genai_calls","time_range":{"from":"2026-10-09T00` +
+			`:00:00Z","to":"2026-10-01T00:00:00Z"}}`,
+		"bad filter field":    `{"cube":"genai_calls","filter":{"$eq":{"secret":"x"}}}`,
+		"sort on unknown key": `{"cube":"genai_calls","sort":[{"field":"avg(tokens_in)"}]}`,
+		"sort on raw measure": `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"f` +
+			`ield":"tokens_in"}]}`,
+		"sort off the shelves": `{"cube":"genai_calls","rows":{"field":"team"},"sort":[{"f` +
+			`ield":"model"}]}`,
+		"missing cube":   `{"rows":{"field":"team"}}`,
+		"malformed JSON": `{"cube":`,
 	}
 	for name, body := range cases {
 		_, err := vizql.Parse([]byte(body), vizCubeMap())
@@ -124,8 +144,11 @@ func TestVizqlParse_RejectsWithCodedInvalidInput(t *testing.T) {
 		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), name)
 	}
 
-	_, err := vizql.Parse([]byte(`{"cube":"genai_calls","rows":`+nested(7)+`}`), vizCubeMap())
-	assert.NoError(t, err, "depth 8 is within the limit")
+	_, err := vizql.Parse(
+		[]byte(`{"cube":"genai_calls","rows":`+nested(7)+`}`),
+		vizCubeMap(),
+	)
+	require.NoError(t, err, "depth 8 is within the limit")
 
 	_, err = vizql.Parse([]byte(`{"cube":"genai_calls","rows":{"field":"team"}}`), nil)
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")

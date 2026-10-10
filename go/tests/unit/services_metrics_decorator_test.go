@@ -65,7 +65,7 @@ func TestServiceDecorator_WithMetrics_RecordsOperationsAndErrors(t *testing.T) {
 
 	ops, found := serviceCounter(t, regOK, "service_operations_total", "Get")
 	require.True(t, found, "service_operations_total{operation=Get} must be recorded")
-	require.Equal(t, 1.0, ops)
+	require.InDelta(t, 1.0, ops, 0)
 	_, errFound := serviceCounter(t, regOK, "service_errors_total", "Get")
 	require.False(t, errFound, "a successful op must not increment the error counter")
 
@@ -79,18 +79,19 @@ func TestServiceDecorator_WithMetrics_RecordsOperationsAndErrors(t *testing.T) {
 	require.Error(t, err)
 
 	ops, _ = serviceCounter(t, regErr, "service_operations_total", "Get")
-	require.Equal(t, 1.0, ops, "a failing op still counts as an operation")
+	require.InDelta(t, 1.0, ops, 0, "a failing op still counts as an operation")
 	errs, errFound := serviceCounter(t, regErr, "service_errors_total", "Get")
 	require.True(t, errFound, "a failing op must increment the error counter")
-	require.Equal(t, 1.0, errs)
+	require.InDelta(t, 1.0, errs, 0)
 }
 
-// TestServiceDecorator_WithMetrics_RecordsEveryOperation tests that the metrics decorator records
-// an operation count for each CRUD method, not just Get.
+// TestServiceDecorator_WithMetrics_RecordsEveryOperation tests that the metrics decorator
+// records an operation count for each CRUD method, not just Get.
 //
 // Why this test is important:
-//   - Observability parity means EVERY service operation is measurable, not only reads; a decorator
-//     that instrumented Get alone would leave writes and custom operations invisible in Prometheus.
+//   - Observability parity means EVERY service operation is measurable, not only reads; a
+//     decorator that instrumented Get alone would leave writes and custom operations
+//     invisible in Prometheus.
 //
 // What it tests:
 //   - Driving List, Create, Update, and Delete through a decorated
@@ -115,6 +116,6 @@ func TestServiceDecorator_WithMetrics_RecordsEveryOperation(t *testing.T) {
 	for _, op := range []string{"List", "Create", "Update", "Delete"} {
 		count, found := serviceCounter(t, reg, "service_operations_total", op)
 		require.True(t, found, "operation %s must be counted", op)
-		require.Equal(t, 1.0, count, "operation %s counted exactly once", op)
+		require.InDelta(t, 1.0, count, 0, "operation %s counted exactly once", op)
 	}
 }

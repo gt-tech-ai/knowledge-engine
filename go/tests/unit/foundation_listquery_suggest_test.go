@@ -11,7 +11,8 @@ import (
 // TestSuggestPageNumber tests the 1-based suggest cursor parser.
 //
 // Why this test is important:
-//   - The suggest cursor is a bare 1-based page number; a malformed or empty token must restart at page
+//   - The suggest cursor is a bare 1-based page number; a malformed or empty token must
+//     restart at page
 //
 // 1 (never a negative offset or a panic), matching the store convention. A parser that
 //
@@ -29,16 +30,18 @@ func TestSuggestPageNumber(t *testing.T) {
 	assert.Equal(t, 3, listquery.SuggestPageNumber("3"))
 }
 
-// TestSuggestPage tests the single-column suggest page builder (SQL already did DISTINCT+ORDER+LIMIT+1).
+// TestSuggestPage tests the single-column suggest page builder (SQL already did
+// DISTINCT+ORDER+LIMIT+1).
 //
 // Why this test is important:
-//   - The has-more probe (fetch limit+1) + the next-cursor mint is the paging contract shared by every
-//     suggest store; an off-by-one here would drop the last value of a page or loop forever on a stale
-//     cursor. Centralizing it keeps every resource's suggest paging identical.
+//   - The has-more probe (fetch limit+1) + the next-cursor mint is the paging contract
+//     shared by every suggest store; an off-by-one here would drop the last value of a
+//     page or loop forever on a stale cursor. Centralizing it keeps every resource's
+//     suggest paging identical.
 //
 // What it tests:
-//   - A probe row present (len == limit+1) → sliced to limit + next cursor = pageNum+1; no probe row →
-//     values unchanged + empty cursor.
+//   - A probe row present (len == limit+1) → sliced to limit + next cursor = pageNum+1;
+//     no probe row → values unchanged + empty cursor.
 func TestSuggestPage(t *testing.T) {
 	t.Parallel()
 
@@ -56,17 +59,20 @@ func TestSuggestPage(t *testing.T) {
 	assert.Equal(t, 3, last.PageNumber)
 }
 
-// TestMergeDistinct tests the multi-column global-dedup + paging for a suggest field that spans >1 column
-// (a member display_name over first_name + last_name, UNION ALL + global dedup).
+// TestMergeDistinct tests the multi-column global-dedup + paging for a suggest field that
+// spans >1 column (a member display_name over first_name + last_name, UNION ALL + global
+// dedup).
 //
 // Why this test is important:
-//   - The failure mode this guards is a value that matches in BOTH columns being duplicated across a page
-//     boundary, or a per-branch dedup silently dropping a value. Global dedup on the resolved value BEFORE
-//     the offset/limit is the only correct shape; this pins it.
+//   - The failure mode this guards is a value that matches in BOTH columns being
+//     duplicated across a page boundary, or a per-branch dedup silently dropping a value.
+//     Global dedup on the resolved value BEFORE the offset/limit is the only correct
+//     shape; this pins it.
 //
 // What it tests:
 //   - A value present in BOTH columns appears exactly once (no duplicate).
-//   - Disjoint columns merge into one ascending set, paged with no dup/skip across the boundary.
+//   - Disjoint columns merge into one ascending set, paged with no dup/skip across the
+//     boundary.
 func TestMergeDistinct(t *testing.T) {
 	t.Parallel()
 

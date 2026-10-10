@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ func TestID_String_Empty(t *testing.T) {
 	t.Parallel()
 
 	id := types.ID("")
-	assert.Equal(t, "", id.String())
+	assert.Empty(t, id.String())
 }
 
 // TestID_IsEmpty_True tests that IsEmpty correctly identifies empty IDs,
@@ -177,7 +178,7 @@ func TestOption_Get_None(t *testing.T) {
 	opt := types.None[string]()
 	val, ok := opt.Get()
 	assert.False(t, ok, "Get should return ok=false for None")
-	assert.Equal(t, "", val, "Get should return zero value for None")
+	assert.Empty(t, val, "Get should return zero value for None")
 }
 
 // TestOption_UnwrapOr_Valid tests that UnwrapOr returns the actual value when the

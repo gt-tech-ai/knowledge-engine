@@ -42,7 +42,9 @@ func outboxRecords(n, attempts int) []types.OutboxRecord {
 }
 
 // fixedClock returns a relay option pinning the clock to relayNow.
-func fixedClock() outbox.Option { return outbox.WithClock(func() time.Time { return relayNow }) }
+func fixedClock() outbox.Option {
+	return outbox.WithClock(func() time.Time { return relayNow })
+}
 
 // TestRelay_MarksSentOnSuccess tests that every delivered record is marked sent.
 //
@@ -71,7 +73,15 @@ func TestRelay_MarksSentOnSuccess(t *testing.T) {
 		store.EXPECT().MarkSent(gomock.Any(), r.ID).Return(nil).Times(1)
 	}
 
-	relay := outbox.NewRelay(relayConfig(2, 2, 5), store, sink, nil, nil, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(2, 2, 5),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 
 	require.NoError(t, relay.RunOnce(ctx))
 }
@@ -101,9 +111,20 @@ func TestRelay_PartialBatchFailureRetriesOnlyFailedRows(t *testing.T) {
 	sink.EXPECT().Send(gomock.Any(), recs).Return([]error{nil, sendErr, nil})
 	store.EXPECT().MarkSent(gomock.Any(), recs[0].ID).Return(nil)
 	store.EXPECT().MarkSent(gomock.Any(), recs[2].ID).Return(nil)
-	store.EXPECT().Retry(gomock.Any(), recs[1].ID, relayNow.Add(2*time.Second), sendErr.Error()).Return(nil)
+	store.EXPECT().
+		Retry(gomock.Any(), recs[1].ID, relayNow.Add(2*time.Second), sendErr.Error()).
+		Return(nil)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 5), store, sink, nil, nil, nil, fixedClock(), noJitter)
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 5),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+		noJitter,
+	)
 	require.NoError(t, relay.RunOnce(ctx))
 
 	short := outboxRecords(2, 1)
@@ -151,15 +172,42 @@ func TestRelay_BackoffIsExponentialWithJitterAndCapped(t *testing.T) {
 	})
 
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
-	sink.EXPECT().Send(gomock.Any(), recs).Return([]error{sendErr, sendErr, sendErr, sendErr})
-	wantNext := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second}
+	sink.EXPECT().
+		Send(gomock.Any(), recs).
+		Return([]error{sendErr, sendErr, sendErr, sendErr})
+	wantNext := []time.Duration{
+		time.Second,
+		2 * time.Second,
+		4 * time.Second,
+		5 * time.Second,
+	}
 	for i, r := range recs {
-		store.EXPECT().Retry(gomock.Any(), r.ID, relayNow.Add(wantNext[i]), "UNAVAILABLE: down").Return(nil)
+		store.EXPECT().
+			Retry(gomock.Any(), r.ID, relayNow.Add(wantNext[i]), "UNAVAILABLE: down").
+			Return(nil)
 	}
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 10), store, sink, nil, nil, nil, fixedClock(), half)
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 10),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+		half,
+	)
 	require.NoError(t, relay.RunOnce(ctx))
-	assert.Equal(t, []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 10 * time.Second}, caps)
+	assert.Equal(
+		t,
+		[]time.Duration{
+			2 * time.Second,
+			4 * time.Second,
+			8 * time.Second,
+			10 * time.Second,
+		},
+		caps,
+	)
 
 	one := outboxRecords(1, 3)
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(one, nil)
@@ -167,9 +215,19 @@ func TestRelay_BackoffIsExponentialWithJitterAndCapped(t *testing.T) {
 	inWindow := gomock.Cond(func(x time.Time) bool {
 		return !x.Before(relayNow) && !x.After(relayNow.Add(8*time.Second))
 	})
-	store.EXPECT().Retry(gomock.Any(), one[0].ID, inWindow, "UNAVAILABLE: down").Return(nil)
+	store.EXPECT().
+		Retry(gomock.Any(), one[0].ID, inWindow, "UNAVAILABLE: down").
+		Return(nil)
 
-	defaultJitter := outbox.NewRelay(relayConfig(10, 1, 10), store, sink, nil, nil, nil, fixedClock())
+	defaultJitter := outbox.NewRelay(
+		relayConfig(10, 1, 10),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 	require.NoError(t, defaultJitter.RunOnce(ctx))
 }
 
@@ -196,9 +254,20 @@ func TestRelay_ParksAfterMaxAttempts(t *testing.T) {
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
 	sink.EXPECT().Send(gomock.Any(), recs).Return([]error{reject, reject})
 	store.EXPECT().Park(gomock.Any(), exhausted.ID, reject.Error()).Return(nil).Times(1)
-	store.EXPECT().Retry(gomock.Any(), young.ID, gomock.Any(), reject.Error()).Return(nil).Times(1)
+	store.EXPECT().
+		Retry(gomock.Any(), young.ID, gomock.Any(), reject.Error()).
+		Return(nil).
+		Times(1)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 3), store, sink, nil, nil, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 3),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 
 	require.NoError(t, relay.RunOnce(context.Background()))
 }
@@ -222,7 +291,13 @@ func TestRelay_ReportsDepthAndLag(t *testing.T) {
 	store := mocks.NewMockOutboxStore(ctrl)
 	sink := mocks.NewMockOutboxSink(ctrl)
 	metrics := mocks.NewMockMetrics(ctrl)
-	sent, retried, parked := mocks.NewMockCounter(ctrl), mocks.NewMockCounter(ctrl), mocks.NewMockCounter(ctrl)
+	sent, retried, parked := mocks.NewMockCounter(
+		ctrl,
+	), mocks.NewMockCounter(
+		ctrl,
+	), mocks.NewMockCounter(
+		ctrl,
+	)
 	depth, lag := mocks.NewMockGauge(ctrl), mocks.NewMockGauge(ctrl)
 	ctx := context.Background()
 
@@ -244,11 +319,26 @@ func TestRelay_ReportsDepthAndLag(t *testing.T) {
 	retried.EXPECT().Inc("audit").Times(1)
 	parked.EXPECT().Inc("audit").Times(1)
 	store.EXPECT().Stats(gomock.Any(), "audit").
-		Return(types.OutboxStats{Pending: 7, Parked: 1, OldestPending: relayNow.Add(-90 * time.Second)}, nil)
+		Return(
+			types.OutboxStats{
+				Pending:       7,
+				Parked:        1,
+				OldestPending: relayNow.Add(-90 * time.Second),
+			},
+			nil,
+		)
 	depth.EXPECT().Set(float64(7), "audit")
 	lag.EXPECT().Set(float64(90), "audit")
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 2), store, sink, nil, metrics, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 2),
+		store,
+		sink,
+		nil,
+		metrics,
+		nil,
+		fixedClock(),
+	)
 	require.NoError(t, relay.RunOnce(ctx))
 
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(nil, nil)
@@ -277,7 +367,15 @@ func TestRelay_ClaimErrorIsNotRetried(t *testing.T) {
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).
 		Return(nil, apperr.New(apperr.CodeUnavailable, "db down")).Times(1)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 3), store, sink, nil, nil, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 3),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 	err := relay.RunOnce(context.Background())
 
 	require.Error(t, err)
@@ -303,10 +401,20 @@ func TestRelay_FinalizeErrorIsReturnedWithoutStoppingOtherRows(t *testing.T) {
 
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
 	sink.EXPECT().Send(gomock.Any(), recs).Return([]error{nil, nil})
-	store.EXPECT().MarkSent(gomock.Any(), recs[0].ID).Return(apperr.New(apperr.CodeInternal, "tx aborted"))
+	store.EXPECT().
+		MarkSent(gomock.Any(), recs[0].ID).
+		Return(apperr.New(apperr.CodeInternal, "tx aborted"))
 	store.EXPECT().MarkSent(gomock.Any(), recs[1].ID).Return(nil)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 3), store, sink, nil, nil, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 3),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 	err := relay.RunOnce(context.Background())
 
 	require.Error(t, err)
@@ -353,8 +461,14 @@ func TestRelayConfig_Validate(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	assert.Panics(t, func() {
-		outbox.NewRelay(outbox.RelayConfig{}, mocks.NewMockOutboxStore(ctrl), mocks.NewMockOutboxSink(ctrl),
-			nil, nil, nil)
+		outbox.NewRelay(
+			outbox.RelayConfig{},
+			mocks.NewMockOutboxStore(ctrl),
+			mocks.NewMockOutboxSink(ctrl),
+			nil,
+			nil,
+			nil,
+		)
 	})
 }
 
@@ -380,7 +494,10 @@ func TestRelay_SpansRunsAndLogsStatsFailure(t *testing.T) {
 	gauge := mocks.NewMockGauge(ctrl)
 	ctx := context.Background()
 
-	metrics.EXPECT().Counter(gomock.Any(), gomock.Any(), "lane").Return(mocks.NewMockCounter(ctrl)).Times(3)
+	metrics.EXPECT().
+		Counter(gomock.Any(), gomock.Any(), "lane").
+		Return(mocks.NewMockCounter(ctrl)).
+		Times(3)
 	metrics.EXPECT().Gauge(gomock.Any(), gomock.Any(), "lane").Return(gauge).Times(2)
 	claimErr := apperr.New(apperr.CodeUnavailable, "db down")
 	tracer.EXPECT().Start(gomock.Any(), "outbox.relay.run").Return(ctx, span).Times(2)
@@ -390,13 +507,23 @@ func TestRelay_SpansRunsAndLogsStatsFailure(t *testing.T) {
 	span.EXPECT().End().Times(2)
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(nil, claimErr)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 3), store, sink, logger, metrics, tracer, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 3),
+		store,
+		sink,
+		logger,
+		metrics,
+		tracer,
+		fixedClock(),
+	)
 	require.Error(t, relay.RunOnce(ctx))
 
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(nil, nil)
 	store.EXPECT().Stats(gomock.Any(), "audit").Return(types.OutboxStats{}, claimErr)
 	logger.EXPECT().WithContext(gomock.Any()).Return(logger)
-	logger.EXPECT().Warn("outbox relay: stats failed", "lane", "audit", "error", claimErr.Error()).Times(1)
+	logger.EXPECT().
+		Warn("outbox relay: stats failed", "lane", "audit", "error", claimErr.Error()).
+		Times(1)
 
 	require.NoError(t, relay.RunOnce(ctx))
 }
@@ -425,11 +552,22 @@ func TestRelay_CancelledRunLeavesFailedRowsLeased(t *testing.T) {
 	sink.EXPECT().Send(gomock.Any(), recs).DoAndReturn(
 		func(context.Context, []types.OutboxRecord) []error {
 			cancel()
-			return []error{nil, apperr.Wrap(context.Canceled, apperr.CodeCanceled, "send")}
+			return []error{
+				nil,
+				apperr.Wrap(context.Canceled, apperr.CodeCanceled, "send"),
+			}
 		})
 	store.EXPECT().MarkSent(gomock.Any(), recs[0].ID).Return(nil).Times(1)
 
-	relay := outbox.NewRelay(relayConfig(10, 1, 1), store, sink, nil, nil, nil, fixedClock())
+	relay := outbox.NewRelay(
+		relayConfig(10, 1, 1),
+		store,
+		sink,
+		nil,
+		nil,
+		nil,
+		fixedClock(),
+	)
 
 	require.NoError(t, relay.RunOnce(ctx))
 }
@@ -458,11 +596,18 @@ func TestRelay_ParkOnPermanentParksAtFirstPermanentFailure(t *testing.T) {
 		store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
 		sink.EXPECT().Send(gomock.Any(), recs).Return([]error{reject, outage})
 		store.EXPECT().Park(gomock.Any(), recs[0].ID, reject.Error()).Return(nil).Times(1)
-		store.EXPECT().Retry(gomock.Any(), recs[1].ID, gomock.Any(), outage.Error()).Return(nil).Times(1)
+		store.EXPECT().
+			Retry(gomock.Any(), recs[1].ID, gomock.Any(), outage.Error()).
+			Return(nil).
+			Times(1)
 		cfg := relayConfig(10, 1, 5)
 		cfg.ParkOnPermanent = true
 
-		require.NoError(t, outbox.NewRelay(cfg, store, sink, nil, nil, nil, fixedClock()).RunOnce(context.Background()))
+		require.NoError(
+			t,
+			outbox.NewRelay(cfg, store, sink, nil, nil, nil, fixedClock()).
+				RunOnce(context.Background()),
+		)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
@@ -473,10 +618,16 @@ func TestRelay_ParkOnPermanentParksAtFirstPermanentFailure(t *testing.T) {
 		recs := outboxRecords(1, 1)
 		store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(recs, nil)
 		sink.EXPECT().Send(gomock.Any(), recs).Return([]error{reject})
-		store.EXPECT().Retry(gomock.Any(), recs[0].ID, gomock.Any(), reject.Error()).Return(nil).Times(1)
+		store.EXPECT().
+			Retry(gomock.Any(), recs[0].ID, gomock.Any(), reject.Error()).
+			Return(nil).
+			Times(1)
 
-		require.NoError(t, outbox.NewRelay(relayConfig(10, 1, 5), store, sink, nil, nil, nil, fixedClock()).
-			RunOnce(context.Background()))
+		require.NoError(
+			t,
+			outbox.NewRelay(relayConfig(10, 1, 5), store, sink, nil, nil, nil, fixedClock()).
+				RunOnce(context.Background()),
+		)
 	})
 }
 
@@ -543,7 +694,9 @@ func TestLoadRelayConfig_OverlaysDefaultsAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("outbox.audit").Return(map[string]any{"concurrency": "many"})
-		loader.EXPECT().UnmarshalKey("outbox.audit", gomock.Any()).Return(apperr.Sentinel("bad int"))
+		loader.EXPECT().
+			UnmarshalKey("outbox.audit", gomock.Any()).
+			Return(apperr.Sentinel("bad int"))
 
 		_, err := outbox.LoadRelayConfig(loader, "outbox.audit", "audit")
 

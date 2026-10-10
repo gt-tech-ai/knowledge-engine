@@ -96,7 +96,8 @@ func TestMetricsBuilder_UnknownKindReturnsError(t *testing.T) {
 //     it must work with fully specified config structs from YAML/env
 //
 // What it tests:
-//   - NewFromConfig with Enabled=true and KindPrometheus returns a non-nil Metrics without error
+//   - NewFromConfig with Enabled=true and KindPrometheus returns a non-nil Metrics
+//     without error
 func TestMetricsBuilder_NewFromConfig(t *testing.T) {
 	t.Parallel()
 

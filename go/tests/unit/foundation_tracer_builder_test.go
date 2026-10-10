@@ -5,13 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestTracerBuilder_UnknownKindReturnsError tests that the tracer factory
@@ -224,6 +224,6 @@ func TestTracerBuilder_ConfigToOptions(t *testing.T) {
 	assert.Equal(t, original.ServiceName, rebuilt.ServiceName)
 	assert.Equal(t, original.Endpoint, rebuilt.Endpoint)
 	assert.Equal(t, original.Kind, rebuilt.Kind)
-	assert.Equal(t, original.SampleRate, rebuilt.SampleRate)
+	assert.InDelta(t, original.SampleRate, rebuilt.SampleRate, 0)
 	assert.Equal(t, original.Insecure, rebuilt.Insecure)
 }

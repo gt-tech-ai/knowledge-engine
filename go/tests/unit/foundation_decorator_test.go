@@ -15,9 +15,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// foundFullStack composes all five generic decorators around base in the canonical
-// order (ARCHITECTURE.md#decorator-order; base → timeout → metrics → tracing → logging → recovery), the order
-// the pipeline/workflow builders apply. onPanic is the tier's recovery contract.
+// foundFullStack composes all five generic decorators around base in the canonical order
+// (ARCHITECTURE.md#decorator-order; base → timeout → metrics → tracing → logging →
+// recovery), the order the pipeline/workflow builders apply. onPanic is the tier's
+// recovery contract.
 func foundFullStack(
 	base decorator.Executor[string, string],
 	onPanic func(string, any) error,
@@ -55,7 +56,7 @@ func TestDecoratorUnwrapSeam(t *testing.T) {
 	top := foundFullStack(base, func(string, any) error { return nil })
 
 	hops := 0
-	cur := decorator.Executor[string, string](top)
+	cur := top
 	for {
 		u, ok := cur.(decorator.Unwrapper[string, string])
 		if !ok {
@@ -201,17 +202,29 @@ func TestDecoratorCircuitBreakerCodesOnlyRejections(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	inner := mocks.NewMockPipeline[string, string](ctrl)
-	onOpen := func(err error) error { return coreerr.Wrap(err, coreerr.CodeUnavailable, "shed") }
+	onOpen := func(err error) error {
+		return coreerr.Wrap(err, coreerr.CodeUnavailable, "shed")
+	}
 
 	open := mocks.NewMockCircuitBreaker(ctrl)
 	open.EXPECT().Execute(gomock.Any()).Return(coreerr.Sentinel("open"))
-	_, err := decorator.CircuitBreaker[string, string](inner, open, onOpen).Execute(context.Background(), "in")
+	_, err := decorator.CircuitBreaker[string, string](
+		inner,
+		open,
+		onOpen,
+	).Execute(context.Background(), "in")
 	require.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
 
 	closed := mocks.NewMockCircuitBreaker(ctrl)
-	closed.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error { return fn() })
+	closed.EXPECT().
+		Execute(gomock.Any()).
+		DoAndReturn(func(fn func() error) error { return fn() })
 	inner.EXPECT().Execute(gomock.Any(), "in").Return("in-out", nil)
-	out, err := decorator.CircuitBreaker[string, string](inner, closed, onOpen).Execute(context.Background(), "in")
+	out, err := decorator.CircuitBreaker[string, string](
+		inner,
+		closed,
+		onOpen,
+	).Execute(context.Background(), "in")
 	require.NoError(t, err)
 	require.Equal(t, "in-out", out)
 }

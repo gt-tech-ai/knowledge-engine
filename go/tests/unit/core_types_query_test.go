@@ -3,8 +3,9 @@ package unit_test
 import (
 	"testing"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
 // TestFilterClause_IsEmpty tests the emptiness predicate on a basic filter clause.

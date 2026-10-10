@@ -14,20 +14,21 @@ import (
 // probability climbs while a backend fails and falls once it recovers.
 //
 // Why this test is important:
-//   - Client-side throttling only protects a backend if the shed fraction tracks the backend's
-//     health: rising while it rejects, easing as it recovers. A static probability would either
-//     never protect or never let traffic back.
+//   - Client-side throttling only protects a backend if the shed fraction tracks the
+//     backend's health: rising while it rejects, easing as it recovers. A static
+//     probability would either never protect or never let traffic back.
 //
 // What it tests:
-//   - With shedding disabled (rand always allows), a healthy run keeps the probability at zero,
-//     a failing run drives it positive, and a recovery run brings it back down.
+//   - With shedding disabled (rand always allows), a healthy run keeps the probability at
+//     zero, a failing run drives it positive, and a recovery run brings it back down.
 func TestThrottler_RejectionRisesOnFailureAndEasesOnRecovery(t *testing.T) {
 	t.Parallel()
 
 	th := adaptivethrottle.New(adaptivethrottle.Config{
 		K:     2.0,
-		Decay: 1.0,                           // cumulative window → deterministic
-		Rand:  func() float64 { return 1.0 }, // never shed, so op always runs (isolates the ratio)
+		Decay: 1.0, // cumulative window → deterministic
+		// never shed, so op always runs (isolates the ratio)
+		Rand: func() float64 { return 1.0 },
 	})
 	ctx := context.Background()
 
@@ -57,16 +58,16 @@ func TestThrottler_RejectionRisesOnFailureAndEasesOnRecovery(t *testing.T) {
 	)
 }
 
-// TestThrottler_ShedsLocallyWithoutCallingOp tests that once the probability is positive the
-// throttler rejects a request locally without invoking op.
+// TestThrottler_ShedsLocallyWithoutCallingOp tests that once the probability is positive
+// the throttler rejects a request locally without invoking op.
 //
 // Why this test is important:
-//   - The protection is worthless unless a shed request actually skips the backend call; if op
-//     still ran, the throttler would add latency without shedding load.
+//   - The protection is worthless unless a shed request actually skips the backend call;
+//     if op still ran, the throttler would add latency without shedding load.
 //
 // What it tests:
-//   - After one failure builds a positive probability, a request whose draw falls under the
-//     probability returns ErrThrottled and never calls op.
+//   - After one failure builds a positive probability, a request whose draw falls under
+//     the probability returns ErrThrottled and never calls op.
 func TestThrottler_ShedsLocallyWithoutCallingOp(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +78,8 @@ func TestThrottler_ShedsLocallyWithoutCallingOp(t *testing.T) {
 	})
 	ctx := context.Background()
 
-	// First call: probability is 0 at cold start, so it is allowed and its failure builds p > 0.
+	// First call: probability is 0 at cold start, so it is allowed and its failure builds
+	// p > 0.
 	require.Error(t, th.Do(ctx, func() error { return errors.New("backend down") }))
 
 	called := false
@@ -89,16 +91,16 @@ func TestThrottler_ShedsLocallyWithoutCallingOp(t *testing.T) {
 	require.False(t, called, "a shed request must not call op")
 }
 
-// TestThrottler_DefaultsCoerceInvalidConfig tests that New coerces out-of-range K/Decay (and a nil
-// Rand) to safe defaults, so a zero/invalid Config yields a working throttler.
+// TestThrottler_DefaultsCoerceInvalidConfig tests that New coerces out-of-range K/Decay
+// (and a nil Rand) to safe defaults, so a zero/invalid Config yields a working throttler.
 //
 // Why this test is important:
-//   - A mis-set config (K=0, no RNG) must not divide-by-zero or panic; coercing to SRE defaults
-//     keeps the throttler safe rather than silently disabled or crashing.
+//   - A mis-set config (K=0, no RNG) must not divide-by-zero or panic; coercing to SRE
+//     defaults keeps the throttler safe rather than silently disabled or crashing.
 //
 // What it tests:
-//   - New with a zero Config (and no Rand) built from DefaultConfig's intent leaves a healthy
-//     backend un-throttled (probability zero) after a successful call.
+//   - New with a zero Config (and no Rand) built from DefaultConfig's intent leaves a
+//     healthy backend un-throttled (probability zero) after a successful call.
 func TestThrottler_DefaultsCoerceInvalidConfig(t *testing.T) {
 	t.Parallel()
 

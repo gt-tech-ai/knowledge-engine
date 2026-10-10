@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	connectpkg "github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	connectpkg "github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect"
+	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
 
 // TestConnectServer_DefaultServerConfig tests that DefaultServerConfig returns
@@ -138,7 +139,7 @@ func TestConnectServer_HealthzHandler(t *testing.T) {
 	srv := connectpkg.NewServer(cfg, logger)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	srv.Mux().ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -164,7 +165,7 @@ func TestConnectServer_ReadyzHandler(t *testing.T) {
 	srv := connectpkg.NewServer(cfg, logger)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	srv.Mux().ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -179,10 +180,12 @@ func TestConnectServer_ReadyzHandler(t *testing.T) {
 //   - Start + Shutdown is the core lifecycle that every Connect service depends on
 //   - The graceful shutdown path (lines 145-148) creates a timeout context and calls
 //     httpServer.Shutdown, which must complete without error
-//   - A broken shutdown would leak goroutines, leave ports bound, or drop in-flight requests
+//   - A broken shutdown would leak goroutines, leave ports bound, or drop in-flight
+//     requests
 //
 // What it tests:
-//   - Start on port 0 binds and returns once listening (non-blocking); Shutdown drains cleanly
+//   - Start on port 0 binds and returns once listening (non-blocking); Shutdown drains
+//     cleanly
 func TestConnectServer_StartAndShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -221,8 +224,8 @@ func TestConnectServer_LifecycleContract(t *testing.T) {
 	srv := connectpkg.NewServer(connectpkg.DefaultServerConfig(0), fixtures.NopLogger())
 	ctx := context.Background()
 
-	assert.NoError(t, srv.Liveness(ctx), "the process is up")
-	assert.Error(t, srv.Readiness(ctx), "not ready until Start binds the listener")
+	require.NoError(t, srv.Liveness(ctx), "the process is up")
+	require.Error(t, srv.Readiness(ctx), "not ready until Start binds the listener")
 	assert.NoError(t, srv.Stop(ctx), "Stop before Start is a no-op")
 
 	require.NoError(t, srv.Start(ctx), "Start binds and returns once listening")
@@ -248,7 +251,7 @@ func TestConnectServer_StartBindError(t *testing.T) {
 		connectpkg.DefaultServerConfig(999999),
 		fixtures.NopLogger(),
 	)
-	assert.Error(t, srv.Start(context.Background()), "an invalid port must fail Start")
+	require.Error(t, srv.Start(context.Background()), "an invalid port must fail Start")
 
 	// Regression: after a failed bind the server must NOT report ready — the httpServer
 	// is published only once net.Listen succeeds, so a K8s readiness probe cannot route
