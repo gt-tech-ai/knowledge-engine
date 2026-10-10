@@ -140,7 +140,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: markdownlint-cli2 (every *.md, .markdownlint-cli2.jsonc)
-        uses: DavidAnson/markdownlint-cli2-action@v24
+      # The org allows only GitHub-owned and verified actions, so the CLI runs through npx
+      # rather than the third-party markdownlint-cli2 action.
+      - uses: actions/setup-node@v4
         with:
-          globs: "**/*.md"
+          node-version: 22
+      - name: markdownlint-cli2 (every *.md, .markdownlint-cli2.jsonc)
+        run: npx --yes markdownlint-cli2@0.23.2 "**/*.md"
