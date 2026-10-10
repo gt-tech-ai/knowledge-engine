@@ -562,6 +562,49 @@ func TestSQSSink_FIFOQueueCarriesGroupAndDedupIDs(t *testing.T) {
 	assert.Nil(t, plain[0].MessageDeduplicationId)
 }
 
+// TestSQSSink_OmitsEmptyStringAttributes tests that no empty attribute is sent.
+//
+// Why this test is important:
+//   - SQS rejects a message attribute with an empty value, so a record from a
+//     store without tenants would fail on every attempt and park
+//
+// What it tests:
+//   - a record with no Tenant carries only the outbox_id and lane attributes
+func TestSQSSink_OmitsEmptyStringAttributes(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	api := mocks.NewMockOutboxSQSAPI(ctrl)
+	recs := sinkRecords(1)
+	recs[0].Tenant = ""
+	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
+		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("u")}, nil)
+	var sent *awssqs.SendMessageBatchInput
+	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
+			sent = in
+			return &awssqs.SendMessageBatchOutput{
+				Successful: []sqstypes.SendMessageBatchResultEntry{{Id: aws.String("0")}},
+			}, nil
+		})
+
+	sink, err := outboxsqs.New(outboxsqs.Config{API: api, Queue: "q"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []error{nil}, sink.Send(context.Background(), recs))
+	require.NotNil(t, sent)
+	assert.Equal(t, map[string]sqstypes.MessageAttributeValue{
+		"outbox_id": {
+			DataType:    aws.String("String"),
+			StringValue: aws.String(recs[0].ID.String()),
+		},
+		"lane": {DataType: aws.String("String"), StringValue: aws.String("audit")},
+	}, sent.Entries[0].MessageAttributes)
+}
+
 // TestS3Sink_KeyTemplateSubstitutesRecordKey tests the {key} key-template placeholder.
 //
 // Why this test is important:
