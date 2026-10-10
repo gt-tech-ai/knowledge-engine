@@ -13,7 +13,7 @@ layers, swappable components, decorators, error codes — are in
 
 ## Layout
 
-```
+```text
 go.mod                  ONE Go module: github.com/gt-tech-ai/knowledge-engine (packages under go/)
 go/
   core/                 Layer 0 — pure interfaces + types (no external deps)

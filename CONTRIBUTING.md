@@ -22,17 +22,75 @@ Thanks for your interest in the Tech AI Knowledge Engine.
 - **No product code.** Product logic stays with its consumer; a consumer plugs its policy into
   a seam here (see [ARCHITECTURE.md](ARCHITECTURE.md#what-belongs-here)).
 
+## Setup
+
+Install [lefthook](https://github.com/evilmartians/lefthook), `gitleaks` and `markdownlint-cli2`,
+then activate the Git hooks once per clone:
+
+```sh
+lefthook install
+```
+
+The hooks (`lefthook.yml`) check the commit message is a conventional commit
+(`<type>(<scope>)?!?: <description>`, type one of `feat fix refactor docs test chore perf ci`)
+and, before each commit, scan the staged diff for secrets (`gitleaks`) and lint the staged
+Markdown (`markdownlint-cli2`).
+
 ## Workflow
 
 1. Fork and branch (`<type>/<short-description>`).
 2. Make the change with a failing test first where behaviour changes.
 3. Format Go code with `golangci-lint fmt ./go/...` (gofumpt, gci import sections,
-   golines at 90 columns). Regenerate mocks, then run the gates:
-   `go generate ./go/tests/mocks/... && go vet ./go/... && golangci-lint run ./go/... && go test ./go/...`
-   (Go) and
-   `cd python/techai_webutils && uv run ruff check . && uv run basedpyright src && uv run pytest`
-   (Python).
+   golines at 90 columns) and Python code with `uv run ruff format .`, then run the local
+   checks below.
 4. Open a PR with a conventional-commit title (`feat:`, `fix:`, `refactor:`, …).
+
+## Local checks
+
+CI runs the same commands; run them from the repository root unless noted.
+
+Go:
+
+```sh
+go generate ./go/tests/mocks/...
+go vet ./go/...
+golangci-lint run ./go/...
+golangci-lint fmt --diff ./go/...
+go test -race ./go/...
+INTEGRATION=1 go test -tags=integration ./go/...   # needs Docker
+```
+
+Python (from `python/techai_webutils`):
+
+```sh
+uv run ruff check .
+uv run ruff format --check .
+uv run basedpyright
+uv run pytest -m "not integration"   # 90% coverage gate
+uv run pytest -m integration --cov-fail-under=0   # needs Docker
+```
+
+Security scanners:
+
+```sh
+govulncheck ./go/...
+uv tool run bandit==1.9.4 -c bandit.yaml -r python/techai_webutils/src
+gitleaks git --redact --no-banner
+osv-scanner scan source -r .
+trufflehog filesystem . --results=verified --fail --no-update
+# trivy scans the tracked tree only, so untracked local files are never reported
+export_dir="$(mktemp -d)" && git archive HEAD | tar -xf - -C "$export_dir"
+trivy fs --scanners vuln,secret --exit-code 1 --ignorefile .trivyignore.fs "$export_dir"
+opengrep scan --error --config .semgrep/rules .
+```
+
+Docs:
+
+```sh
+markdownlint-cli2 "**/*.md"
+```
+
+The tool versions CI pins are in `.github/workflows/ci.yml`.
 
 ## Releases
 

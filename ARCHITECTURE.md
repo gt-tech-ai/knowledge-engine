@@ -136,7 +136,7 @@ still log at Error.
 Outermost → innermost:
 
 | Stack | Where | Order |
-|---|---|---|
+| --- | --- | --- |
 | Client boundary | `go/clients/decorators` | Bulkhead → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging |
 | Job | `go/clients/jobs/decorators` | LeaderElection → RateLimit → Retry → Timeout → Tracing → Metrics → Logging |
 | EventHandler | `go/clients/messaging/decorators` | Dedup → DeadLetter → Retry → CircuitBreaker → Timeout → Tracing → Metrics → Logging |

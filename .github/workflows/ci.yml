@@ -134,3 +134,13 @@ jobs:
       - name: Python integration
         working-directory: python/techai_webutils
         run: uv run pytest -m integration --cov-fail-under=0
+
+  docs:
+    name: Docs — markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: markdownlint-cli2 (every *.md, .markdownlint-cli2.jsonc)
+        uses: DavidAnson/markdownlint-cli2-action@v24
+        with:
+          globs: "**/*.md"
