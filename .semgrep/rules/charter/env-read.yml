@@ -1,8 +1,7 @@
 # Env binding. Production code outside the config tier must not read the
 # environment directly: config is bound once (in the config tier) and injected
-# down. Adapted from vertiva_ekp's rule of the same name; the paths follow
-# knowledge-engine's layout (the config tier is go/foundation/config and the
-# Python foundation/config package).
+# down. The config tier is go/foundation/config and the Python foundation/config
+# package.
 #
 # It is split into one rule per language because a single Opengrep rule may only
 # list `languages` whose patterns are all valid in every listed language.

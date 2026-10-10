@@ -100,6 +100,22 @@ class TestRunIsolated:
         with pytest.raises(IsolationError, match="kaboom"):
             run_isolated(_boom, timeout_seconds=30)
 
+    def test_worker_error_carries_child_traceback(self) -> None:
+        """Test that a task exception reaches the parent with the child's repr and traceback.
+
+        **Why this test is important:**
+          - The child's stack is otherwise invisible to the parent; without the traceback an
+            isolated parse failure cannot be diagnosed from the consumer's logs.
+
+        **What it tests:**
+          - The IsolationError message holds the exception repr and the child's traceback.
+        """
+        with pytest.raises(IsolationError) as exc_info:
+            run_isolated(_boom, timeout_seconds=30)
+        message = str(exc_info.value)
+        assert "ValueError('kaboom')" in message
+        assert "Traceback (most recent call last)" in message
+
     def test_large_result_round_trips(self) -> None:
         """Test that a result larger than the IPC pipe buffer returns intact, not as a false timeout.
 
@@ -154,6 +170,18 @@ class TestWorkerMemoryCap:
         limits = run_isolated(_address_space_limit, timeout_seconds=30, memory_bytes=cap)
         assert limits in {(cap, cap), inherited}
 
+    def test_zero_memory_bytes_leaves_the_limit_alone(self) -> None:
+        """Test that memory_bytes=0 runs the task under the inherited RLIMIT_AS.
+
+        **Why this test is important:**
+          - Zero means "no cap"; applying a zero-byte limit would make every task fail to allocate.
+
+        **What it tests:**
+          - A task reading its own RLIMIT_AS under memory_bytes=0 sees the parent's limit.
+        """
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        assert run_isolated(_address_space_limit, timeout_seconds=30) == inherited
+
 
 class TestIsolatedParser:
     """Tests for the isolated parser."""
@@ -174,6 +202,24 @@ class TestIsolatedParser:
         assert result.ok
         assert result.document_format is DocumentFormat.PDF
         assert "Isolated" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parses_html_in_subprocess(self) -> None:
+        """Test that IsolatedParser parses HTML bytes to Markdown in a subprocess.
+
+        **Why this test is important:**
+          - HTML takes the MarkItDown conversion path, not the PDF page path, so it needs its own
+            end-to-end proof through the isolated worker.
+
+        **What it tests:**
+          - An HTML heading parses ok, as HTML, to a Markdown heading.
+        """
+        result = await IsolatedParser(timeout_seconds=60).parse(
+            b"<html><h1>Hi</h1></html>", filename="p.html"
+        )
+        assert result.ok
+        assert result.document_format is DocumentFormat.HTML
+        assert "# Hi" in result.markdown_content
 
     @pytest.mark.asyncio
     async def test_parse_timeout_becomes_failed_document(
@@ -251,3 +297,45 @@ class TestIsolatedParser:
         assert result.ok
         assert result.document_format is DocumentFormat.PDF
         assert "Isolated" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parse_path_parses_html_in_subprocess(self, tmp_path: Path) -> None:
+        """Test that IsolatedParser.parse_path parses an HTML file from disk in a subprocess.
+
+        **Why this test is important:**
+          - The path lane streams non-PDF formats through MarkItDown from the open file; this
+            proves that branch works through the isolated worker.
+
+        **What it tests:**
+          - An HTML file on disk parses ok, as HTML, to a Markdown heading.
+        """
+        page = tmp_path / "p.html"
+        page.write_bytes(b"<html><h1>Hi</h1></html>")
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(page), filename="p.html"
+        )
+        assert result.ok
+        assert result.document_format is DocumentFormat.HTML
+        assert "# Hi" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parse_path_worker_error_becomes_failed_document(
+        self, tmp_path: Path
+    ) -> None:
+        """Test that a real error raised in the worker becomes a failed ParsedDocument.
+
+        **Why this test is important:**
+          - A task that raises in the child must reach the parent as an error result and fail
+            that one document, not crash the consumer or report an empty success.
+
+        **What it tests:**
+          - parse_path on a missing file fails with parse_isolation_failed carrying the
+            child's FileNotFoundError.
+        """
+        missing = tmp_path / "missing.html"
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(missing), filename="missing.html"
+        )
+        assert not result.ok
+        assert "parse_isolation_failed" in result.error
+        assert "FileNotFoundError" in result.error

@@ -29,6 +29,18 @@ if TYPE_CHECKING:
     from techai_webutils.clients.storage.config import S3Config
 
 
+def _required(value: str | None, field: str) -> str:
+    """Return a response field S3 always sets but the SDK types mark optional.
+
+    A missing or empty value means a malformed response, so it raises a coded
+    ``AppRuntimeError`` naming the field instead of passing an empty string on.
+    """
+    if not value:
+        msg = f"S3 response is missing {field}"
+        raise AppRuntimeError(msg)
+    return value
+
+
 class S3StorageClient(StorageClient):
     """Object storage operations backed by S3 via aiobotocore.
 
@@ -133,7 +145,7 @@ class S3StorageClient(StorageClient):
                     CopySourceRange=f"bytes={start}-{end}",
                 )
                 parts.append({
-                    "ETag": part["CopyPartResult"].get("ETag", ""),
+                    "ETag": _required(part["CopyPartResult"].get("ETag"), "ETag"),
                     "PartNumber": part_number,
                 })
             await self._client.complete_multipart_upload(
@@ -179,7 +191,7 @@ class S3StorageClient(StorageClient):
         resp = await self._client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         objects: list[StorageObject] = [
             StorageObject(
-                key=item.get("Key", ""),
+                key=_required(item.get("Key"), "Key"),
                 size=item.get("Size", 0),
                 content_type="",
                 last_modified=str(item.get("LastModified", "")),

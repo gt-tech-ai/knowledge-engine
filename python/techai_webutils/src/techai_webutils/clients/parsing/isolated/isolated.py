@@ -104,9 +104,8 @@ def _worker[T](
         _apply_memory_limit(memory_bytes)
     try:
         result_queue.put(("ok", fn(*args)))
-    except (
-        Exception
-    ) as exc:  # return the failure to the parent instead of crashing silently
+    # Return the failure to the parent instead of crashing silently.
+    except Exception as exc:
         # Carry the full traceback (not just repr) so an IsolationError in the parent is
         # diagnosable — the child's stack is otherwise invisible (mirrors fan_out's detail).
         result_queue.put(("err", f"{exc!r}\n{traceback.format_exc()}"))

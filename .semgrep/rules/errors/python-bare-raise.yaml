@@ -5,7 +5,8 @@
 # are the one exemption: pydantic contractually requires a ValueError/AssertionError
 # to signal a validation failure, so a raise inside a
 # @field_validator/@model_validator/@validator function is allowed (a semantic
-# exemption, not a path one). Adapted from vertiva_ekp's rule of the same name.
+# exemption, not a path one). Code that callers catch as a builtin raises the dual-base
+# AppValueError / AppTypeError / AppRuntimeError / AppFileNotFoundError.
 rules:
   - id: python-bare-raise
     languages: [python]

@@ -93,9 +93,18 @@ class SQSSubscriber(MessageConsumer):
         """Deliver one message to the handler and delete it on success (log + leave for redrive on error).
 
         SQS always returns ``MessageId``, ``Body`` and ``ReceiptHandle`` on a received message; the
-        SDK types mark them optional, so they are read with ``.get``.
+        SDK types mark them optional, so they are read with ``.get``. A message with no
+        ``ReceiptHandle`` cannot be deleted, so it is logged and skipped rather than handled:
+        handling it would only repeat the work on every redelivery.
         """
         if self._client is None:
+            return
+        receipt_handle = raw.get("ReceiptHandle")
+        if not receipt_handle:
+            logger.error(
+                "Skipping SQS message %s: it has no ReceiptHandle and cannot be acknowledged",
+                raw.get("MessageId", ""),
+            )
             return
         msg_obj = Message(
             id=raw.get("MessageId", ""),
@@ -107,7 +116,7 @@ class SQSSubscriber(MessageConsumer):
             await handler(msg_obj)
             await self._client.delete_message(
                 QueueUrl=self._config.queue_url,
-                ReceiptHandle=raw.get("ReceiptHandle", ""),
+                ReceiptHandle=receipt_handle,
             )
         except Exception:
             logger.exception("Failed to process message %s", msg_obj.id)

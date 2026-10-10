@@ -32,7 +32,7 @@ lefthook install
 ```
 
 The hooks (`lefthook.yml`) check the commit message is a conventional commit
-(`<type>(<scope>)?!?: <description>`, type one of `feat fix refactor docs test chore perf ci`)
+(`<type>(<scope>)?!?: <description>`, type one of `feat fix refactor docs test chore perf ci style`)
 and, before each commit, scan the staged diff for secrets (`gitleaks`) and lint the staged
 Markdown (`markdownlint-cli2`).
 

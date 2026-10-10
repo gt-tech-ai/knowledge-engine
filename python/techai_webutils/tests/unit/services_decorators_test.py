@@ -9,7 +9,6 @@ no shared fakes package.
 from __future__ import annotations
 
 import asyncio
-from typing import Never
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -183,13 +182,7 @@ class TestServiceBuilder:
         repo = _repo_mock()
         base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
-        # Inject an unexpected exception by overriding get
-        async def failing_get(_id: str) -> str:
-            await asyncio.sleep(0)
-            msg = "boom"
-            raise RuntimeError(msg)
-
-        base.get = failing_get  # type: ignore[assignment]
+        repo.get.side_effect = RuntimeError("boom")
         svc = ServiceBuilder(base, "users").build()
 
         with pytest.raises(InternalError) as exc_info:
@@ -786,12 +779,7 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
-        async def failing_list(_params, _page) -> Never:  # type: ignore[no-untyped-def]
-            await asyncio.sleep(0)
-            msg = "boom"
-            raise RuntimeError(msg)
-
-        base.list = failing_list  # type: ignore[assignment]
+        repo.list.side_effect = RuntimeError("boom")
         svc = ServiceBuilder(base, "users").build()
 
         from techai_webutils.core.domain_types.types import PageRequest
@@ -816,12 +804,7 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
-        async def failing_create(_entity) -> Never:  # type: ignore[no-untyped-def]
-            await asyncio.sleep(0)
-            msg = "boom"
-            raise RuntimeError(msg)
-
-        base.create = failing_create  # type: ignore[assignment]
+        repo.create.side_effect = RuntimeError("boom")
         svc = ServiceBuilder(base, "users").build()
 
         with pytest.raises(InternalError) as exc_info:
@@ -844,12 +827,7 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
-        async def failing_update(_id, _entity) -> Never:  # type: ignore[no-untyped-def]
-            await asyncio.sleep(0)
-            msg = "boom"
-            raise RuntimeError(msg)
-
-        base.update = failing_update  # type: ignore[assignment]
+        repo.update.side_effect = RuntimeError("boom")
         svc = ServiceBuilder(base, "users").build()
 
         with pytest.raises(InternalError) as exc_info:
@@ -872,12 +850,7 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict[str, object], str] = BaseCrudService(repo)
 
-        async def failing_delete(_id) -> Never:  # type: ignore[no-untyped-def]
-            await asyncio.sleep(0)
-            msg = "boom"
-            raise RuntimeError(msg)
-
-        base.delete = failing_delete  # type: ignore[assignment]
+        repo.delete.side_effect = RuntimeError("boom")
         svc = ServiceBuilder(base, "users").build()
 
         with pytest.raises(InternalError) as exc_info:

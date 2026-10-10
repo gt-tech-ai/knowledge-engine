@@ -198,6 +198,141 @@ async def test_ollama_stream_with_usage_codes_http_errors(
     assert excinfo.value.message == f"ollama chat returned HTTP {status}"
 
 
+async def _lines_then_fail(lines: list[str], exc: Exception) -> AsyncIterator[str]:
+    """Yield NDJSON lines in order, then raise ``exc`` as a dropped stream would."""
+    await asyncio.sleep(0)
+    for line in lines:
+        yield line
+    raise exc
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tail", "code", "message"),
+    [
+        ("not json", ErrorCode.INTERNAL, "ollama chat decode error"),
+        (
+            httpx.ReadError("connection reset"),
+            ErrorCode.UNAVAILABLE,
+            "ollama chat unreachable",
+        ),
+    ],
+)
+async def test_ollama_stream_codes_mid_stream_failures(
+    tail: str | Exception, code: ErrorCode, message: str
+) -> None:
+    """Test that a failure after the stream has started still surfaces as a coded ``AppError``.
+
+    **Why this test is important:**
+      - The status check covers only the response head; a body that turns malformed or a
+        connection that drops mid-stream would otherwise leak a raw ``ValueError`` or
+        ``httpx`` error past the provider, bypassing retry and transport status mapping.
+
+    **What it tests:**
+      - the tokens before the failure are yielded first
+      - a malformed line raises ``AppError(INTERNAL)`` and a dropped connection raises
+        ``AppError(UNAVAILABLE)``, each with the matching message prefix
+    """
+    first = '{"message":{"content":"partial"},"done":false}'
+    client = _ollama_client([])
+    response = client.stream.return_value.__aenter__.return_value
+    if isinstance(tail, Exception):
+        response.aiter_lines = MagicMock(return_value=_lines_then_fail([first], tail))
+    else:
+        response.aiter_lines = MagicMock(return_value=_lines([first, tail]))
+    stream = await OllamaLlmProvider(client, model="m").stream_with_usage(_messages("hi"))
+
+    assert await anext(stream) == "partial"
+    with pytest.raises(AppError) as excinfo:
+        await anext(stream)
+
+    assert excinfo.value.code == code
+    assert excinfo.value.message.startswith(message)
+
+
+async def _events_then_fail(
+    events: list[dict[str, Any]], exc: Exception
+) -> AsyncIterator[dict[str, Any]]:
+    """Yield Converse stream events in order, then raise ``exc`` as a failing EventStream would."""
+    await asyncio.sleep(0)
+    for event in events:
+        yield event
+    raise exc
+
+
+@pytest.mark.asyncio
+async def test_bedrock_stream_codes_mid_stream_client_errors() -> None:
+    """Test that a botocore error raised mid-stream surfaces as a coded ``AppError``.
+
+    **Why this test is important:**
+      - Bedrock can throttle or fail after ConverseStream has returned; a raw ``ClientError``
+        escaping the stream bypasses retry and the circuit breaker, and dumps its frame locals
+        into the log.
+
+    **What it tests:**
+      - the text delta before the failure is yielded first
+      - a mid-stream ``ThrottlingException`` raises ``AppError(UNAVAILABLE)``
+    """
+    from botocore.exceptions import ClientError
+
+    from techai_webutils.clients.llm.bedrock import BedrockLlmProvider
+
+    throttled = ClientError(
+        {"Error": {"Code": "ThrottlingException", "Message": "slow down"}},
+        "ConverseStream",
+    )
+    runtime = MagicMock()
+    runtime.converse_stream = AsyncMock(
+        return_value={
+            "stream": _events_then_fail(
+                [{"contentBlockDelta": {"delta": {"text": "Hel"}}}], throttled
+            )
+        }
+    )
+    client_cm = MagicMock()
+    client_cm.__aenter__ = AsyncMock(return_value=runtime)
+    client_cm.__aexit__ = AsyncMock(return_value=None)
+    session = MagicMock()
+    session.create_client = MagicMock(return_value=client_cm)
+
+    with patch("aiobotocore.session.get_session", return_value=session):
+        provider = BedrockLlmProvider(region="us-east-1", model="amazon.nova-lite-v1:0")
+        stream = await provider.stream_with_usage(_messages("hi"))
+        assert await anext(stream) == "Hel"
+        with pytest.raises(AppError) as excinfo:
+            await anext(stream)
+
+    assert excinfo.value.code == ErrorCode.UNAVAILABLE
+
+
+@pytest.mark.asyncio
+async def test_stub_stream_yields_to_the_event_loop_between_tokens() -> None:
+    """Test that the stub stream lets other tasks run between tokens, like a network stream.
+
+    **Why this test is important:**
+      - A consumer that cancels or times out mid-stream is only exercised against the stub if
+        the stub suspends between tokens; a stream that never yields to the loop runs to the
+        end before any other task (a cancel, a deadline) can act.
+
+    **What it tests:**
+      - a concurrent task records a tick before the stub's last token is consumed
+    """
+    order: list[str] = []
+    stream = await StubLlmProvider().stream(_messages("alpha beta gamma"))
+
+    async def consume() -> None:
+        while (token := await anext(stream, None)) is not None:
+            order.append(token)
+
+    async def tick() -> None:
+        await asyncio.sleep(0)
+        order.append("tick")
+
+    await asyncio.gather(consume(), tick())
+
+    assert order.index("tick") < order.index("gamma ")
+
+
 @pytest.mark.asyncio
 async def test_stub_stream_with_usage_yields_usage_last() -> None:
     """Test that the stub streams its echo and then a fixed, deterministic ``StreamUsage``.

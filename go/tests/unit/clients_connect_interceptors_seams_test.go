@@ -219,7 +219,9 @@ func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 //   - Synthetic claims get the stub principal without a resolver call; real claims
 //     resolve; with no stub, synthetic claims resolve too.
 //   - On both paths a resolver error fails closed: a Connect code is kept, a core/errors
-//     code maps to its Connect code, and an uncoded error becomes Unavailable.
+//     code maps to its Connect code (RESOURCE_EXHAUSTED stays ResourceExhausted so a
+//     quota rejection is not reported as Internal), and an uncoded error becomes
+//     Unavailable.
 //   - The client-facing message never contains the resolver's error text; the real error
 //     is captured in the request's error sink for the access log.
 func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
@@ -282,6 +284,10 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 			connect.CodePermissionDenied,
 		},
 		"upstream coded": {apperr.Upstream(secret), connect.CodeUnavailable},
+		"resource exhausted": {
+			apperr.Wrap(apperr.Sentinel(secret), apperr.CodeResourceExhausted, "quota"),
+			connect.CodeResourceExhausted,
+		},
 	}
 	for path, invoke := range serverPaths() {
 		for name, tc := range cases {

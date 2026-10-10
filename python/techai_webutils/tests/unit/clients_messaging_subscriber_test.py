@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
 
 import pytest
 
 from techai_webutils.clients.messaging.sqs.sqs_subscriber import SQSSubscriber
 
 if TYPE_CHECKING:
-    from unittest.mock import AsyncMock
-
     from techai_webutils.clients.messaging.config import SQSConfig
     from techai_webutils.core.interfaces.messaging import Message
 
@@ -133,3 +132,38 @@ class TestSQSSubscriber:
             "ReceiptHandle": "r-1",
         }
         assert await _metadata_of(sqs_config, aws_client, raw) == {}
+
+    @pytest.mark.asyncio
+    async def test_message_without_receipt_handle_is_not_handled(
+        self, sqs_config: SQSConfig, aws_client: AsyncMock
+    ) -> None:
+        """Test that a received message with no ReceiptHandle is skipped, and polling goes on.
+
+        **Why this test is important:**
+          - A message that cannot be deleted must not be processed: its handler would run,
+            the delete would fail on an empty handle, and the message would be redelivered
+            and handled again.
+          - One malformed message must not stop the subscriber for the rest of the queue.
+
+        **What it tests:**
+          - The handler is never called and delete_message is never awaited.
+          - subscribe keeps polling: a second receive happens after the bad message.
+        """
+        handler = AsyncMock()
+        async with SQSSubscriber(sqs_config) as subscriber:
+            polls = 0
+
+            async def receive(**_kwargs: object) -> dict[str, object]:
+                nonlocal polls
+                polls += 1
+                if polls == 1:
+                    return {"Messages": [{"MessageId": "m-1", "Body": "{}"}]}
+                await subscriber.close()
+                return {"Messages": []}
+
+            aws_client.receive_message.side_effect = receive
+            await subscriber.subscribe("events", handler)
+
+        handler.assert_not_awaited()
+        aws_client.delete_message.assert_not_awaited()
+        assert aws_client.receive_message.await_count == 2

@@ -181,22 +181,19 @@ func transformByRole(
 		}
 		return result, http.StatusCreated, true
 
+	// The single-resource roles are listed so the exhaustive linter sees every declared
+	// Role handled; they and an undeclared role share the single-resource read below.
 	case RoleGetOne, RoleUpdate, RoleDelete:
-		// Require the declared single resource key. (DELETE is answered with 204
-		// before the transform; it reaches here only if that changes.)
-		if !hasKey(parsed, rc.SingleKey) {
-			writeMissingResourceError(w, rc.SingleKey)
-			return nil, 0, false
-		}
-		return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
-
-	default: // An undeclared role is treated as a single-resource read.
-		if !hasKey(parsed, rc.SingleKey) {
-			writeMissingResourceError(w, rc.SingleKey)
-			return nil, 0, false
-		}
-		return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
+	default:
 	}
+
+	// Single-resource read: require the declared single resource key. (DELETE is
+	// answered with 204 before the transform; it reaches here only if that changes.)
+	if !hasKey(parsed, rc.SingleKey) {
+		writeMissingResourceError(w, rc.SingleKey)
+		return nil, 0, false
+	}
+	return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
 }
 
 // hasKey reports whether a non-empty key is present in the parsed response body.

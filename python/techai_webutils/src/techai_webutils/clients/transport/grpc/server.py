@@ -40,9 +40,7 @@ class ServerConfig:
     """Maximum inbound gRPC message size, in bytes."""
     max_concurrent_rpcs: int | None = None
     """Cap on concurrently handled RPCs; None leaves it unbounded."""
-    max_workers: int = (
-        10  # retained for config compat; grpc.aio uses the event loop, not a thread pool
-    )
+    max_workers: int = 10
     """Retained for config compat; grpc.aio uses the event loop, not a thread pool."""
     shutdown_timeout: float = 30.0
     """Grace period, in seconds, to drain in-flight RPCs during shutdown."""

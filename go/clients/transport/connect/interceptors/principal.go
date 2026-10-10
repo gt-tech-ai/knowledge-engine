@@ -152,10 +152,11 @@ func resolveErrorCode(err error) connect.Code {
 		return connect.CodeDeadlineExceeded
 	case apperr.CodeCanceled:
 		return connect.CodeCanceled
+	case apperr.CodeResourceExhausted:
+		return connect.CodeResourceExhausted
 	case apperr.CodeInternal,
 		apperr.CodeIngestion,
-		apperr.CodeQualityFailed,
-		apperr.CodeResourceExhausted:
+		apperr.CodeQualityFailed:
 		return connect.CodeInternal
 	default:
 		return connect.CodeInternal

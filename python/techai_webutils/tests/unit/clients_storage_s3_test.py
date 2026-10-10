@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from techai_webutils.clients.storage.s3.s3_client import S3StorageClient
+from techai_webutils.core.errors import AppRuntimeError
 
 if TYPE_CHECKING:
     from techai_webutils.clients.storage.config import S3Config
@@ -213,3 +214,54 @@ class TestS3StorageClient:
         mock_client.copy_object.assert_not_called()
         assert mock_client.upload_part_copy.await_count >= 2
         mock_client.complete_multipart_upload.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_multipart_copy_aborts_when_a_part_has_no_etag(
+        self, s3_config: S3Config, aws_client: AsyncMock
+    ) -> None:
+        """Test that a copied part with no ETag aborts the multipart copy with a coded error.
+
+        **Why this test is important:**
+          - CompleteMultipartUpload needs every part's ETag; sending an empty one fails
+            later with an opaque S3 error, or leaves the upload open and billed.
+
+        **What it tests:**
+          - copy() raises AppRuntimeError naming the missing ETag.
+          - The upload is aborted and never completed.
+        """
+        mock_client = aws_client
+        mock_client.head_object = AsyncMock(return_value={"ContentLength": 6 * 1024**3})
+        mock_client.create_multipart_upload = AsyncMock(return_value={"UploadId": "u1"})
+        mock_client.upload_part_copy = AsyncMock(return_value={"CopyPartResult": {}})
+        mock_client.complete_multipart_upload = AsyncMock()
+        mock_client.abort_multipart_upload = AsyncMock()
+        client = await _open(s3_config)
+
+        with pytest.raises(AppRuntimeError, match="ETag"):
+            await client.copy("bucket", "src", "dst")
+
+        mock_client.complete_multipart_upload.assert_not_awaited()
+        mock_client.abort_multipart_upload.assert_awaited_once_with(
+            Bucket="bucket", Key="dst", UploadId="u1"
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_objects_rejects_an_entry_without_a_key(
+        self, s3_config: S3Config, aws_client: AsyncMock
+    ) -> None:
+        """Test that a listed entry with no Key raises a coded error instead of an empty key.
+
+        **Why this test is important:**
+          - An object returned with key "" would be read, copied or deleted at the wrong
+            path by the caller; a malformed listing must fail loudly.
+
+        **What it tests:**
+          - list_objects raises AppRuntimeError naming the missing Key.
+        """
+        aws_client.list_objects_v2 = AsyncMock(
+            return_value={"Contents": [{"Size": 1, "ETag": "e1"}]}
+        )
+        client = await _open(s3_config)
+
+        with pytest.raises(AppRuntimeError, match="Key"):
+            await client.list_objects("bucket", "prefix/")

@@ -23,6 +23,17 @@ from techai_webutils.foundation.resilience.circuit_breaker import (
 )
 
 
+async def _fail_inside(cb: AsyncCircuitBreaker) -> None:
+    """Raise ``ValueError("fail")`` inside the breaker, so it records one failure.
+
+    Typed ``None``, not ``NoReturn``: the breaker is a context manager, so the type checker
+    cannot rule out that it suppresses the error.
+    """
+    async with cb:
+        msg = "fail"
+        raise ValueError(msg)
+
+
 class TestRetryTransientAsync:
     """Tests for ``retry_transient_async``."""
 
@@ -184,10 +195,8 @@ class TestAsyncCircuitBreaker:
         """
         cb = AsyncCircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
         for _ in range(2):
-            with pytest.raises(ValueError, match="fail"):  # noqa: PT012
-                async with cb:
-                    msg = "fail"
-                    raise ValueError(msg)
+            with pytest.raises(ValueError, match="fail"):
+                await _fail_inside(cb)
 
         ran = False
         with pytest.raises(CircuitOpenError):

@@ -11,8 +11,5 @@ exclude_dirs:
   - venv
   - __pycache__
   - node_modules
-  # .local/ is the repo's gitignored scratch area (E2E harnesses, tf-backup, etc.) — never shipped,
-  # so it is out of scope for the production security scan (mirrors the tests/ and .venv/ exclusions).
-  - .local
 
 confidence: MEDIUM

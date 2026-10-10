@@ -17,7 +17,7 @@ from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable
+    from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 
     from opentelemetry.trace import Span
 
@@ -42,7 +42,7 @@ def _set_trace_response(context: grpc.aio.ServicerContext[object, object]) -> No
 
 async def _under_span(
     span: Span, responses: AsyncIterator[object]
-) -> AsyncIterator[object]:
+) -> AsyncGenerator[object]:
     """Re-yield ``responses``, producing each one with ``span`` as the current span.
 
     Only the step that produces a response runs under the span; the span context is detached
@@ -134,16 +134,19 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
                 span.set_attribute("rpc.method", method)
                 with otel_trace.use_span(span):
                     _set_trace_response(context)
+                responses = _under_span(span, aiter(inner_stream(request, context)))
                 try:
-                    async for response in _under_span(
-                        span, aiter(inner_stream(request, context))
-                    ):
+                    async for response in responses:
                         yield response
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR))
                     raise
                 finally:
+                    # Close the re-yielding generator explicitly (the aclosing contract,
+                    # without a context manager around the yield) as soon as this stream
+                    # ends, fails or is closed, instead of leaving it to garbage collection.
+                    await responses.aclose()
                     span.end()
 
             return grpc.unary_stream_rpc_method_handler(

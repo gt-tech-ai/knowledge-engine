@@ -50,6 +50,8 @@ class AdaptiveThrottler:
         """Configure the accept multiplier ``k``, window ``decay`` in (0,1], and rejection RNG."""
         self._k: float = k if k > 0 else 2.0
         self._decay: float = decay if 0 < decay <= 1 else 0.98
+        # SystemRandom keeps the security scanners' weak-PRNG rule clean without a suppression;
+        # its one os.urandom read per attempt is negligible next to the guarded remote call.
         self._rand: Callable[[], float] = (
             rand if rand is not None else random.SystemRandom().random
         )
@@ -77,9 +79,8 @@ class AdaptiveThrottler:
             self._requests *= self._decay
             self._accepts *= self._decay
             shed = self._rand() < self._rejection_probability()
-            self._requests += (
-                1  # this attempt counts as a request whether shed or allowed
-            )
+            # This attempt counts as a request whether shed or allowed.
+            self._requests += 1
 
         if shed:
             raise ThrottledError

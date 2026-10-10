@@ -76,16 +76,16 @@ class StubLlmProvider(NoOpAsyncResource, LLMProvider):
             finish_reason="stop",
         )
 
+    @override
     async def stream(
         self, messages: list[LLMMessage], config: LLMConfig | None = None
     ) -> AsyncIterator[str]:
         """Return an async iterator streaming the last user message token-by-token."""
         return text_only(await self.stream_with_usage(messages, config))
 
+    @override
     async def stream_with_usage(
-        self,
-        messages: list[LLMMessage],
-        config: LLMConfig | None = None,  # noqa: ARG002
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
     ) -> AsyncIterator[str | StreamUsage]:
         """Stream the last user message token-by-token, then a word-count ``StreamUsage``."""
         answer = _last_user_message(messages)
@@ -97,6 +97,7 @@ class StubLlmProvider(NoOpAsyncResource, LLMProvider):
         )
         return _token_stream(answer, usage)
 
+    @override
     def model_name(self) -> str:
         """Return the stub model identifier."""
         return self._model

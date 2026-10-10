@@ -16,9 +16,9 @@ commit-msg:
       run: |
         msg="$(head -n 1 {1})"
         case "$msg" in Merge\ *) exit 0 ;; esac
-        if ! printf '%s\n' "$msg" | grep -Eq '^(feat|fix|refactor|docs|test|chore|perf|ci)(\(.+\))?!?: .{1,72}$'; then
+        if ! printf '%s\n' "$msg" | grep -Eq '^(feat|fix|refactor|docs|test|chore|perf|ci|style)(\(.+\))?!?: .{1,72}$'; then
           echo "invalid commit message: $msg"
-          echo "expected: <type>(<scope>)?!?: <description>, type one of feat fix refactor docs test chore perf ci; description at most 72 characters"
+          echo "expected: <type>(<scope>)?!?: <description>, type one of feat fix refactor docs test chore perf ci style; description at most 72 characters"
           exit 1
         fi
 

@@ -53,7 +53,7 @@ linters:
     # Documentation completeness and parameter hygiene: revive's `exported` and
     # `unused-parameter` rules only (see settings.revive).
     - revive
-    # --- correctness/quality linter set (vertiva_ekp's), enabled at 0 findings ---
+    # --- correctness/quality linter set, enabled at 0 findings ---
     # Bug detection
     - durationcheck
     - sqlclosecheck
@@ -151,10 +151,9 @@ linters:
       # catch-all `default` is the right handling, so they are not checked.
       ignore-enum-types: ^(google\.golang\.org/grpc/codes\.Code|connectrpc\.com/connect\.Code|reflect\.Kind)$
     gocritic:
-      # vertiva_ekp's bar: the experimental and opinionated tags on, minus the four
-      # checks it disables (duplicate-import alias churn, if-else chains that read better
-      # than a switch, octal-literal style, and the nolint-comment shape that nolintlint
-      # already owns).
+      # The experimental and opinionated tags on, minus four checks: duplicate-import
+      # alias churn, if-else chains that read better than a switch, octal-literal style,
+      # and the nolint-comment shape that nolintlint already owns.
       disabled-checks:
         - dupImport
         - ifElseChain

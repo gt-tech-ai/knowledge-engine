@@ -93,9 +93,13 @@ class PrometheusMetricsProvider(MetricsProvider):
         """Return the collector already registered under ``name``, or None.
 
         Reaches into prometheus_client privates (``_names_to_collectors`` /
-        ``_collector_to_names``) because there is no public lookup-by-name API. These attribute names
-        are an internal contract; a major prometheus_client bump could rename them, which
-        ``tests/foundation/test_metrics_idempotent.py`` exercises against the pinned version.
+        ``_collector_to_names``) because there is no public lookup-by-name API: the public
+        ``CollectorRegistry`` surface is register / unregister / collect / get_sample_value /
+        target info, and the duplicate-registration ValueError names no collector. The read goes
+        through ``vars()`` on purpose, as an explicit and visible dependency on those internals
+        rather than a suppressed private-member access. These attribute names are an internal
+        contract; a prometheus_client bump could rename them, which
+        ``tests/unit/foundation_metrics_idempotent_test.py`` exercises against the pinned version.
         """
         internals = vars(self._registry)
         names_to_collectors = cast("dict[str, object]", internals["_names_to_collectors"])

@@ -222,6 +222,9 @@ func (s *Subscriber) ensureStartedLocked(ctx context.Context) {
 	// so an in-flight handler can observe shutdown. It is derived from the first
 	// subscribing call's ctx without its cancellation: the dispatch loop outlives that
 	// call, so the call ending must not stop delivery to every other subscription.
+	// WithoutCancel keeps that call's context values, so its trace span, tenant and
+	// any other request-scoped value reach every handler's ctx for the subscriber's
+	// whole life; a handler must read per-message identity from the message itself.
 	dispatchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.cancel = cancel
 	// Subscribe with no channels: the subscription is opened, and channels/patterns
