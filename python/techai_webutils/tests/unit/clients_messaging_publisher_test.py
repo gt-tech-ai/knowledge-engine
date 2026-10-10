@@ -65,7 +65,9 @@ class TestSQSPublisher:
         assert len(call_kwargs["Entries"]) == 2
 
     @pytest.mark.asyncio
-    async def test_publish_raises_when_not_initialized(self, sqs_config: SQSConfig) -> None:
+    async def test_publish_raises_when_not_initialized(
+        self, sqs_config: SQSConfig
+    ) -> None:
         """Test that publish raises RuntimeError before the client is initialized.
 
         **Why this test is important:**
@@ -81,7 +83,9 @@ class TestSQSPublisher:
             await publisher.publish("topic", b"data")
 
     @pytest.mark.asyncio
-    async def test_publish_batch_raises_when_not_initialized(self, sqs_config: SQSConfig) -> None:
+    async def test_publish_batch_raises_when_not_initialized(
+        self, sqs_config: SQSConfig
+    ) -> None:
         """Test that publish_batch raises RuntimeError before the client is initialized.
 
         **Why this test is important:**

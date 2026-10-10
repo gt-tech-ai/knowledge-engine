@@ -143,7 +143,9 @@ class TestFanOut:
             def on_step_complete(self, result: StepResult) -> None:
                 completed.append(result)
 
-            def on_batch_complete(self, name: str, result: BatchResult, elapsed: float) -> None:
+            def on_batch_complete(
+                self, name: str, result: BatchResult, elapsed: float
+            ) -> None:
                 finished.append(result)
 
         batch = await fan_out(list(range(7)), 3, _ok, Obs())

@@ -98,7 +98,9 @@ class TestPrometheusMetricsLabels:
         """
         registry = CollectorRegistry()
         provider = PrometheusMetricsProvider(registry)
-        counter = provider.counter("test_counter_labels", "A test counter", labels=["method"])
+        counter = provider.counter(
+            "test_counter_labels", "A test counter", labels=["method"]
+        )
         counter.inc(1.0, method="GET")
         counter.inc(1.0, method="POST")
 

@@ -110,7 +110,9 @@ class CitationExtractor(ABC):
     """Abstract citation extractor for identifying source references (chunk-level, with document metadata)."""
 
     @abstractmethod
-    async def extract(self, answer: str, sources: list[RetrievalResult]) -> list[Citation]:
+    async def extract(
+        self, answer: str, sources: list[RetrievalResult]
+    ) -> list[Citation]:
         """Extract citations from a generated answer against source documents."""
 
 
@@ -118,7 +120,9 @@ class QueryRewriter(ABC):
     """Abstract query rewriter for improving retrieval quality (e.g. expansion or LLM rewriting)."""
 
     @abstractmethod
-    async def rewrite(self, query: str, history: Sequence[HistoryTurn] | None = None) -> list[str]:
+    async def rewrite(
+        self, query: str, history: Sequence[HistoryTurn] | None = None
+    ) -> list[str]:
         """Rewrite a query into one or more optimized variants, given prior conversation turns."""
 
 

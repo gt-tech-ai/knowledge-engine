@@ -84,7 +84,9 @@ class TestBaseRepository:
           - Total count and item count from the store's Page pass through unchanged
         """
         store = MagicMock(spec=Store)
-        store.list.return_value = Page(items=["a", "b"], total=2, page_size=10, page_number=1)
+        store.list.return_value = Page(
+            items=["a", "b"], total=2, page_size=10, page_number=1
+        )
         repo: BaseRepository[str, dict, str] = BaseRepository(store)
 
         page = await repo.list({}, PageRequest(page_size=10, page_number=1))

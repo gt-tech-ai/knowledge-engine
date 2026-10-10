@@ -6,8 +6,13 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
-from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import CircuitBreakerInterceptor
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import (
+    CircuitBreakerInterceptor,
+)
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 import grpc
 import pytest
 
@@ -53,7 +58,9 @@ class TestCircuitBreakerInterceptor:
         call_details = MagicMock()
         request = MagicMock()
 
-        result = await interceptor.intercept_unary_unary(continuation, call_details, request)
+        result = await interceptor.intercept_unary_unary(
+            continuation, call_details, request
+        )
         assert await result is sentinel
         continuation.assert_awaited_once_with(call_details, request)
 
@@ -116,7 +123,11 @@ class TestCircuitBreakerInterceptor:
         """
         cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
         interceptors = (
-            InterceptorBuilder().with_logging("test").with_circuit_breaker(cb).with_timeout(10.0).build()
+            InterceptorBuilder()
+            .with_logging("test")
+            .with_circuit_breaker(cb)
+            .with_timeout(10.0)
+            .build()
         )
 
         assert len(interceptors) == 3

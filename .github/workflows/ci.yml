@@ -48,6 +48,8 @@ jobs:
         run: uv sync --all-extras --dev
       - name: ruff
         run: uv run ruff check .
+      - name: ruff format
+        run: uv run ruff format --check .
       - name: basedpyright
         run: uv run basedpyright src
       - name: pytest (unit — 90% coverage of the unit surface)

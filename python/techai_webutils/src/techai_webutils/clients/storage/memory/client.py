@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import override
 
 from techai_webutils.core.errors.errors import NotFoundError
 from techai_webutils.core.interfaces.storage import StorageClient, StorageObject
@@ -57,6 +58,7 @@ class InMemoryStorageClient(NoOpAsyncResource, StorageClient):
         """Report whether an object exists at ``(bucket, key)``."""
         return (bucket, key) in self._objects
 
+    @override
     async def presign_url(self, bucket: str, key: str, expiry_seconds: int) -> str:
         """Return a synthetic ``memory://`` URL (no real signing; the expiry is ignored)."""
         del expiry_seconds  # a memory backend issues no time-bounded signature

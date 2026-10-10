@@ -83,7 +83,9 @@ class TestBaseCrudService:
           - The repository's Page total passes through unchanged, and list is delegated
         """
         repo = MagicMock(spec=Repository)
-        repo.list.return_value = Page(items=["a", "b"], total=2, page_size=10, page_number=1)
+        repo.list.return_value = Page(
+            items=["a", "b"], total=2, page_size=10, page_number=1
+        )
         svc: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
         page = await svc.list({}, PageRequest(page_size=10, page_number=1))

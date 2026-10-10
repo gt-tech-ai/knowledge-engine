@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import grpc
 import pytest
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
+from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+    AuthServerInterceptor,
+    HeaderClaimMapping,
+)
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
     _LoggingServerInterceptor,
@@ -15,11 +18,15 @@ from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     _RecoveryServerInterceptor,
     _ServiceAuthServerInterceptor,
 )
-from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import TracingServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import (
+    TracingServerInterceptor,
+)
 from techai_webutils.clients.transport.grpc.server import GracefulServer, ServerConfig
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(
+    user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
+)
 """The gateway header contract these tests configure."""
 
 
@@ -77,14 +84,24 @@ class TestServerInterceptorBuilder:
 
         [interceptor] = (
             ServerInterceptorBuilder()
-            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-groups"))
+            .with_auth(
+                HeaderClaimMapping(
+                    user_id="x-sub", tenant_id="x-tenant", roles="x-groups"
+                )
+            )
             .build()
         )
         token = _auth_claims_var.set(None)
         try:
             await interceptor.intercept_service(
                 AsyncMock(return_value="handler"),
-                MagicMock(invocation_metadata=[("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]),
+                MagicMock(
+                    invocation_metadata=[
+                        ("x-sub", "u-1"),
+                        ("x-tenant", "t-1"),
+                        ("x-groups", "a,b"),
+                    ]
+                ),
             )
             assert get_auth_claims() == AuthClaims(
                 user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
@@ -180,7 +197,9 @@ class TestMetricsServerInterceptor:
             return "ok"
 
         real = grpc.unary_unary_rpc_method_handler(_ok)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
         assert await wrapped.unary_unary("req", MagicMock()) == "ok"
         executions.inc.assert_called_once()
@@ -206,7 +225,9 @@ class TestMetricsServerInterceptor:
             raise RuntimeError("boom")
 
         real = grpc.unary_unary_rpc_method_handler(_boom)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
         with pytest.raises(RuntimeError):
             await wrapped.unary_unary("req", MagicMock())
@@ -234,7 +255,9 @@ class TestMetricsServerInterceptor:
             raise RuntimeError("mid-stream boom")
 
         real = grpc.unary_stream_rpc_method_handler(_gen)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
         collected = []
         with pytest.raises(RuntimeError):
@@ -272,7 +295,9 @@ class TestRecoveryServerInterceptor:
             raise RuntimeError("boom")
 
         real = grpc.unary_unary_rpc_method_handler(_boom)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
@@ -299,7 +324,9 @@ class TestRecoveryServerInterceptor:
             raise grpc.aio.AbortError("intended")
 
         real = grpc.unary_unary_rpc_method_handler(_aborter)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
@@ -326,7 +353,9 @@ class TestRecoveryServerInterceptor:
             raise RuntimeError("mid-stream boom")
 
         real = grpc.unary_stream_rpc_method_handler(_gen)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
@@ -487,11 +516,17 @@ class TestServiceAuthInterceptor:
         assert any(isinstance(i, _ServiceAuthServerInterceptor) for i in with_token)
         with pytest.raises(ValueError, match="service token"):
             ServerInterceptorBuilder().with_service_auth("")
-        bypass = ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).build()
+        bypass = (
+            ServerInterceptorBuilder()
+            .with_service_auth("", allow_unauthenticated=True)
+            .build()
+        )
         assert not any(isinstance(i, _ServiceAuthServerInterceptor) for i in bypass)
 
     @pytest.mark.asyncio
-    async def test_accepts_the_current_and_previous_token_of_a_rotation_pair(self) -> None:
+    async def test_accepts_the_current_and_previous_token_of_a_rotation_pair(
+        self,
+    ) -> None:
         """A comma-separated {current,previous} expected token admits both during a rotation window.
 
         **Why this test is important:**
@@ -504,7 +539,9 @@ class TestServiceAuthInterceptor:
             denies a wrong token, the whole comma string and a missing header; with_service_auth(" , ")
             raises ValueError like an empty token.
         """
-        [interceptor] = ServerInterceptorBuilder().with_service_auth("new-token, old-token").build()
+        [interceptor] = (
+            ServerInterceptorBuilder().with_service_auth("new-token, old-token").build()
+        )
         handler = self._handler()
 
         async def outcome(metadata: list[tuple[str, str]]) -> bool:
@@ -521,7 +558,9 @@ class TestServiceAuthInterceptor:
         with pytest.raises(ValueError, match="service token"):
             ServerInterceptorBuilder().with_service_auth(" , ")
 
-    def test_build_warns_when_service_auth_is_bypassed_or_claims_are_unauthenticated(self) -> None:
+    def test_build_warns_when_service_auth_is_bypassed_or_claims_are_unauthenticated(
+        self,
+    ) -> None:
         """Building an open server, or claims readable by any caller, logs a warning.
 
         **Why this test is important:**
@@ -533,13 +572,17 @@ class TestServiceAuthInterceptor:
           - with_service_auth("", allow_unauthenticated=True) + with_auth warns about both; a server with
             a real token and with_auth warns about neither.
         """
-        with patch("techai_webutils.clients.rpc.grpc.interceptors.server_builder._logger") as mock_logger:
-            ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).with_auth(
-                _HEADERS
-            ).build()
+        with patch(
+            "techai_webutils.clients.rpc.grpc.interceptors.server_builder._logger"
+        ) as mock_logger:
+            ServerInterceptorBuilder().with_service_auth(
+                "", allow_unauthenticated=True
+            ).with_auth(_HEADERS).build()
             open_warnings = [c.args[0] for c in mock_logger.warning.call_args_list]
             mock_logger.reset_mock()
-            ServerInterceptorBuilder().with_service_auth("secret").with_auth(_HEADERS).build()
+            ServerInterceptorBuilder().with_service_auth("secret").with_auth(
+                _HEADERS
+            ).build()
 
         assert any("bypassed" in message for message in open_warnings)
         assert any("without service auth" in message for message in open_warnings)
@@ -586,7 +629,9 @@ class TestServerInterceptorBuilderFullStack:
         types = [type(i) for i in interceptors]
         assert TracingServerInterceptor in types, types
         # Tracing sits OUTSIDE logging so the span wraps the handler + request log.
-        assert types.index(TracingServerInterceptor) < types.index(_LoggingServerInterceptor)
+        assert types.index(TracingServerInterceptor) < types.index(
+            _LoggingServerInterceptor
+        )
 
     def test_with_tracing_adds_tracing_interceptor(self) -> None:
         """with_tracing wires a TracingServerInterceptor; omitting it leaves the chain untraced.

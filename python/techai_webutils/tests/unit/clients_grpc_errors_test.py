@@ -191,7 +191,9 @@ class TestToGrpcStatus:
           - The status code is CANCELLED
           - The message is the fixed "request canceled", not the raw error text
         """
-        code, msg = to_grpc_status(AppError(ErrorCode.CANCELED, "ctx deadline internal detail"))
+        code, msg = to_grpc_status(
+            AppError(ErrorCode.CANCELED, "ctx deadline internal detail")
+        )
         assert code == grpc.StatusCode.CANCELLED
         assert msg == "request canceled"
 
@@ -222,7 +224,9 @@ class TestToGrpcStatus:
           - The status code is RESOURCE_EXHAUSTED
           - The message is the fixed "resource exhausted", not the raw text
         """
-        code, msg = to_grpc_status(AppError(ErrorCode.RESOURCE_EXHAUSTED, "org-1 spent 1000000 tokens"))
+        code, msg = to_grpc_status(
+            AppError(ErrorCode.RESOURCE_EXHAUSTED, "org-1 spent 1000000 tokens")
+        )
         assert code == grpc.StatusCode.RESOURCE_EXHAUSTED
         assert msg == "resource exhausted"
 
@@ -252,7 +256,9 @@ class TestToGrpcStatus:
           - The status code is INTERNAL
           - The message is the generic "internal error", not the raw pipeline detail
         """
-        code, msg = to_grpc_status(AppError(ErrorCode.INGESTION_ERROR, "parser stack trace"))
+        code, msg = to_grpc_status(
+            AppError(ErrorCode.INGESTION_ERROR, "parser stack trace")
+        )
         assert code == grpc.StatusCode.INTERNAL
         assert msg == "internal error"
 
@@ -267,7 +273,9 @@ class TestToGrpcStatus:
           - The status code is INTERNAL
           - The message is the generic "internal error", not the raw gate detail
         """
-        code, msg = to_grpc_status(AppError(ErrorCode.QUALITY_FAILED, "gate internal detail"))
+        code, msg = to_grpc_status(
+            AppError(ErrorCode.QUALITY_FAILED, "gate internal detail")
+        )
         assert code == grpc.StatusCode.INTERNAL
         assert msg == "internal error"
 

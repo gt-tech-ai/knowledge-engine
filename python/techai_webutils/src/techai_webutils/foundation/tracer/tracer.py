@@ -10,8 +10,8 @@ configure_tracer() returns a raw OTel Tracer for stdlib use.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
-from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -19,7 +19,8 @@ from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.trace import StatusCode
-from typing import TYPE_CHECKING
+
+from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -40,7 +41,9 @@ class OTelTracerProvider(TracerProvider):
         self._provider = provider
 
     @contextmanager
-    def span(self, name: str, **attributes: str | float | bool) -> Generator[TracerSpan, None, None]:
+    def span(
+        self, name: str, **attributes: str | float | bool
+    ) -> Generator[TracerSpan, None, None]:
         """Start a new trace span as a context manager."""
         with self._inner.start_as_current_span(name) as otel_span:
             wrapped = _OTelSpan(otel_span)
@@ -126,7 +129,9 @@ def new_tracer(
         An interfaces.TracerProvider implementation.
 
     """
-    provider = _setup_provider(service_name, otlp_endpoint, insecure=insecure, sample_rate=sample_rate)
+    provider = _setup_provider(
+        service_name, otlp_endpoint, insecure=insecure, sample_rate=sample_rate
+    )
     return OTelTracerProvider(trace.get_tracer(service_name), provider)
 
 
@@ -149,5 +154,7 @@ def configure_tracer(
         A configured Tracer instance.
 
     """
-    _ = _setup_provider(service_name, otlp_endpoint, insecure=insecure, sample_rate=sample_rate)
+    _ = _setup_provider(
+        service_name, otlp_endpoint, insecure=insecure, sample_rate=sample_rate
+    )
     return trace.get_tracer(service_name)

@@ -103,7 +103,9 @@ def _worker[T](
         _apply_memory_limit(memory_bytes)
     try:
         result_queue.put(("ok", fn(*args)))
-    except Exception as exc:  # return the failure to the parent instead of crashing silently
+    except (
+        Exception
+    ) as exc:  # return the failure to the parent instead of crashing silently
         # Carry the full traceback (not just repr) so an IsolationError in the parent is
         # diagnosable — the child's stack is otherwise invisible (mirrors fan_out's detail).
         result_queue.put(("err", f"{exc!r}\n{traceback.format_exc()}"))
@@ -203,7 +205,9 @@ class IsolatedParser:
         self._memory_bytes = memory_bytes
         self._timeout_seconds = timeout_seconds
 
-    async def parse(self, content: bytes, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse(
+        self, content: bytes, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse in a subprocess; a timeout or worker death becomes a failed ParsedDocument."""
         loop = asyncio.get_running_loop()
         call = functools.partial(
@@ -220,10 +224,14 @@ class IsolatedParser:
         except TimeoutError:
             return self._failed(content, declared, filename, "parse_timeout")
         except IsolationError as exc:
-            return self._failed(content, declared, filename, f"parse_isolation_failed: {exc}")
+            return self._failed(
+                content, declared, filename, f"parse_isolation_failed: {exc}"
+            )
 
     @staticmethod
-    def _failed(content: bytes, declared: str, filename: str, error: str) -> ParsedDocument:
+    def _failed(
+        content: bytes, declared: str, filename: str, error: str
+    ) -> ParsedDocument:
         """Build a failed ParsedDocument tagged with the detected format + error reason."""
         return ParsedDocument(
             markdown_content="",
@@ -231,7 +239,9 @@ class IsolatedParser:
             error=error,
         )
 
-    async def parse_path(self, path: str, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse_path(
+        self, path: str, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse a document from a file ``path`` in a subprocess (bounded memory — large-doc lane).
 
         The path (not the bytes) is pickled to the child, so a multi-GB document never crosses the

@@ -26,7 +26,9 @@ from techai_webutils.pipelines.decorators import (
 class _SyncInner:
     """Minimal sync execute() double: returns a value, raises, or sleeps."""
 
-    def __init__(self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0) -> None:
+    def __init__(
+        self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0
+    ) -> None:
         self._result, self._exc, self._delay = result, exc, delay
 
     def execute(self, _input: Any) -> Any:  # noqa: ANN401
@@ -40,7 +42,9 @@ class _SyncInner:
 class _AsyncInner:
     """Minimal async execute() double: returns a value, raises, or sleeps."""
 
-    def __init__(self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0) -> None:
+    def __init__(
+        self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0
+    ) -> None:
         self._result, self._exc, self._delay = result, exc, delay
 
     async def execute(self, _input: Any) -> Any:  # noqa: ANN401
@@ -102,7 +106,9 @@ def test_sync_metrics_records_duration() -> None:
         under the decorator's name.
     """
     histogram = MagicMock()
-    decorated = MetricsPipelineDecorator(BasePipeline(lambda x: x.upper()), "m", histogram)
+    decorated = MetricsPipelineDecorator(
+        BasePipeline(lambda x: x.upper()), "m", histogram
+    )
 
     assert decorated.execute("hi") == "HI"
     histogram.observe.assert_called_once()
@@ -156,7 +162,9 @@ async def test_async_timeout_raises_apptimeout() -> None:
     What it tests:
       - A 10ms deadline over a 200ms coroutine raises AppTimeoutError.
     """
-    decorated = AsyncTimeoutDecoratorBase(_AsyncInner(delay=0.2), 0.01, noun="async pipeline")
+    decorated = AsyncTimeoutDecoratorBase(
+        _AsyncInner(delay=0.2), 0.01, noun="async pipeline"
+    )
     with pytest.raises(AppTimeoutError):
         await decorated.execute("x")
 

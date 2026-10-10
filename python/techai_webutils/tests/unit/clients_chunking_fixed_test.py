@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from techai_webutils.clients.chunking import ChunkerConfig, ChunkerKind, chunker_from_config
+from techai_webutils.clients.chunking import (
+    ChunkerConfig,
+    ChunkerKind,
+    chunker_from_config,
+)
 from techai_webutils.clients.chunking.fixed import FixedChunker, chunk_text
 from techai_webutils.core.interfaces.chunker import Chunker
 
@@ -29,7 +33,9 @@ class TestChunkText:
         """A single paragraph exceeding max_chars is hard-split into within-bound pieces."""
         text = " ".join(f"word{i}" for i in range(200))
         chunks = chunk_text(text, max_chars=80)
-        assert len(chunks) > 1, "an over-long paragraph must be split into multiple chunks"
+        assert len(chunks) > 1, (
+            "an over-long paragraph must be split into multiple chunks"
+        )
         assert all(len(c) <= 80 for c in chunks)
 
     def test_is_deterministic(self) -> None:
@@ -58,7 +64,9 @@ class TestFixedChunkerFactory:
     def test_fixed_chunker_delegates_to_chunk_text(self) -> None:
         """FixedChunker.chunk equals ``chunk_text`` at the configured budget (parity with the pure fn)."""
         text = "\n\n".join(f"Paragraph number {i} with some words." for i in range(20))
-        chunker = chunker_from_config(ChunkerConfig(kind=ChunkerKind.FIXED, max_chars=100))
+        chunker = chunker_from_config(
+            ChunkerConfig(kind=ChunkerKind.FIXED, max_chars=100)
+        )
         assert chunker.chunk(text) == chunk_text(text, max_chars=100)
 
     def test_factory_rejects_unknown_kind(self) -> None:

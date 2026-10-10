@@ -1,7 +1,13 @@
 """Resilience patterns: circuit breaker, rate limiter, bulkhead, retry budget."""
 
-from techai_webutils.foundation.resilience.budget import RetryBudget, RetryBudgetExhaustedError
-from techai_webutils.foundation.resilience.bulkhead import BulkheadFullError, SemaphoreBulkhead
+from techai_webutils.foundation.resilience.budget import (
+    RetryBudget,
+    RetryBudgetExhaustedError,
+)
+from techai_webutils.foundation.resilience.bulkhead import (
+    BulkheadFullError,
+    SemaphoreBulkhead,
+)
 from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,

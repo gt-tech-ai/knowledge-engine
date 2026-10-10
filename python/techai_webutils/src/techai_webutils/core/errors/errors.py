@@ -106,29 +106,31 @@ class AppError(Exception):
 
     @property
     def grpc_status(self) -> int:
-        """Return the corresponding gRPC status code."""
-        return _GRPC_STATUS_MAP.get(self.code, 13)  # INTERNAL (Go Sanitize default; all codes are mapped)
+        """The corresponding gRPC status code."""
+        return _GRPC_STATUS_MAP.get(
+            self.code, 13
+        )  # INTERNAL (Go Sanitize default; all codes are mapped)
 
     @property
     def http_status(self) -> int:
-        """Return the corresponding HTTP status code."""
+        """The corresponding HTTP status code."""
         return _HTTP_STATUS_MAP.get(self.code, 500)
 
     @property
     def is_transient(self) -> bool:
-        """Return True if this error may succeed on retry."""
-        return self.code in (ErrorCode.TIMEOUT, ErrorCode.UNAVAILABLE)
+        """Whether this error may succeed on retry."""
+        return self.code in {ErrorCode.TIMEOUT, ErrorCode.UNAVAILABLE}
 
     @property
     def is_permanent(self) -> bool:
-        """Return True if this error will not succeed on retry."""
-        return self.code in (
+        """Whether this error will not succeed on retry."""
+        return self.code in {
             ErrorCode.NOT_FOUND,
             ErrorCode.INVALID_INPUT,
             ErrorCode.UNAUTHORIZED,
             ErrorCode.FORBIDDEN,
             ErrorCode.CONFLICT,
-        )
+        }
 
     def __repr__(self) -> str:
         """Return an unambiguous representation including the code and message."""
@@ -181,7 +183,9 @@ class ConflictError(AppError):
 class InternalError(AppError):
     """Internal server error."""
 
-    def __init__(self, message: str = "internal error", cause: Exception | None = None) -> None:
+    def __init__(
+        self, message: str = "internal error", cause: Exception | None = None
+    ) -> None:
         """Initialize with an optional message and underlying cause exception."""
         super().__init__(ErrorCode.INTERNAL, message, cause=cause)
 
@@ -211,7 +215,11 @@ class QuotaExceededError(AppError):
 
     def __init__(self, message: str, *, org_id: str, reason: str) -> None:
         """Initialize with a message, the organization whose quota is spent and a machine reason."""
-        super().__init__(ErrorCode.RESOURCE_EXHAUSTED, message, details={"org_id": org_id, "reason": reason})
+        super().__init__(
+            ErrorCode.RESOURCE_EXHAUSTED,
+            message,
+            details={"org_id": org_id, "reason": reason},
+        )
 
 
 # Ingestion-specific errors

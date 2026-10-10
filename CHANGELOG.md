@@ -32,6 +32,18 @@ All notable changes to this project are recorded here. The format follows
   unmarshal, rate-limiter and bulkhead waits, hedged calls, memory messaging, and others)
   now carry an `ErrorCode`. `errors.Is` / `errors.As` against the original error still
   match; the `Error()` text gains the `CODE: message:` prefix.
+- **Breaking (Python):** `VectorStore.stored_metadata` is now abstract. A custom
+  `VectorStore` subclass must implement it; return `{}` when the store has no cheap
+  existence probe (the old default). `StubVectorStore` now answers it from its map.
+- Python `BaseController.handle_error`, `write_json`, `write_error` and
+  `write_no_content` are static methods; calls through an instance are unchanged.
+- Python `NoopEmailSender`, `LangdetectMetadataExtractor`, `DisabledHedger`,
+  `DelayHedger` and `AlwaysLeader` now subclass their core Protocol explicitly.
+- Python `HandlerFunc` is defined in `techai_webutils.controllers.decorators`;
+  `techai_webutils.controllers` still re-exports it.
+- Python stub LLM streams yield to the event loop before each token.
+- Python gRPC `TracingServerInterceptor`: on a server-streaming RPC the SERVER span is
+  current only while each response is produced, not across the `yield` to grpc.aio.
 
 ## [0.3.2] - 2026-10-09
 

@@ -98,7 +98,11 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
     """
 
     def __init__(
-        self, redis: Redis, config: TokenLedgerConfig, *, metrics: MetricsProvider | None = None
+        self,
+        redis: Redis,
+        config: TokenLedgerConfig,
+        *,
+        metrics: MetricsProvider | None = None,
     ) -> None:
         """Bind the client and config, register the record script and the failure counter.
 
@@ -111,7 +115,9 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             self._window = Period(config.window)
         except ValueError as exc:
             raise AppError(
-                ErrorCode.INVALID_INPUT, f"unknown token ledger window {config.window!r}", cause=exc
+                ErrorCode.INVALID_INPUT,
+                f"unknown token ledger window {config.window!r}",
+                cause=exc,
             ) from exc
         self._redis = redis
         self._config = config
@@ -120,10 +126,13 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         self._failed: MetricCounter | None = None
         if metrics is not None:
             self._failed = metrics.counter(
-                "token_ledger_record_failed_total", "Token usage records that failed to reach the ledger.", []
+                "token_ledger_record_failed_total",
+                "Token usage records that failed to reach the ledger.",
+                [],
             )
 
-    def _workspace(self, scope: UsageScope) -> str:
+    @staticmethod
+    def _workspace(scope: UsageScope) -> str:
         """Return the key segment for ``scope``'s workspace."""
         return scope.workspace_id or _NO_WORKSPACE
 
@@ -133,7 +142,9 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
 
     def _limits_key(self, scope: UsageScope) -> str:
         """Return the limits hash key for ``scope``."""
-        return f"{self._config.redis_prefix}:limits:{scope.org_id}:{self._workspace(scope)}"
+        return (
+            f"{self._config.redis_prefix}:limits:{scope.org_id}:{self._workspace(scope)}"
+        )
 
     def _monthly(self) -> bool:
         """Return True when counters are kept per month (else per day)."""
@@ -147,14 +158,20 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             start = datetime(utc.year, utc.month, 1, tzinfo=UTC)
             return utc.strftime("%Y-%m"), int((start + timedelta(days=days)).timestamp())
         day_end = datetime(utc.year, utc.month, utc.day, tzinfo=UTC) + timedelta(days=1)
-        keep = timedelta(days=_ROLLING_DAYS) if self._window == Period.ROLLING_30D else timedelta(0)
+        keep = (
+            timedelta(days=_ROLLING_DAYS)
+            if self._window == Period.ROLLING_30D
+            else timedelta(0)
+        )
         return utc.strftime("%Y-%m-%d"), int((day_end + keep).timestamp())
 
     def _window_keys(self, scope: UsageScope, now: datetime) -> list[str]:
         """Return the counter keys the current window sums (one, or 30 days for rolling)."""
         if self._window == Period.ROLLING_30D:
             return [
-                self._counter_key(scope, (now - timedelta(days=i)).astimezone(UTC).strftime("%Y-%m-%d"))
+                self._counter_key(
+                    scope, (now - timedelta(days=i)).astimezone(UTC).strftime("%Y-%m-%d")
+                )
                 for i in range(_ROLLING_DAYS)
             ]
         return [self._counter_key(scope, self._bucket(now)[0])]
@@ -184,16 +201,22 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             usage.input_tokens,
             usage.output_tokens,
             usage.embed_tokens,
-            int(usage.cost_usd.quantize(MICRO_DOLLAR, rounding=ROUND_HALF_EVEN) * _MICROS),
+            int(
+                usage.cost_usd.quantize(MICRO_DOLLAR, rounding=ROUND_HALF_EVEN) * _MICROS
+            ),
         ]
         for key, value in entry.items():
             args += [key, value]
         try:
-            await self._script(keys=[self._counter_key(scope, window), self._config.stream], args=args)
+            await self._script(
+                keys=[self._counter_key(scope, window), self._config.stream], args=args
+            )
         except Exception:
             if self._failed is not None:
                 self._failed.inc()
-            self._logger.warning("token usage record failed", org_id=scope.org_id, exc_info=True)
+            self._logger.warning(
+                "token usage record failed", org_id=scope.org_id, exc_info=True
+            )
 
     async def _read(self, keys: list[str], limits_key: str | None) -> list[object]:
         """Read the counter hashes (and the limits hash) in one non-transactional pipeline."""
@@ -221,7 +244,9 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
             replies = await self._read(keys, self._limits_key(scope))
             return self._decide(replies)
         except Exception:
-            self._logger.warning("token budget check failed open", org_id=scope.org_id, exc_info=True)
+            self._logger.warning(
+                "token budget check failed open", org_id=scope.org_id, exc_info=True
+            )
             return BudgetDecision(
                 allowed=True,
                 reason="ledger_unavailable_fail_open",
@@ -243,15 +268,22 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         cost_limit = limits.get("cost_usd")
         if token_limit is None and cost_limit is None:
             return BudgetDecision(
-                allowed=True, reason="no_limit", remaining_tokens=None, remaining_cost_usd=None
+                allowed=True,
+                reason="no_limit",
+                remaining_tokens=None,
+                remaining_cost_usd=None,
             )
         remaining_tokens = None
         remaining_cost = None
         if token_limit is not None:
-            remaining_tokens = max(int(token_limit) - (input_tokens + output_tokens + embed_tokens), 0)
+            remaining_tokens = max(
+                int(token_limit) - (input_tokens + output_tokens + embed_tokens), 0
+            )
         if cost_limit is not None:
             spent = Decimal(cost_micros) / _MICROS
-            remaining_cost = max(Decimal(cost_limit) - spent, Decimal(0)).quantize(Decimal("0.000001"))
+            remaining_cost = max(Decimal(cost_limit) - spent, Decimal(0)).quantize(
+                Decimal("0.000001")
+            )
         exhausted = remaining_tokens == 0 or remaining_cost == 0
         return BudgetDecision(
             allowed=not exhausted,
@@ -275,7 +307,9 @@ class RedisTokenLedger(NoOpAsyncResource, TokenLedger):
         try:
             replies = await self._read(self._window_keys(scope, _utcnow()), None)
         except Exception as exc:
-            raise AppError(ErrorCode.UNAVAILABLE, "token ledger counters unavailable", cause=exc) from exc
+            raise AppError(
+                ErrorCode.UNAVAILABLE, "token ledger counters unavailable", cause=exc
+            ) from exc
         input_tokens, output_tokens, embed_tokens, cost_micros = self._sum(replies)
         return UsageSummary(
             scope=scope,

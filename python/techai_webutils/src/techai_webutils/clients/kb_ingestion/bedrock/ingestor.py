@@ -7,12 +7,16 @@ pure payload→``IngestionJob`` mapping lives in ``mapping.py`` (unit-tested and
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from typing import Any, Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
-from techai_webutils.clients.kb_ingestion.mapping import job_from_payload, kb_document_from_payload
+from techai_webutils.clients.kb_ingestion.mapping import (
+    job_from_payload,
+    kb_document_from_payload,
+)
 from techai_webutils.core.errors import ConflictError
 from techai_webutils.core.interfaces.kb_ingestion import (
     IngestionJob,
@@ -82,27 +86,29 @@ class BedrockKnowledgeBaseIngestor(KnowledgeBaseIngestor):
         self._region = region
         self._endpoint = endpoint
         self._session = aiobotocore.session.get_session()
-        # The client's async context manager + the entered client, both opened on first use. Typed
-        # ``Any`` because aiobotocore ships no stubs (the import is ``type: ignore[import-untyped]``).
-        self._client_cm: Any = None
+        # The exit stack that owns the opened client's async context (entered on first use).
+        self._stack: AsyncExitStack | None = None
         self._client: _BedrockAgentClient | None = None
 
     async def _agent_client(self) -> _BedrockAgentClient:
         """Return the shared bedrock-agent client, opening (and caching) it on first use."""
         if self._client is None:
-            self._client_cm = self._session.create_client(
+            self._stack = stack = AsyncExitStack()
+            client_cm = self._session.create_client(
                 "bedrock-agent",
                 region_name=self._region,
                 endpoint_url=self._endpoint,
             )
-            self._client = cast("_BedrockAgentClient", await self._client_cm.__aenter__())
+            self._client = cast(
+                "_BedrockAgentClient", await stack.enter_async_context(client_cm)
+            )
         return self._client
 
     async def aclose(self) -> None:
         """Close the shared bedrock-agent client if one was opened (idempotent)."""
-        if self._client_cm is not None:
-            await self._client_cm.__aexit__(None, None, None)
-            self._client_cm = None
+        if self._stack is not None:
+            await self._stack.aclose()
+            self._stack = None
             self._client = None
 
     async def __aenter__(self) -> Self:
@@ -113,7 +119,9 @@ class BedrockKnowledgeBaseIngestor(KnowledgeBaseIngestor):
         """Release the shared client on context exit."""
         await self.aclose()
 
-    async def start_ingestion_job(self, *, knowledge_base_id: str, data_source_id: str) -> IngestionJob:
+    async def start_ingestion_job(
+        self, *, knowledge_base_id: str, data_source_id: str
+    ) -> IngestionJob:
         """Start a Bedrock ingestion job for the KB data source.
 
         A botocore ``ConflictException`` — Bedrock rejecting a second start while a job is already
@@ -194,7 +202,9 @@ class BedrockKnowledgeBaseIngestor(KnowledgeBaseIngestor):
             resp = await client.list_knowledge_base_documents(**cast("Any", kwargs))
             docs.extend(
                 kb_document_from_payload(detail)
-                for detail in cast("list[dict[str, object]]", resp.get("documentDetails", []))
+                for detail in cast(
+                    "list[dict[str, object]]", resp.get("documentDetails", [])
+                )
             )
             next_token = cast("str | None", resp.get("nextToken"))
             if not next_token:

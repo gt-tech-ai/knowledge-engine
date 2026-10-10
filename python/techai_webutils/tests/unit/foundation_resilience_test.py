@@ -28,7 +28,10 @@ Run with: pytest tests/python/test_foundation/test_resilience.py
 """
 
 from techai_webutils.core.errors.errors import AppTimeoutError, UnavailableError
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 from techai_webutils.foundation.resilience.retry import retry_transient
 from techai_webutils.foundation.resilience.timeout import with_timeout
 import pytest

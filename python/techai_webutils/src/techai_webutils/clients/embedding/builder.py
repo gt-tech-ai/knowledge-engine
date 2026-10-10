@@ -56,7 +56,9 @@ def new_embedding_from_config(config: EmbeddingConfig) -> EmbeddingProvider:
         from techai_webutils.clients.embedding.ollama import OllamaEmbeddingProvider  # noqa: PLC0415
 
         client = httpx.AsyncClient(base_url=config.host, timeout=config.timeout_seconds)
-        return OllamaEmbeddingProvider(client, model=config.model, dimension=config.dimension)
+        return OllamaEmbeddingProvider(
+            client, model=config.model, dimension=config.dimension
+        )
     if config.kind is EmbeddingKind.STUB:
         # Lazy import (no httpx client to build).
         from techai_webutils.clients.embedding.stub import StubEmbeddingProvider  # noqa: PLC0415

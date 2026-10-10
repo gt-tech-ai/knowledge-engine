@@ -7,12 +7,12 @@ depends on this contract; concrete implementations live in the repos layer.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TypeVar, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
-    from techai_webutils.core.domain_types.types import Page, PageRequest
     from collections.abc import Awaitable, Callable
+
+    from techai_webutils.core.domain_types.types import Page, PageRequest
 
 T = TypeVar("T")
 P = TypeVar("P")

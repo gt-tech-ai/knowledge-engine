@@ -20,7 +20,9 @@ if TYPE_CHECKING:
     from techai_webutils.core.interfaces.messaging import Message
 
 
-async def _drain(config: SQSConfig, topic: str, want: int, timeout: float = 20.0) -> list[Message]:
+async def _drain(
+    config: SQSConfig, topic: str, want: int, timeout: float = 20.0
+) -> list[Message]:
     """Subscribe and collect ``want`` messages, then stop the consumer loop."""
     received: list[Message] = []
     async with SQSSubscriber(config) as subscriber:

@@ -74,13 +74,17 @@ def extract_conversation(ctx: Context | None = None) -> ConversationContext | No
     """
     conversation_id = baggage.get_baggage(BAGGAGE_CONVERSATION_ID, ctx)
     raw_turn = baggage.get_baggage(BAGGAGE_TURN_INDEX, ctx)
-    if not isinstance(conversation_id, str) or not _CONVERSATION_ID.fullmatch(conversation_id):
+    if not isinstance(conversation_id, str) or not _CONVERSATION_ID.fullmatch(
+        conversation_id
+    ):
         return None
     if not isinstance(raw_turn, str) or not _TURN_INDEX.fullmatch(raw_turn):
         return None
     prev_raw = baggage.get_baggage(BAGGAGE_PREV_TRACEPARENT, ctx)
     prev = _parse_traceparent(prev_raw) if isinstance(prev_raw, str) else None
-    return ConversationContext(conversation_id=conversation_id, turn_index=int(raw_turn), prev=prev)
+    return ConversationContext(
+        conversation_id=conversation_id, turn_index=int(raw_turn), prev=prev
+    )
 
 
 def stamp_conversation(span: Span, conv: ConversationContext) -> None:

@@ -11,12 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from techai_webutils.core.interfaces.metrics import (
-    MetricCounter,
-    MetricGauge,
-    MetricHistogram,
-    MetricsProvider,
-)
 from opentelemetry import trace as _otel_trace
 from prometheus_client import (
     REGISTRY,
@@ -24,6 +18,13 @@ from prometheus_client import (
     Counter,
     Gauge,
     Histogram,
+)
+
+from techai_webutils.core.interfaces.metrics import (
+    MetricCounter,
+    MetricGauge,
+    MetricHistogram,
+    MetricsProvider,
 )
 
 if TYPE_CHECKING:
@@ -58,7 +59,11 @@ class PrometheusMetricsProvider(MetricsProvider):
         self._registry = registry or REGISTRY
 
     def _get_or_create[T](
-        self, name: str, expected_type: type, labelnames: list[str], create: Callable[[], T]
+        self,
+        name: str,
+        expected_type: type,
+        labelnames: list[str],
+        create: Callable[[], T],
     ) -> T:
         """Create a metric, or reuse an already-registered one of the same name (idempotent).
 
@@ -100,7 +105,9 @@ class PrometheusMetricsProvider(MetricsProvider):
                 return collector
         return None
 
-    def counter(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricCounter:
+    def counter(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricCounter:
         """Create a Prometheus counter metric (idempotent on a repeated in-process init)."""
         c = self._get_or_create(
             name,
@@ -122,14 +129,22 @@ class PrometheusMetricsProvider(MetricsProvider):
         if buckets is not None:
             kwargs["buckets"] = buckets
         h = self._get_or_create(
-            name, Histogram, labels or [], lambda: Histogram(name, help_text, labels or [], **kwargs)
+            name,
+            Histogram,
+            labels or [],
+            lambda: Histogram(name, help_text, labels or [], **kwargs),
         )
         return _PrometheusHistogram(h, labels or [])
 
-    def gauge(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricGauge:
+    def gauge(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricGauge:
         """Create a Prometheus gauge metric (idempotent on a repeated in-process init)."""
         g = self._get_or_create(
-            name, Gauge, labels or [], lambda: Gauge(name, help_text, labels or [], registry=self._registry)
+            name,
+            Gauge,
+            labels or [],
+            lambda: Gauge(name, help_text, labels or [], registry=self._registry),
         )
         return _PrometheusGauge(g, labels or [])
 

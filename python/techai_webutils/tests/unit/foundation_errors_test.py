@@ -125,7 +125,9 @@ class TestErrorClassification:
         **What it tests:**
           - classify_error(IngestionError) returns "internal"
         """
-        assert classify_error(IngestionError("parse failed", document_id="d1")) == "internal"
+        assert (
+            classify_error(IngestionError("parse failed", document_id="d1")) == "internal"
+        )
 
     def test_quality_failed_is_internal(self) -> None:
         """Test that classify_error returns 'internal' for a QUALITY_FAILED error.
@@ -137,7 +139,10 @@ class TestErrorClassification:
         **What it tests:**
           - classify_error(AppError(QUALITY_FAILED)) returns "internal"
         """
-        assert classify_error(AppError(ErrorCode.QUALITY_FAILED, "gate failed")) == "internal"
+        assert (
+            classify_error(AppError(ErrorCode.QUALITY_FAILED, "gate failed"))
+            == "internal"
+        )
 
     def test_upstream_is_internal_and_non_transient(self) -> None:
         """Test that classify_error returns 'internal' (not 'transient') for an UPSTREAM error.

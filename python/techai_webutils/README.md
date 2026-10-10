@@ -28,7 +28,12 @@ uv add "techai-webutils[postgres]"  # optional backends: ray, postgres, parsing,
 Build a component from its config at your composition root and inject it:
 
 ```python
-from techai_webutils.clients.storage import S3Config, StorageConfig, StorageKind, new_storage_from_config
+from techai_webutils.clients.storage import (
+    S3Config,
+    StorageConfig,
+    StorageKind,
+    new_storage_from_config,
+)
 
 config = StorageConfig(
     kind=StorageKind.MEMORY,  # StorageKind.S3 in a deployment: same code, different config

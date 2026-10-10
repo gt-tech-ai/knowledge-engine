@@ -28,7 +28,9 @@ class MetricsLoggingObserver(NopObserver):
     no-ops — it remains the sole per-item metric emitter for the batch/step lifecycle.
     """
 
-    def __init__(self, metrics: MetricsProvider, logger: Logger, *, subsystem: str) -> None:
+    def __init__(
+        self, metrics: MetricsProvider, logger: Logger, *, subsystem: str
+    ) -> None:
         """Create the metric series under ``subsystem`` and bind the logger."""
         # _log is the structured logger for batch/step lifecycle lines.
         self._log = logger
@@ -57,7 +59,9 @@ class MetricsLoggingObserver(NopObserver):
     def on_batch_start(self, name: str, total: int) -> None:
         """Record the batch size as inflight and log the batch start."""
         self._inflight.inc(float(total))
-        self._log.info("batch started", batch=name, subsystem=self._subsystem, total=total)
+        self._log.info(
+            "batch started", batch=name, subsystem=self._subsystem, total=total
+        )
 
     @override
     def on_step_complete(self, result: StepResult) -> None:

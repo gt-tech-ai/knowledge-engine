@@ -54,7 +54,9 @@ class TestInMemoryLock:
 
 class TestPostgresAdvisoryLock:
     @pytest.mark.asyncio
-    async def test_acquire_returns_lock_result_and_connects_once_with_keepalive(self) -> None:
+    async def test_acquire_returns_lock_result_and_connects_once_with_keepalive(
+        self,
+    ) -> None:
         """Test acquire opens one keepalive-enabled session, returns the pg_try_advisory_lock result.
 
         **Why this test is important:**
@@ -76,7 +78,9 @@ class TestPostgresAdvisoryLock:
             async with lock as entered:
                 assert entered is lock
                 assert await lock.acquire() is True
-                assert await lock.acquire() is True  # reuses the same session, no reconnect
+                assert (
+                    await lock.acquire() is True
+                )  # reuses the same session, no reconnect
 
         connect.assert_awaited_once()
         call = connect.call_args
@@ -123,7 +127,9 @@ class TestPostgresAdvisoryLock:
         """
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
-            lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb-1:ds-1", namespace=0x4B425359)
+            lock = PostgresAdvisoryLock(
+                dsn="postgresql://h/db", key="kb-1:ds-1", namespace=0x4B425359
+            )
             async with lock:
                 await lock.acquire()
 
@@ -150,7 +156,9 @@ class TestPostgresAdvisoryLock:
         with pytest.raises(ValueError, match="namespace"):
             PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=2**31)
         with pytest.raises(ValueError, match="namespace"):
-            PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MIN - 1)
+            PostgresAdvisoryLock(
+                dsn="postgresql://h/db", key="k", namespace=INT32_MIN - 1
+            )
         PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MIN)
         PostgresAdvisoryLock(dsn="postgresql://h/db", key="k", namespace=INT32_MAX)
 
@@ -230,7 +238,9 @@ class TestPostgresAdvisoryLock:
             ``UnavailableError``.
         """
         conn = _mock_conn()
-        conn.fetchval = AsyncMock(side_effect=asyncpg.InterfaceError("connection is closed"))
+        conn.fetchval = AsyncMock(
+            side_effect=asyncpg.InterfaceError("connection is closed")
+        )
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
             lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
@@ -253,7 +263,9 @@ class TestPostgresAdvisoryLock:
             propagating.
         """
         conn = _mock_conn()
-        conn.fetchval = AsyncMock(side_effect=[True, asyncpg.InterfaceError("connection is closed")])
+        conn.fetchval = AsyncMock(
+            side_effect=[True, asyncpg.InterfaceError("connection is closed")]
+        )
         with patch("asyncpg.connect", AsyncMock(return_value=conn)):
             lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
@@ -274,7 +286,9 @@ class TestPostgresAdvisoryLock:
             transient error; the next acquire opens a fresh session and succeeds.
         """
         broken, fresh = _mock_conn(), _mock_conn()
-        broken.fetchval = AsyncMock(side_effect=asyncpg.InterfaceError("connection reset"))
+        broken.fetchval = AsyncMock(
+            side_effect=asyncpg.InterfaceError("connection reset")
+        )
         with patch("asyncpg.connect", AsyncMock(side_effect=[broken, fresh])) as connect:
             lock = PostgresAdvisoryLock(dsn="postgresql://h/db", key="kb:ds", namespace=7)
             async with lock:
@@ -298,7 +312,9 @@ class TestPostgresAdvisoryLock:
             key and namespace (so a process holding several locks can tell which one), and does not raise.
         """
         conn = _mock_conn()
-        conn.fetchval = AsyncMock(side_effect=[True, False])  # acquire True, unlock reports not-held
+        conn.fetchval = AsyncMock(
+            side_effect=[True, False]
+        )  # acquire True, unlock reports not-held
         with (
             patch("asyncpg.connect", AsyncMock(return_value=conn)),
             patch("techai_webutils.clients.lock.postgres.lock.logger") as mock_logger,
@@ -324,7 +340,11 @@ class TestLockFromConfig:
         **What it tests:**
           - ``new_lock_from_config`` with kind=memory returns an ``InMemoryLock``.
         """
-        from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
+        from techai_webutils.clients.lock import (
+            LockConfig,
+            LockKind,
+            new_lock_from_config,
+        )
 
         lock = new_lock_from_config(LockConfig(kind=LockKind.MEMORY))
         assert isinstance(lock, InMemoryLock)
@@ -343,13 +363,20 @@ class TestLockFromConfig:
             ``pg_try_advisory_lock(namespace, signed crc32(key))`` on a session tagged with the configured
             ``application_name``.
         """
-        from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
+        from techai_webutils.clients.lock import (
+            LockConfig,
+            LockKind,
+            new_lock_from_config,
+        )
 
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)) as connect:
             lock = new_lock_from_config(
                 LockConfig(
-                    kind=LockKind.POSTGRES, key="kb:ds", namespace=0x4B425359, application_name="kb-sync"
+                    kind=LockKind.POSTGRES,
+                    key="kb:ds",
+                    namespace=0x4B425359,
+                    application_name="kb-sync",
                 )
             )
             async with lock:
@@ -359,7 +386,9 @@ class TestLockFromConfig:
         _, classid, objid = conn.fetchval.await_args_list[0].args
         assert classid == 0x4B425359
         assert objid == struct.unpack("i", struct.pack("I", zlib.crc32(b"kb:ds")))[0]
-        assert connect.call_args.kwargs["server_settings"]["application_name"] == "kb-sync"
+        assert (
+            connect.call_args.kwargs["server_settings"]["application_name"] == "kb-sync"
+        )
 
     def test_postgres_kind_requires_an_explicit_namespace(self) -> None:
         """Test the factory refuses a postgres lock config that leaves the namespace unset.
@@ -373,11 +402,17 @@ class TestLockFromConfig:
           - ``LockConfig(kind=postgres, key=...)`` with no namespace makes ``new_lock_from_config`` raise
             ``ValueError`` naming the namespace; the memory kind still needs none.
         """
-        from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
+        from techai_webutils.clients.lock import (
+            LockConfig,
+            LockKind,
+            new_lock_from_config,
+        )
 
         with pytest.raises(ValueError, match="namespace"):
             new_lock_from_config(LockConfig(kind=LockKind.POSTGRES, key="kb:ds"))
-        assert isinstance(new_lock_from_config(LockConfig(kind=LockKind.MEMORY)), InMemoryLock)
+        assert isinstance(
+            new_lock_from_config(LockConfig(kind=LockKind.MEMORY)), InMemoryLock
+        )
 
     def test_unknown_kind_raises(self) -> None:
         """Test an unrecognised lock kind fails loudly (fail-fast on misconfiguration).
@@ -408,7 +443,11 @@ class TestLockFromConfig:
           - A postgres LockConfig with ``sslmode=require`` and a password containing ``@`` and ``/``
             produces a connection DSN with ``sslmode=require`` and the encoded password.
         """
-        from techai_webutils.clients.lock import LockConfig, LockKind, new_lock_from_config
+        from techai_webutils.clients.lock import (
+            LockConfig,
+            LockKind,
+            new_lock_from_config,
+        )
 
         conn = _mock_conn()
         with patch("asyncpg.connect", AsyncMock(return_value=conn)) as connect:

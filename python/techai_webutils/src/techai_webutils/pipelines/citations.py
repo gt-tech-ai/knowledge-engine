@@ -8,7 +8,7 @@ retrieved passages are surfaced as potential citations, and why entries are neve
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from techai_webutils.core.interfaces.retrieval import Citation, CitationExtractor
 
@@ -29,7 +29,10 @@ class PassageCitationExtractor(CitationExtractor):
         """
         self._attribute_keys = tuple(attribute_keys)
 
-    async def extract(self, answer: str, sources: list[RetrievalResult]) -> list[Citation]:  # noqa: ARG002
+    @override
+    async def extract(
+        self, answer: str, sources: list[RetrievalResult]
+    ) -> list[Citation]:
         """Return one Citation per source passage, in retrieval order.
 
         The mapping is strictly positional: the generator numbers passages 1-based in the prompt, so
@@ -44,7 +47,11 @@ class PassageCitationExtractor(CitationExtractor):
                 chunk=source.chunk_content,
                 page_number=source.page_number,
                 confidence=source.score,
-                attributes={k: source.metadata[k] for k in self._attribute_keys if k in source.metadata},
+                attributes={
+                    k: source.metadata[k]
+                    for k in self._attribute_keys
+                    if k in source.metadata
+                },
             )
             for source in sources
         ]

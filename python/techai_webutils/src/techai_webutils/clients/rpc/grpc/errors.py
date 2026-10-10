@@ -6,9 +6,11 @@ Maps ``AppError`` codes to gRPC status codes using client-safe messages.
 
 from __future__ import annotations
 
-from techai_webutils.core.errors.errors import AppError, ErrorCode
-import grpc
 from typing import TYPE_CHECKING
+
+import grpc
+
+from techai_webutils.core.errors.errors import AppError, ErrorCode
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.logger import Logger
@@ -45,7 +47,9 @@ implementation detail that must never reach a client (the raw text is still reco
 """
 
 
-def to_grpc_status(err: Exception, logger: Logger | None = None) -> tuple[grpc.StatusCode, str]:
+def to_grpc_status(
+    err: Exception, logger: Logger | None = None
+) -> tuple[grpc.StatusCode, str]:
     """Map an exception to a gRPC status code and client-safe message.
 
     Args:

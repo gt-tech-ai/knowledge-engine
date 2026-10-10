@@ -7,9 +7,9 @@ version, the cached entry is treated as a miss.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import time
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)

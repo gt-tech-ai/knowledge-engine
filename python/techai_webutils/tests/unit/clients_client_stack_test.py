@@ -72,7 +72,10 @@ async def test_client_stack_retries_transient_then_succeeds() -> None:
     """
     fake = _client(side_effect=[AppError(ErrorCode.UNAVAILABLE, "transient"), "ok"])
     cfg = ClientStackConfig(
-        retry_enabled=True, retry_max_attempts=3, bulkhead_max_concurrent=None, timeout_seconds=None
+        retry_enabled=True,
+        retry_max_attempts=3,
+        bulkhead_max_concurrent=None,
+        timeout_seconds=None,
     )
     stacked = new_client_stack_from_config(fake, "t", cfg)
     assert await stacked.do() == "ok"
@@ -86,7 +89,9 @@ async def test_client_stack_circuit_opens_after_threshold() -> None:
     What it tests: once the breaker opens, a call raises CircuitOpenError without invoking the
     wrapped method.
     """
-    fake = _client(side_effect=AppError(ErrorCode.UNAVAILABLE, "transient"))  # always fails
+    fake = _client(
+        side_effect=AppError(ErrorCode.UNAVAILABLE, "transient")
+    )  # always fails
     cb = CircuitBreaker(failure_threshold=2)
     cfg = ClientStackConfig(bulkhead_max_concurrent=None, timeout_seconds=None)
     stacked = new_client_stack_from_config(fake, "t", cfg, circuit_breaker=cb)
@@ -105,7 +110,9 @@ async def test_client_stack_circuit_opens_after_threshold() -> None:
     calls_at_open = fake.do.await_count
     with pytest.raises(CircuitOpenError):
         await stacked.do()
-    assert fake.do.await_count == calls_at_open, "open breaker must not invoke the wrapped method"
+    assert fake.do.await_count == calls_at_open, (
+        "open breaker must not invoke the wrapped method"
+    )
 
 
 @pytest.mark.asyncio
@@ -213,12 +220,18 @@ def test_client_stack_wrap_order_tracing_outermost_logging_innermost() -> None:
     stacked = new_client_stack_from_config(
         target,
         "t",
-        ClientStackConfig(timeout_seconds=None, retry_enabled=False, bulkhead_max_concurrent=None),
+        ClientStackConfig(
+            timeout_seconds=None, retry_enabled=False, bulkhead_max_concurrent=None
+        ),
     )
 
-    assert type(stacked).__name__ == "TracingProxy", "Tracing must be outermost of the trio"
+    assert type(stacked).__name__ == "TracingProxy", (
+        "Tracing must be outermost of the trio"
+    )
     inner = stacked._wrapped  # noqa: SLF001 — structural assertion of the composed nesting
-    assert type(inner).__name__ == "LoggingProxy", "Logging must sit inside Tracing (innermost)"
+    assert type(inner).__name__ == "LoggingProxy", (
+        "Logging must sit inside Tracing (innermost)"
+    )
     assert inner._wrapped is target  # noqa: SLF001 — LoggingProxy wraps the target directly
 
 

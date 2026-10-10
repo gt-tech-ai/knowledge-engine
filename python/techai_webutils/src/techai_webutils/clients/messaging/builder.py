@@ -12,9 +12,18 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.clients.messaging.memory import (
+    InMemoryBroker,
+    InMemoryPublisher,
+    InMemorySubscriber,
+)
+
 if TYPE_CHECKING:
     from techai_webutils.clients.messaging.config import SQSConfig
-    from techai_webutils.core.interfaces.messaging import MessageConsumer, MessagePublisher
+    from techai_webutils.core.interfaces.messaging import (
+        MessageConsumer,
+        MessagePublisher,
+    )
 
 
 class MessagingKind(StrEnum):
@@ -44,9 +53,6 @@ def new_messaging_from_config(config: MessagingConfig) -> MessagePublisher:
 
         return SQSPublisher(config.sqs)
     if config.kind is MessagingKind.MEMORY:
-        # Lazy import (and no SDK to load).
-        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemoryPublisher  # noqa: PLC0415
-
         return InMemoryPublisher(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"
     raise ValueError(msg)
@@ -60,9 +66,6 @@ def new_messaging_subscriber_from_config(config: MessagingConfig) -> MessageCons
 
         return SQSSubscriber(config.sqs)
     if config.kind is MessagingKind.MEMORY:
-        # Lazy import (and no SDK to load).
-        from techai_webutils.clients.messaging.memory import InMemoryBroker, InMemorySubscriber  # noqa: PLC0415
-
         return InMemorySubscriber(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"
     raise ValueError(msg)

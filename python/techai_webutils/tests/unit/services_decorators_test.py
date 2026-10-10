@@ -13,7 +13,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from techai_webutils.core.domain_types.types import Page, PageRequest
-from techai_webutils.core.errors.errors import ForbiddenError, InternalError, NotFoundError
+from techai_webutils.core.errors.errors import (
+    ForbiddenError,
+    InternalError,
+    NotFoundError,
+)
 from techai_webutils.core.interfaces.repository import Repository
 from techai_webutils.services.crud_service import BaseCrudService
 from techai_webutils.services.decorators.builder import ServiceBuilder

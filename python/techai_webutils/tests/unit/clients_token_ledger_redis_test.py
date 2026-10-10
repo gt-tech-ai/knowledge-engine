@@ -13,7 +13,11 @@ from redis.asyncio import Redis
 from redis.asyncio.client import Pipeline
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from techai_webutils.clients.token_ledger import TokenLedgerConfig, TokenLedgerKind, token_ledger_from_config
+from techai_webutils.clients.token_ledger import (
+    TokenLedgerConfig,
+    TokenLedgerKind,
+    token_ledger_from_config,
+)
 from techai_webutils.clients.token_ledger.redis import RedisTokenLedger
 from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.metrics import MetricCounter, MetricsProvider
@@ -140,12 +144,16 @@ async def test_record_error_never_raises():
     failed = MagicMock(spec=MetricCounter)
     metrics = MagicMock(spec=MetricsProvider)
     metrics.counter.return_value = failed
-    ledger = RedisTokenLedger(client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS), metrics=metrics)
+    ledger = RedisTokenLedger(
+        client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS), metrics=metrics
+    )
 
     assert await ledger.record(_record()) is None
 
     metrics.counter.assert_called_once_with(
-        "token_ledger_record_failed_total", "Token usage records that failed to reach the ledger.", []
+        "token_ledger_record_failed_total",
+        "Token usage records that failed to reach the ledger.",
+        [],
     )
     failed.inc.assert_called_once_with()
 
@@ -167,9 +175,14 @@ async def test_check_budget_counter_arithmetic():
     """
     client, _ = _client()
     ledger = RedisTokenLedger(client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS))
-    pipe = _pipeline(client, [[b"100", b"20", b"5", b"10800"], {b"tokens": b"1000", b"cost_usd": b"0.05"}])
+    pipe = _pipeline(
+        client,
+        [[b"100", b"20", b"5", b"10800"], {b"tokens": b"1000", b"cost_usd": b"0.05"}],
+    )
 
-    with patch("techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW):
+    with patch(
+        "techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW
+    ):
         within = await ledger.check_budget(_SCOPE)
         _pipeline(client, [[b"900", b"100", b"0", b"0"], {b"tokens": b"1000"}])
         exhausted = await ledger.check_budget(_SCOPE)
@@ -177,16 +190,26 @@ async def test_check_budget_counter_arithmetic():
         unlimited = await ledger.check_budget(_SCOPE)
 
     assert within == BudgetDecision(
-        allowed=True, reason="within_budget", remaining_tokens=875, remaining_cost_usd=Decimal("0.039200")
+        allowed=True,
+        reason="within_budget",
+        remaining_tokens=875,
+        remaining_cost_usd=Decimal("0.039200"),
     )
     assert exhausted == BudgetDecision(
-        allowed=False, reason="budget_exhausted", remaining_tokens=0, remaining_cost_usd=None
+        allowed=False,
+        reason="budget_exhausted",
+        remaining_tokens=0,
+        remaining_cost_usd=None,
     )
     assert unlimited == BudgetDecision(
         allowed=True, reason="no_limit", remaining_tokens=None, remaining_cost_usd=None
     )
     pipe.hmget.assert_called_once_with(
-        "token_ledger:org-1:w-1:2026-10", "input_tokens", "output_tokens", "embed_tokens", "cost_micro_usd"
+        "token_ledger:org-1:w-1:2026-10",
+        "input_tokens",
+        "output_tokens",
+        "embed_tokens",
+        "cost_micro_usd",
     )
     pipe.hgetall.assert_called_once_with("token_ledger:limits:org-1:w-1")
     client.pipeline.assert_called_with(transaction=False)
@@ -211,7 +234,10 @@ async def test_check_budget_fails_open_on_redis_error():
     decision = await ledger.check_budget(_SCOPE)
 
     assert decision == BudgetDecision(
-        allowed=True, reason="ledger_unavailable_fail_open", remaining_tokens=None, remaining_cost_usd=None
+        allowed=True,
+        reason="ledger_unavailable_fail_open",
+        remaining_tokens=None,
+        remaining_cost_usd=None,
     )
 
 
@@ -234,7 +260,9 @@ async def test_usage_reads_counter_snapshot():
         client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS, window=Period.ROLLING_30D)
     )
 
-    with patch("techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW):
+    with patch(
+        "techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW
+    ):
         _pipeline(client, [[b"100", b"20", b"5", b"10800"]])
         month = await monthly.usage(_SCOPE, Period.MONTHLY)
         pipe = _pipeline(client, [[b"1", b"1", b"0", b"1"]] * 30)
@@ -284,7 +312,10 @@ async def test_check_budget_fails_open_on_malformed_limits():
     decision = await ledger.check_budget(_SCOPE)
 
     assert decision == BudgetDecision(
-        allowed=True, reason="ledger_unavailable_fail_open", remaining_tokens=None, remaining_cost_usd=None
+        allowed=True,
+        reason="ledger_unavailable_fail_open",
+        remaining_tokens=None,
+        remaining_cost_usd=None,
     )
 
 
@@ -304,16 +335,24 @@ async def test_record_rounds_cost_half_even_and_accepts_a_string_window():
     """
     client, script = _client()
     rolling = RedisTokenLedger(
-        client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS, window=cast("Period", "rolling_30d"))
+        client,
+        TokenLedgerConfig(
+            kind=TokenLedgerKind.REDIS, window=cast("Period", "rolling_30d")
+        ),
     )
 
     await rolling.record(replace(_record(), cost_usd=Decimal("0.0000135")))
-    with patch("techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW):
+    with patch(
+        "techai_webutils.clients.token_ledger.redis.ledger._utcnow", return_value=_NOW
+    ):
         pipe = _pipeline(client, [[b"0", b"0", b"0", b"0"]] * 30)
         await rolling.usage(_SCOPE, Period.ROLLING_30D)
     with pytest.raises(AppError) as caught:
         RedisTokenLedger(
-            client, TokenLedgerConfig(kind=TokenLedgerKind.REDIS, window=cast("Period", "weekly"))
+            client,
+            TokenLedgerConfig(
+                kind=TokenLedgerKind.REDIS, window=cast("Period", "weekly")
+            ),
         )
 
     assert script.await_args is not None

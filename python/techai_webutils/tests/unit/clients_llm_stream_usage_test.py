@@ -29,7 +29,10 @@ from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 def _messages(user: str) -> list[LLMMessage]:
     """A system + user message pair."""
-    return [LLMMessage(role="system", content="be brief"), LLMMessage(role="user", content=user)]
+    return [
+        LLMMessage(role="system", content="be brief"),
+        LLMMessage(role="user", content=user),
+    ]
 
 
 async def _collect(iterator: AsyncIterator[Any]) -> list[Any]:
@@ -91,15 +94,17 @@ async def test_bedrock_stream_with_usage_yields_usage_last():
     runtime = MagicMock()
     runtime.converse_stream = AsyncMock(
         return_value={
-            "stream": _events(
-                [
-                    {"messageStart": {"role": "assistant"}},
-                    {"contentBlockDelta": {"delta": {"text": "Hello"}}},
-                    {"contentBlockDelta": {"delta": {"text": " world"}}},
-                    {"messageStop": {"stopReason": "end_turn"}},
-                    {"metadata": {"usage": {"inputTokens": 12, "outputTokens": 3, "totalTokens": 15}}},
-                ]
-            )
+            "stream": _events([
+                {"messageStart": {"role": "assistant"}},
+                {"contentBlockDelta": {"delta": {"text": "Hello"}}},
+                {"contentBlockDelta": {"delta": {"text": " world"}}},
+                {"messageStop": {"stopReason": "end_turn"}},
+                {
+                    "metadata": {
+                        "usage": {"inputTokens": 12, "outputTokens": 3, "totalTokens": 15}
+                    }
+                },
+            ])
         }
     )
     client_cm = MagicMock()
@@ -116,7 +121,10 @@ async def test_bedrock_stream_with_usage_yields_usage_last():
         "Hello",
         " world",
         StreamUsage(
-            model="amazon.nova-lite-v1:0", input_tokens=12, output_tokens=3, finish_reason="end_turn"
+            model="amazon.nova-lite-v1:0",
+            input_tokens=12,
+            output_tokens=3,
+            finish_reason="end_turn",
         ),
     ]
 
@@ -132,28 +140,32 @@ async def test_ollama_stream_with_usage_yields_usage_last():
     **What it tests:**
       - the content deltas come first, then ``StreamUsage("llama3.2", 7, 2, "stop")``
     """
-    client = _ollama_client(
-        [
-            '{"model":"llama3.2","message":{"content":"Ish"},"done":false}',
-            '{"model":"llama3.2","message":{"content":"mael"},"done":false}',
-            '{"model":"llama3.2","message":{"content":""},"done":true,"done_reason":"stop",'
-            '"prompt_eval_count":7,"eval_count":2}',
-        ]
-    )
+    client = _ollama_client([
+        '{"model":"llama3.2","message":{"content":"Ish"},"done":false}',
+        '{"model":"llama3.2","message":{"content":"mael"},"done":false}',
+        '{"model":"llama3.2","message":{"content":""},"done":true,"done_reason":"stop",'
+        '"prompt_eval_count":7,"eval_count":2}',
+    ])
 
     items = await _collect(
-        await OllamaLlmProvider(client, model="llama3.2").stream_with_usage(_messages("hi"))
+        await OllamaLlmProvider(client, model="llama3.2").stream_with_usage(
+            _messages("hi")
+        )
     )
 
     assert items == [
         "Ish",
         "mael",
-        StreamUsage(model="llama3.2", input_tokens=7, output_tokens=2, finish_reason="stop"),
+        StreamUsage(
+            model="llama3.2", input_tokens=7, output_tokens=2, finish_reason="stop"
+        ),
     ]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("status", "code"), [(503, ErrorCode.UNAVAILABLE), (400, ErrorCode.INTERNAL)])
+@pytest.mark.parametrize(
+    ("status", "code"), [(503, ErrorCode.UNAVAILABLE), (400, ErrorCode.INTERNAL)]
+)
 async def test_ollama_stream_with_usage_codes_http_errors(status: int, code: ErrorCode):
     """Test that a non-2xx streamed Ollama response raises a coded ``AppError``.
 
@@ -165,7 +177,9 @@ async def test_ollama_stream_with_usage_codes_http_errors(status: int, code: Err
       - HTTP 503 raises ``AppError(UNAVAILABLE)`` and HTTP 400 raises ``AppError(INTERNAL)``,
         each with the message "ollama chat returned HTTP <status>", and no item is yielded
     """
-    client = _ollama_client(['{"message":{"content":"never"},"done":false}'], status=status)
+    client = _ollama_client(
+        ['{"message":{"content":"never"},"done":false}'], status=status
+    )
     stream = await OllamaLlmProvider(client, model="m").stream_with_usage(_messages("hi"))
 
     with pytest.raises(AppError) as excinfo:
@@ -185,12 +199,16 @@ async def test_stub_stream_with_usage_yields_usage_last():
     **What it tests:**
       - tokens of the last user message, then ``StreamUsage("stub-llm", 4, 2, "stop")`` (word counts)
     """
-    items = await _collect(await StubLlmProvider().stream_with_usage(_messages("alpha beta")))
+    items = await _collect(
+        await StubLlmProvider().stream_with_usage(_messages("alpha beta"))
+    )
 
     assert items == [
         "alpha ",
         "beta ",
-        StreamUsage(model="stub-llm", input_tokens=4, output_tokens=2, finish_reason="stop"),
+        StreamUsage(
+            model="stub-llm", input_tokens=4, output_tokens=2, finish_reason="stop"
+        ),
     ]
 
 
@@ -205,15 +223,15 @@ async def test_stream_filters_out_usage():
     **What it tests:**
       - the stub's and Ollama's ``stream()`` yield exactly the text deltas, no ``StreamUsage``
     """
-    client = _ollama_client(
-        [
-            '{"message":{"content":"ok"},"done":false}',
-            '{"message":{"content":""},"done":true,"prompt_eval_count":1,"eval_count":1}',
-        ]
-    )
+    client = _ollama_client([
+        '{"message":{"content":"ok"},"done":false}',
+        '{"message":{"content":""},"done":true,"prompt_eval_count":1,"eval_count":1}',
+    ])
 
     stub_items = await _collect(await StubLlmProvider().stream(_messages("alpha beta")))
-    ollama_items = await _collect(await OllamaLlmProvider(client, model="m").stream(_messages("hi")))
+    ollama_items = await _collect(
+        await OllamaLlmProvider(client, model="m").stream(_messages("hi"))
+    )
 
     assert stub_items == ["alpha ", "beta "]
     assert ollama_items == ["ok"]
@@ -222,10 +240,14 @@ async def test_stream_filters_out_usage():
 class _TextOnlyProvider(NoOpAsyncResource, LLMProvider):
     """A provider implementing only the abstract API, as a third-party provider would."""
 
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         raise NotImplementedError
 
-    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str]:
         async def _gen() -> AsyncIterator[str]:
             yield "a"
             yield "b"

@@ -170,7 +170,9 @@ class TestWorkerEntrypoints:
         assert status == "err"
         assert "kaboom" in payload
 
-    def test_worker_applies_memory_limit_when_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_worker_applies_memory_limit_when_positive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that the worker applies the memory cap before running the task when one is set.
 
         **Why this test is important:**
@@ -191,18 +193,24 @@ class TestWorkerEntrypoints:
         assert applied == [512]
         assert queue.get(timeout=5) == ("ok", 6)
 
-    def test_apply_memory_limit_sets_when_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_apply_memory_limit_sets_when_supported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that the memory limit is applied as an (n, n) RLIMIT_AS when the platform allows.
 
         **What it tests:**
           - _apply_memory_limit(n) calls setrlimit with (n, n).
         """
         captured: dict[str, tuple[int, int]] = {}
-        monkeypatch.setattr(resource, "setrlimit", lambda _res, limits: captured.setdefault("l", limits))
+        monkeypatch.setattr(
+            resource, "setrlimit", lambda _res, limits: captured.setdefault("l", limits)
+        )
         _apply_memory_limit(456)
         assert captured["l"] == (456, 456)
 
-    def test_apply_memory_limit_is_best_effort(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_apply_memory_limit_is_best_effort(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that a platform rejecting RLIMIT_AS is swallowed (best-effort).
 
         **Why this test is important:**
@@ -238,7 +246,9 @@ class TestIsolatedParser:
         assert "Isolated" in result.markdown_content
 
     @pytest.mark.asyncio
-    async def test_parse_timeout_becomes_failed_document(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_parse_timeout_becomes_failed_document(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that a subprocess timeout maps to a failed ParsedDocument, not a raise.
 
         **Why this test is important:**
@@ -253,8 +263,12 @@ class TestIsolatedParser:
         def _timeout(*_args: object, **_kwargs: object) -> object:
             raise TimeoutError
 
-        monkeypatch.setattr("techai_webutils.clients.parsing.isolated.isolated.run_isolated", _timeout)
-        result = await IsolatedParser(timeout_seconds=1).parse(b"%PDF-1.7\n", filename="x.pdf")
+        monkeypatch.setattr(
+            "techai_webutils.clients.parsing.isolated.isolated.run_isolated", _timeout
+        )
+        result = await IsolatedParser(timeout_seconds=1).parse(
+            b"%PDF-1.7\n", filename="x.pdf"
+        )
         assert not result.ok
         assert result.error == "parse_timeout"
         assert result.document_format is DocumentFormat.PDF
@@ -277,7 +291,9 @@ class TestIsolatedParser:
         def _iso(*_args: object, **_kwargs: object) -> object:
             raise IsolationError("worker gone")
 
-        monkeypatch.setattr("techai_webutils.clients.parsing.isolated.isolated.run_isolated", _iso)
+        monkeypatch.setattr(
+            "techai_webutils.clients.parsing.isolated.isolated.run_isolated", _iso
+        )
         result = await IsolatedParser().parse(b"<html></html>", filename="x.html")
         assert not result.ok
         assert "parse_isolation_failed" in result.error
@@ -298,7 +314,9 @@ class TestIsolatedParser:
         """
         pdf = tmp_path / "doc.pdf"
         pdf.write_bytes(_make_pdf("Isolated path content"))
-        result = await IsolatedParser(timeout_seconds=60).parse_path(str(pdf), filename="doc.pdf")
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(pdf), filename="doc.pdf"
+        )
         assert result.ok
         assert result.document_format is DocumentFormat.PDF
         assert "Isolated" in result.markdown_content

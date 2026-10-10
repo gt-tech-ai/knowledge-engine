@@ -73,9 +73,9 @@ class TestResponseGenerator:
             finish_reason="stop",
         )
         assert (
-            await ResponseGenerator(llm, create_autospec(GenerationPrompt, instance=True)).complete(
-                "q", [_passage("c")]
-            )
+            await ResponseGenerator(
+                llm, create_autospec(GenerationPrompt, instance=True)
+            ).complete("q", [_passage("c")])
             == "the answer"
         )
 

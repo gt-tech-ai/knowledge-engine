@@ -112,7 +112,11 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
         transform = lambda x: x.upper()  # noqa: E731
-        p = PipelineBuilder(BasePipeline(transform), "test-pipeline").with_logging(logger).build()
+        p = (
+            PipelineBuilder(BasePipeline(transform), "test-pipeline")
+            .with_logging(logger)
+            .build()
+        )
 
         result = p.execute("hello")
         assert result == "HELLO"
@@ -140,7 +144,11 @@ class TestLoggingDecorator:
             msg = "pipeline error"
             raise ValueError(msg)
 
-        p = PipelineBuilder(BasePipeline(failing), "error-pipeline").with_logging(logger).build()
+        p = (
+            PipelineBuilder(BasePipeline(failing), "error-pipeline")
+            .with_logging(logger)
+            .build()
+        )
 
         with pytest.raises(ValueError, match="pipeline error"):
             p.execute("input")
@@ -220,7 +228,11 @@ class TestPipelineBuilder:
         logger = MagicMock()
         transform = lambda x: "composed-" + x  # noqa: E731
 
-        p = PipelineBuilder(BasePipeline(transform), "composed-pipeline").with_logging(logger).build()
+        p = (
+            PipelineBuilder(BasePipeline(transform), "composed-pipeline")
+            .with_logging(logger)
+            .build()
+        )
 
         result = p.execute("test")
         assert result == "composed-test"
@@ -244,7 +256,11 @@ class TestPipelineBuilder:
             msg = "composed error"
             raise ValueError(msg)
 
-        p = PipelineBuilder(BasePipeline(failing), "error-composed").with_logging(logger).build()
+        p = (
+            PipelineBuilder(BasePipeline(failing), "error-composed")
+            .with_logging(logger)
+            .build()
+        )
 
         with pytest.raises(ValueError, match="composed error"):
             p.execute("input")
@@ -287,7 +303,11 @@ class TestMetricsDecorator:
         histogram = MagicMock()
         transform = lambda x: x.upper()  # noqa: E731
 
-        p = PipelineBuilder(BasePipeline(transform), "metrics-pipeline").with_metrics(histogram).build()
+        p = (
+            PipelineBuilder(BasePipeline(transform), "metrics-pipeline")
+            .with_metrics(histogram)
+            .build()
+        )
 
         result = p.execute("hello")
         assert result == "HELLO"
@@ -314,7 +334,11 @@ class TestMetricsDecorator:
             msg = "metrics error"
             raise ValueError(msg)
 
-        p = PipelineBuilder(BasePipeline(failing), "error-metrics").with_metrics(histogram).build()
+        p = (
+            PipelineBuilder(BasePipeline(failing), "error-metrics")
+            .with_metrics(histogram)
+            .build()
+        )
 
         with pytest.raises(ValueError, match="metrics error"):
             p.execute("input")
@@ -371,7 +395,11 @@ class TestPipelineTimeoutDecorator:
           - Pipeline returns the transformed result when completing before the deadline
         """
         transform = lambda x: x.upper()  # noqa: E731
-        p = PipelineBuilder(BasePipeline(transform), "fast-pipeline").with_timeout(5.0).build()
+        p = (
+            PipelineBuilder(BasePipeline(transform), "fast-pipeline")
+            .with_timeout(5.0)
+            .build()
+        )
 
         result = p.execute("hello")
         assert result == "HELLO"
@@ -393,7 +421,11 @@ class TestPipelineTimeoutDecorator:
             time.sleep(2.0)
             return x.upper()
 
-        p = PipelineBuilder(BasePipeline(slow), "slow-pipeline").with_timeout(0.01).build()
+        p = (
+            PipelineBuilder(BasePipeline(slow), "slow-pipeline")
+            .with_timeout(0.01)
+            .build()
+        )
 
         with pytest.raises(AppTimeoutError):
             p.execute("hello")
@@ -420,7 +452,11 @@ class TestPipelineRecoveryDecorator:
             msg = "unexpected boom"
             raise RuntimeError(msg)
 
-        p = PipelineBuilder(BasePipeline(failing), "recover-pipeline").with_recovery().build()
+        p = (
+            PipelineBuilder(BasePipeline(failing), "recover-pipeline")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError) as exc_info:
             p.execute("input")
@@ -442,7 +478,11 @@ class TestPipelineRecoveryDecorator:
         def failing(x: str) -> str:
             raise InvalidInputError("bad input")
 
-        p = PipelineBuilder(BasePipeline(failing), "app-error-pipeline").with_recovery().build()
+        p = (
+            PipelineBuilder(BasePipeline(failing), "app-error-pipeline")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InvalidInputError):
             p.execute("input")
@@ -483,7 +523,11 @@ class TestSyncPipelineInsideRunningLoop:
         """
         logger = MagicMock()
         transform = lambda x: x.upper()  # noqa: E731
-        p = PipelineBuilder(BasePipeline(transform), "loop-test").with_logging(logger).build()
+        p = (
+            PipelineBuilder(BasePipeline(transform), "loop-test")
+            .with_logging(logger)
+            .build()
+        )
 
         result = p.execute("hello")
         assert result == "HELLO"
@@ -532,7 +576,11 @@ class TestAsyncPipelineResilienceDecorators:
             await asyncio.sleep(2.0)
             return x.upper()
 
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(slow), "async-slow").with_timeout(0.01).build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(slow), "async-slow")
+            .with_timeout(0.01)
+            .build()
+        )
 
         with pytest.raises(AppTimeoutError):
             await p.execute("hello")
@@ -556,7 +604,11 @@ class TestAsyncPipelineResilienceDecorators:
             msg = "async unexpected"
             raise RuntimeError(msg)
 
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(failing), "async-recover").with_recovery().build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(failing), "async-recover")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError) as exc_info:
             await p.execute("input")

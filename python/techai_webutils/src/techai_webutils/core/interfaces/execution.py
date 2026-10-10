@@ -76,7 +76,7 @@ class StepResult:
 
     @property
     def ok(self) -> bool:
-        """Return True when the step passed."""
+        """Whether the step passed."""
         return self.status is StepStatus.PASS
 
 
@@ -90,37 +90,37 @@ class BatchResult:
 
     @property
     def total(self) -> int:
-        """Return the number of items in the batch."""
+        """The number of items in the batch."""
         return len(self.results)
 
     @property
     def succeeded(self) -> int:
-        """Return the count of items that passed."""
+        """The count of items that passed."""
         return sum(1 for r in self.results if r.status is StepStatus.PASS)
 
     @property
     def failed(self) -> int:
-        """Return the count of items that failed."""
+        """The count of items that failed."""
         return sum(1 for r in self.results if r.status is StepStatus.FAIL)
 
     @property
     def warned(self) -> int:
-        """Return the count of items that completed with warnings."""
+        """The count of items that completed with warnings."""
         return sum(1 for r in self.results if r.status is StepStatus.WARN)
 
     @property
     def skipped(self) -> int:
-        """Return the count of items that were skipped."""
+        """The count of items that were skipped."""
         return sum(1 for r in self.results if r.status is StepStatus.SKIP)
 
     @property
     def has_failures(self) -> bool:
-        """Return True if any item failed (mirrors Go ``StepResults.HasFailures``)."""
+        """Whether any item failed (mirrors Go ``StepResults.HasFailures``)."""
         return any(r.status is StepStatus.FAIL for r in self.results)
 
     @property
     def all_passed(self) -> bool:
-        """Return True if every item passed; an empty batch is vacuously passed."""
+        """Whether every item passed; an empty batch is vacuously passed."""
         return all(r.status is StepStatus.PASS for r in self.results)
 
     def failed_names(self) -> list[str]:

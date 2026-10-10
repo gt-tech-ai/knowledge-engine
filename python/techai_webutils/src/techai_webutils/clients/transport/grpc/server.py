@@ -40,7 +40,9 @@ class ServerConfig:
     """Maximum inbound gRPC message size, in bytes."""
     max_concurrent_rpcs: int | None = None
     """Cap on concurrently handled RPCs; None leaves it unbounded."""
-    max_workers: int = 10  # retained for config compat; grpc.aio uses the event loop, not a thread pool
+    max_workers: int = (
+        10  # retained for config compat; grpc.aio uses the event loop, not a thread pool
+    )
     """Retained for config compat; grpc.aio uses the event loop, not a thread pool."""
     shutdown_timeout: float = 30.0
     """Grace period, in seconds, to drain in-flight RPCs during shutdown."""
@@ -115,7 +117,9 @@ class GracefulServer:
     async def set_ready(self, *, ready: bool = True) -> None:
         """Toggle readiness probe status (matches Go's ``/readyz`` behavior)."""
         status = (
-            health_pb2.HealthCheckResponse.SERVING if ready else health_pb2.HealthCheckResponse.NOT_SERVING
+            health_pb2.HealthCheckResponse.SERVING
+            if ready
+            else health_pb2.HealthCheckResponse.NOT_SERVING
         )
         await self._health_servicer.set("readiness", status)
 
@@ -139,7 +143,9 @@ class GracefulServer:
 
     async def shutdown(self) -> None:
         """Perform graceful shutdown: mark not-serving, drain existing connections, then stop."""
-        _logger.info("Initiating graceful shutdown (timeout=%.1fs)", self._cfg.shutdown_timeout)
+        _logger.info(
+            "Initiating graceful shutdown (timeout=%.1fs)", self._cfg.shutdown_timeout
+        )
         await self._health_servicer.set("", health_pb2.HealthCheckResponse.NOT_SERVING)
         await self.set_ready(ready=False)
         await self._server.stop(self._cfg.shutdown_timeout)

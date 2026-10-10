@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from techai_webutils.core.errors.errors import AppTimeoutError, UnavailableError
 from techai_webutils.core.interfaces.repository import Repository
@@ -15,10 +15,10 @@ from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenErr
 
 if TYPE_CHECKING:
     from techai_webutils.core.domain_types.types import Page, PageRequest
-    from techai_webutils.core.interfaces.retrier import Retrier
-    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
-    from techai_webutils.core.interfaces.logger import Logger
     from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
+    from techai_webutils.core.interfaces.logger import Logger
+    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
+    from techai_webutils.core.interfaces.retrier import Retrier
     from techai_webutils.core.interfaces.tracer import TracerProvider
 
 T = TypeVar("T")
@@ -37,7 +37,9 @@ class _TimeoutRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     async def get(self, entity_id: ID) -> T:
         """Fetch one entity, raising AppTimeoutError if it exceeds the deadline."""
         try:
-            return await asyncio.wait_for(self._inner.get(entity_id), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.get(entity_id), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"repo.get timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -45,7 +47,9 @@ class _TimeoutRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     async def list(self, params: P, page: PageRequest) -> Page[T]:
         """List a page of entities, raising AppTimeoutError if it exceeds the deadline."""
         try:
-            return await asyncio.wait_for(self._inner.list(params, page), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.list(params, page), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"repo.list timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -53,7 +57,9 @@ class _TimeoutRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     async def create(self, entity: T) -> T:
         """Create an entity, raising AppTimeoutError if it exceeds the deadline."""
         try:
-            return await asyncio.wait_for(self._inner.create(entity), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.create(entity), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"repo.create timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -61,7 +67,9 @@ class _TimeoutRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     async def update(self, entity_id: ID, entity: T) -> T:
         """Update an entity, raising AppTimeoutError if it exceeds the deadline."""
         try:
-            return await asyncio.wait_for(self._inner.update(entity_id, entity), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.update(entity_id, entity), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"repo.update timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -77,7 +85,9 @@ class _TimeoutRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     async def exists(self, entity_id: ID) -> bool:
         """Report whether an entity exists, raising AppTimeoutError on deadline."""
         try:
-            return await asyncio.wait_for(self._inner.exists(entity_id), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.exists(entity_id), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"repo.exists timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -389,7 +399,9 @@ class _TracingRepositoryDecorator[T, P, ID](Repository[T, P, ID]):
     Matches Go's ``tracingDecorator`` in ``repos/repository/decorators/builder.go``.
     """
 
-    def __init__(self, inner: Repository[T, P, ID], tracer: TracerProvider, name: str) -> None:
+    def __init__(
+        self, inner: Repository[T, P, ID], tracer: TracerProvider, name: str
+    ) -> None:
         """Wrap ``inner``, naming each span after repository ``name``."""
         self._inner = inner
         self._tracer = tracer
@@ -493,7 +505,9 @@ class RepositoryBuilder[T, P, ID]:
         self._retrier = retrier
         return self
 
-    def with_circuit_breaker(self, cb: CircuitBreakerInterface) -> RepositoryBuilder[T, P, ID]:
+    def with_circuit_breaker(
+        self, cb: CircuitBreakerInterface
+    ) -> RepositoryBuilder[T, P, ID]:
         """Add a circuit breaker decorator."""
         self._cb = cb
         return self

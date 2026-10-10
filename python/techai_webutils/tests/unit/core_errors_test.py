@@ -426,10 +426,14 @@ class TestGoParity:
             equals ``{c.value for c in ErrorCode}``.
         """
         go_errors_dir = Path(__file__).resolve().parents[4] / "go" / "core" / "errors"
-        go_files = [p for p in go_errors_dir.glob("*.go") if not p.name.endswith("_test.go")]
+        go_files = [
+            p for p in go_errors_dir.glob("*.go") if not p.name.endswith("_test.go")
+        ]
         assert go_files, f"no Go source files found under {go_errors_dir}"
         # Match both declaration forms: `CodeX ErrorCode = "X"` and `CodeX = ErrorCode("X")`.
-        pattern = re.compile(r'Code\w+ +(?:ErrorCode += +"(\w+)"|= +ErrorCode\("(\w+)"\))')
+        pattern = re.compile(
+            r'Code\w+ +(?:ErrorCode += +"(\w+)"|= +ErrorCode\("(\w+)"\))'
+        )
         go_values = {
             value
             for p in go_files

@@ -8,7 +8,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from techai_webutils.clients.audit import AuditSinkConfig, AuditSinkKind, new_audit_sink_from_config
+from techai_webutils.clients.audit import (
+    AuditSinkConfig,
+    AuditSinkKind,
+    new_audit_sink_from_config,
+)
 from techai_webutils.clients.audit.stub import StubAuditSink
 from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.audit import AuditedSource, AuditRecord, AuditSink

@@ -3,7 +3,11 @@
 from unittest.mock import MagicMock
 
 from techai_webutils.core.domain_types.types import Page, PageRequest
-from techai_webutils.core.interfaces.repository import Repository, Transaction, TransactionManager
+from techai_webutils.core.interfaces.repository import (
+    Repository,
+    Transaction,
+    TransactionManager,
+)
 import pytest
 
 

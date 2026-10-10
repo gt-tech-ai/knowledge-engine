@@ -102,7 +102,9 @@ class RealRayRuntime:
             raise
         self._started = True
 
-    async def submit[T](self, fn: Callable[[T], Awaitable[StepResult]], item: T) -> StepResult:
+    async def submit[T](
+        self, fn: Callable[[T], Awaitable[StepResult]], item: T
+    ) -> StepResult:
         """Schedule ``fn(item)`` as a Ray task and await its StepResult."""
         await self._ensure_started()
         # Put the mapper into the object store ONCE and pass the shared ObjectRef to every task, instead

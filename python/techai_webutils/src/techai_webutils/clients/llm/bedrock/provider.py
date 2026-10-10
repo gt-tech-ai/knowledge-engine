@@ -9,12 +9,18 @@ Carved out of unit coverage; exercised against real Bedrock in staging.
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any, Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 
-from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse, StreamUsage, text_only
+from techai_webutils.core.interfaces.llm import (
+    LLMProvider,
+    LLMResponse,
+    StreamUsage,
+    text_only,
+)
 from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 
 if TYPE_CHECKING:
@@ -48,7 +54,9 @@ _DEFAULT_TEMPERATURE = 0.7
 """Default sampling temperature when the caller supplies no per-call config."""
 
 
-def _converse_args(model: str, messages: list[LLMMessage], config: LLMConfig | None) -> dict[str, Any]:
+def _converse_args(
+    model: str, messages: list[LLMMessage], config: LLMConfig | None
+) -> dict[str, Any]:
     """Build the model-agnostic Converse request from messages + config.
 
     System messages become the top-level ``system`` blocks (omitted when there are none — Converse
@@ -60,7 +68,11 @@ def _converse_args(model: str, messages: list[LLMMessage], config: LLMConfig | N
     Converse rejects ``temperature`` and ``topP`` together, and the retrieval path tunes temperature.
     """
     system = [{"text": m.content} for m in messages if m.role == "system"]
-    turns = [{"role": m.role, "content": [{"text": m.content}]} for m in messages if m.role != "system"]
+    turns = [
+        {"role": m.role, "content": [{"text": m.content}]}
+        for m in messages
+        if m.role != "system"
+    ]
     # Bedrock Converse rejects `temperature` and `topP` together for Claude models
     # ("`temperature` and `top_p` cannot both be specified for this model"), so the request carries
     # only temperature — the decoding dial the retrieval path tunes for faithfulness.
@@ -88,6 +100,21 @@ def _to_app_error(exc: ClientError | BotoCoreError) -> AppError:
     return botocore_error_to_app_error(exc, "bedrock converse")
 
 
+async def _coded_events(
+    stream: AsyncIterator[dict[str, Any]],
+) -> AsyncIterator[dict[str, Any]]:
+    """Re-yield the ConverseStream events, wrapping a mid-stream botocore failure.
+
+    A ``ClientError`` / ``BotoCoreError`` raised while iterating becomes a coded ``AppError``
+    (``_to_app_error``), so the stream never leaks a raw botocore exception.
+    """
+    try:
+        async for event in stream:
+            yield event
+    except (ClientError, BotoCoreError) as exc:
+        raise _to_app_error(exc) from exc
+
+
 class BedrockLlmProvider(LLMProvider):
     """LLMProvider backed by the AWS Bedrock Converse API (model-agnostic).
 
@@ -103,26 +130,29 @@ class BedrockLlmProvider(LLMProvider):
         self._model = model
         self._endpoint = endpoint
         self._session = aiobotocore.session.get_session()
-        # The client's async context manager + the entered client (typed ``Any`` — aiobotocore is unstubbed).
-        self._client_cm: Any = None
+        # The exit stack that owns the opened client's async context (entered on first use).
+        self._stack: AsyncExitStack | None = None
         self._client: _BedrockRuntimeClient | None = None
 
     async def _runtime_client(self) -> _BedrockRuntimeClient:
         """Return the shared bedrock-runtime client, opening (and caching) it on first use."""
         if self._client is None:
-            self._client_cm = self._session.create_client(
+            self._stack = stack = AsyncExitStack()
+            client_cm = self._session.create_client(
                 "bedrock-runtime",
                 region_name=self._region,
                 endpoint_url=self._endpoint,
             )
-            self._client = cast("_BedrockRuntimeClient", await self._client_cm.__aenter__())
+            self._client = cast(
+                "_BedrockRuntimeClient", await stack.enter_async_context(client_cm)
+            )
         return self._client
 
     async def aclose(self) -> None:
         """Close the shared client if one was opened (idempotent)."""
-        if self._client_cm is not None:
-            await self._client_cm.__aexit__(None, None, None)
-            self._client_cm = None
+        if self._stack is not None:
+            await self._stack.aclose()
+            self._stack = None
             self._client = None
 
     async def __aenter__(self) -> Self:
@@ -133,7 +163,9 @@ class BedrockLlmProvider(LLMProvider):
         """Release the shared client on context exit."""
         await self.aclose()
 
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         """Invoke the model once via Converse and return the full completion.
 
         Bedrock/botocore failures are wrapped in a coded ``AppError`` (``_to_app_error``) so a raw
@@ -141,13 +173,17 @@ class BedrockLlmProvider(LLMProvider):
         """
         client = await self._runtime_client()
         try:
-            response = await client.converse(**_converse_args(self._model, messages, config))
+            response = await client.converse(
+                **_converse_args(self._model, messages, config)
+            )
         except (ClientError, BotoCoreError) as exc:
             raise _to_app_error(exc) from exc
         message = cast("dict[str, Any]", response.get("output", {})).get("message", {})
         usage = cast("dict[str, Any]", response.get("usage", {}))
         return LLMResponse(
-            content="".join(block.get("text", "") for block in message.get("content", [])),
+            content="".join(
+                block.get("text", "") for block in message.get("content", [])
+            ),
             model=self._model,
             input_tokens=int(usage.get("inputTokens", 0)),
             output_tokens=int(usage.get("outputTokens", 0)),
@@ -184,21 +220,23 @@ class BedrockLlmProvider(LLMProvider):
         untouched.
         """
         client = await self._runtime_client()
-        stop_reason = "stop"
-        usage: dict[str, Any] | None = None
         try:
-            response = await client.converse_stream(**_converse_args(self._model, messages, config))
-            stream = cast("AsyncIterator[dict[str, Any]]", response["stream"])
-            async for event in stream:
-                text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
-                if text:
-                    yield text
-                if "messageStop" in event:
-                    stop_reason = str(event["messageStop"].get("stopReason", "stop"))
-                if "metadata" in event:
-                    usage = cast("dict[str, Any]", event["metadata"].get("usage", {}))
+            response = await client.converse_stream(
+                **_converse_args(self._model, messages, config)
+            )
         except (ClientError, BotoCoreError) as exc:
             raise _to_app_error(exc) from exc
+        stream = cast("AsyncIterator[dict[str, Any]]", response["stream"])
+        stop_reason = "stop"
+        usage: dict[str, Any] | None = None
+        async for event in _coded_events(stream):
+            text = event.get("contentBlockDelta", {}).get("delta", {}).get("text")
+            if text:
+                yield text
+            if "messageStop" in event:
+                stop_reason = str(event["messageStop"].get("stopReason", "stop"))
+            if "metadata" in event:
+                usage = cast("dict[str, Any]", event["metadata"].get("usage", {}))
         if usage is not None:
             yield StreamUsage(
                 model=self._model,

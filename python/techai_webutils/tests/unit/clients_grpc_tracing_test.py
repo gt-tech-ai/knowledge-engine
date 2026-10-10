@@ -60,7 +60,11 @@ class TestInterceptorBuilderTracing:
         """
         tracer = MagicMock()
         interceptors = (
-            InterceptorBuilder().with_logging("test").with_tracing(tracer).with_timeout(5.0).build()
+            InterceptorBuilder()
+            .with_logging("test")
+            .with_tracing(tracer)
+            .with_timeout(5.0)
+            .build()
         )
         assert len(interceptors) == 3
         # Tracing interceptor should be present

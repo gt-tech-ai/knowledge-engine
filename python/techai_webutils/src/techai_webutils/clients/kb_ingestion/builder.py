@@ -46,8 +46,12 @@ def new_kb_ingestor_from_config(config: KbConfig) -> KnowledgeBaseIngestor:
         return StubKnowledgeBaseIngestor()
     if config.kind is KbKind.BEDROCK:
         # Lazy import: keep aiobotocore off the dev/stub path (loaded only in stage/prod).
-        from techai_webutils.clients.kb_ingestion.bedrock import BedrockKnowledgeBaseIngestor  # noqa: PLC0415
+        from techai_webutils.clients.kb_ingestion.bedrock import (  # noqa: PLC0415
+            BedrockKnowledgeBaseIngestor,
+        )
 
-        return BedrockKnowledgeBaseIngestor(region=config.region, endpoint=config.endpoint)
+        return BedrockKnowledgeBaseIngestor(
+            region=config.region, endpoint=config.endpoint
+        )
     msg = f"unknown knowledge-base kind: {config.kind!r}"
     raise ValueError(msg)

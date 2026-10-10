@@ -11,7 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from techai_webutils.clients.jobs.config import JobKind
-from techai_webutils.clients.jobs.memory import InMemoryJobEnqueuer, InMemoryWorkerRegistry
+from techai_webutils.clients.jobs.memory import (
+    InMemoryJobEnqueuer,
+    InMemoryWorkerRegistry,
+)
 
 if TYPE_CHECKING:
     from techai_webutils.clients.jobs.config import JobConfig

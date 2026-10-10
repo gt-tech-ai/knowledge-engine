@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import IO, TYPE_CHECKING
 
-
 from techai_webutils.foundation.logger.logger import new_logger
 from techai_webutils.foundation.logger.stdlib_logger import StdlibLogger
 

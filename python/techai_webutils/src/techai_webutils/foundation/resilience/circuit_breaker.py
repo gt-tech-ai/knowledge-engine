@@ -6,9 +6,9 @@ In open state, calls fail fast without executing the wrapped operation.
 
 from __future__ import annotations
 
-from enum import StrEnum
 import threading
 import time
+from enum import StrEnum
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -74,7 +74,7 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        """Return the current circuit state, transitioning to half-open if recovery timeout elapsed."""
+        """The current circuit state, transitioning to half-open if recovery timeout elapsed."""
         with self._lock:
             if (
                 self._state == CircuitState.OPEN
@@ -113,7 +113,9 @@ class CircuitBreaker:
             # ordinary business outcomes never trip it. Mirrors the Go gobreaker
             # IsSuccessful. With no classifier every exception counts.
             if exc_type is None or (
-                exc_val is not None and self._is_failure is not None and not self._is_failure(exc_val)
+                exc_val is not None
+                and self._is_failure is not None
+                and not self._is_failure(exc_val)
             ):
                 self._failure_count = 0
                 self._state = CircuitState.CLOSED

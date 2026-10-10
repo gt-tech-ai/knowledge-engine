@@ -1,6 +1,10 @@
 """Tests for enhanced BaseController, ErrorResponse, and authorization decorator."""
 
-from techai_webutils.controllers.base import BaseController, ErrorResponse, map_error_to_http_status
+from techai_webutils.controllers.base import (
+    BaseController,
+    ErrorResponse,
+    map_error_to_http_status,
+)
 from techai_webutils.controllers.decorators import HandlerBuilder
 from techai_webutils.core.errors.errors import (
     AppError,

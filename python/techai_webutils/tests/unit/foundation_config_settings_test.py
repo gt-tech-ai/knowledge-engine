@@ -280,7 +280,9 @@ def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) 
     from techai_webutils.foundation.config.settings import DatabaseSettings
 
     class MyAppSettings(DatabaseSettings):
-        model_config = SettingsConfigDict(env_prefix="MYAPP_", frozen=True, extra="ignore")
+        model_config = SettingsConfigDict(
+            env_prefix="MYAPP_", frozen=True, extra="ignore"
+        )
 
     monkeypatch.setenv("MYAPP_DATABASE_HOST", "db.example")
     monkeypatch.setenv("DATABASE_HOST", "wrong")

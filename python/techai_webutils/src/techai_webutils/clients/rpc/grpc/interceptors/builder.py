@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-
-from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import CircuitBreakerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import (
+    CircuitBreakerInterceptor,
+)
 from techai_webutils.clients.rpc.grpc.interceptors.logging import LoggingInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.metrics import MetricsInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.retry import RetryInterceptor
@@ -16,10 +17,11 @@ from techai_webutils.clients.rpc.grpc.interceptors.timeout import TimeoutInterce
 from techai_webutils.clients.rpc.grpc.interceptors.tracing import TracingInterceptor
 
 if TYPE_CHECKING:
-    from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker
-    from techai_webutils.core.interfaces.tracer import TracerProvider
     import grpc
+
     from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
+    from techai_webutils.core.interfaces.tracer import TracerProvider
+    from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker
 
 
 class InterceptorBuilder:
@@ -45,7 +47,9 @@ class InterceptorBuilder:
         self._interceptors.append(LoggingInterceptor(logger_name))
         return self
 
-    def with_retry(self, max_attempts: int = 3, base_delay: float = 0.1) -> InterceptorBuilder:
+    def with_retry(
+        self, max_attempts: int = 3, base_delay: float = 0.1
+    ) -> InterceptorBuilder:
         """Add retry interceptor."""
         self._interceptors.append(RetryInterceptor(max_attempts, base_delay))
         return self
@@ -60,7 +64,9 @@ class InterceptorBuilder:
         self._interceptors.append(CircuitBreakerInterceptor(cb))
         return self
 
-    def with_metrics(self, counter: MetricCounter, histogram: MetricHistogram) -> InterceptorBuilder:
+    def with_metrics(
+        self, counter: MetricCounter, histogram: MetricHistogram
+    ) -> InterceptorBuilder:
         """Add metrics interceptor."""
         self._interceptors.append(MetricsInterceptor(counter, histogram))
         return self

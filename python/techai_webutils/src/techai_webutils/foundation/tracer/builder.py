@@ -8,11 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-
+from typing import TYPE_CHECKING
 
 from techai_webutils.foundation.tracer.null_tracer import NullTracerProvider
 from techai_webutils.foundation.tracer.tracer import new_tracer
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.tracer import TracerProvider

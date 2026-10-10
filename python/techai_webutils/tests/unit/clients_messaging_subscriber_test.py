@@ -12,7 +12,9 @@ class TestSQSSubscriber:
     """Test suite for SQSSubscriber lifecycle and metadata extraction."""
 
     @pytest.mark.asyncio
-    async def test_subscribe_raises_when_not_initialized(self, sqs_config: SQSConfig) -> None:
+    async def test_subscribe_raises_when_not_initialized(
+        self, sqs_config: SQSConfig
+    ) -> None:
         """Test that subscribe raises RuntimeError before the client is initialized.
 
         **Why this test is important:**

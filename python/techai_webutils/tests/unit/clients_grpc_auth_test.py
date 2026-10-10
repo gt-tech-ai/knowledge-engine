@@ -17,7 +17,9 @@ from techai_webutils.clients.rpc.grpc.interceptors.auth import (
 )
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(
+    user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
+)
 """The gateway header contract these tests send."""
 
 
@@ -120,7 +122,11 @@ class TestSplitRoles:
         **What it tests:**
           - _split_roles("admin,member,viewer") returns all three roles as a frozenset
         """
-        assert _split_roles("admin,member,viewer") == frozenset({"admin", "member", "viewer"})
+        assert _split_roles("admin,member,viewer") == frozenset({
+            "admin",
+            "member",
+            "viewer",
+        })
 
     def test_strips_whitespace(self) -> None:
         """Test that surrounding whitespace around roles is trimmed.
@@ -171,7 +177,9 @@ class TestContextVars:
             assert retrieved.user_id == "u-1"
             assert retrieved.tenant_id == "o-1"
         finally:
-            from techai_webutils.clients.rpc.grpc.interceptors.auth import _auth_claims_var
+            from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+                _auth_claims_var,
+            )
 
             _auth_claims_var.reset(token)
 
@@ -217,17 +225,17 @@ class TestAuthServerInterceptor:
           - After interception, the context claims carry the user, tenant, and roles
           - The continuation is invoked with the original handler call details
         """
-        details = self._details(
-            [
-                ("x-user-id", "u-1"),
-                ("x-tenant-id", "o-1"),
-                ("x-roles", "admin,member"),
-            ]
-        )
+        details = self._details([
+            ("x-user-id", "u-1"),
+            ("x-tenant-id", "o-1"),
+            ("x-roles", "admin,member"),
+        ])
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
-            result = await AuthServerInterceptor(_HEADERS).intercept_service(continuation, details)
+            result = await AuthServerInterceptor(_HEADERS).intercept_service(
+                continuation, details
+            )
 
             claims = get_auth_claims()
             assert result == "handler"
@@ -256,7 +264,9 @@ class TestAuthServerInterceptor:
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
-            result = await AuthServerInterceptor(_HEADERS).intercept_service(continuation, details)
+            result = await AuthServerInterceptor(_HEADERS).intercept_service(
+                continuation, details
+            )
 
             assert result == "handler"
             assert get_auth_claims() is None
@@ -276,21 +286,29 @@ class TestAuthServerInterceptor:
           - With a custom HeaderClaimMapping, claims come from the custom keys.
           - A key outside the mapping (``x-user-id``) is ignored.
         """
-        mapping = HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-groups")
+        mapping = HeaderClaimMapping(
+            user_id="x-sub", tenant_id="x-tenant", roles="x-groups"
+        )
         interceptor = AuthServerInterceptor(headers=mapping)
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
             await interceptor.intercept_service(
                 continuation,
-                self._details([("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]),
+                self._details([
+                    ("x-sub", "u-1"),
+                    ("x-tenant", "t-1"),
+                    ("x-groups", "a,b"),
+                ]),
             )
             assert get_auth_claims() == AuthClaims(
                 user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
             )
 
             _auth_claims_var.set(None)
-            await interceptor.intercept_service(continuation, self._details([("x-user-id", "u-1")]))
+            await interceptor.intercept_service(
+                continuation, self._details([("x-user-id", "u-1")])
+            )
             assert get_auth_claims() is None
         finally:
             _auth_claims_var.reset(token)
@@ -300,7 +318,9 @@ class TestHeaderClaimMapping:
     """Validation and normalisation of the consumer's gateway header names."""
 
     @pytest.mark.asyncio
-    async def test_normalises_header_names_to_the_lowercase_grpc_metadata_keys(self) -> None:
+    async def test_normalises_header_names_to_the_lowercase_grpc_metadata_keys(
+        self,
+    ) -> None:
         """Header names written as the gateway spells them still match gRPC's lowercase metadata keys.
 
         **Why this test is important:**
@@ -313,16 +333,28 @@ class TestHeaderClaimMapping:
             and an interceptor built from it (imported from the interceptors package) extracts claims from
             lowercase metadata.
         """
-        from techai_webutils.clients.rpc.grpc.interceptors import AuthServerInterceptor as PackageInterceptor
-        from techai_webutils.clients.rpc.grpc.interceptors import HeaderClaimMapping as PackageMapping
+        from techai_webutils.clients.rpc.grpc.interceptors import (
+            AuthServerInterceptor as PackageInterceptor,
+        )
+        from techai_webutils.clients.rpc.grpc.interceptors import (
+            HeaderClaimMapping as PackageMapping,
+        )
 
-        mapping = PackageMapping(user_id=" X-User-Sub ", tenant_id="X-Tenant", roles="X-Roles")
+        mapping = PackageMapping(
+            user_id=" X-User-Sub ", tenant_id="X-Tenant", roles="X-Roles"
+        )
         continuation = AsyncMock(return_value="handler")
         token = _auth_claims_var.set(None)
         try:
             await PackageInterceptor(mapping).intercept_service(
                 continuation,
-                MagicMock(invocation_metadata=[("x-user-sub", "u-1"), ("x-tenant", "t-1"), ("x-roles", "a")]),
+                MagicMock(
+                    invocation_metadata=[
+                        ("x-user-sub", "u-1"),
+                        ("x-tenant", "t-1"),
+                        ("x-roles", "a"),
+                    ]
+                ),
             )
 
             assert (mapping.user_id, mapping.tenant_id, mapping.roles) == (
@@ -330,7 +362,9 @@ class TestHeaderClaimMapping:
                 "x-tenant",
                 "x-roles",
             )
-            assert get_auth_claims() == AuthClaims(user_id="u-1", tenant_id="t-1", roles=frozenset({"a"}))
+            assert get_auth_claims() == AuthClaims(
+                user_id="u-1", tenant_id="t-1", roles=frozenset({"a"})
+            )
         finally:
             _auth_claims_var.reset(token)
 
@@ -347,7 +381,12 @@ class TestHeaderClaimMapping:
         **What it tests:**
           - Each of user_id, tenant_id and roles set to "" or whitespace raises ValueError naming it.
         """
-        names = {"user_id": "x-sub", "tenant_id": "x-tenant", "roles": "x-roles", field: blank}
+        names = {
+            "user_id": "x-sub",
+            "tenant_id": "x-tenant",
+            "roles": "x-roles",
+            field: blank,
+        }
 
         with pytest.raises(ValueError, match=field):
             HeaderClaimMapping(**names)

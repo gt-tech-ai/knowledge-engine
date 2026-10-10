@@ -63,7 +63,9 @@ async def test_messaging_memory_backend_publish_receive() -> None:
     await subscriber.close()
     await task
 
-    assert received == [b"hello"], "the subscriber on the same broker receives the message"
+    assert received == [b"hello"], (
+        "the subscriber on the same broker receives the message"
+    )
 
     # Isolation: a subscriber on a DIFFERENT broker sees none of the first broker's messages.
     other = InMemorySubscriber(InMemoryBroker())
@@ -77,7 +79,9 @@ async def test_messaging_memory_backend_publish_receive() -> None:
     await other.close()
     await other_task
 
-    assert other_received == [], "a separate broker does not see the first broker's messages"
+    assert other_received == [], (
+        "a separate broker does not see the first broker's messages"
+    )
 
 
 @pytest.mark.asyncio
@@ -111,7 +115,9 @@ async def test_messaging_memory_handler_error_does_not_stop_the_loop() -> None:
     await subscriber.close()
     await task
 
-    assert received == [b"ok"], "the loop survived the failing handler and delivered the next message"
+    assert received == [b"ok"], (
+        "the loop survived the failing handler and delivered the next message"
+    )
 
 
 def test_messaging_factory_selects_memory() -> None:

@@ -14,13 +14,18 @@ from __future__ import annotations
 
 import hmac
 from time import perf_counter
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, override
 
 import grpc
 from google.protobuf.message import Message
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
-from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import TracingServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+    AuthServerInterceptor,
+    HeaderClaimMapping,
+)
+from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import (
+    TracingServerInterceptor,
+)
 from techai_webutils.foundation.logger import get_logger
 
 if TYPE_CHECKING:
@@ -172,7 +177,9 @@ class ServerInterceptorBuilder:
         auth claims are read without service auth, so an open server is visible in the logs.
         """
         if self._service_auth_bypassed:
-            _logger.warning("gRPC service auth bypassed (allow_unauthenticated): every caller is admitted")
+            _logger.warning(
+                "gRPC service auth bypassed (allow_unauthenticated): every caller is admitted"
+            )
         if self._auth_headers is not None and not self._service_token:
             _logger.warning(
                 "gRPC auth claims are read from request metadata without service auth; "
@@ -188,7 +195,9 @@ class ServerInterceptorBuilder:
 
         if self._histogram is not None:
             interceptors.append(
-                _MetricsServerInterceptor(self._histogram, self._executions, self._errors),
+                _MetricsServerInterceptor(
+                    self._histogram, self._executions, self._errors
+                ),
             )
 
         # Tracing sits OUTSIDE logging (recovery → rate_limit → metrics → tracing → logging → auth), so
@@ -226,9 +235,12 @@ class _RecoveryServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mi
     caught by ``except Exception``), so a client disconnect is not turned into an error either.
     """
 
+    @override
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Wrap the handler so an unexpected exception becomes a logged INTERNAL abort."""
@@ -238,21 +250,27 @@ class _RecoveryServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mi
         method = handler_call_details.method or "unknown"
 
         def wrap_unary(fn: _UnaryBehavior) -> _UnaryBehavior:
-            async def _recovered(request: object, context: grpc.aio.ServicerContext) -> object:
+            async def _recovered(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> object:
                 """Run the unary handler, converting an uncaught panic into an INTERNAL abort."""
                 try:
                     return await fn(request, context)
                 except grpc.aio.BaseError:
                     raise
                 except Exception as exc:
-                    _logger.exception("grpc handler panic recovered", method=method, error=str(exc))
+                    _logger.exception(
+                        "grpc handler panic recovered", method=method, error=str(exc)
+                    )
                     await context.abort(grpc.StatusCode.INTERNAL, "internal server error")
                     return None  # unreachable: abort raises
 
             return _recovered
 
         def wrap_stream(fn: _StreamBehavior) -> _StreamBehavior:
-            async def _recovered(request: object, context: grpc.aio.ServicerContext) -> AsyncIterator[object]:
+            async def _recovered(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> AsyncIterator[object]:
                 """Run the streaming handler, turning an uncaught panic mid-stream into an INTERNAL abort."""
                 try:
                     async for item in fn(request, context):
@@ -260,7 +278,9 @@ class _RecoveryServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mi
                 except grpc.aio.BaseError:
                     raise
                 except Exception as exc:
-                    _logger.exception("grpc handler panic recovered", method=method, error=str(exc))
+                    _logger.exception(
+                        "grpc handler panic recovered", method=method, error=str(exc)
+                    )
                     await context.abort(grpc.StatusCode.INTERNAL, "internal server error")
 
             return _recovered
@@ -277,7 +297,9 @@ class _RateLimitServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[m
 
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Reject the RPC when the limiter is exhausted, else delegate onward."""
@@ -310,7 +332,9 @@ class _MetricsServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mis
 
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Count the execution, then wrap the handler to record duration + errors around its run."""
@@ -323,7 +347,9 @@ class _MetricsServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mis
         histogram, errors = self._histogram, self._errors
 
         def wrap_unary(fn: _UnaryBehavior) -> _UnaryBehavior:
-            async def _timed(request: object, context: grpc.aio.ServicerContext) -> object:
+            async def _timed(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> object:
                 """Time the unary handler, recording its duration and counting non-abort errors."""
                 start = perf_counter()
                 try:
@@ -342,7 +368,9 @@ class _MetricsServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mis
             return _timed
 
         def wrap_stream(fn: _StreamBehavior) -> _StreamBehavior:
-            async def _timed(request: object, context: grpc.aio.ServicerContext) -> AsyncIterator[object]:
+            async def _timed(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> AsyncIterator[object]:
                 """Time the streaming handler, recording its duration and counting non-abort errors."""
                 start = perf_counter()
                 try:
@@ -371,7 +399,9 @@ class _LoggingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[mis
 
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Log the inbound RPC method at info (the one prod line), then delegate onward."""
@@ -405,7 +435,9 @@ class _ServiceAuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore
 
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Return the real handler for authorized callers, else a handler that aborts UNAUTHENTICATED."""
@@ -434,9 +466,12 @@ class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[
     consume the iterator before the handler could).
     """
 
+    @override
     async def intercept_service(
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Wrap the handler so an invalid request proto becomes an INVALID_ARGUMENT abort."""
@@ -445,7 +480,9 @@ class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[
             return handler
 
         def wrap_unary(fn: _UnaryBehavior) -> _UnaryBehavior:
-            async def _validated(request: object, context: grpc.aio.ServicerContext) -> object:
+            async def _validated(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> object:
                 """Validate the request, then run the unary handler (validation aborts on failure)."""
                 await _validate_request(request, context)
                 return await fn(request, context)
@@ -453,7 +490,9 @@ class _ValidatingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[
             return _validated
 
         def wrap_stream(fn: _StreamBehavior) -> _StreamBehavior:
-            async def _validated(request: object, context: grpc.aio.ServicerContext) -> AsyncIterator[object]:
+            async def _validated(
+                request: object, context: grpc.aio.ServicerContext
+            ) -> AsyncIterator[object]:
                 """Validate the request, then run the streaming handler (validation aborts on failure)."""
                 await _validate_request(request, context)
                 async for item in fn(request, context):
@@ -504,15 +543,21 @@ def _rebuild_handler(
     # stubs type each as Optional — cast to the non-None behaviour type for the branch we're in.
     if handler.request_streaming and handler.response_streaming:
         return grpc.stream_stream_rpc_method_handler(
-            wrap_stream(cast("_StreamBehavior", handler.stream_stream)), deserializer, serializer
+            wrap_stream(cast("_StreamBehavior", handler.stream_stream)),
+            deserializer,
+            serializer,
         )
     if handler.request_streaming:
         return grpc.stream_unary_rpc_method_handler(
-            wrap_unary(cast("_UnaryBehavior", handler.stream_unary)), deserializer, serializer
+            wrap_unary(cast("_UnaryBehavior", handler.stream_unary)),
+            deserializer,
+            serializer,
         )
     if handler.response_streaming:
         return grpc.unary_stream_rpc_method_handler(
-            wrap_stream(cast("_StreamBehavior", handler.unary_stream)), deserializer, serializer
+            wrap_stream(cast("_StreamBehavior", handler.unary_stream)),
+            deserializer,
+            serializer,
         )
     return grpc.unary_unary_rpc_method_handler(
         wrap_unary(cast("_UnaryBehavior", handler.unary_unary)), deserializer, serializer
@@ -535,9 +580,15 @@ def _deny_handler(handler: grpc.RpcMethodHandler) -> grpc.RpcMethodHandler:
     deserializer = handler.request_deserializer
     serializer = handler.response_serializer
     if handler.request_streaming and handler.response_streaming:
-        return grpc.stream_stream_rpc_method_handler(_abort_stream, deserializer, serializer)
+        return grpc.stream_stream_rpc_method_handler(
+            _abort_stream, deserializer, serializer
+        )
     if handler.request_streaming:
-        return grpc.stream_unary_rpc_method_handler(_abort_unary, deserializer, serializer)
+        return grpc.stream_unary_rpc_method_handler(
+            _abort_unary, deserializer, serializer
+        )
     if handler.response_streaming:
-        return grpc.unary_stream_rpc_method_handler(_abort_stream, deserializer, serializer)
+        return grpc.unary_stream_rpc_method_handler(
+            _abort_stream, deserializer, serializer
+        )
     return grpc.unary_unary_rpc_method_handler(_abort_unary, deserializer, serializer)

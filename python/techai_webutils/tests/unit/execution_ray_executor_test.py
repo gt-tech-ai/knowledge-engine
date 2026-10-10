@@ -71,7 +71,9 @@ class TestRayExecutor:
         """
         runtime = create_autospec(RayRuntime, instance=True)
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             if item == 1:
                 msg = "ray task died"
                 raise RuntimeError(msg)
@@ -97,7 +99,9 @@ class TestRayExecutor:
         in_flight = 0
         peak = 0
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             nonlocal in_flight, peak
             in_flight += 1
             peak = max(peak, in_flight)

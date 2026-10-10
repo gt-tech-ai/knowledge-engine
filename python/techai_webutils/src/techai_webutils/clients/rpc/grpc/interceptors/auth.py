@@ -101,7 +101,9 @@ class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
 
     async def intercept_service(  # type: ignore[override]
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]
+        ],
         handler_call_details: grpc.HandlerCallDetails,
     ) -> grpc.RpcMethodHandler | None:
         """Extract auth headers and store as AuthClaims in contextvars."""

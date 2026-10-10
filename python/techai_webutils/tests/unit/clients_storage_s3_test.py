@@ -108,8 +108,18 @@ class TestS3StorageClient:
         mock_client.list_objects_v2 = AsyncMock(
             return_value={
                 "Contents": [
-                    {"Key": "a.txt", "Size": 100, "LastModified": "2024-01-01", "ETag": "e1"},
-                    {"Key": "b.txt", "Size": 200, "LastModified": "2024-01-02", "ETag": "e2"},
+                    {
+                        "Key": "a.txt",
+                        "Size": 100,
+                        "LastModified": "2024-01-01",
+                        "ETag": "e1",
+                    },
+                    {
+                        "Key": "b.txt",
+                        "Size": 200,
+                        "LastModified": "2024-01-02",
+                        "ETag": "e2",
+                    },
                 ]
             }
         )
@@ -168,7 +178,9 @@ class TestS3StorageClient:
         assert obj.key == "big.pdf"
 
     @pytest.mark.asyncio
-    async def test_copy_uses_multipart_for_a_large_object(self, s3_config: S3Config) -> None:
+    async def test_copy_uses_multipart_for_a_large_object(
+        self, s3_config: S3Config
+    ) -> None:
         """Test that copy() uses multipart UploadPartCopy for an object over the threshold.
 
         **Why this test is important:**
@@ -189,7 +201,9 @@ class TestS3StorageClient:
         size = _MULTIPART_COPY_THRESHOLD + _COPY_PART_SIZE + 1  # forces >= 2 parts
         mock_client.head_object = AsyncMock(return_value={"ContentLength": size})
         mock_client.create_multipart_upload = AsyncMock(return_value={"UploadId": "u1"})
-        mock_client.upload_part_copy = AsyncMock(return_value={"CopyPartResult": {"ETag": '"e"'}})
+        mock_client.upload_part_copy = AsyncMock(
+            return_value={"CopyPartResult": {"ETag": '"e"'}}
+        )
         mock_client.complete_multipart_upload = AsyncMock()
         client = S3StorageClient(s3_config)
         client._client = mock_client

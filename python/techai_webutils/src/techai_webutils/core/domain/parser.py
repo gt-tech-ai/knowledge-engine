@@ -88,5 +88,5 @@ class ParsedDocument:
 
     @property
     def ok(self) -> bool:
-        """Return True when the document parsed without error."""
+        """Whether the document parsed without error."""
         return not self.error

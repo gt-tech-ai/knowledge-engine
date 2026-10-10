@@ -14,13 +14,19 @@ from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.token_ledger import UsageRecord, UsageScope
 
 _TABLE = PriceTable(
-    prices={"nova-lite": ModelPrice(Decimal("0.00006"), Decimal("0.00024"), Decimal("0.00002"))},
+    prices={
+        "nova-lite": ModelPrice(
+            Decimal("0.00006"), Decimal("0.00024"), Decimal("0.00002")
+        )
+    },
     version="2026-10",
 )
 _MICRO = Decimal("0.000001")
 
 
-def _record(model: str, input_tokens: int, output_tokens: int, embed_tokens: int) -> UsageRecord:
+def _record(
+    model: str, input_tokens: int, output_tokens: int, embed_tokens: int
+) -> UsageRecord:
     """A usage record for ``model`` with the given token counts."""
     return UsageRecord(
         scope=UsageScope(org_id="org-1"),
@@ -37,7 +43,9 @@ _tokens = st.integers(min_value=0, max_value=10_000_000)
 
 
 @given(_tokens, _tokens, _tokens, st.integers(min_value=0, max_value=1_000_000))
-def test_cost_is_non_negative_monotonic_and_exact(input_tokens, output_tokens, embed_tokens, extra):
+def test_cost_is_non_negative_monotonic_and_exact(
+    input_tokens, output_tokens, embed_tokens, extra
+):
     """Test that cost is non-negative, monotonic in every token count, and exact to the micro-dollar.
 
     **Why this test is important:**
@@ -49,7 +57,9 @@ def test_cost_is_non_negative_monotonic_and_exact(input_tokens, output_tokens, e
       - it equals ``(in×p_in + out×p_out + embed×p_embed) / 1000`` rounded half-even
       - adding ``extra`` tokens to any one count never lowers the cost
     """
-    cost = cost_of(_record("nova-lite", input_tokens, output_tokens, embed_tokens), _TABLE)
+    cost = cost_of(
+        _record("nova-lite", input_tokens, output_tokens, embed_tokens), _TABLE
+    )
     price = _TABLE.prices["nova-lite"]
     exact = (
         input_tokens * price.input_per_1k
@@ -61,9 +71,27 @@ def test_cost_is_non_negative_monotonic_and_exact(input_tokens, output_tokens, e
     assert cost >= 0
     assert cost == exact.quantize(_MICRO, rounding="ROUND_HALF_EVEN")
     assert cost.as_tuple().exponent == -6
-    assert cost_of(_record("nova-lite", input_tokens + extra, output_tokens, embed_tokens), _TABLE) >= cost
-    assert cost_of(_record("nova-lite", input_tokens, output_tokens + extra, embed_tokens), _TABLE) >= cost
-    assert cost_of(_record("nova-lite", input_tokens, output_tokens, embed_tokens + extra), _TABLE) >= cost
+    assert (
+        cost_of(
+            _record("nova-lite", input_tokens + extra, output_tokens, embed_tokens),
+            _TABLE,
+        )
+        >= cost
+    )
+    assert (
+        cost_of(
+            _record("nova-lite", input_tokens, output_tokens + extra, embed_tokens),
+            _TABLE,
+        )
+        >= cost
+    )
+    assert (
+        cost_of(
+            _record("nova-lite", input_tokens, output_tokens, embed_tokens + extra),
+            _TABLE,
+        )
+        >= cost
+    )
 
 
 def test_unknown_model_raises():

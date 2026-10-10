@@ -15,11 +15,12 @@ import sys
 import threading
 from typing import IO, TYPE_CHECKING, TextIO, cast
 
+import structlog
+from opentelemetry import trace as otel_trace
+from structlog.tracebacks import ExceptionDictTransformer
+
 from techai_webutils.core.interfaces.logger import Logger
 from techai_webutils.foundation.logger.redact import redact_pii
-from opentelemetry import trace as otel_trace
-import structlog
-from structlog.tracebacks import ExceptionDictTransformer
 
 if TYPE_CHECKING:
     from structlog.typing import EventDict, WrappedLogger
@@ -190,7 +191,9 @@ def _parse_level(level: str) -> int:
     """
     numeric = getattr(logging, level.upper(), None)
     if not isinstance(numeric, int):
-        logging.getLogger(__name__).warning("unknown log level %r; defaulting to INFO", level)
+        logging.getLogger(__name__).warning(
+            "unknown log level %r; defaulting to INFO", level
+        )
         return logging.INFO
     return numeric
 
@@ -232,7 +235,9 @@ def configure_logging(
             # whenever exc_info is set. dict_tracebacks defaults to dumping every frame's locals,
             # which turned a single Bedrock ClientError into a multi-KB wall of botocore internals
             # (and risks leaking sensitive values); the frames are kept for analysis, locals dropped.
-            structlog.processors.ExceptionRenderer(ExceptionDictTransformer(show_locals=False)),
+            structlog.processors.ExceptionRenderer(
+                ExceptionDictTransformer(show_locals=False)
+            ),
             # Canonical cross-service schema: the message lives under "message"
             # (matching the Go zap/stdlib loggers), not structlog's default "event".
             structlog.processors.EventRenamer("message"),
@@ -271,7 +276,7 @@ def configure_logging(
     # for us, so hold these libraries at WARNING regardless of the app level.
     # Note: this also silences grpc.aio's INFO connection diagnostics — remember this pin is why
     # they're quiet if you ever chase a dev-only gRPC connectivity issue.
-    for _noisy in (
+    for noisy_logger in (
         "botocore",
         "aiobotocore",
         "boto3",
@@ -282,7 +287,7 @@ def configure_logging(
         "httpcore",
         "grpc",
     ):
-        logging.getLogger(_noisy).setLevel(logging.WARNING)
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
     # Mark configured so new_logger() self-configures at most once; configure_logging itself
     # stays un-guarded, so setup_observability + the tests may (re)configure with an explicit stream.

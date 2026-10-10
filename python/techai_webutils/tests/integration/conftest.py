@@ -44,9 +44,7 @@ _REDIS_IMAGE = "redis:7-alpine"
 _ELASTICMQ_IMAGE = "softwaremill/elasticmq:1.6.6"
 # MinIO no longer publishes images: Chainguard's free build, pinned by digest (the Go
 # fixture go/tests/fixtures/dbtest/minio pins the same one).
-_MINIO_IMAGE = (
-    "cgr.dev/chainguard/minio:latest@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
-)
+_MINIO_IMAGE = "cgr.dev/chainguard/minio:latest@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1"
 
 # MinIO root credentials (MinIO's well-known local defaults). ElasticMQ ignores creds.
 _MINIO_USER = "minioadmin"
@@ -168,7 +166,13 @@ async def _create_sqs_queue(endpoint: str, name: str) -> str:
         resp = await client.create_queue(QueueName=name)
     endpoint_parts = urlsplit(endpoint)
     queue_parts = urlsplit(resp["QueueUrl"])
-    return urlunsplit((endpoint_parts.scheme, endpoint_parts.netloc, queue_parts.path, "", ""))
+    return urlunsplit((
+        endpoint_parts.scheme,
+        endpoint_parts.netloc,
+        queue_parts.path,
+        "",
+        "",
+    ))
 
 
 @pytest_asyncio.fixture
@@ -245,7 +249,9 @@ def postgres_dsn() -> Iterator[str]:
     )
     container.start()
     try:
-        wait_for_logs(container, "database system is ready to accept connections", timeout=60)
+        wait_for_logs(
+            container, "database system is ready to accept connections", timeout=60
+        )
         host = container.get_container_host_ip()
         port = int(container.get_exposed_port(5432))
         dsn = f"postgresql://app:dev_password@{host}:{port}/knowledge_engine?sslmode=disable"
@@ -282,7 +288,12 @@ def ray_cluster(request: pytest.FixtureRequest) -> object:
     """
     import ray
 
-    ray.init(num_cpus=2, ignore_reinit_error=True, include_dashboard=False, logging_level="ERROR")
+    ray.init(
+        num_cpus=2,
+        ignore_reinit_error=True,
+        include_dashboard=False,
+        logging_level="ERROR",
+    )
     ray.cloudpickle.register_pickle_by_value(request.module)
     yield
     ray.cloudpickle.unregister_pickle_by_value(request.module)

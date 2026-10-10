@@ -9,7 +9,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from techai_webutils.clients.token_ledger import TokenLedgerConfig, TokenLedgerKind, token_ledger_from_config
+from techai_webutils.clients.token_ledger import (
+    TokenLedgerConfig,
+    TokenLedgerKind,
+    token_ledger_from_config,
+)
 from techai_webutils.clients.token_ledger.stub import StubTokenLedger
 from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.token_ledger import (
@@ -126,7 +130,10 @@ def test_factory_unknown_kind_raises_coded_error():
     **What it tests:**
       - ``kind="mongo"`` and ``kind="redis"`` with no client each raise ``AppError(INVALID_INPUT)``
     """
-    for config in (TokenLedgerConfig(kind="mongo"), TokenLedgerConfig(kind=TokenLedgerKind.REDIS)):
+    for config in (
+        TokenLedgerConfig(kind="mongo"),
+        TokenLedgerConfig(kind=TokenLedgerKind.REDIS),
+    ):
         with pytest.raises(AppError) as caught:
             token_ledger_from_config(config)
         assert caught.value.code is ErrorCode.INVALID_INPUT

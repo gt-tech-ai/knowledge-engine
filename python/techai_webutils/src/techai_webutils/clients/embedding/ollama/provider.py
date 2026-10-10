@@ -41,7 +41,9 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
         model/config mismatch fails here with a clear message rather than as a silent no-op far
         downstream at vector-store upsert or search time.
         """
-        response = await self._client.post("/api/embed", json={"model": self._model, "input": texts})
+        response = await self._client.post(
+            "/api/embed", json={"model": self._model, "input": texts}
+        )
         response.raise_for_status()
         body = response.json()
         if "embeddings" not in body:
@@ -55,7 +57,9 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
                     f"expected {self._dimension} (check embedding.dimension config)"
                 )
                 raise ValueError(msg)
-            results.append(EmbeddingResult(embedding=list(vector), model=self._model, token_count=0))
+            results.append(
+                EmbeddingResult(embedding=list(vector), model=self._model, token_count=0)
+            )
         return results
 
     def dimension(self) -> int:

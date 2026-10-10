@@ -6,8 +6,8 @@ Mirrors Go's ``repos/repository/cursor.go``.
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

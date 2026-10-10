@@ -78,7 +78,9 @@ async def test_dropped_session_auto_releases_the_lock(postgres_dsn: str) -> None
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_same_key_in_different_namespaces_does_not_contend(postgres_dsn: str) -> None:
+async def test_same_key_in_different_namespaces_does_not_contend(
+    postgres_dsn: str,
+) -> None:
     """Test the namespace is its own half of the lock identity: one key under two namespaces never contends.
 
     **Why this test is important:**
@@ -95,7 +97,9 @@ async def test_same_key_in_different_namespaces_does_not_contend(postgres_dsn: s
     same_namespace = PostgresAdvisoryLock(dsn=postgres_dsn, key="kb-ns", namespace=1)
     async with held, other_namespace, same_namespace:
         assert await held.acquire() is True
-        assert await other_namespace.acquire() is True  # another namespace: a different lock
+        assert (
+            await other_namespace.acquire() is True
+        )  # another namespace: a different lock
         assert await same_namespace.acquire() is False  # same identity: blocked
         await other_namespace.release()
         await held.release()

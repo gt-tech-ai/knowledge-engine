@@ -106,7 +106,9 @@ class TestHTTPMetrics:
             method/route/status label combination is at least 1
         """
         http_observability._record("GET", "/healthz", 200, 0.0)
-        value = http_observability._REQUESTS.labels(method="GET", route="/healthz", status="200")._value.get()
+        value = http_observability._REQUESTS.labels(
+            method="GET", route="/healthz", status="200"
+        )._value.get()
         assert value >= 1
 
     def test_metric_names_match_dashboards(self) -> None:
@@ -130,7 +132,9 @@ class TestHTTPMetrics:
         assert "http_server_requests_total" in exposed
         assert "http_server_request_duration_seconds" in exposed
 
-    def test_probe_and_scrape_paths_are_not_logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_probe_and_scrape_paths_are_not_logged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that health-probe and Prometheus-scrape requests are not access-logged.
 
         **Why this test is important:**
@@ -185,7 +189,9 @@ class TestTracingServerInterceptor:
 
         # A client-streaming handler (unary_unary AND unary_stream are None) is returned as-is.
         non_unary = grpc.stream_stream_rpc_method_handler(lambda req, ctx: req)
-        result = await interceptor.intercept_service(AsyncMock(return_value=non_unary), _Details())
+        result = await interceptor.intercept_service(
+            AsyncMock(return_value=non_unary), _Details()
+        )
         assert result is non_unary
 
     @pytest.mark.asyncio
@@ -215,7 +221,9 @@ class TestTracingServerInterceptor:
             method = "/svc/Stream"
             invocation_metadata = ()
 
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=handler), _Details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=handler), _Details()
+        )
         assert wrapped is not None
         assert wrapped.unary_stream is not None
         assert wrapped.unary_unary is None
@@ -247,7 +255,9 @@ class TestTracingServerInterceptor:
             method = "/svc/Method"
             invocation_metadata = ()
 
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=handler), _Details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=handler), _Details()
+        )
         assert wrapped is not None
         assert wrapped.unary_unary is not None
         assert await wrapped.unary_unary("req", None) == "ok"
@@ -320,7 +330,9 @@ class TestHTTPRequestLogging:
             raise web.HTTPNotFound
 
         with pytest.raises(web.HTTPNotFound):
-            asyncio.run(middleware(make_mocked_request("GET", "/does-not-exist"), handler))
+            asyncio.run(
+                middleware(make_mocked_request("GET", "/does-not-exist"), handler)
+            )
 
         log = self._last_http_log(out.getvalue())
         assert log.get("status") == 404
@@ -349,7 +361,9 @@ class TestHTTPRequestLogging:
             raise ValueError("boom")
 
         with pytest.raises(ValueError, match="boom"):
-            asyncio.run(middleware(make_mocked_request("GET", "/does-not-exist"), handler))
+            asyncio.run(
+                middleware(make_mocked_request("GET", "/does-not-exist"), handler)
+            )
 
         log = self._last_http_log(out.getvalue())
         assert log.get("status") == 500
@@ -391,7 +405,9 @@ class TestHTTPRequestLogging:
         async def call_next(_request: Request) -> Response:
             return PlainTextResponse("nope", status_code=404)
 
-        asyncio.run(http_observability.fastapi_observability_middleware(Request(scope), call_next))
+        asyncio.run(
+            http_observability.fastapi_observability_middleware(Request(scope), call_next)
+        )
 
         log = self._last_http_log(out.getvalue())
         assert log.get("status") == 404

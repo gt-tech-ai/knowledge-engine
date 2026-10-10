@@ -137,8 +137,14 @@ class TestClassify:
         """
         headers = httpx.Headers()
         assert is_transient(ResponseHandlingException(source=OSError("connect"))) is True
-        assert is_transient(UnexpectedResponse(503, "Service Unavailable", b"", headers)) is True
-        assert is_transient(UnexpectedResponse(429, "Too Many Requests", b"", headers)) is True
+        assert (
+            is_transient(UnexpectedResponse(503, "Service Unavailable", b"", headers))
+            is True
+        )
+        assert (
+            is_transient(UnexpectedResponse(429, "Too Many Requests", b"", headers))
+            is True
+        )
         assert is_permanent(UnexpectedResponse(400, "Bad Request", b"", headers)) is True
 
     def test_plain_exception_is_permanent(self) -> None:

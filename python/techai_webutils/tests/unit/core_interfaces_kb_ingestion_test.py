@@ -21,12 +21,27 @@ class TestIngestionJob:
         **What it tests:**
           - COMPLETE, FAILED, and STOPPED are terminal; STARTING, IN_PROGRESS, and STOPPING are not.
         """
-        assert IngestionJob(job_id="j", state=IngestionJobState.COMPLETE).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.FAILED).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.STOPPED).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.STARTING).is_terminal is False
-        assert IngestionJob(job_id="j", state=IngestionJobState.IN_PROGRESS).is_terminal is False
-        assert IngestionJob(job_id="j", state=IngestionJobState.STOPPING).is_terminal is False
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.COMPLETE).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.FAILED).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STOPPED).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STARTING).is_terminal
+            is False
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.IN_PROGRESS).is_terminal
+            is False
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STOPPING).is_terminal
+            is False
+        )
 
 
 class TestKnowledgeBaseIngestor:

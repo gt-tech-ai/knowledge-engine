@@ -67,7 +67,9 @@ class TestMarkItDownParser:
           - <h1> becomes '# Title' and pages is empty for a non-PDF.
         """
         parser = MarkItDownParser()
-        result = parser.parse(b"<html><body><h1>Title</h1><p>Body</p></body></html>", filename="p.html")
+        result = parser.parse(
+            b"<html><body><h1>Title</h1><p>Body</p></body></html>", filename="p.html"
+        )
         assert result.ok
         assert result.document_format is DocumentFormat.HTML
         assert "# Title" in result.markdown_content

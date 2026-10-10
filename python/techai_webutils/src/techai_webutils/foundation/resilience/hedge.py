@@ -13,12 +13,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
+
+from techai_webutils.core.interfaces.hedger import Hedger
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
-    from techai_webutils.core.interfaces.hedger import Hedger
 
 
 class HedgeKind(StrEnum):
@@ -46,15 +46,16 @@ class HedgeConfig:
     """Seconds to wait for the first attempt before firing the backup (DELAY only)."""
 
 
-class DisabledHedger:
+class DisabledHedger(Hedger):
     """A ``Hedger`` that runs the operation exactly once (no hedging) -- the safe default."""
 
+    @override
     async def hedge[T](self, op: Callable[[], Awaitable[T]]) -> T:
         """Run ``op`` once, without a backup attempt."""
         return await op()
 
 
-class DelayHedger:
+class DelayHedger(Hedger):
     """A delay-then-race ``Hedger``: fire a backup after a delay, take the first responder."""
 
     def __init__(self, delay_seconds: float) -> None:

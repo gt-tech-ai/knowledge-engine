@@ -10,14 +10,12 @@ core -> foundation -> clients -> repos -> services -> pipelines -> workflows -> 
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-
-from techai_webutils.controllers.base import BaseController, ErrorResponse, map_error_to_http_status
-from techai_webutils.controllers.decorators import HandlerBuilder
-
-# Named generic handler type, matching Go's ``HandlerFunc[Req, Resp]``
-# in ``go/transport/handler.go``.
-type HandlerFunc = Callable[..., Awaitable[object]]
+from techai_webutils.controllers.base import (
+    BaseController,
+    ErrorResponse,
+    map_error_to_http_status,
+)
+from techai_webutils.controllers.decorators import HandlerBuilder, HandlerFunc
 
 __all__ = [
     "BaseController",

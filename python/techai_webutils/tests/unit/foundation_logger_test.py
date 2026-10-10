@@ -154,9 +154,20 @@ class TestStructuredLogger:
             the requested DEBUG level, so the noise-suppression can't accidentally mute real app logs.
         """
         configure_logging(level="DEBUG")
-        for name in ("botocore", "aiobotocore", "urllib3", "s3transfer", "httpx", "httpcore", "grpc"):
+        for name in (
+            "botocore",
+            "aiobotocore",
+            "urllib3",
+            "s3transfer",
+            "httpx",
+            "httpcore",
+            "grpc",
+        ):
             assert logging.getLogger(name).getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("knowledge_engine_ingestion.jobs").getEffectiveLevel() == logging.DEBUG
+        assert (
+            logging.getLogger("knowledge_engine_ingestion.jobs").getEffectiveLevel()
+            == logging.DEBUG
+        )
 
 
 class TestStructlogLoggerDelegation:
@@ -204,7 +215,9 @@ class TestStructlogLoggerDelegation:
         assert lines[0]["k"] == 1
         assert lines[-1]["a"] == 2
 
-    def test_git_sha_appears_in_output_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_git_sha_appears_in_output_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A configured GIT_SHA is injected into every emitted log line.
 
         **Why this test is important:**

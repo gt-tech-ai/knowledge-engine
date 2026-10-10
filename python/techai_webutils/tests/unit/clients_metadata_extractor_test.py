@@ -7,8 +7,14 @@ import sys
 
 import pytest
 
-from techai_webutils.clients.metadata import MetadataConfig, metadata_extractor_from_config
-from techai_webutils.clients.metadata.langdetect import LangdetectMetadataExtractor, extract_metadata
+from techai_webutils.clients.metadata import (
+    MetadataConfig,
+    metadata_extractor_from_config,
+)
+from techai_webutils.clients.metadata.langdetect import (
+    LangdetectMetadataExtractor,
+    extract_metadata,
+)
 from techai_webutils.core.domain import DocumentFormat, ParsedDocument
 from techai_webutils.core.interfaces.metadata import MetadataExtractor
 
@@ -47,7 +53,9 @@ class TestExtractMetadata:
         **What it tests:**
           - Whitespace-only content yields language 'und'.
         """
-        parsed = ParsedDocument(markdown_content="   ", document_format=DocumentFormat.TXT)
+        parsed = ParsedDocument(
+            markdown_content="   ", document_format=DocumentFormat.TXT
+        )
         assert extract_metadata(parsed, extracted_at="t").language == "und"
 
     def test_featureless_text_language_is_undetermined(self) -> None:
@@ -60,7 +68,9 @@ class TestExtractMetadata:
         **What it tests:**
           - Digits-only content yields language 'und' (the exception branch, not the empty-string one).
         """
-        parsed = ParsedDocument(markdown_content="1234567890 0987654321", document_format=DocumentFormat.TXT)
+        parsed = ParsedDocument(
+            markdown_content="1234567890 0987654321", document_format=DocumentFormat.TXT
+        )
         assert extract_metadata(parsed, extracted_at="t").language == "und"
 
 
@@ -87,7 +97,9 @@ class TestMetadataExtractorFactory:
             total_pages=3,
             word_count=12,
         )
-        assert extractor.extract(parsed, extracted_at="t") == extract_metadata(parsed, extracted_at="t")
+        assert extractor.extract(parsed, extracted_at="t") == extract_metadata(
+            parsed, extracted_at="t"
+        )
 
     def test_factory_rejects_unknown_kind(self) -> None:
         """An unknown metadata kind fails loudly with ValueError (the Go NewFromConfig contract)."""

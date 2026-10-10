@@ -73,7 +73,9 @@ class MarkItDownParser:
 
         self._converter = cast("_Converter", MarkItDown())
 
-    def parse(self, content: bytes, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    def parse(
+        self, content: bytes, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse ``content`` into a ``ParsedDocument`` (never raises for a bad document)."""
         fmt = detect_format(declared, filename, content)
         if fmt is DocumentFormat.UNKNOWN:
@@ -118,7 +120,8 @@ class MarkItDownParser:
             result = self._converter.convert_stream(io.BytesIO(clean), stream_info=info)
         return str(result.text_content)
 
-    def _pdf_pages(self, content: bytes) -> list[Page]:
+    @staticmethod
+    def _pdf_pages(content: bytes) -> list[Page]:
         """Extract per-page text from a PDF via pymupdf; return [] if extraction fails."""
         import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf
 
@@ -133,7 +136,9 @@ class MarkItDownParser:
         except Exception:  # PDF page extraction is best-effort supplementary data
             return []
 
-    def parse_path(self, path: str, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    def parse_path(
+        self, path: str, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse a document from a file ``path`` (bounded memory) into a ``ParsedDocument``.
 
         The large-document lane streams the object to disk and hands the parser a PATH, so the whole
@@ -143,12 +148,18 @@ class MarkItDownParser:
         """
         fmt = detect_format(declared, filename, self._read_header(path))
         if fmt is DocumentFormat.UNKNOWN:
-            return ParsedDocument(markdown_content="", document_format=fmt, error="unsupported_format")
+            return ParsedDocument(
+                markdown_content="", document_format=fmt, error="unsupported_format"
+            )
 
         try:
             markdown = self._to_markdown_path(path, fmt)
         except Exception as exc:  # isolate one document's failure as error metadata
-            return ParsedDocument(markdown_content="", document_format=fmt, error=f"conversion_failed: {exc}")
+            return ParsedDocument(
+                markdown_content="",
+                document_format=fmt,
+                error=f"conversion_failed: {exc}",
+            )
 
         pages = self._pdf_pages_path(path) if fmt is DocumentFormat.PDF else []
         return ParsedDocument(
@@ -177,15 +188,22 @@ class MarkItDownParser:
         info = StreamInfo(extension=f".{fmt.value}", charset="utf-8")
         with Path(path).open("rb") as f:
             try:
-                return str(self._converter.convert_stream(f, stream_info=info).text_content)
+                return str(
+                    self._converter.convert_stream(f, stream_info=info).text_content
+                )
             except UnicodeDecodeError:
                 if Path(path).stat().st_size > _MAX_SANITIZE_BYTES:
                     raise
                 _ = f.seek(0)
                 clean = f.read().decode("utf-8", errors="replace").encode("utf-8")
-                return str(self._converter.convert_stream(io.BytesIO(clean), stream_info=info).text_content)
+                return str(
+                    self._converter.convert_stream(
+                        io.BytesIO(clean), stream_info=info
+                    ).text_content
+                )
 
-    def _pdf_pages_path(self, path: str) -> list[Page]:
+    @staticmethod
+    def _pdf_pages_path(path: str) -> list[Page]:
         """Extract per-page text from a PDF opened by path via pymupdf; return [] on failure."""
         import pymupdf  # noqa: PLC0415 — lazy so the parent process never loads pymupdf
 

@@ -6,6 +6,7 @@ import asyncio
 from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session  # type: ignore[import-untyped]
+
 from techai_webutils.core.interfaces.storage import StorageClient, StorageObject
 
 _DOWNLOAD_CHUNK_SIZE = 1024 * 1024
@@ -105,7 +106,9 @@ class S3StorageClient(StorageClient):
             return
         await self._multipart_copy(bucket, source, dst_key, size)
 
-    async def _multipart_copy(self, bucket: str, source: dict[str, str], dst_key: str, size: int) -> None:
+    async def _multipart_copy(
+        self, bucket: str, source: dict[str, str], dst_key: str, size: int
+    ) -> None:
         """Server-side copy a large object via multipart UploadPartCopy, aborting on any failure."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
@@ -124,7 +127,10 @@ class S3StorageClient(StorageClient):
                     CopySource=source,
                     CopySourceRange=f"bytes={start}-{end}",
                 )
-                parts.append({"ETag": part["CopyPartResult"]["ETag"], "PartNumber": part_number})
+                parts.append({
+                    "ETag": part["CopyPartResult"]["ETag"],
+                    "PartNumber": part_number,
+                })
             await self._client.complete_multipart_upload(  # type: ignore[union-attr]
                 Bucket=bucket,
                 Key=dst_key,

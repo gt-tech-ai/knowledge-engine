@@ -126,7 +126,9 @@ def _retrier_mock() -> AsyncMock:
     return mock
 
 
-def _cb_mock(*, is_open: bool = False, enter_error: BaseException | None = None) -> MagicMock:
+def _cb_mock(
+    *, is_open: bool = False, enter_error: BaseException | None = None
+) -> MagicMock:
     """Build a ``MagicMock(spec=CircuitBreakerInterface)`` usable as a ``with`` context.
 
     A closed breaker (default) enters and exits without suppressing exceptions. An
@@ -135,7 +137,11 @@ def _cb_mock(*, is_open: bool = False, enter_error: BaseException | None = None)
     proving non-circuit errors propagate unchanged.
     """
     mock = MagicMock(spec=CircuitBreakerInterface)
-    error = enter_error if enter_error is not None else (CircuitOpenError() if is_open else None)
+    error = (
+        enter_error
+        if enter_error is not None
+        else (CircuitOpenError() if is_open else None)
+    )
     if error is not None:
         mock.__enter__.side_effect = error
     else:
@@ -1225,7 +1231,11 @@ class TestMetricsRepositoryDecoratorErrorCounter:
         """
         base: BaseRepository[str, dict, str] = BaseRepository(_store_mock(failing=True))
         histogram, executions, errors = MagicMock(), MagicMock(), MagicMock()
-        repo = RepositoryBuilder(base, "users").with_metrics(histogram, executions, errors).build()
+        repo = (
+            RepositoryBuilder(base, "users")
+            .with_metrics(histogram, executions, errors)
+            .build()
+        )
 
         with pytest.raises(RuntimeError):
             await repo.get("1")

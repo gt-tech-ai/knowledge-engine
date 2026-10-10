@@ -27,7 +27,9 @@ async def test_rejection_rises_on_failure_and_eases_on_recovery() -> None:
         - With shedding disabled (rand always allows), a healthy run keeps the probability at
           zero, a failing run drives it positive, and a recovery run brings it back down.
     """
-    throttle = AdaptiveThrottler(k=2.0, decay=1.0, rand=lambda: 1.0)  # never shed → op always runs
+    throttle = AdaptiveThrottler(
+        k=2.0, decay=1.0, rand=lambda: 1.0
+    )  # never shed → op always runs
 
     for _ in range(10):  # healthy: accepts keep pace with requests
         await throttle.do(_ok)
@@ -41,7 +43,9 @@ async def test_rejection_rises_on_failure_and_eases_on_recovery() -> None:
 
     for _ in range(40):  # recovery: accepts climb again
         await throttle.do(_ok)
-    assert throttle.rejection_probability < fail_prob, "rejection eases as the backend recovers"
+    assert throttle.rejection_probability < fail_prob, (
+        "rejection eases as the backend recovers"
+    )
 
 
 @pytest.mark.asyncio
@@ -56,7 +60,9 @@ async def test_sheds_locally_without_calling_op() -> None:
         - After one failure builds a positive probability, a request whose draw falls under it
           raises ThrottledError and never calls op.
     """
-    throttle = AdaptiveThrottler(k=2.0, decay=1.0, rand=lambda: 0.0)  # draw 0 → shed when p > 0
+    throttle = AdaptiveThrottler(
+        k=2.0, decay=1.0, rand=lambda: 0.0
+    )  # draw 0 → shed when p > 0
 
     # First call: probability is 0 at cold start, so it is allowed; its failure builds p > 0.
     with pytest.raises(RuntimeError):

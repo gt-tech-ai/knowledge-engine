@@ -11,12 +11,12 @@ is serialized back.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from techai_webutils.controllers.base import BaseController
     from collections.abc import Awaitable, Callable
+
+    from techai_webutils.controllers.base import BaseController
 
 
 def adapt[Req, Resp](

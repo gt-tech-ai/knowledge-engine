@@ -18,7 +18,10 @@ from techai_webutils.clients.decorators.proxy import (
 )
 from techai_webutils.core.errors.errors import AppError, ErrorCode
 from techai_webutils.foundation.logger.logger import configure_logging
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 import pytest
 
 
@@ -126,7 +129,9 @@ class TestLoggingProxy:
         assert await proxy.do() == "ok"
 
         lines = [line for line in output.getvalue().strip().split("\n") if line]
-        records = [json.loads(line) for line in lines]  # every line MUST parse as JSON (structured)
+        records = [
+            json.loads(line) for line in lines
+        ]  # every line MUST parse as JSON (structured)
         complete = [r for r in records if r.get("message") == "client call complete"]
         assert complete, records
         rec = complete[-1]
@@ -156,7 +161,9 @@ class TestLoggingProxy:
         with pytest.raises(AppError):
             await proxy.run()
 
-        records = [json.loads(line) for line in output.getvalue().strip().split("\n") if line]
+        records = [
+            json.loads(line) for line in output.getvalue().strip().split("\n") if line
+        ]
         failed = [r for r in records if r.get("message") == "client call failed"]
         assert failed, records
         assert failed[-1]["client"] == "_AsyncBoom"
@@ -285,8 +292,12 @@ class TestRetryProxy:
         svc = MagicMock()
         svc.run = AsyncMock(
             side_effect=[
-                AppError(ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "300"}),
-                AppError(ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "60000"}),
+                AppError(
+                    ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "300"}
+                ),
+                AppError(
+                    ErrorCode.UNAVAILABLE, "slow", details={"retry_after_ms": "60000"}
+                ),
                 AppError(ErrorCode.UNAVAILABLE, "blip"),
                 "ok",
             ]

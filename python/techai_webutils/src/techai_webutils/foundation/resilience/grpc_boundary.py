@@ -33,12 +33,10 @@ if TYPE_CHECKING:
 # server named a delay after which the call will succeed, so the boundary raises a transient
 # ``UNAVAILABLE`` carrying that delay in ``details["retry_after_ms"]``, which ``RetryProxy`` and
 # ``retry_transient_async`` wait out before the next attempt.
-_TRANSIENT_GRPC_CODES = frozenset(
-    {
-        grpc.StatusCode.UNAVAILABLE,
-        grpc.StatusCode.DEADLINE_EXCEEDED,
-    }
-)
+_TRANSIENT_GRPC_CODES = frozenset({
+    grpc.StatusCode.UNAVAILABLE,
+    grpc.StatusCode.DEADLINE_EXCEEDED,
+})
 """gRPC status codes mapped to a transient (retryable) ``AppError`` at the client boundary."""
 
 _PUSHBACK_MS_KEY = "grpc-retry-pushback-ms"
@@ -81,13 +79,20 @@ def grpc_error_to_app_error(exc: AioRpcError) -> AppError:
     detail = exc.details() or str(exc)
     message = f"gRPC upstream {status.name}: {detail}"
     if status in _TRANSIENT_GRPC_CODES:
-        code = ErrorCode.TIMEOUT if status is grpc.StatusCode.DEADLINE_EXCEEDED else ErrorCode.UNAVAILABLE
+        code = (
+            ErrorCode.TIMEOUT
+            if status is grpc.StatusCode.DEADLINE_EXCEEDED
+            else ErrorCode.UNAVAILABLE
+        )
         return AppError(code, message, cause=exc)
     if status is grpc.StatusCode.RESOURCE_EXHAUSTED:
         delay_ms = _retry_pushback_ms(exc)
         if delay_ms is not None:
             return AppError(
-                ErrorCode.UNAVAILABLE, message, details={"retry_after_ms": str(delay_ms)}, cause=exc
+                ErrorCode.UNAVAILABLE,
+                message,
+                details={"retry_after_ms": str(delay_ms)},
+                cause=exc,
             )
         return AppError(ErrorCode.RESOURCE_EXHAUSTED, message, cause=exc)
     return InternalError(message, cause=exc)

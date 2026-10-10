@@ -4,7 +4,10 @@ from unittest.mock import create_autospec
 
 import pytest
 from techai_webutils.core.interfaces.dlq import DeadLetter, DeadLetterBackend
-from techai_webutils.foundation.resilience.dlq import DeadLetterQueue, StubDeadLetterBackend
+from techai_webutils.foundation.resilience.dlq import (
+    DeadLetterQueue,
+    StubDeadLetterBackend,
+)
 
 
 class TestDeadLetterQueue:

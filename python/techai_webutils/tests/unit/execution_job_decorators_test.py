@@ -36,7 +36,9 @@ class _Job:
         group: str = "g",
         ran: list[str] | None = None,
     ) -> None:
-        self._result = result if result is not None else BatchResult(results=[StepResult(name="x")])
+        self._result = (
+            result if result is not None else BatchResult(results=[StepResult(name="x")])
+        )
         self._raises = raises
         self._name = name
         self._group = group
@@ -70,7 +72,10 @@ def _recording_metrics() -> tuple[MagicMock, SimpleNamespace]:
         if name not in counter_cache:
             calls = counter_calls.setdefault(name, [])
             mock = MagicMock(spec=MetricCounter)
-            mock.inc.side_effect = lambda value=1.0, **labels: calls.append((value, labels))
+            mock.inc.side_effect = lambda value=1.0, **labels: calls.append((
+                value,
+                labels,
+            ))
             counter_cache[name] = mock
         return counter_cache[name]
 
@@ -98,7 +103,9 @@ def _recording_logger() -> tuple[MagicMock, list[tuple[str, str]]]:
     msgs: list[tuple[str, str]] = []
     logger = MagicMock(spec=Logger)
     for level in ("info", "warning", "error", "exception"):
-        getattr(logger, level).side_effect = lambda msg, _level=level, **kwargs: msgs.append((_level, msg))
+        getattr(logger, level).side_effect = lambda msg, _level=level, **kwargs: (
+            msgs.append((_level, msg))
+        )
     return logger, msgs
 
 
@@ -165,20 +172,29 @@ class TestJobDecorators:
         """
         metrics, acc = _recording_metrics()
         ok = (
-            wrap(_Job(BatchResult(results=[StepResult(name="x", status=StepStatus.PASS)])))
+            wrap(
+                _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.PASS)]))
+            )
             .with_metrics(metrics)
             .build()
         )
         await ok.execute()
         bad = (
             wrap(
-                _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")])),
+                _Job(
+                    BatchResult(
+                        results=[StepResult(name="x", status=StepStatus.FAIL, error="e")]
+                    )
+                ),
             )
             .with_metrics(metrics)
             .build()
         )
         await bad.execute()
-        outcomes = [labels["outcome"] for _, labels in acc.counter_calls["execution_job_runs_total"]]
+        outcomes = [
+            labels["outcome"]
+            for _, labels in acc.counter_calls["execution_job_runs_total"]
+        ]
         assert outcomes == ["ok", "failed"]
         assert len(acc.hist_obs["execution_job_duration_seconds"]) == 2
 
@@ -209,7 +225,9 @@ class TestJobDecorators:
           - A job returning a FAIL result logs a start (info) then a finished-with-failures (warning).
         """
         logger, msgs = _recording_logger()
-        failing = _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")]))
+        failing = _Job(
+            BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")])
+        )
         await wrap(failing).with_logger(logger).build().execute()
         assert [level for level, _ in msgs] == ["info", "warning"]
 

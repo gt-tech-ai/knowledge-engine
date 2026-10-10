@@ -75,22 +75,20 @@ class VectorStore(ManagedResource, ABC):
     async def existing_ids(self, collection: str, ids: list[str]) -> set[str]:
         """Return the subset of ``ids`` already stored in ``collection`` (an existence probe).
 
-        Derived from ``stored_metadata``, so a store answers both probes by overriding that one.
+        Derived from ``stored_metadata``, so a store answers both probes by implementing that one.
         """
         return set(await self.stored_metadata(collection, ids))
 
+    @abstractmethod
     async def stored_metadata(
-        self,
-        collection: str,  # noqa: ARG002 - the default stores nothing to look up
-        ids: list[str],  # noqa: ARG002
+        self, collection: str, ids: list[str]
     ) -> dict[str, dict[str, str]]:
         """Return ``{id: stored metadata}`` for the subset of ``ids`` already stored in ``collection``.
 
         The metadata is what the entry was upserted with (``VectorEntry.metadata``), without the
-        entry's own ``id``/``document_id``/``content``. Concrete default: ``{}``. A store with no cheap
-        probe reports "nothing indexed", so an incremental indexer just re-embeds every chunk
-        (idempotent upsert — correct, only not resumable). Stores that CAN answer cheaply (e.g. Qdrant
-        ``retrieve`` by id) override this so an at-least-once redrive skips the sub-batches already
-        upserted with the same metadata instead of re-embedding them.
+        entry's own ``id``/``document_id``/``content``. A store with no cheap probe returns ``{}``
+        ("nothing indexed"), so an incremental indexer just re-embeds every chunk (idempotent
+        upsert — correct, only not resumable). Stores that CAN answer cheaply (e.g. Qdrant
+        ``retrieve`` by id) return the stored metadata, so an at-least-once redrive skips the
+        sub-batches already upserted with the same metadata instead of re-embedding them.
         """
-        return {}

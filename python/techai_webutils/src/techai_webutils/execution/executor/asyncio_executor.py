@@ -15,13 +15,19 @@ from techai_webutils.execution.engine.fan_out import fan_out
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
-    from techai_webutils.core.interfaces.execution import BatchResult, ExecutionObserver, StepResult
+    from techai_webutils.core.interfaces.execution import (
+        BatchResult,
+        ExecutionObserver,
+        StepResult,
+    )
 
 
 class AsyncioExecutor:
     """Run a mapper over items in-process with bounded concurrency via ``fan_out``."""
 
-    def __init__(self, observer: ExecutionObserver | None = None, *, name: str = "executor") -> None:
+    def __init__(
+        self, observer: ExecutionObserver | None = None, *, name: str = "executor"
+    ) -> None:
         """Store the observer + batch name forwarded to ``fan_out`` on each ``run``."""
         self._observer = observer
         self._name = name

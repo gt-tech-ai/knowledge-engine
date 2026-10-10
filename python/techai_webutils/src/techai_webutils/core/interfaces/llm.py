@@ -93,11 +93,15 @@ class LLMProvider(ManagedResource, ABC):
     """
 
     @abstractmethod
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         """Generate a completion for the given message history."""
 
     @abstractmethod
-    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str]:
         """Stream a completion token-by-token.
 
         Returns an async iterator; callers ``await`` this to obtain it, then ``async for``.

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Self
 import uuid
+from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session  # type: ignore[import-untyped]
+
 from techai_webutils.core.interfaces.messaging import MessagePublisher
 
 if TYPE_CHECKING:

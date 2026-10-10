@@ -81,7 +81,9 @@ class GateBuilder:
 
     def build(self) -> Gate:
         """Return the configured Gate, defaulting the observer to a NopObserver."""
-        observer: ExecutionObserver = self._observer if self._observer is not None else NopObserver()
+        observer: ExecutionObserver = (
+            self._observer if self._observer is not None else NopObserver()
+        )
         return Gate(
             name=self._name,
             phases=tuple(self._phases),
@@ -138,7 +140,9 @@ async def run_gate(gate: Gate) -> BatchResult:
                 phase_result = await run_job_group(phase.jobs, parallel=phase.parallel)
                 phase_results.append(phase_result)
             finally:
-                observer.on_phase_complete(phase.name, phase_result, loop.time() - phase_start)
+                observer.on_phase_complete(
+                    phase.name, phase_result, loop.time() - phase_start
+                )
             if gate.stop_on_failure and phase_result.has_failures:
                 break
     finally:

@@ -41,7 +41,9 @@ def test_quota_exceeded_error_is_neither_transient_nor_permanent():
       - code is RESOURCE_EXHAUSTED, details are exactly ``{"org_id", "reason"}``
       - ``is_transient`` and ``is_permanent`` are both False
     """
-    err = QuotaExceededError("monthly token budget spent", org_id="org-1", reason="budget_exhausted")
+    err = QuotaExceededError(
+        "monthly token budget spent", org_id="org-1", reason="budget_exhausted"
+    )
 
     assert err.code is ErrorCode.RESOURCE_EXHAUSTED
     assert err.message == "monthly token budget spent"

@@ -424,7 +424,11 @@ class TestCacheDecoratorGapCoverage:
           - delete and exists both record a latency observation.
         """
         hits, misses, latency = MagicMock(), MagicMock(), MagicMock()
-        cache = CacheBuilder(_mock_cache(exists=True)).with_metrics(hits, misses, latency).build()
+        cache = (
+            CacheBuilder(_mock_cache(exists=True))
+            .with_metrics(hits, misses, latency)
+            .build()
+        )
         await cache.set("k", b"v")
         await cache.exists("k")
         await cache.delete("k")

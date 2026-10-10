@@ -34,7 +34,12 @@ def _fact(i: int = 0) -> Fact:
         cube="genai_calls",
         org_id="org-1",
         ts=datetime(2026, 10, 9, 12, 34, 56, 789000, tzinfo=UTC),
-        dims={"provider": "aws.bedrock", "model": "nova-lite", "step": "generate", "team": "t-1"},
+        dims={
+            "provider": "aws.bedrock",
+            "model": "nova-lite",
+            "step": "generate",
+            "team": "t-1",
+        },
         measures={"tokens_in": 42, "tokens_out": 7, "duration_s": 1.25},
         idempotency_key="4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b7:generate"
         + ("" if i == 0 else f"-{i}"),
@@ -84,7 +89,10 @@ def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
     for config, publisher in (
         (FactPublisherConfig(kind="kafka"), None),
         (FactPublisherConfig(kind=FactPublisherKind.MESSAGING, queue="facts"), None),
-        (FactPublisherConfig(kind=FactPublisherKind.MESSAGING), MagicMock(spec=MessagePublisher)),
+        (
+            FactPublisherConfig(kind=FactPublisherKind.MESSAGING),
+            MagicMock(spec=MessagePublisher),
+        ),
     ):
         with pytest.raises(AppError) as caught:
             new_fact_publisher_from_config(config, publisher=publisher)
@@ -109,7 +117,10 @@ async def test_messaging_publisher_drops_and_counts_when_full():
     transport.publish_batch = AsyncMock(side_effect=RuntimeError("sqs down"))
     publisher = new_fact_publisher_from_config(
         FactPublisherConfig(
-            kind=FactPublisherKind.MESSAGING, queue="facts", max_buffer=2, flush_interval_s=0.01
+            kind=FactPublisherKind.MESSAGING,
+            queue="facts",
+            max_buffer=2,
+            flush_interval_s=0.01,
         ),
         publisher=transport,
         metrics=metrics,
@@ -123,7 +134,9 @@ async def test_messaging_publisher_drops_and_counts_when_full():
 
     assert dropped.inc.call_args_list[1] == ((2,), {"reason": "publish_error"})
     metrics.counter.assert_called_once_with(
-        "gen_ai_fact_dropped_total", "Analytics facts dropped before publish, by reason.", ["reason"]
+        "gen_ai_fact_dropped_total",
+        "Analytics facts dropped before publish, by reason.",
+        ["reason"],
     )
 
 
@@ -147,7 +160,12 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
     transport = MagicMock(spec=MessagePublisher)
     transport.publish_batch = AsyncMock(side_effect=RuntimeError("sqs down"))
     publisher = MessagingFactPublisher(
-        transport, "facts", max_buffer=10, flush_interval_s=0.0, drain_timeout_s=0.5, metrics=metrics
+        transport,
+        "facts",
+        max_buffer=10,
+        flush_interval_s=0.0,
+        drain_timeout_s=0.5,
+        metrics=metrics,
     )
 
     await publisher.__aenter__()
@@ -182,7 +200,9 @@ async def test_messaging_publisher_batches_by_ten():
     transport = MagicMock(spec=MessagePublisher)
     transport.publish_batch = AsyncMock(return_value=None)
     publisher = new_fact_publisher_from_config(
-        FactPublisherConfig(kind=FactPublisherKind.MESSAGING, queue="facts", flush_interval_s=0.01),
+        FactPublisherConfig(
+            kind=FactPublisherKind.MESSAGING, queue="facts", flush_interval_s=0.01
+        ),
         publisher=transport,
     )
     facts = [_fact(i) for i in range(1, 26)]
@@ -194,7 +214,9 @@ async def test_messaging_publisher_batches_by_ten():
     sent = [c.args for c in transport.publish_batch.await_args_list]
     assert [topic for topic, _ in sent] == ["facts", "facts", "facts"]
     assert [len(batch) for _, batch in sent] == [10, 10, 5]
-    assert [payload for _, batch in sent for payload in batch] == [f.to_json() for f in facts]
+    assert [payload for _, batch in sent for payload in batch] == [
+        f.to_json() for f in facts
+    ]
 
 
 def test_fact_json_escapes_like_go():
@@ -266,7 +288,12 @@ _MEASURE = st.one_of(
     key=_TEXT,
 )
 def test_fact_json_round_trips(
-    cube: str, org_id: str, micros: int, dims: dict[str, str], measures: dict[str, float], key: str
+    cube: str,
+    org_id: str,
+    micros: int,
+    dims: dict[str, str],
+    measures: dict[str, float],
+    key: str,
 ):
     """Test, over generated facts, that ``to_json`` decodes back to the fact's own values.
 
@@ -281,12 +308,20 @@ def test_fact_json_round_trips(
       - none of ``<``, ``>``, ``&`` appears raw in the bytes (Go's HTML-safe escaping)
     """
     ts = datetime(2020, 1, 1, tzinfo=UTC) + timedelta(microseconds=micros)
-    fact = Fact(cube=cube, org_id=org_id, ts=ts, dims=dims, measures=measures, idempotency_key=key)
+    fact = Fact(
+        cube=cube, org_id=org_id, ts=ts, dims=dims, measures=measures, idempotency_key=key
+    )
 
     raw = fact.to_json()
     body = json.loads(raw)
 
-    assert (body["cube"], body["org_id"], body["dims"], body["idempotency_key"], body["schema"]) == (
+    assert (
+        body["cube"],
+        body["org_id"],
+        body["dims"],
+        body["idempotency_key"],
+        body["schema"],
+    ) == (
         cube,
         org_id,
         dims,

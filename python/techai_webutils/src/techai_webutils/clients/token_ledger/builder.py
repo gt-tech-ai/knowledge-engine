@@ -56,7 +56,9 @@ def token_ledger_from_config(
     *,
     redis: Redis | None = None,
     metrics: MetricsProvider | None = None,
-    backends: Mapping[str, Callable[[TokenLedgerConfig], TokenLedger]] = MappingProxyType({}),
+    backends: Mapping[
+        str, Callable[[TokenLedgerConfig], TokenLedger]
+    ] = MappingProxyType({}),
 ) -> TokenLedger:
     """Build the ``TokenLedger`` selected by ``config.kind``.
 
@@ -75,11 +77,15 @@ def token_ledger_from_config(
         return StubTokenLedger()
     if config.kind == TokenLedgerKind.REDIS:
         if redis is None:
-            raise AppError(ErrorCode.INVALID_INPUT, "redis token ledger requires a Redis client")
+            raise AppError(
+                ErrorCode.INVALID_INPUT, "redis token ledger requires a Redis client"
+            )
         from techai_webutils.clients.token_ledger.redis import RedisTokenLedger  # noqa: PLC0415
 
         return RedisTokenLedger(redis, config, metrics=metrics)
     factory = backends.get(config.kind)
     if factory is None:
-        raise AppError(ErrorCode.INVALID_INPUT, f"unknown token ledger kind: {config.kind!r}")
+        raise AppError(
+            ErrorCode.INVALID_INPUT, f"unknown token ledger kind: {config.kind!r}"
+        )
     return factory(config)

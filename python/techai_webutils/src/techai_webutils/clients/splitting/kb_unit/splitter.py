@@ -76,11 +76,15 @@ def _split_pages(pages: list[Page], max_bytes: int) -> list[ChunkPayload]:
     if buffer:
         chunks.append(_page_chunk(len(chunks), buffer, start_page, end_page))
     if not chunks:
-        chunks.append(ChunkPayload(chunk_index=0, text="", page_start=None, page_end=None))
+        chunks.append(
+            ChunkPayload(chunk_index=0, text="", page_start=None, page_end=None)
+        )
     return chunks
 
 
-def _page_chunk(index: int, texts: list[str], start_page: int | None, end_page: int | None) -> ChunkPayload:
+def _page_chunk(
+    index: int, texts: list[str], start_page: int | None, end_page: int | None
+) -> ChunkPayload:
     """Build a page-range chunk from its accumulated page texts."""
     return ChunkPayload(
         chunk_index=index,
@@ -119,7 +123,9 @@ def _split_markdown(markdown: str, max_bytes: int) -> list[ChunkPayload]:
     if buffer:
         chunks.append(_markdown_chunk(len(chunks), buffer))
     if not chunks:
-        chunks.append(ChunkPayload(chunk_index=0, text="", page_start=None, page_end=None))
+        chunks.append(
+            ChunkPayload(chunk_index=0, text="", page_start=None, page_end=None)
+        )
     return chunks
 
 

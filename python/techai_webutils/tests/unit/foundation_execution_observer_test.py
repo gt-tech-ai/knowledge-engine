@@ -43,10 +43,14 @@ def _recording_metrics() -> tuple[MagicMock, SimpleNamespace]:
     gauge.dec.side_effect = _gdec
 
     completed = MagicMock(spec=MetricCounter)
-    completed.inc.side_effect = lambda value=1.0, **_labels: setattr(acc, "completed", acc.completed + value)
+    completed.inc.side_effect = lambda value=1.0, **_labels: setattr(
+        acc, "completed", acc.completed + value
+    )
 
     failed = MagicMock(spec=MetricCounter)
-    failed.inc.side_effect = lambda value=1.0, **_labels: setattr(acc, "failed", acc.failed + value)
+    failed.inc.side_effect = lambda value=1.0, **_labels: setattr(
+        acc, "failed", acc.failed + value
+    )
 
     histogram = MagicMock(spec=MetricHistogram)
     histogram.observe.side_effect = lambda value, **_labels: acc.durations.append(value)
@@ -55,7 +59,9 @@ def _recording_metrics() -> tuple[MagicMock, SimpleNamespace]:
     metrics = MagicMock(spec=MetricsProvider)
     metrics.gauge.side_effect = lambda name, help_text, labels=None: gauge
     metrics.counter.side_effect = lambda name, help_text, labels=None: counters[name]
-    metrics.histogram.side_effect = lambda name, help_text, labels=None, buckets=None: histogram
+    metrics.histogram.side_effect = lambda name, help_text, labels=None, buckets=None: (
+        histogram
+    )
     return metrics, acc
 
 
@@ -74,7 +80,9 @@ class TestMetricsLoggingObserver:
             failed_total == 1, one batch-duration observation, and inflight returns to 0.0.
         """
         metrics, acc = _recording_metrics()
-        observer = MetricsLoggingObserver(metrics, MagicMock(spec=Logger), subsystem="ingest")
+        observer = MetricsLoggingObserver(
+            metrics, MagicMock(spec=Logger), subsystem="ingest"
+        )
 
         async def fn(item: int) -> StepResult:
             if item == 2:

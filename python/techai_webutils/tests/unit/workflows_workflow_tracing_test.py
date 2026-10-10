@@ -40,7 +40,11 @@ class TestAsyncWorkflowTracing:
             return x.upper()
 
         tracer, _span = _tracer()
-        w = AsyncWorkflowBuilder(BaseAsyncWorkflow(orchestrate), "query.answer").with_tracing(tracer).build()
+        w = (
+            AsyncWorkflowBuilder(BaseAsyncWorkflow(orchestrate), "query.answer")
+            .with_tracing(tracer)
+            .build()
+        )
 
         assert await w.execute("hi") == "HI"
         tracer.span.assert_called_once()
@@ -61,7 +65,11 @@ class TestAsyncWorkflowTracing:
             raise InvalidInputError("bad")
 
         tracer, span = _tracer()
-        w = AsyncWorkflowBuilder(BaseAsyncWorkflow(failing), "query.answer").with_tracing(tracer).build()
+        w = (
+            AsyncWorkflowBuilder(BaseAsyncWorkflow(failing), "query.answer")
+            .with_tracing(tracer)
+            .build()
+        )
 
         with pytest.raises(InvalidInputError):
             await w.execute("x")

@@ -7,8 +7,8 @@ Generates or propagates a request ID header across the request lifecycle.
 from __future__ import annotations
 
 import contextvars
-from typing import Any, TYPE_CHECKING
 import uuid
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

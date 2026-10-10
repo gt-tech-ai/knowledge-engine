@@ -8,15 +8,21 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TypeVar, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from techai_webutils.core.domain_types.types import Page, PageRequest
-from techai_webutils.core.errors.errors import AppError, AppTimeoutError, ForbiddenError, InternalError
+from techai_webutils.core.errors.errors import (
+    AppError,
+    AppTimeoutError,
+    ForbiddenError,
+    InternalError,
+)
 from techai_webutils.core.interfaces.crud_service import CrudService
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.logger import Logger
     from collections.abc import Awaitable, Callable
+
+    from techai_webutils.core.interfaces.logger import Logger
 
 T = TypeVar("T")
 P = TypeVar("P")
@@ -34,7 +40,9 @@ class _TimeoutServiceDecorator[T, P, ID](CrudService[T, P, ID]):
     async def get(self, entity_id: ID) -> T:
         """Fetch the entity, raising ``AppTimeoutError`` if the deadline elapses."""
         try:
-            return await asyncio.wait_for(self._inner.get(entity_id), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.get(entity_id), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"service.get timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -42,7 +50,9 @@ class _TimeoutServiceDecorator[T, P, ID](CrudService[T, P, ID]):
     async def list(self, params: P, page: PageRequest) -> Page[T]:
         """List a page of entities, raising ``AppTimeoutError`` if the deadline elapses."""
         try:
-            return await asyncio.wait_for(self._inner.list(params, page), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.list(params, page), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"service.list timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -50,7 +60,9 @@ class _TimeoutServiceDecorator[T, P, ID](CrudService[T, P, ID]):
     async def create(self, entity: T) -> T:
         """Create the entity, raising ``AppTimeoutError`` if the deadline elapses."""
         try:
-            return await asyncio.wait_for(self._inner.create(entity), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.create(entity), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"service.create timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -58,7 +70,9 @@ class _TimeoutServiceDecorator[T, P, ID](CrudService[T, P, ID]):
     async def update(self, entity_id: ID, entity: T) -> T:
         """Update the entity, raising ``AppTimeoutError`` if the deadline elapses."""
         try:
-            return await asyncio.wait_for(self._inner.update(entity_id, entity), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.update(entity_id, entity), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"service.update timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e
@@ -282,7 +296,9 @@ class ServiceBuilder[T, P, ID]:
         self._logger = logger
         return self
 
-    def with_authorization(self, auth_fn: Callable[[str], Awaitable[bool]]) -> ServiceBuilder[T, P, ID]:
+    def with_authorization(
+        self, auth_fn: Callable[[str], Awaitable[bool]]
+    ) -> ServiceBuilder[T, P, ID]:
         """Add an authorization decorator.
 
         Args:

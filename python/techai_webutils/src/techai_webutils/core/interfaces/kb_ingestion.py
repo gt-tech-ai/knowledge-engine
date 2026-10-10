@@ -52,12 +52,12 @@ class IngestionJob:
 
     @property
     def is_terminal(self) -> bool:
-        """Return True when the job has finished (COMPLETE, FAILED, or STOPPED)."""
-        return self.state in (
+        """Whether the job has finished (COMPLETE, FAILED, or STOPPED)."""
+        return self.state in {
             IngestionJobState.COMPLETE,
             IngestionJobState.FAILED,
             IngestionJobState.STOPPED,
-        )
+        }
 
 
 POLL_TIMEOUT_ERROR = "poll_timeout"
@@ -90,7 +90,9 @@ class KnowledgeBaseIngestor(ManagedResource, ABC):
     """Drives knowledge-base ingestion jobs (start + poll) and lists a data source's documents."""
 
     @abstractmethod
-    async def start_ingestion_job(self, *, knowledge_base_id: str, data_source_id: str) -> IngestionJob:
+    async def start_ingestion_job(
+        self, *, knowledge_base_id: str, data_source_id: str
+    ) -> IngestionJob:
         """Start (or attach to) an ingestion job for the given KB data source."""
         ...
 

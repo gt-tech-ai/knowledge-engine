@@ -10,13 +10,11 @@ import grpc
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-_TRANSIENT_CODES = frozenset(
-    {
-        grpc.StatusCode.UNAVAILABLE,
-        grpc.StatusCode.DEADLINE_EXCEEDED,
-        grpc.StatusCode.ABORTED,
-    }
-)
+_TRANSIENT_CODES = frozenset({
+    grpc.StatusCode.UNAVAILABLE,
+    grpc.StatusCode.DEADLINE_EXCEEDED,
+    grpc.StatusCode.ABORTED,
+})
 """gRPC status codes treated as transient and eligible for retry with backoff."""
 
 

@@ -15,7 +15,9 @@ if TYPE_CHECKING:
     from techai_webutils.core.interfaces.vector_store import VectorStore
 
 
-def require_matching_dimension(embedder: EmbeddingProvider, store: VectorStore, collection: str) -> None:
+def require_matching_dimension(
+    embedder: EmbeddingProvider, store: VectorStore, collection: str
+) -> None:
     """Raise ``ValueError`` if the embedder and store vector dimensions disagree.
 
     The dimension is the single source of truth for the pair: a mismatch means the query vector and

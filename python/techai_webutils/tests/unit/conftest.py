@@ -19,7 +19,11 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock
 
 from techai_webutils.clients.messaging.config import SQSConfig
-from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+from techai_webutils.core.interfaces.metrics import (
+    MetricCounter,
+    MetricHistogram,
+    MetricsProvider,
+)
 from techai_webutils.clients.storage.config import S3Config
 from techai_webutils.foundation.config.bridge import reset_config
 from techai_webutils.foundation.config.settings import (
@@ -57,7 +61,11 @@ _OVERLAY_SELECTORS = ("APP_ENV", "ENVIRONMENT")
 
 def _config_env_names() -> list[str]:
     """Return the set env vars a config test may read or write: MYAPP_* plus the bare mixin names."""
-    return [key for key in os.environ if key.startswith(_TEST_PREFIX) or key in _MIXIN_ENV_NAMES]
+    return [
+        key
+        for key in os.environ
+        if key.startswith(_TEST_PREFIX) or key in _MIXIN_ENV_NAMES
+    ]
 
 
 @pytest.fixture(autouse=True)

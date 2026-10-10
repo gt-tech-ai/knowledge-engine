@@ -17,16 +17,14 @@ from techai_webutils.core.errors import AppError, ErrorCode
 # ClientError codes worth a retry — throttling, transient 5xx, and model-side timeouts. Everything
 # else (access-denied, ResourceNotFound for a legacy/unavailable model or index, validation) is a
 # terminal misconfiguration/permission error.
-_TRANSIENT_CODES = frozenset(
-    {
-        "ThrottlingException",
-        "ServiceUnavailableException",
-        "ServiceQuotaExceededException",
-        "ModelTimeoutException",
-        "ModelNotReadyException",
-        "InternalServerException",
-    }
-)
+_TRANSIENT_CODES = frozenset({
+    "ThrottlingException",
+    "ServiceUnavailableException",
+    "ServiceQuotaExceededException",
+    "ModelTimeoutException",
+    "ModelNotReadyException",
+    "InternalServerException",
+})
 """ClientError codes worth a retry (throttling, transient 5xx, model-side timeouts)."""
 _SERVER_ERROR_STATUS = 500
 """Lowest HTTP status classifying a response as a server error (retryable)."""
@@ -34,7 +32,9 @@ _TOO_MANY_REQUESTS_STATUS = 429
 """HTTP status classifying a response as throttled (retryable)."""
 
 
-def botocore_error_to_app_error(exc: ClientError | BotoCoreError, operation: str) -> AppError:
+def botocore_error_to_app_error(
+    exc: ClientError | BotoCoreError, operation: str
+) -> AppError:
     """Map a botocore failure of ``operation`` (e.g. ``"bedrock retrieve"``) to a coded ``AppError``.
 
     A ``ClientError`` is classified by its error code / HTTP status — throttling / 429 / 5xx /
@@ -47,10 +47,16 @@ def botocore_error_to_app_error(exc: ClientError | BotoCoreError, operation: str
     if isinstance(exc, ClientError):
         err = exc.response.get("Error", {})
         code = str(err.get("Code", ""))
-        status = int(exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0) or 0)
+        status = int(
+            exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0) or 0
+        )
         transient = (
-            code in _TRANSIENT_CODES or status >= _SERVER_ERROR_STATUS or status == _TOO_MANY_REQUESTS_STATUS
+            code in _TRANSIENT_CODES
+            or status >= _SERVER_ERROR_STATUS
+            or status == _TOO_MANY_REQUESTS_STATUS
         )
         app_code = ErrorCode.UNAVAILABLE if transient else ErrorCode.INTERNAL
-        return AppError(app_code, f"{operation} failed: {code or status or 'error'}", cause=exc)
+        return AppError(
+            app_code, f"{operation} failed: {code or status or 'error'}", cause=exc
+        )
     return AppError(ErrorCode.UNAVAILABLE, f"{operation} unreachable: {exc}", cause=exc)

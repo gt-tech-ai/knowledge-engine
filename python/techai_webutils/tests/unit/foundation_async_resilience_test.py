@@ -1,10 +1,23 @@
 """Tests for async retry + async circuit breaker (the asyncio-path resiliency variants)."""
 
 import pytest
-from techai_webutils.core.errors.errors import AppError, ErrorCode, InvalidInputError, UnavailableError
-from techai_webutils.foundation.resilience.async_circuit_breaker import AsyncCircuitBreaker
-from techai_webutils.foundation.resilience.async_retry import retry_after_s, retry_transient_async
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenError, CircuitState
+from techai_webutils.core.errors.errors import (
+    AppError,
+    ErrorCode,
+    InvalidInputError,
+    UnavailableError,
+)
+from techai_webutils.foundation.resilience.async_circuit_breaker import (
+    AsyncCircuitBreaker,
+)
+from techai_webutils.foundation.resilience.async_retry import (
+    retry_after_s,
+    retry_transient_async,
+)
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitOpenError,
+    CircuitState,
+)
 
 
 class TestRetryTransientAsync:
@@ -77,7 +90,9 @@ class TestRetryTransientAsync:
 
         attempts = 0
 
-        @retry_transient_async(max_attempts=3, base_delay=0.01, max_delay=1.0, sleep=_record_sleep)
+        @retry_transient_async(
+            max_attempts=3, base_delay=0.01, max_delay=1.0, sleep=_record_sleep
+        )
         async def call() -> str:
             nonlocal attempts
             attempts += 1
@@ -111,18 +126,32 @@ class TestRetryTransientAsync:
 
         pushbacks = iter(["2500", "60000"])
 
-        @retry_transient_async(max_attempts=3, base_delay=0.01, max_delay=5.0, sleep=_record_sleep)
+        @retry_transient_async(
+            max_attempts=3, base_delay=0.01, max_delay=5.0, sleep=_record_sleep
+        )
         async def call() -> str:
             delay = next(pushbacks, None)
             if delay is not None:
-                raise AppError(ErrorCode.UNAVAILABLE, "slow down", details={"retry_after_ms": delay})
+                raise AppError(
+                    ErrorCode.UNAVAILABLE, "slow down", details={"retry_after_ms": delay}
+                )
             return "ok"
 
         assert await call() == "ok"
         assert delays == [2.5, 5.0]
         assert retry_after_s(UnavailableError()) is None
-        assert retry_after_s(AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "soon"})) is None
-        assert retry_after_s(AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "-5"})) is None
+        assert (
+            retry_after_s(
+                AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "soon"})
+            )
+            is None
+        )
+        assert (
+            retry_after_s(
+                AppError(ErrorCode.UNAVAILABLE, "x", details={"retry_after_ms": "-5"})
+            )
+            is None
+        )
         assert retry_after_s(RuntimeError("x")) is None
 
 

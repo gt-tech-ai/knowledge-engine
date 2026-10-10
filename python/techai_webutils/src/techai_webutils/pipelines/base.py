@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from techai_webutils.core.interfaces.pipeline import AsyncPipeline, Pipeline
 

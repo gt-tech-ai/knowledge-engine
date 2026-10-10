@@ -15,7 +15,10 @@ import protovalidate
 import pytest
 from google.protobuf import empty_pb2
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
+from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+    AuthServerInterceptor,
+    HeaderClaimMapping,
+)
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
     _ValidatingServerInterceptor,
@@ -30,10 +33,14 @@ def _details(method: str = "/svc/M") -> object:
 async def _wrap(handler_fn: AsyncMock) -> grpc.RpcMethodHandler:
     """Wrap a unary handler through the validate interceptor and return the rebuilt handler."""
     real = grpc.unary_unary_rpc_method_handler(handler_fn)
-    return await _ValidatingServerInterceptor().intercept_service(AsyncMock(return_value=real), _details())
+    return await _ValidatingServerInterceptor().intercept_service(
+        AsyncMock(return_value=real), _details()
+    )
 
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(
+    user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
+)
 """The gateway header contract these tests configure."""
 
 
@@ -63,7 +70,9 @@ class TestValidatingServerInterceptor:
 
         with (
             patch.object(
-                protovalidate, "validate", side_effect=protovalidate.ValidationError("query is required", [])
+                protovalidate,
+                "validate",
+                side_effect=protovalidate.ValidationError("query is required", []),
             ),
             pytest.raises(grpc.aio.AbortError),
         ):
@@ -130,6 +139,8 @@ class TestValidatingServerInterceptor:
         What it tests:
           - ``.with_auth(_HEADERS).with_validation().build()`` yields [auth, validate] in that order.
         """
-        interceptors = ServerInterceptorBuilder().with_auth(_HEADERS).with_validation().build()
+        interceptors = (
+            ServerInterceptorBuilder().with_auth(_HEADERS).with_validation().build()
+        )
         types = [type(i) for i in interceptors]
         assert types == [AuthServerInterceptor, _ValidatingServerInterceptor]

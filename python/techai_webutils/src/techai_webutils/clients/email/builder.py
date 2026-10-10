@@ -63,7 +63,9 @@ def new_email_from_config(config: EmailConfig) -> EmailSender:
         # Lazy import: skip aiosmtplib off the SMTP path.
         from techai_webutils.clients.email.smtp import SmtpEmailSender  # noqa: PLC0415
 
-        return SmtpEmailSender(host=config.smtp_host, port=config.smtp_port, from_address=config.from_address)
+        return SmtpEmailSender(
+            host=config.smtp_host, port=config.smtp_port, from_address=config.from_address
+        )
     if config.kind is EmailKind.NOOP:
         return NoopEmailSender()
     msg = f"unknown email kind: {config.kind!r}"

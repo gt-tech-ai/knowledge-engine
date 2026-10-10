@@ -31,7 +31,9 @@ async def _stream(*tokens: str | StreamUsage) -> AsyncIterator[str | StreamUsage
         yield token
 
 
-async def _stream_then_fail(exc: Exception, *tokens: str) -> AsyncIterator[str | StreamUsage]:
+async def _stream_then_fail(
+    exc: Exception, *tokens: str
+) -> AsyncIterator[str | StreamUsage]:
     """An async token stream that yields the given tokens then raises exc."""
     for token in tokens:
         yield token
@@ -41,14 +43,23 @@ async def _stream_then_fail(exc: Exception, *tokens: str) -> AsyncIterator[str |
 def _client_error(code: str, status: int) -> ClientError:
     """Build a botocore ClientError mimicking a Bedrock throttle/server response."""
     return ClientError(
-        {"Error": {"Code": code, "Message": "boom"}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        {
+            "Error": {"Code": code, "Message": "boom"},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
         "Converse",
     )
 
 
 def _response(model: str) -> LLMResponse:
     """A minimal LLMResponse tagged with the model that produced it."""
-    return LLMResponse(content="answer", model=model, input_tokens=1, output_tokens=1, finish_reason="stop")
+    return LLMResponse(
+        content="answer",
+        model=model,
+        input_tokens=1,
+        output_tokens=1,
+        finish_reason="stop",
+    )
 
 
 def _providers(primary_error: Exception, fallback_result: object) -> FallbackLlmProvider:
@@ -77,7 +88,9 @@ async def test_fallback_on_throttle() -> None:
 @pytest.mark.asyncio
 async def test_fallback_on_5xx() -> None:
     """A 5xx server error on the primary routes the request to the fallback model."""
-    provider = _providers(_client_error("InternalServerException", 500), _response("haiku"))
+    provider = _providers(
+        _client_error("InternalServerException", 500), _response("haiku")
+    )
     result = await provider.complete(_MESSAGES)
     assert result.model == "haiku"
 
@@ -86,7 +99,8 @@ async def test_fallback_on_5xx() -> None:
 async def test_both_models_fail_raises_unavailable() -> None:
     """When the fallback also fails, a 503-mapped UnavailableError is raised (not a raw botocore error)."""
     provider = _providers(
-        _client_error("ThrottlingException", 429), _client_error("ThrottlingException", 429)
+        _client_error("ThrottlingException", 429),
+        _client_error("ThrottlingException", 429),
     )
     with pytest.raises(UnavailableError):
         await provider.complete(_MESSAGES)
@@ -105,7 +119,9 @@ def _coded_provider_error(code: str, status: int) -> AppError:
     """The coded AppError a real provider raises for a botocore failure (``raise ... from exc``)."""
     client_error = _client_error(code, status)
     try:
-        raise botocore_error_to_app_error(client_error, "bedrock converse") from client_error
+        raise botocore_error_to_app_error(
+            client_error, "bedrock converse"
+        ) from client_error
     except AppError as err:
         return err
 
@@ -215,7 +231,9 @@ async def test_stream_falls_back_before_first_token() -> None:
         tokens are returned.
     """
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
+    primary.stream_with_usage.return_value = _stream_then_fail(
+        _client_error("ThrottlingException", 429)
+    )
     fallback.stream_with_usage.return_value = _stream("hello", " world")
     provider = FallbackLlmProvider(primary, fallback)
 
@@ -258,8 +276,12 @@ async def test_stream_both_fail_raises_unavailable() -> None:
         UnavailableError.
     """
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
-    fallback.stream_with_usage.return_value = _stream_then_fail(_client_error("InternalServerException", 500))
+    primary.stream_with_usage.return_value = _stream_then_fail(
+        _client_error("ThrottlingException", 429)
+    )
+    fallback.stream_with_usage.return_value = _stream_then_fail(
+        _client_error("InternalServerException", 500)
+    )
     provider = FallbackLlmProvider(primary, fallback)
 
     with pytest.raises(UnavailableError):
@@ -278,9 +300,13 @@ async def test_stream_with_usage_passes_fallback_usage_through() -> None:
       - Primary throttles before a token → the items are the fallback's deltas then its exact
         ``StreamUsage``.
     """
-    usage = StreamUsage(model="haiku", input_tokens=9, output_tokens=2, finish_reason="end_turn")
+    usage = StreamUsage(
+        model="haiku", input_tokens=9, output_tokens=2, finish_reason="end_turn"
+    )
     primary, fallback = AsyncMock(), AsyncMock()
-    primary.stream_with_usage.return_value = _stream_then_fail(_client_error("ThrottlingException", 429))
+    primary.stream_with_usage.return_value = _stream_then_fail(
+        _client_error("ThrottlingException", 429)
+    )
     fallback.stream_with_usage.return_value = _stream("hi", usage)
     provider = FallbackLlmProvider(primary, fallback)
 

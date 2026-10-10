@@ -40,7 +40,9 @@ _DEFAULT_MAX_POLL_SECONDS = 1800.0
 """Maximum seconds to poll before failing (30 minutes; Bedrock ingestion can take minutes)."""
 
 
-class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], ReattachableIngestor):
+class PollingIngestor(
+    DelegatingAsyncResource[KnowledgeBaseIngestor], ReattachableIngestor
+):
     """Wraps a ``KnowledgeBaseIngestor``, adding ``poll_ingestion_job`` (poll an existing job to terminal).
 
     ``start_ingestion_job`` returns the fresh (non-terminal) job; ``poll_ingestion_job`` polls a given
@@ -69,7 +71,9 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
         # loop is running (i.e. at await time), so it cannot be bound here at construction.
         self._clock = clock
 
-    async def start_ingestion_job(self, *, knowledge_base_id: str, data_source_id: str) -> IngestionJob:
+    async def start_ingestion_job(
+        self, *, knowledge_base_id: str, data_source_id: str
+    ) -> IngestionJob:
         """Start a job and return the FRESH (non-terminal) handle — the poll is a separate step.
 
         Delegates to the wrapped ingestor's ``start`` and returns immediately, so the caller can persist
@@ -156,7 +160,9 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
         while not job.is_terminal:
             if clock() >= deadline:
                 return IngestionJob(
-                    job_id=job.job_id, state=IngestionJobState.FAILED, error=POLL_TIMEOUT_ERROR
+                    job_id=job.job_id,
+                    state=IngestionJobState.FAILED,
+                    error=POLL_TIMEOUT_ERROR,
                 )
             await self._sleep(self._poll_interval)
             job = await self._inner.get_ingestion_job(
@@ -167,7 +173,9 @@ class PollingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Reattachab
         return job
 
 
-class RetryingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], KnowledgeBaseIngestor):
+class RetryingIngestor(
+    DelegatingAsyncResource[KnowledgeBaseIngestor], KnowledgeBaseIngestor
+):
     """Wraps a ``KnowledgeBaseIngestor``, retrying transient AWS errors with exponential backoff.
 
     Uses ``retry_transient_async`` (tenacity ``wait_exponential_jitter``) so a transient
@@ -195,7 +203,9 @@ class RetryingIngestor(DelegatingAsyncResource[KnowledgeBaseIngestor], Knowledge
             max_delay=max_delay,
         )
 
-    async def start_ingestion_job(self, *, knowledge_base_id: str, data_source_id: str) -> IngestionJob:
+    async def start_ingestion_job(
+        self, *, knowledge_base_id: str, data_source_id: str
+    ) -> IngestionJob:
         """Start a job, retrying transient failures with backoff."""
 
         async def _op() -> IngestionJob:

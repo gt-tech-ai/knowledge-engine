@@ -39,7 +39,11 @@ class TestAsyncPipelineTracing:
             return x.upper()
 
         tracer, _span = _tracer()
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(transform), "meta").with_tracing(tracer).build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(transform), "meta")
+            .with_tracing(tracer)
+            .build()
+        )
 
         assert await p.execute("hi") == "HI"
         tracer.span.assert_called_once()
@@ -60,7 +64,11 @@ class TestAsyncPipelineTracing:
             raise InvalidInputError("bad")
 
         tracer, span = _tracer()
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(failing), "meta").with_tracing(tracer).build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(failing), "meta")
+            .with_tracing(tracer)
+            .build()
+        )
 
         with pytest.raises(InvalidInputError):
             await p.execute("x")

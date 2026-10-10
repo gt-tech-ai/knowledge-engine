@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import TypeVar
 
 from techai_webutils.core.interfaces.config_loader import ConfigLoader
-
 from techai_webutils.foundation.config.loader import load_config
 
 T = TypeVar("T")
@@ -61,7 +60,7 @@ class YamlConfigLoader(ConfigLoader):
         if isinstance(val, bool):
             return val
         if isinstance(val, str):
-            return val.lower() in ("true", "1", "yes")
+            return val.lower() in {"true", "1", "yes"}
         return bool(val)
 
     def unmarshal(self, target_type: type[T]) -> T:

@@ -110,7 +110,9 @@ class TestPooledExecutor:
         got = await asyncio.gather(*(lazy.get() for _ in range(8)))
 
         assert builds == 1  # built exactly once despite 8 concurrent first calls
-        assert all(worker is got[0] for worker in got)  # every caller shares the one instance
+        assert all(
+            worker is got[0] for worker in got
+        )  # every caller shares the one instance
         assert lazy.built is got[0]
 
     @pytest.mark.asyncio

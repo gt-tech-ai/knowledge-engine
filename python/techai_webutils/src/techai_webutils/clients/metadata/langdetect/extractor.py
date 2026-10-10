@@ -12,11 +12,12 @@ when the ``langdetect`` backend is selected (the factory lazy-imports this subpa
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from langdetect import DetectorFactory, LangDetectException, detect
 
 from techai_webutils.core.domain import DocumentMetadata
+from techai_webutils.core.interfaces.metadata import MetadataExtractor
 
 if TYPE_CHECKING:
     from techai_webutils.core.domain import ParsedDocument
@@ -32,7 +33,9 @@ _UNDETERMINED = "und"
 # langdetect's unguarded lazy ``init_factory()``. One warm ``detect`` forces the one-time profile load
 # here, deterministically, before any worker thread calls it — and this module is imported by the
 # factory at the (single-threaded) composition root, before the fan-out starts.
-with contextlib.suppress(LangDetectException):  # warmup text is always detectable; defensive only
+with contextlib.suppress(
+    LangDetectException
+):  # warmup text is always detectable; defensive only
     detect("The quick brown fox jumps over the lazy dog.")
 
 
@@ -58,9 +61,10 @@ def extract_metadata(parsed: ParsedDocument, *, extracted_at: str) -> DocumentMe
     )
 
 
-class LangdetectMetadataExtractor:
+class LangdetectMetadataExtractor(MetadataExtractor):
     """The ``langdetect`` ``MetadataExtractor`` backend — format/counts + langdetect language detection."""
 
+    @override
     def extract(self, parsed: ParsedDocument, *, extracted_at: str) -> DocumentMetadata:
         """Return the metadata for ``parsed`` with ``extracted_at`` stamped (via ``extract_metadata``)."""
         return extract_metadata(parsed, extracted_at=extracted_at)

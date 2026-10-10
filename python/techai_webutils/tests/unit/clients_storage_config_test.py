@@ -22,7 +22,9 @@ class TestS3ConfigClientKwargs:
     """
 
     def test_empty_endpoint_and_creds_collapse_to_none(self) -> None:
-        config = S3Config(endpoint="", bucket="b", region="us-east-1", access_key="", secret_key="")
+        config = S3Config(
+            endpoint="", bucket="b", region="us-east-1", access_key="", secret_key=""
+        )
         kwargs = config.client_kwargs()
         assert kwargs["endpoint_url"] is None
         assert kwargs["aws_access_key_id"] is None

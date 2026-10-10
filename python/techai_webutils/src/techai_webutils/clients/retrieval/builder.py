@@ -18,14 +18,21 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine, MetadataEquals, MinScore
+from techai_webutils.clients.retrieval.filtering import (
+    FilteringRetrievalEngine,
+    MetadataEquals,
+    MinScore,
+)
 from techai_webutils.clients.retrieval.stub import StubRetrievalEngine
 from techai_webutils.foundation.logger import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from techai_webutils.clients.retrieval.bedrock.engine import DocumentIdResolver, FilterBuilder
+    from techai_webutils.clients.retrieval.bedrock.engine import (
+        DocumentIdResolver,
+        FilterBuilder,
+    )
     from techai_webutils.clients.retrieval.filtering import PassagePolicy
     from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
 
@@ -83,7 +90,9 @@ class RetrievalConfig:
 
     def __post_init__(self) -> None:
         """Reject a non-numeric ``min_score`` (e.g. ``None``) here rather than on every retrieve."""
-        if isinstance(self.min_score, bool) or not isinstance(self.min_score, int | float):
+        if isinstance(self.min_score, bool) or not isinstance(
+            self.min_score, int | float
+        ):
             msg = f"RetrievalConfig.min_score must be a number, got {self.min_score!r}"
             raise TypeError(msg)
 
@@ -143,7 +152,11 @@ def new_retrieval_engine_from_config(
             search_type=config.search_type,
             # The reranker model is passed only when the kind selects it, so kind=none disables reranking
             # regardless of a stray model id.
-            reranking_model=(config.reranking_model if config.reranking_kind == "bedrock_rerank" else ""),
+            reranking_model=(
+                config.reranking_model
+                if config.reranking_kind == "bedrock_rerank"
+                else ""
+            ),
             filter_builder=filter_builder,
             document_id_resolver=document_id_resolver,
         )
@@ -185,11 +198,17 @@ def _warn_about_seams(
         "store_filter_keys": bool(store_filter_keys),
         "stub_passages": bool(stub_passages),
     }
-    unused = [name for name, given in supplied.items() if given and _SEAM_KINDS[name] is not kind]
+    unused = [
+        name
+        for name, given in supplied.items()
+        if given and _SEAM_KINDS[name] is not kind
+    ]
     if unused:
         # Info, not warning: a composition root may pass every kind's seams so the kind can be flipped by
         # config alone. The failure that matters (a scope left without push-down) warns below.
-        logger.info("retrieval seams unused by the selected kind", kind=str(kind), seams=unused)
+        logger.info(
+            "retrieval seams unused by the selected kind", kind=str(kind), seams=unused
+        )
     scope_keys = [p.key for p in policies if isinstance(p, MetadataEquals)]
     if kind is RetrievalKind.QDRANT:
         # The vector engine pushes {k: request[k]} for each store filter key, so a scope is pushed down
@@ -206,7 +225,9 @@ def _warn_about_seams(
         )
 
 
-def _build_vector_engine(config: RetrievalConfig, filter_keys: Sequence[str]) -> RetrievalEngine:
+def _build_vector_engine(
+    config: RetrievalConfig, filter_keys: Sequence[str]
+) -> RetrievalEngine:
     """Build the local vector-dev engine (Ollama embedder + Qdrant store) from ``config``.
 
     The embedding dimension is the single source of truth: both the embedder and the store are built
@@ -223,4 +244,6 @@ def _build_vector_engine(config: RetrievalConfig, filter_keys: Sequence[str]) ->
         vector_url=config.vector_url,
         collection=config.vector_collection,
     )
-    return VectorRetrievalEngine(embedder, store, config.vector_collection, filter_keys=filter_keys)
+    return VectorRetrievalEngine(
+        embedder, store, config.vector_collection, filter_keys=filter_keys
+    )

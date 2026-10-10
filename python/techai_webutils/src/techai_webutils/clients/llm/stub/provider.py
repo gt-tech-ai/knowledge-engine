@@ -7,9 +7,15 @@ inspectable output without AWS. Selected by config (``LlmConfig.kind = stub``).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+from typing import TYPE_CHECKING, override
 
-from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse, StreamUsage, text_only
+from techai_webutils.core.interfaces.llm import (
+    LLMProvider,
+    LLMResponse,
+    StreamUsage,
+    text_only,
+)
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
@@ -34,10 +40,17 @@ def _input_tokens(messages: list[LLMMessage]) -> int:
     return sum(len(m.content.split()) for m in messages)
 
 
-async def _token_stream(text: str, usage: StreamUsage) -> AsyncIterator[str | StreamUsage]:
-    """Yield ``text`` token-by-token (whitespace-delimited, trailing space preserved), then ``usage``."""
+async def _token_stream(
+    text: str, usage: StreamUsage
+) -> AsyncIterator[str | StreamUsage]:
+    """Yield ``text`` token-by-token (whitespace-delimited, trailing space preserved), then ``usage``.
+
+    Each token first yields to the event loop, like a real network stream, so a consumer that
+    cancels mid-stream is exercised the same way it is against a real provider.
+    """
     for token in text.split(" "):
         if token:
+            await asyncio.sleep(0)
             yield f"{token} "
     yield usage
 
@@ -49,7 +62,10 @@ class StubLlmProvider(NoOpAsyncResource, LLMProvider):
         """Bind the reported model name."""
         self._model = model
 
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:  # noqa: ARG002
+    @override
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         """Return the last user message verbatim as the completion."""
         answer = _last_user_message(messages)
         return LLMResponse(
@@ -60,7 +76,9 @@ class StubLlmProvider(NoOpAsyncResource, LLMProvider):
             finish_reason="stop",
         )
 
-    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str]:
         """Return an async iterator streaming the last user message token-by-token."""
         return text_only(await self.stream_with_usage(messages, config))
 

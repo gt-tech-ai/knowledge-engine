@@ -289,7 +289,12 @@ class TestHandlerBuilder:
         async def handler(req: SampleRequest) -> SampleResponse:
             return SampleResponse(output="composed-" + req.input)
 
-        built = HandlerBuilder(handler, "composed-handler").with_logging(logger).with_recovery().build()
+        built = (
+            HandlerBuilder(handler, "composed-handler")
+            .with_logging(logger)
+            .with_recovery()
+            .build()
+        )
 
         result = await built(SampleRequest(input="test"))
         assert result.output == "composed-test"
@@ -316,7 +321,12 @@ class TestHandlerBuilder:
             msg = "boom"
             raise RuntimeError(msg)
 
-        built = HandlerBuilder(handler, "error-composed").with_logging(logger).with_recovery().build()
+        built = (
+            HandlerBuilder(handler, "error-composed")
+            .with_logging(logger)
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError):
             await built(SampleRequest(input="test"))

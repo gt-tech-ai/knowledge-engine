@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 from techai_webutils.core.interfaces.lifecycle import ManagedResource
-from techai_webutils.foundation.lifecycle import DelegatingAsyncResource, NoOpAsyncResource
+from techai_webutils.foundation.lifecycle import (
+    DelegatingAsyncResource,
+    NoOpAsyncResource,
+)
 
 
 class _Backend(NoOpAsyncResource):

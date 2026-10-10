@@ -136,7 +136,9 @@ class PooledExecutor[T]:
             return await worker.process(item)
 
         try:
-            return await fan_out(items, concurrency, dispatch, self._observer, name=self._name)
+            return await fan_out(
+                items, concurrency, dispatch, self._observer, name=self._name
+            )
         finally:
             # Close every built worker independently: gather so one worker's aclose failure (e.g. a Ray
             # actor proxy whose actor already died) can't strand the rest — leaking their actor slots /
@@ -148,4 +150,6 @@ class PooledExecutor[T]:
             )
             for outcome in outcomes:
                 if isinstance(outcome, Exception):
-                    logger.warning("pooled worker aclose failed: %s", outcome, exc_info=outcome)
+                    logger.warning(
+                        "pooled worker aclose failed: %s", outcome, exc_info=outcome
+                    )

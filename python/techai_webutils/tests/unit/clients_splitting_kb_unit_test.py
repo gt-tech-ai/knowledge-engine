@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from techai_webutils.clients.splitting import SplitterConfig, SplitterKind, splitter_from_config
+from techai_webutils.clients.splitting import (
+    SplitterConfig,
+    SplitterKind,
+    splitter_from_config,
+)
 from techai_webutils.clients.splitting.kb_unit import KbUnitSplitter, split_into_chunks
 from techai_webutils.core.domain import ChunkPayload, DocumentFormat, Page, ParsedDocument
 from techai_webutils.core.interfaces.splitter import DocumentSplitter
@@ -22,7 +26,10 @@ def _page(number: int, size: int) -> Page:
 
 def _pdf(pages: list[Page]) -> ParsedDocument:
     return ParsedDocument(
-        markdown_content="", document_format=DocumentFormat.PDF, total_pages=len(pages), pages=pages
+        markdown_content="",
+        document_format=DocumentFormat.PDF,
+        total_pages=len(pages),
+        pages=pages,
     )
 
 
@@ -50,7 +57,8 @@ def test_non_paginated_markdown_splits_by_paragraph_without_page_range() -> None
     """A non-PDF document splits its markdown by paragraph and carries no page range."""
     markdown = "\n\n".join(["p" * 100, "q" * 100, "r" * 100])
     chunks = split_into_chunks(
-        ParsedDocument(markdown_content=markdown, document_format=DocumentFormat.TXT), max_bytes=250
+        ParsedDocument(markdown_content=markdown, document_format=DocumentFormat.TXT),
+        max_bytes=250,
     )
 
     assert len(chunks) >= 2
@@ -71,7 +79,8 @@ def test_single_page_over_ceiling_is_emitted_alone() -> None:
 def test_empty_document_yields_one_chunk() -> None:
     """An empty parse still yields exactly one chunk (never zero — the document is not dropped)."""
     chunks = split_into_chunks(
-        ParsedDocument(markdown_content="", document_format=DocumentFormat.TXT), max_bytes=100
+        ParsedDocument(markdown_content="", document_format=DocumentFormat.TXT),
+        max_bytes=100,
     )
 
     assert len(chunks) == 1
@@ -91,7 +100,9 @@ class TestKbUnitSplitterFactory:
         **What it tests:**
           - ``splitter_from_config`` returns a ``KbUnitSplitter`` that is a ``DocumentSplitter``.
         """
-        splitter = splitter_from_config(SplitterConfig(kind=SplitterKind.KB_UNIT, max_bytes=250))
+        splitter = splitter_from_config(
+            SplitterConfig(kind=SplitterKind.KB_UNIT, max_bytes=250)
+        )
         assert isinstance(splitter, KbUnitSplitter)
         assert isinstance(splitter, DocumentSplitter)
 

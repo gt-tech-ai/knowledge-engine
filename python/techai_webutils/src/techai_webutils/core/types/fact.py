@@ -50,7 +50,11 @@ def _number(value: float) -> float | int:
     """
     if isinstance(value, bool):
         return int(value)
-    if isinstance(value, float) and value.is_integer() and abs(value) < _MAX_INTEGRAL_FLOAT:
+    if (
+        isinstance(value, float)
+        and value.is_integer()
+        and abs(value) < _MAX_INTEGRAL_FLOAT
+    ):
         return int(value)
     return value
 

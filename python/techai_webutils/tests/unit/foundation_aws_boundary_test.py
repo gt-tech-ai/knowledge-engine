@@ -11,7 +11,9 @@ from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to
 
 def _client_error(code: str, status: int) -> ClientError:
     """Build a botocore ClientError with the given error code and HTTP status."""
-    return ClientError({"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}}, "Op")
+    return ClientError(
+        {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}}, "Op"
+    )
 
 
 class TestBotocoreErrorToAppError:
@@ -24,7 +26,10 @@ class TestBotocoreErrorToAppError:
             (_client_error("ValidationException", 500), ErrorCode.UNAVAILABLE),
             (_client_error("AccessDeniedException", 403), ErrorCode.INTERNAL),
             (_client_error("ResourceNotFoundException", 404), ErrorCode.INTERNAL),
-            (EndpointConnectionError(endpoint_url="https://bedrock.example"), ErrorCode.UNAVAILABLE),
+            (
+                EndpointConnectionError(endpoint_url="https://bedrock.example"),
+                ErrorCode.UNAVAILABLE,
+            ),
         ],
         ids=[
             "throttle-code",
@@ -36,7 +41,9 @@ class TestBotocoreErrorToAppError:
             "unreachable",
         ],
     )
-    def test_classifies_by_error_code_and_status(self, error: Exception, expected_code: ErrorCode) -> None:
+    def test_classifies_by_error_code_and_status(
+        self, error: Exception, expected_code: ErrorCode
+    ) -> None:
         """A botocore failure becomes a coded AppError whose code says whether a retry can help.
 
         **Why this test is important:**

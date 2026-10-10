@@ -23,7 +23,9 @@ class TestSQSConfigClientKwargs:
     """
 
     def test_empty_endpoint_and_creds_collapse_to_none(self) -> None:
-        config = SQSConfig(endpoint="", region="us-east-1", queue_url="q", access_key="", secret_key="")
+        config = SQSConfig(
+            endpoint="", region="us-east-1", queue_url="q", access_key="", secret_key=""
+        )
         kwargs = config.client_kwargs()
         assert kwargs["endpoint_url"] is None
         assert kwargs["aws_access_key_id"] is None

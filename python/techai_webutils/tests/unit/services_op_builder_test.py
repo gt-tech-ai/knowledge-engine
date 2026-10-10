@@ -11,9 +11,17 @@ import asyncio
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
-from techai_webutils.core.errors.errors import AppTimeoutError, InternalError, InvalidInputError
+from techai_webutils.core.errors.errors import (
+    AppTimeoutError,
+    InternalError,
+    InvalidInputError,
+)
 from techai_webutils.core.interfaces.logger import Logger
-from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+from techai_webutils.core.interfaces.metrics import (
+    MetricCounter,
+    MetricHistogram,
+    MetricsProvider,
+)
 from techai_webutils.core.interfaces.op_service import OpService
 from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 from techai_webutils.services.op_builder import build

@@ -79,7 +79,9 @@ class TestOllamaEmbeddingProvider:
         What it tests:
           - A provider with dimension=3 receiving a 2-d vector raises ValueError mentioning the dimensions.
         """
-        provider = OllamaEmbeddingProvider(_client_returning([[0.1, 0.2]]), model="m", dimension=3)
+        provider = OllamaEmbeddingProvider(
+            _client_returning([[0.1, 0.2]]), model="m", dimension=3
+        )
         with pytest.raises(ValueError, match="expected 3"):
             await provider.embed_batch(["a"])
 
@@ -102,7 +104,9 @@ class TestOllamaEmbeddingProvider:
 
     def test_dimension_and_model_name(self) -> None:
         """dimension()/model_name() report the configured values."""
-        provider = OllamaEmbeddingProvider(MagicMock(spec=httpx.AsyncClient), model="m", dimension=768)
+        provider = OllamaEmbeddingProvider(
+            MagicMock(spec=httpx.AsyncClient), model="m", dimension=768
+        )
         assert provider.dimension() == 768
         assert provider.model_name() == "m"
 

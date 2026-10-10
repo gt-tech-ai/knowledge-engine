@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import TYPE_CHECKING
 
 from techai_webutils.core.errors.errors import AppTimeoutError
 from techai_webutils.core.interfaces.cache import Cache
 from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenError
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
-    from techai_webutils.core.interfaces.logger import Logger
     from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
+    from techai_webutils.core.interfaces.logger import Logger
+    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
 
 
 class _CircuitBreakerCacheDecorator(Cache):
@@ -107,7 +107,9 @@ class _TimeoutCacheDecorator(Cache):
 
         """
         try:
-            await asyncio.wait_for(self._inner.set(key, value, ttl_seconds), timeout=self._timeout)
+            await asyncio.wait_for(
+                self._inner.set(key, value, ttl_seconds), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"cache.set timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e

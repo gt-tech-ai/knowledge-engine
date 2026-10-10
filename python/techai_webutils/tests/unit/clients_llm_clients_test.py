@@ -14,7 +14,10 @@ from techai_webutils.clients.llm.stub import StubLlmProvider
 
 def _messages(user: str) -> list[LLMMessage]:
     """A system + user message pair."""
-    return [LLMMessage(role="system", content="instruction"), LLMMessage(role="user", content=user)]
+    return [
+        LLMMessage(role="system", content="instruction"),
+        LLMMessage(role="user", content=user),
+    ]
 
 
 class TestStubLlmProvider:
@@ -96,7 +99,9 @@ class TestConverseArgs:
         """
         from techai_webutils.clients.llm.bedrock.provider import _converse_args
 
-        args = _converse_args("amazon.nova-lite-v1:0", [LLMMessage(role="user", content="hi")], None)
+        args = _converse_args(
+            "amazon.nova-lite-v1:0", [LLMMessage(role="user", content="hi")], None
+        )
         assert "system" not in args
 
     def test_inference_config_carries_temperature_and_omits_top_p(self) -> None:
@@ -118,9 +123,9 @@ class TestConverseArgs:
 
         from techai_webutils.clients.llm.bedrock.provider import _converse_args
 
-        inf = _converse_args("m", _messages("hi"), LLMConfig(max_tokens=4096, temperature=0.1, top_p=0.8))[
-            "inferenceConfig"
-        ]
+        inf = _converse_args(
+            "m", _messages("hi"), LLMConfig(max_tokens=4096, temperature=0.1, top_p=0.8)
+        )["inferenceConfig"]
         assert inf == {"maxTokens": 4096, "temperature": 0.1}
         assert "topP" not in _converse_args("m", _messages("hi"), None)["inferenceConfig"]
 
@@ -135,7 +140,9 @@ class TestLlmFactory:
         **What it tests:**
           - new_llm_from_config(kind=STUB) returns a StubLlmProvider.
         """
-        assert isinstance(new_llm_from_config(LlmConfig(kind=LlmKind.STUB)), StubLlmProvider)
+        assert isinstance(
+            new_llm_from_config(LlmConfig(kind=LlmKind.STUB)), StubLlmProvider
+        )
 
     def test_ollama_kind_selects_ollama(self) -> None:
         """Test that kind=ollama builds the local Ollama provider (dev, real generation, no Bedrock).
@@ -169,7 +176,8 @@ class TestLlmFactory:
         from techai_webutils.clients.llm.bedrock import BedrockLlmProvider
 
         assert isinstance(
-            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK, model="model-x")), BedrockLlmProvider
+            new_llm_from_config(LlmConfig(kind=LlmKind.BEDROCK, model="model-x")),
+            BedrockLlmProvider,
         )
 
     def test_bedrock_with_fallback_model_wraps_in_fallback_chain(self) -> None:
@@ -284,7 +292,9 @@ class TestOllamaLlmProvider:
         request = httpx.Request("POST", "http://ollama/api/chat")
         resp = MagicMock()
         resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "service unavailable", request=request, response=httpx.Response(503, request=request)
+            "service unavailable",
+            request=request,
+            response=httpx.Response(503, request=request),
         )
         client = MagicMock(spec=httpx.AsyncClient)
         client.post = AsyncMock(return_value=resp)
@@ -331,7 +341,9 @@ class TestOllamaLlmProvider:
         client = MagicMock(spec=httpx.AsyncClient)
         client.stream = MagicMock(return_value=_StreamCtx())
 
-        iterator = await OllamaLlmProvider(client, model="llama3.2").stream(_messages("hi"))
+        iterator = await OllamaLlmProvider(client, model="llama3.2").stream(
+            _messages("hi")
+        )
         tokens = [token async for token in iterator]
 
         assert "".join(tokens) == "Ishmael"

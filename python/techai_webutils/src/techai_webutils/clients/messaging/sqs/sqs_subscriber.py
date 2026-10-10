@@ -7,7 +7,12 @@ import logging
 from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session  # type: ignore[import-untyped]
-from techai_webutils.core.interfaces.messaging import Message, MessageConsumer, MessageHandler
+
+from techai_webutils.core.interfaces.messaging import (
+    Message,
+    MessageConsumer,
+    MessageHandler,
+)
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -73,7 +78,9 @@ class SQSSubscriber(MessageConsumer):
                 # acks (deletes) only on its own handler success; a failing handler is logged and left
                 # for redrive. No explicit semaphore is needed — SQS caps a receive batch at 10
                 # (max_messages), which is already a safe fan-out width, so the batch size IS the bound.
-                await asyncio.gather(*(self._handle_one(topic, raw, handler) for raw in messages))
+                await asyncio.gather(
+                    *(self._handle_one(topic, raw, handler) for raw in messages)
+                )
 
     async def _handle_one(self, topic: str, raw: dict, handler: MessageHandler) -> None:  # type: ignore[type-arg]
         """Deliver one message to the handler and delete it on success (log + leave for redrive on error)."""

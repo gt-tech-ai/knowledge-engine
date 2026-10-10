@@ -12,9 +12,18 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
-from techai_webutils.clients.decorators.ai_enricher import GEN_AI_SYSTEM_BY_PROVIDER, AiSpanEnricher
+from techai_webutils.clients.decorators.ai_enricher import (
+    GEN_AI_SYSTEM_BY_PROVIDER,
+    AiSpanEnricher,
+)
 from techai_webutils.clients.llm.stub import StubLlmProvider
-from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMProvider, LLMResponse, StreamUsage
+from techai_webutils.core.interfaces.llm import (
+    LLMConfig,
+    LLMMessage,
+    LLMProvider,
+    LLMResponse,
+    StreamUsage,
+)
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
 
 _SPAN_SOURCE = "techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"
@@ -23,7 +32,10 @@ _SPAN_SOURCE = "techai_webutils.clients.decorators.ai_enricher.trace.get_current
 
 def _messages() -> list[LLMMessage]:
     """A system + user message pair."""
-    return [LLMMessage(role="system", content="be brief"), LLMMessage(role="user", content="hello")]
+    return [
+        LLMMessage(role="system", content="be brief"),
+        LLMMessage(role="user", content="hello"),
+    ]
 
 
 def _attributes(span: MagicMock) -> dict[str, Any]:
@@ -54,7 +66,11 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
       - no span is opened (no span ``end``)
     """
     response = LLMResponse(
-        content="hi", model="nova-lite", input_tokens=42, output_tokens=7, finish_reason="stop"
+        content="hi",
+        model="nova-lite",
+        input_tokens=42,
+        output_tokens=7,
+        finish_reason="stop",
     )
     inner = _llm(response)
     span = MagicMock()
@@ -124,7 +140,9 @@ async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
       - the span gets the usage counts, model and finish reason from the terminal ``StreamUsage``
       - nothing is stamped before the stream is consumed
     """
-    usage = StreamUsage(model="nova-lite", input_tokens=30, output_tokens=2, finish_reason="end_turn")
+    usage = StreamUsage(
+        model="nova-lite", input_tokens=30, output_tokens=2, finish_reason="end_turn"
+    )
     inner = MagicMock(spec=LLMProvider)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("Hel", "lo", usage))
     span = MagicMock()
@@ -159,14 +177,18 @@ async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
       - the caller sees exactly ``["Hel", "lo", usage]`` (the usage item is not swallowed)
       - the span gets the requested model from the config and the served model from the usage
     """
-    usage = StreamUsage(model="nova-lite-v1", input_tokens=30, output_tokens=2, finish_reason="end_turn")
+    usage = StreamUsage(
+        model="nova-lite-v1", input_tokens=30, output_tokens=2, finish_reason="end_turn"
+    )
     inner = MagicMock(spec=LLMProvider)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("Hel", "lo", usage))
     span = MagicMock()
     enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
 
     with patch(_SPAN_SOURCE, return_value=span):
-        iterator = await enricher.stream_with_usage(_messages(), LLMConfig(model="nova-lite"))
+        iterator = await enricher.stream_with_usage(
+            _messages(), LLMConfig(model="nova-lite")
+        )
         items = [t async for t in iterator]
 
     assert items == ["Hel", "lo", usage]
@@ -195,7 +217,11 @@ async def test_ai_span_enricher_reports_requested_and_served_model():
       - with no config, both are the response's model
     """
     response = LLMResponse(
-        content="hi", model="nova-lite-v1", input_tokens=1, output_tokens=1, finish_reason="stop"
+        content="hi",
+        model="nova-lite-v1",
+        input_tokens=1,
+        output_tokens=1,
+        finish_reason="stop",
     )
     aliased, plain = MagicMock(), MagicMock()
     enricher = AiSpanEnricher(_llm(response), step="generate", capture_content=False)
@@ -267,7 +293,9 @@ async def test_ai_span_enricher_capture_content_false_records_no_text():
     **What it tests:**
       - after ``complete`` and a drained ``stream``, ``add_event`` was never called
     """
-    response = LLMResponse(content="secret", model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+    response = LLMResponse(
+        content="secret", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
     inner = _llm(response)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("secret"))
     span = MagicMock()
@@ -298,10 +326,16 @@ async def test_ai_span_enricher_capture_content_true_redacts_pii():
         LLMMessage(role="user", content="mail bob@x.io"),
     ]
     response = LLMResponse(
-        content="reply to bob@x.io", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+        content="reply to bob@x.io",
+        model="m",
+        input_tokens=1,
+        output_tokens=1,
+        finish_reason="stop",
     )
     inner = _llm(response)
-    inner.stream_with_usage = AsyncMock(return_value=_usage_stream("a" * 3000, "b" * 3000))
+    inner.stream_with_usage = AsyncMock(
+        return_value=_usage_stream("a" * 3000, "b" * 3000)
+    )
     span = MagicMock()
     enricher = AiSpanEnricher(inner, step="generate", capture_content=True)
 
@@ -310,10 +344,18 @@ async def test_ai_span_enricher_capture_content_true_redacts_pii():
         _ = [t async for t in await enricher.stream(messages)]
 
     events = span.add_event.call_args_list
-    assert events[0] == call("gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"})
-    assert events[1] == call("gen_ai.content.completion", {"gen_ai.completion": "reply to [REDACTED]"})
-    assert events[2] == call("gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"})
-    assert events[3] == call("gen_ai.content.completion", {"gen_ai.completion": "a" * 3000 + "b" * 1096})
+    assert events[0] == call(
+        "gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"}
+    )
+    assert events[1] == call(
+        "gen_ai.content.completion", {"gen_ai.completion": "reply to [REDACTED]"}
+    )
+    assert events[2] == call(
+        "gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"}
+    )
+    assert events[3] == call(
+        "gen_ai.content.completion", {"gen_ai.completion": "a" * 3000 + "b" * 1096}
+    )
     assert len(events) == 4
 
 
@@ -329,11 +371,15 @@ async def test_ai_span_enricher_enrichment_error_does_not_propagate():
       - with ``set_attribute`` raising, ``complete`` returns the exact inner response, ``stream``
         yields the exact text and ``retrieve`` returns the exact result list
     """
-    response = LLMResponse(content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+    response = LLMResponse(
+        content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
     llm = _llm(response)
     llm.stream_with_usage = AsyncMock(
         return_value=_usage_stream(
-            "o", "k", StreamUsage(model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+            "o",
+            "k",
+            StreamUsage(model="m", input_tokens=1, output_tokens=1, finish_reason="stop"),
         )
     )
     results = [_result(0)]
@@ -343,14 +389,18 @@ async def test_ai_span_enricher_enrichment_error_does_not_propagate():
     span.set_attribute.side_effect = RuntimeError("exporter down")
 
     with patch(_SPAN_SOURCE, return_value=span):
-        got_response = await AiSpanEnricher(llm, step="generate", capture_content=True).complete(_messages())
+        got_response = await AiSpanEnricher(
+            llm, step="generate", capture_content=True
+        ).complete(_messages())
         tokens = [
             t
-            async for t in await AiSpanEnricher(llm, step="generate", capture_content=True).stream(
-                _messages()
-            )
+            async for t in await AiSpanEnricher(
+                llm, step="generate", capture_content=True
+            ).stream(_messages())
         ]
-        got_results = await AiSpanEnricher(engine, step="retrieve", capture_content=False).retrieve("q")
+        got_results = await AiSpanEnricher(
+            engine, step="retrieve", capture_content=False
+        ).retrieve("q")
 
     assert got_response is response
     assert tokens == ["o", "k"]

@@ -17,7 +17,7 @@ class OpService[A, R](Protocol):
 
     @property
     def name(self) -> str:
-        """Return the service name — the label used in logs, metrics, and decorator actions."""
+        """The service name — the label used in logs, metrics, and decorator actions."""
         ...
 
     async def run(self, args: A) -> R:

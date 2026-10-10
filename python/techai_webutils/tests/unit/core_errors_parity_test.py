@@ -10,7 +10,14 @@ from pathlib import Path
 
 from techai_webutils.core.errors import AppError, ErrorCode
 
-_CODES_JSON = Path(__file__).resolve().parents[4] / "go" / "core" / "errors" / "testdata" / "codes.json"
+_CODES_JSON = (
+    Path(__file__).resolve().parents[4]
+    / "go"
+    / "core"
+    / "errors"
+    / "testdata"
+    / "codes.json"
+)
 
 
 def test_go_and_python_error_code_status_parity():
@@ -41,4 +48,9 @@ def test_go_and_python_error_code_status_parity():
 
     assert set(go_table) == {c.value for c in ErrorCode}
     assert py_table == go_table
-    assert go_table["RESOURCE_EXHAUSTED"] == {"grpc": 8, "http": 429, "transient": False, "permanent": False}
+    assert go_table["RESOURCE_EXHAUSTED"] == {
+        "grpc": 8,
+        "http": 429,
+        "transient": False,
+        "permanent": False,
+    }

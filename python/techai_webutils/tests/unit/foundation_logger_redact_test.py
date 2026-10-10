@@ -109,7 +109,9 @@ def test_logger_redacts_nested_fields():
     assert line["pair"] == ["[REDACTED]", "plain"]
 
 
-_LOCAL_PART = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789._+-", min_size=1, max_size=12)
+_LOCAL_PART = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyz0123456789._+-", min_size=1, max_size=12
+)
 """E-mail local parts drawn from the characters the pattern accepts."""
 
 _FILLER = st.text(alphabet="abcdefghij ,;!?", max_size=20)
@@ -117,7 +119,9 @@ _FILLER = st.text(alphabet="abcdefghij ,;!?", max_size=20)
 
 
 @given(_FILLER, _LOCAL_PART, _FILLER)
-def test_redact_pii_removes_any_embedded_email_and_is_idempotent(before: str, local: str, after: str):
+def test_redact_pii_removes_any_embedded_email_and_is_idempotent(
+    before: str, local: str, after: str
+):
     """Test, over generated text, that an embedded e-mail never survives and redaction is idempotent.
 
     **Why this test is important:**

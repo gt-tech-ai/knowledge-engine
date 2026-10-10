@@ -66,7 +66,9 @@ class TestResilientRayRuntime:
         """
         inner = create_autospec(RayRuntime, instance=True)
         inner.warm_up.side_effect = RuntimeError("Starting Ray client server failed")
-        runtime = ResilientRayRuntime(inner, max_attempts=3, base_delay=0.0, max_delay=0.0)
+        runtime = ResilientRayRuntime(
+            inner, max_attempts=3, base_delay=0.0, max_delay=0.0
+        )
 
         with pytest.raises(UnavailableError) as excinfo:
             await runtime.warm_up()
@@ -76,7 +78,9 @@ class TestResilientRayRuntime:
         assert inner.warm_up.await_count == 3
 
     @pytest.mark.asyncio
-    async def test_submit_connects_then_dispatches_without_retrying_the_task(self) -> None:
+    async def test_submit_connects_then_dispatches_without_retrying_the_task(
+        self,
+    ) -> None:
         """Test that submit establishes the connection (retried) then dispatches, leaving the task alone.
 
         **Why this test is important:**
@@ -91,7 +95,9 @@ class TestResilientRayRuntime:
         inner = create_autospec(RayRuntime, instance=True)
         inner.warm_up.side_effect = [None]
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             return await fn(item)
 
         inner.submit.side_effect = submit

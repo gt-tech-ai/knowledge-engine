@@ -13,9 +13,13 @@ from techai_webutils.foundation.resilience.grpc_boundary import (
 )
 
 
-def _rpc_error(code: grpc.StatusCode, detail: str = "boom", trailing: Metadata | None = None) -> AioRpcError:
+def _rpc_error(
+    code: grpc.StatusCode, detail: str = "boom", trailing: Metadata | None = None
+) -> AioRpcError:
     """Build a raw AioRpcError for a status code (matching the SDK's positional constructor)."""
-    return AioRpcError(code, Metadata(), trailing if trailing is not None else Metadata(), detail)
+    return AioRpcError(
+        code, Metadata(), trailing if trailing is not None else Metadata(), detail
+    )
 
 
 class TestGrpcErrorToAppError:
@@ -92,7 +96,10 @@ class TestGrpcErrorToAppError:
             )
         )
         retry_after = grpc_error_to_app_error(
-            _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=Metadata(("retry-after", "2")))
+            _rpc_error(
+                grpc.StatusCode.RESOURCE_EXHAUSTED,
+                trailing=Metadata(("retry-after", "2")),
+            )
         )
 
         assert pushback.code is ErrorCode.UNAVAILABLE
@@ -114,7 +121,9 @@ class TestGrpcErrorToAppError:
             Metadata(("grpc-retry-pushback-ms", "soon")),
             Metadata(("retry-after", "-1")),
         ):
-            err = grpc_error_to_app_error(_rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=trailing))
+            err = grpc_error_to_app_error(
+                _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=trailing)
+            )
             assert err.code is ErrorCode.RESOURCE_EXHAUSTED
 
 

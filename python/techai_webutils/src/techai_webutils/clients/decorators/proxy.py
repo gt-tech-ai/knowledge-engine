@@ -474,5 +474,7 @@ def new_client_stack_from_config(
     if config.retry_enabled:
         proxied = RetryProxy(proxied, config.retry_max_attempts)
     if config.bulkhead_max_concurrent:
-        proxied = BulkheadProxy(proxied, SemaphoreBulkhead(config.bulkhead_max_concurrent))
+        proxied = BulkheadProxy(
+            proxied, SemaphoreBulkhead(config.bulkhead_max_concurrent)
+        )
     return proxied

@@ -77,7 +77,12 @@ class PostgresAdvisoryLock:
     """
 
     def __init__(
-        self, *, dsn: str, key: str, namespace: int, application_name: str = DEFAULT_APPLICATION_NAME
+        self,
+        *,
+        dsn: str,
+        key: str,
+        namespace: int,
+        application_name: str = DEFAULT_APPLICATION_NAME,
     ) -> None:
         """Bind the connection DSN and derive the (namespace, hash(key)) advisory-lock key.
 
@@ -89,13 +94,18 @@ class PostgresAdvisoryLock:
             msg = "PostgresAdvisoryLock requires a non-empty key"
             raise ValueError(msg)
         if not -(2**31) <= namespace < 2**31:
-            msg = f"PostgresAdvisoryLock namespace {namespace} does not fit a signed int32"
+            msg = (
+                f"PostgresAdvisoryLock namespace {namespace} does not fit a signed int32"
+            )
             raise ValueError(msg)
         self._dsn = dsn
         self._key = key
         self._classid = namespace
         self._objid = _to_signed_int32(zlib.crc32(key.encode()))
-        self._server_settings = {**_KEEPALIVE_SETTINGS, "application_name": application_name}
+        self._server_settings = {
+            **_KEEPALIVE_SETTINGS,
+            "application_name": application_name,
+        }
         self._conn: asyncpg.Connection | None = None
 
     async def __aenter__(self) -> Self:
@@ -132,7 +142,9 @@ class PostgresAdvisoryLock:
                 conn.terminate()
             except Exception:  # best-effort teardown must never mask the caller's error
                 logger.warning(
-                    "advisory-lock session terminate failed (ignored)", key=self._key, namespace=self._classid
+                    "advisory-lock session terminate failed (ignored)",
+                    key=self._key,
+                    namespace=self._classid,
                 )
 
     async def _ensure_connection(self) -> asyncpg.Connection:
@@ -160,7 +172,9 @@ class PostgresAdvisoryLock:
         """
         try:
             conn = await self._ensure_connection()
-            held = await conn.fetchval("SELECT pg_try_advisory_lock($1, $2)", self._classid, self._objid)
+            held = await conn.fetchval(
+                "SELECT pg_try_advisory_lock($1, $2)", self._classid, self._objid
+            )
         except _CONNECTION_ERRORS as err:
             # Terminate the broken session: if pg_try_advisory_lock took the lock before the ack was
             # lost, dropping the socket makes Postgres release it now rather than at the keepalive reap.
@@ -179,7 +193,9 @@ class PostgresAdvisoryLock:
         if conn is None:
             return
         try:
-            unlocked = await conn.fetchval("SELECT pg_advisory_unlock($1, $2)", self._classid, self._objid)
+            unlocked = await conn.fetchval(
+                "SELECT pg_advisory_unlock($1, $2)", self._classid, self._objid
+            )
         except _CONNECTION_ERRORS as err:
             logger.warning(
                 "advisory-lock release on a broken session ignored",

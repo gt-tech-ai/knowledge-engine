@@ -35,7 +35,9 @@ class Conditional:
         if not self._condition():
             meta = self._inner.meta()
             return BatchResult(
-                results=(StepResult(name=meta.name, group=meta.group, status=StepStatus.SKIP),),
+                results=(
+                    StepResult(name=meta.name, group=meta.group, status=StepStatus.SKIP),
+                ),
             )
         return await self._inner.execute()
 

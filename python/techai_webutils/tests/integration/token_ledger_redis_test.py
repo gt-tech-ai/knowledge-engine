@@ -14,7 +14,11 @@ import pytest
 import pytest_asyncio
 from redis.asyncio import Redis
 
-from techai_webutils.clients.token_ledger import TokenLedgerConfig, TokenLedgerKind, token_ledger_from_config
+from techai_webutils.clients.token_ledger import (
+    TokenLedgerConfig,
+    TokenLedgerKind,
+    token_ledger_from_config,
+)
 from techai_webutils.core.interfaces.token_ledger import UsageRecord, UsageScope
 
 if TYPE_CHECKING:
@@ -33,10 +37,14 @@ async def redis_client(redis_container: object) -> AsyncIterator[Redis]:
         await client.aclose()
 
 
-def _record(ts: datetime, *, input_tokens: int = 100, output_tokens: int = 20) -> UsageRecord:
+def _record(
+    ts: datetime, *, input_tokens: int = 100, output_tokens: int = 20
+) -> UsageRecord:
     """One generation for org-1 / w-1 at ``ts``."""
     return UsageRecord(
-        scope=UsageScope(org_id="org-1", team_id="t-1", workspace_id="w-1", user_id="u-1"),
+        scope=UsageScope(
+            org_id="org-1", team_id="t-1", workspace_id="w-1", user_id="u-1"
+        ),
         model="nova-lite",
         operation="generate",
         input_tokens=input_tokens,
@@ -65,7 +73,9 @@ async def test_counter_increments_and_expires_at_window(
     """
     prefix = f"tl-{request.node.name}"
     ledger = token_ledger_from_config(
-        TokenLedgerConfig(kind=TokenLedgerKind.REDIS, redis_prefix=prefix, stream=f"{prefix}:usage"),
+        TokenLedgerConfig(
+            kind=TokenLedgerKind.REDIS, redis_prefix=prefix, stream=f"{prefix}:usage"
+        ),
         redis=redis_client,
     )
     now = datetime.now(UTC)
@@ -100,7 +110,8 @@ async def test_xadd_entry_reads_back_with_contract_fields(
     prefix = f"tl-{request.node.name}"
     stream = f"{prefix}:usage"
     ledger = token_ledger_from_config(
-        TokenLedgerConfig(kind=TokenLedgerKind.REDIS, redis_prefix=prefix, stream=stream), redis=redis_client
+        TokenLedgerConfig(kind=TokenLedgerKind.REDIS, redis_prefix=prefix, stream=stream),
+        redis=redis_client,
     )
     ts = datetime.now(UTC).replace(microsecond=0)
 
@@ -127,7 +138,9 @@ async def test_xadd_entry_reads_back_with_contract_fields(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_stream_is_trimmed_to_maxlen(redis_client: Redis, request: pytest.FixtureRequest) -> None:
+async def test_stream_is_trimmed_to_maxlen(
+    redis_client: Redis, request: pytest.FixtureRequest
+) -> None:
     """Test that the usage stream stays bounded by the approximate ``MAXLEN``.
 
     **Why this test is important:**
@@ -140,7 +153,12 @@ async def test_stream_is_trimmed_to_maxlen(redis_client: Redis, request: pytest.
     prefix = f"tl-{request.node.name}"
     stream = f"{prefix}:usage"
     ledger = token_ledger_from_config(
-        TokenLedgerConfig(kind=TokenLedgerKind.REDIS, redis_prefix=prefix, stream=stream, stream_maxlen=100),
+        TokenLedgerConfig(
+            kind=TokenLedgerKind.REDIS,
+            redis_prefix=prefix,
+            stream=stream,
+            stream_maxlen=100,
+        ),
         redis=redis_client,
     )
     now = datetime.now(UTC)

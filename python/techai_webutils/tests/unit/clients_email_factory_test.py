@@ -107,4 +107,6 @@ class TestEmailFactory:
         **What it tests:**
           - NoopEmailSender.send returns without raising.
         """
-        await _sender(EmailKind.NOOP).send(to="user@example.com", subject="hi", html_body="<p>hi</p>")
+        await _sender(EmailKind.NOOP).send(
+            to="user@example.com", subject="hi", html_body="<p>hi</p>"
+        )

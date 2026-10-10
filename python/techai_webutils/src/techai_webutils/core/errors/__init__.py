@@ -2,6 +2,7 @@
 
 from techai_webutils.core.errors.errors import (
     AppError,
+    AppTimeoutError,
     ConflictError,
     ErrorCode,
     ForbiddenError,
@@ -9,7 +10,6 @@ from techai_webutils.core.errors.errors import (
     InternalError,
     InvalidInputError,
     NotFoundError,
-    AppTimeoutError,
     QuotaExceededError,
     UnauthorizedError,
     UnavailableError,

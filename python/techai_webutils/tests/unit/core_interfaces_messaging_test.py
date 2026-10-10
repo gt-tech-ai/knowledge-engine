@@ -1,6 +1,10 @@
 """Tests for Message dataclass and MessagePublisher/MessageConsumer ABCs."""
 
-from techai_webutils.core.interfaces.messaging import Message, MessageConsumer, MessagePublisher
+from techai_webutils.core.interfaces.messaging import (
+    Message,
+    MessageConsumer,
+    MessagePublisher,
+)
 import pytest
 
 
@@ -36,7 +40,9 @@ class TestMessage:
         **What it tests:**
           - An explicit metadata mapping and timestamp are stored and returned unchanged
         """
-        msg = Message(id="m2", topic="t", payload=b"", metadata={"key": "val"}, timestamp=123)
+        msg = Message(
+            id="m2", topic="t", payload=b"", metadata={"key": "val"}, timestamp=123
+        )
         assert msg.metadata == {"key": "val"}
         assert msg.timestamp == 123
 

@@ -58,7 +58,7 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
     """
     if config.kind is LlmKind.STUB:
         return StubLlmProvider()
-    if config.kind in (LlmKind.OLLAMA, LlmKind.BEDROCK) and not config.model:
+    if config.kind in {LlmKind.OLLAMA, LlmKind.BEDROCK} and not config.model:
         # A provider with no model id defers failure to first invocation, where it surfaces as an opaque
         # Bedrock validation/AccessDenied error or an Ollama "model is required"/404. Fail loudly at
         # construction instead — the same loud-misconfiguration contract as the unknown-kind guard below.
@@ -77,7 +77,9 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
         # Lazy import: keep aiobotocore off the dev/stub path (loaded only in stage/prod).
         from techai_webutils.clients.llm.bedrock import BedrockLlmProvider  # noqa: PLC0415
 
-        primary = BedrockLlmProvider(region=config.region, model=config.model, endpoint=config.endpoint)
+        primary = BedrockLlmProvider(
+            region=config.region, model=config.model, endpoint=config.endpoint
+        )
         if not config.fallback_model:
             return primary
         # Wrap with the throttle/5xx fallback chain; the decorator is only loaded here.

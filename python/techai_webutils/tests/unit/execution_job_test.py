@@ -61,7 +61,12 @@ class TestJob:
         **What it tests:**
           - Empty discovery returns exactly one SKIP result named for the job.
         """
-        job = JobBuilder[int]("ingest").with_discoverer(_discoverer([])).with_processor(_ok).build()
+        job = (
+            JobBuilder[int]("ingest")
+            .with_discoverer(_discoverer([]))
+            .with_processor(_ok)
+            .build()
+        )
         batch = await job.execute()
         assert batch.total == 1
         assert batch.results[0].status is StepStatus.SKIP
