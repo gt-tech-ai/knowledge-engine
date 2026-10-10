@@ -55,13 +55,15 @@ type Tracer struct {
 
 // New initializes OpenTelemetry and returns an interfaces.Tracer.
 func New(ctx context.Context, cfg Config) (*Tracer, error) {
-	shutdown, err := setup(ctx, cfg)
+	tp, err := setup(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
+	// The tracer comes from this provider, not the global one: another New may install
+	// its provider between setup and here, and this tracer must keep its own sampler.
 	return &Tracer{
-		inner:      otel.Tracer(cfg.ServiceName),
-		shutdownFn: shutdown,
+		inner:      tp.Tracer(cfg.ServiceName),
+		shutdownFn: tp.Shutdown,
 	}, nil
 }
 
@@ -124,9 +126,9 @@ func (s *span) SetStatus(code interfaces.SpanStatusCode, description string) {
 
 // setup wires the OTel SDK for cfg: it builds the OTLP gRPC exporter, the
 // service resource, and the sampler, installs the global tracer provider and
-// W3C TraceContext + Baggage propagators, and returns the provider's shutdown
-// function so the caller can flush on exit.
-func setup(ctx context.Context, cfg Config) (func(context.Context) error, error) {
+// W3C TraceContext + Baggage propagators, and returns the provider so the caller
+// takes its tracer from it and can flush it on exit.
+func setup(ctx context.Context, cfg Config) (*sdktrace.TracerProvider, error) {
 	opts := []otlptracegrpc.Option{
 		otlptracegrpc.WithEndpoint(cfg.Endpoint),
 		// Tolerate a brief collector-unavailable window at startup — e.g. a pod
@@ -203,7 +205,7 @@ func setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		propagation.Baggage{},
 	))
 
-	return tp.Shutdown, nil
+	return tp, nil
 }
 
 // toOTelSpanKind maps a foundation SpanKind to its OTel equivalent, defaulting

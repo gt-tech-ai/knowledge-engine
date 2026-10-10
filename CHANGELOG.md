@@ -193,6 +193,8 @@ All notable changes to this project are recorded here. The format follows
   4-minute start budget (the per-step 60 s default was shorter than a cold start).
 - Go `clients/cassandra`: a zero port or timeout keeps the driver's default; Keyspaces loads the AWS
   default credentials chain on the first refresh rather than at construction.
+- Go `foundation/tracer/oteltracer.New` takes its tracer from the provider it built, not the OTel
+  global, so tracers created concurrently each keep their own sampler.
 - Go `foundation/tracer.ConversationStartOptions` returns no options for a conversation that
   `InjectConversation` would refuse; `retry.FullJitter` no longer overflows at `math.MaxInt64`.
 - Python facts publisher: a publish once closing has begun, or after its sender has died, is dropped
