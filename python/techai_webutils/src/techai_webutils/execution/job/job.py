@@ -12,6 +12,7 @@ import asyncio
 from dataclasses import replace
 from typing import TYPE_CHECKING, Self
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.execution import (
     BatchResult,
     JobMeta,
@@ -201,7 +202,7 @@ class JobBuilder[T]:
         """Construct the Job[T]; raises ValueError if a discoverer or processor is missing."""
         if self._discoverer is None or self._processor is None:
             msg = "JobBuilder requires both a discoverer and a processor"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         return Job(
             self._name,
             self._discoverer,

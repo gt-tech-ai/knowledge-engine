@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.embedding import EmbeddingProvider
     from techai_webutils.core.interfaces.vector_store import VectorStore
@@ -29,7 +31,7 @@ def require_matching_dimension(
             f"embedding dimension {embedder.dimension()} != vector store dimension "
             f"{store.dimension} (collection {collection!r})"
         )
-        raise ValueError(msg)
+        raise AppValueError(msg)
 
 
 def build_embedder_and_store(

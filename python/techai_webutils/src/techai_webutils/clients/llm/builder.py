@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from techai_webutils.clients.llm.stub import StubLlmProvider
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.llm import LLMProvider
@@ -63,7 +64,7 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
         # Bedrock validation/AccessDenied error or an Ollama "model is required"/404. Fail loudly at
         # construction instead — the same loud-misconfiguration contract as the unknown-kind guard below.
         msg = f"{config.kind} llm kind requires a model id, got empty"
-        raise ValueError(msg)
+        raise AppValueError(msg)
     if config.kind is LlmKind.OLLAMA:
         # Lazy import: httpx client + provider are only built for the local Ollama path. The model must
         # be an Ollama chat model (e.g. "llama3.2") — config sets it.
@@ -90,4 +91,4 @@ def new_llm_from_config(config: LlmConfig) -> LLMProvider:
         )
         return FallbackLlmProvider(primary, fallback)
     msg = f"unknown llm kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

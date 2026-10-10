@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"io"
 	"strconv"
@@ -341,14 +341,15 @@ func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 //
 // Why this test is important:
 //   - An archive keyed wrongly cannot be found or partitioned, a missing
-//     Content-MD5 is rejected by Object Lock buckets, and a record that asks for
+//     integrity checksum is rejected by Object Lock buckets, and a record that asks for
 //     SSE-KMS must never be written with the bucket default
 //
 // What it tests:
 //   - template "audit/{tenant}/{yyyy}/{mm}/{dd}/{id}.json" keys a record created
 //     2026-10-09 23:30 at UTC-1 as audit/org-1/2026/10/10/<id>.json (UTC date)
 //   - each PutObject targets bucket "archive" with the payload as body and
-//     Content-MD5 = base64(md5(payload))
+//     ChecksumAlgorithm SHA256 with ChecksumSHA256 = base64(sha256(payload)),
+//     and no Content-MD5 (Object Lock accepts either; MD5 is not used)
 //   - a record with Attributes["kms_key_id"] gets SSE aws:kms with that key; one
 //     without gets no SSE fields
 //   - an AccessDenied client fault is FORBIDDEN for its record only
@@ -399,7 +400,7 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	assert.Equal(t, []apperr.ErrorCode{"", "", apperr.CodeForbidden}, codesOf(results))
 	require.Len(t, puts, 3)
 	for i, p := range puts {
-		sum := md5.Sum(recs[i].Payload)
+		sum := sha256.Sum256(recs[i].Payload)
 		assert.Equal(t, "archive", aws.ToString(p.in.Bucket))
 		assert.Equal(
 			t,
@@ -410,8 +411,10 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 		assert.Equal(
 			t,
 			base64.StdEncoding.EncodeToString(sum[:]),
-			aws.ToString(p.in.ContentMD5),
+			aws.ToString(p.in.ChecksumSHA256),
 		)
+		assert.Equal(t, s3types.ChecksumAlgorithmSha256, p.in.ChecksumAlgorithm)
+		assert.Nil(t, p.in.ContentMD5)
 	}
 	assert.Equal(t, s3types.ServerSideEncryption(""), puts[0].in.ServerSideEncryption)
 	assert.Nil(t, puts[0].in.SSEKMSKeyId)

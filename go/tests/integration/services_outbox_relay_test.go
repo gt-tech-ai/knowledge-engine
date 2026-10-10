@@ -197,7 +197,7 @@ func TestRelay_EndToEnd_PostgresToSQS(t *testing.T) {
 // Why this test is important:
 //   - An audit lane lands in a WORM bucket: Object Lock rejects a put without an
 //     integrity header, so only a real locked bucket proves the sink's
-//     Content-MD5 and key template work and that objects inherit retention.
+//     SHA-256 checksum and key template work and that objects inherit retention.
 //
 // What it tests:
 //   - Every row becomes one object at {tenant}/{yyyy}/{mm}/{dd}/{id} holding its

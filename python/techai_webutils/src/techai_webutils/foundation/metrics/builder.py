@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.foundation.metrics.metrics import PrometheusMetricsProvider
 from techai_webutils.foundation.metrics.null_metrics import NullMetricsProvider
 
@@ -67,4 +68,4 @@ def new_metrics_from_config(config: MetricsConfig) -> MetricsProvider:
         return NullMetricsProvider()
 
     msg = f"unknown metrics kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

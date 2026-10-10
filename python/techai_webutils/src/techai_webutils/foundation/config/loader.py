@@ -16,6 +16,8 @@ from typing import Any, cast
 
 import yaml
 
+from techai_webutils.core.errors import AppFileNotFoundError
+
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 """Matches ``${VAR}`` / ``${VAR:-default}`` placeholders substituted in config values."""
 
@@ -87,7 +89,7 @@ def load_config(
     config_path = Path(config_dir)
     if not config_path.exists():
         msg = f"Config directory not found: {config_dir}"
-        raise FileNotFoundError(msg)
+        raise AppFileNotFoundError(msg)
 
     # Layer 1: base config
     base_file = config_path / "base.yaml"

@@ -12,6 +12,10 @@ All notable changes to this project are recorded here. The format follows
   `context.DeadlineExceeded` to `CodeTimeout` and `context.Canceled` to `CodeCanceled`.
 - Go `sqs.NewPublisherContext(ctx, cfg)`: like `sqs.NewPublisher`, but loads the AWS
   config under `ctx`, so a caller's deadline or cancellation bounds client construction.
+- Python coded errors that are also builtins: `AppValueError` (`InvalidInputError` +
+  `ValueError`), `AppTypeError` (`InvalidInputError` + `TypeError`), `AppRuntimeError`
+  (`InternalError` + `RuntimeError`) and `AppFileNotFoundError` (`NotFoundError` +
+  `FileNotFoundError`), exported from `techai_webutils.core.errors`.
 
 ### Changed
 
@@ -44,6 +48,13 @@ All notable changes to this project are recorded here. The format follows
 - Python stub LLM streams yield to the event loop before each token.
 - Python gRPC `TracingServerInterceptor`: on a server-streaming RPC the SERVER span is
   current only while each response is produced, not across the `yield` to grpc.aio.
+- Python: production code that raised a bare `ValueError`, `TypeError`, `RuntimeError` or
+  `FileNotFoundError` (unknown kinds, unopened clients, missing config files, and others)
+  now raises the matching coded subclass above. `except ValueError` and the other builtin
+  catches still match, and the message is unchanged.
+- Go S3 outbox sink: each `PutObject` carries a SHA-256 checksum
+  (`ChecksumAlgorithm` + `ChecksumSHA256`) instead of `Content-MD5`; Object Lock buckets
+  accept either.
 
 ## [0.3.2] - 2026-10-09
 

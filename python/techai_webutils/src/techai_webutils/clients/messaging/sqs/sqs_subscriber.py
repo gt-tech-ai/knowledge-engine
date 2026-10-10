@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session
 
+from techai_webutils.core.errors import AppRuntimeError
 from techai_webutils.core.interfaces.messaging import (
     Message,
     MessageConsumer,
@@ -66,7 +67,7 @@ class SQSSubscriber(MessageConsumer):
         """Start consuming messages. Blocks until ``close()`` is called."""
         if self._client is None:
             msg = "SQSSubscriber not initialized. Use as async context manager."
-            raise RuntimeError(msg)
+            raise AppRuntimeError(msg)
         self._running = True
         while self._running:
             resp = await self._client.receive_message(

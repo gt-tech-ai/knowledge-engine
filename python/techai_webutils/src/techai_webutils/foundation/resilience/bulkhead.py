@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.bulkhead import Bulkhead
 
 if TYPE_CHECKING:
@@ -194,4 +195,4 @@ def bulkhead_from_config(config: BulkheadConfig) -> Bulkhead:
             backoff_ratio=config.backoff_ratio,
         )
     msg = f"unknown bulkhead kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

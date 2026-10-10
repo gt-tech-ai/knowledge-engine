@@ -219,7 +219,7 @@ over the defaults. `clients/outbox` builds the sink (`KindStub` default, `KindSQ
 an injected SDK client: SQS routes each row by its `route` attribute through a config route → queue
 map with per-queue failure isolation (a `.fifo` queue gets group id `Key`, else `Tenant`, else
 `Lane`, and deduplication id `ID`); the sinks keep an SDK error's code (`errors.CodeOr`); S3 writes
-one object per row by key template with Content-MD5 (Object Lock) and optional SSE-KMS.
+one object per row by key template with a SHA-256 checksum (Object Lock) and optional SSE-KMS.
 `go/tests/fixtures/outboxtest` is the store conformance suite (`Run`, `RunRouting`) plus a test-only
 Postgres reference store.
 

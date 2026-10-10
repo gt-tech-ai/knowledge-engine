@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.knowledge_base import KnowledgeBase
 
@@ -56,4 +58,4 @@ def new_knowledge_base_from_config(config: KnowledgeBaseConfig) -> KnowledgeBase
         )
         return VectorKnowledgeBase(embedder, store, config.collection)
     msg = f"unknown knowledge base kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

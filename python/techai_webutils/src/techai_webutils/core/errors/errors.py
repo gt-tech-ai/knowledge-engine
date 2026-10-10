@@ -222,6 +222,33 @@ class QuotaExceededError(AppError):
         )
 
 
+# Coded errors that are also a builtin exception. Production code raises these instead of a bare
+# builtin, so the transport edge can map the code, while callers that catch the builtin
+# (``except ValueError``) keep working.
+
+
+class AppValueError(InvalidInputError, ValueError):
+    """An invalid value (``INVALID_INPUT``) that is also a ``ValueError``.
+
+    Raised for unknown ``Kind`` strings, out-of-range settings and malformed arguments.
+    """
+
+
+class AppTypeError(InvalidInputError, TypeError):
+    """An argument of the wrong type (``INVALID_INPUT``) that is also a ``TypeError``."""
+
+
+class AppRuntimeError(InternalError, RuntimeError):
+    """A misuse of an object's lifecycle (``INTERNAL``) that is also a ``RuntimeError``.
+
+    Raised, for example, when a client is used before its async context manager has opened it.
+    """
+
+
+class AppFileNotFoundError(NotFoundError, FileNotFoundError):
+    """A required file is missing (``NOT_FOUND``); also a ``FileNotFoundError``."""
+
+
 # Ingestion-specific errors
 
 

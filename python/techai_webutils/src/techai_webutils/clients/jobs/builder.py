@@ -15,6 +15,7 @@ from techai_webutils.clients.jobs.memory import (
     InMemoryJobEnqueuer,
     InMemoryWorkerRegistry,
 )
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.clients.jobs.config import JobConfig
@@ -26,4 +27,4 @@ def new_jobs_from_config(config: JobConfig) -> JobEnqueuer:
     if config.kind is JobKind.MEMORY:
         return InMemoryJobEnqueuer(InMemoryWorkerRegistry())
     msg = f"unknown jobs kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

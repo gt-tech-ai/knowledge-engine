@@ -17,6 +17,7 @@ from techai_webutils.clients.messaging.memory import (
     InMemoryPublisher,
     InMemorySubscriber,
 )
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.clients.messaging.config import SQSConfig
@@ -55,7 +56,7 @@ def new_messaging_from_config(config: MessagingConfig) -> MessagePublisher:
     if config.kind is MessagingKind.MEMORY:
         return InMemoryPublisher(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)
 
 
 def new_messaging_subscriber_from_config(config: MessagingConfig) -> MessageConsumer:
@@ -68,4 +69,4 @@ def new_messaging_subscriber_from_config(config: MessagingConfig) -> MessageCons
     if config.kind is MessagingKind.MEMORY:
         return InMemorySubscriber(InMemoryBroker())
     msg = f"unknown messaging kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.embedding import EmbeddingProvider, EmbeddingResult
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
@@ -48,7 +49,7 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
         body = response.json()
         if "embeddings" not in body:
             msg = f"Ollama /api/embed response missing 'embeddings' key: {body!r}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         results: list[EmbeddingResult] = []
         for vector in body["embeddings"]:
             if len(vector) != self._dimension:
@@ -56,7 +57,7 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
                     f"Ollama model {self._model!r} returned a {len(vector)}-d vector, "
                     f"expected {self._dimension} (check embedding.dimension config)"
                 )
-                raise ValueError(msg)
+                raise AppValueError(msg)
             results.append(
                 EmbeddingResult(embedding=list(vector), model=self._model, token_count=0)
             )

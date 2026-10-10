@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session
 
+from techai_webutils.core.errors import AppRuntimeError
 from techai_webutils.core.interfaces.messaging import MessagePublisher
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ class SQSPublisher(MessagePublisher):
         """Send a message to the configured SQS queue."""
         if self._client is None:
             msg = "SQSPublisher not initialized. Use as async context manager."
-            raise RuntimeError(msg)
+            raise AppRuntimeError(msg)
         await self._client.send_message(
             QueueUrl=self._config.queue_url,
             MessageBody=payload.decode("utf-8"),
@@ -71,7 +72,7 @@ class SQSPublisher(MessagePublisher):
         """Send multiple messages to the configured SQS queue."""
         if self._client is None:
             msg = "SQSPublisher not initialized. Use as async context manager."
-            raise RuntimeError(msg)
+            raise AppRuntimeError(msg)
         entries: list[SendMessageBatchRequestEntryTypeDef] = [
             {
                 "Id": str(uuid.uuid4()),

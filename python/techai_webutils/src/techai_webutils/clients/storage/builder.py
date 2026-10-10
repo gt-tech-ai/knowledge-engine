@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.clients.storage.config import S3Config
     from techai_webutils.core.interfaces.storage import StorageClient
@@ -50,4 +52,4 @@ def new_storage_from_config(config: StorageConfig) -> StorageClient:
 
         return InMemoryStorageClient()
     msg = f"unknown storage kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

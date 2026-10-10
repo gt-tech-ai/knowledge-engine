@@ -20,6 +20,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.retrieval import PassagePolicy, RetrievalEngine
 from techai_webutils.foundation.lifecycle import DelegatingAsyncResource
 from techai_webutils.foundation.logger import get_logger
@@ -94,7 +95,7 @@ class OrdinalCeiling:
         """Reject an empty ladder, then index ``ranks`` once so ``admits`` is a dict lookup per passage."""
         if not self.ranks:
             msg = "OrdinalCeiling requires at least one label in ranks (an empty ladder admits everything)"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         object.__setattr__(
             self, "_order", {label: i for i, label in enumerate(self.ranks)}
         )

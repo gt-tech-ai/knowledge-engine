@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import IO, TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.foundation.logger.logger import new_logger
 from techai_webutils.foundation.logger.stdlib_logger import StdlibLogger
 
@@ -70,4 +71,4 @@ def new_logger_from_config(config: LoggerConfig) -> Logger:
         return StdlibLogger(level=config.level, stream=config.stream)
 
     msg = f"unknown logger kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

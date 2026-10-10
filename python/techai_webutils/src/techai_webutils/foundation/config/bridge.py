@@ -43,6 +43,7 @@ import threading
 from pathlib import Path
 from typing import Any, cast
 
+from techai_webutils.core.errors import AppFileNotFoundError, AppValueError
 from techai_webutils.foundation.config.loader import load_config
 
 logger = logging.getLogger(__name__)
@@ -189,7 +190,7 @@ def _require_same_arguments(requested: tuple[str, str, tuple[str, ...]]) -> None
         if old != new
     ]
     msg = f"initialize_config was already called with different arguments: {', '.join(conflicts)}"
-    raise ValueError(msg)
+    raise AppValueError(msg)
 
 
 def _load_and_apply_config(
@@ -213,7 +214,7 @@ def _load_and_apply_config(
     if not config_path.exists():
         if strict:
             msg = f"Config directory not found: {config_path}"
-            raise FileNotFoundError(msg)
+            raise AppFileNotFoundError(msg)
         logger.warning(
             "Config directory not found: %s. Proceeding with environment variables only.",
             config_path,
@@ -225,7 +226,7 @@ def _load_and_apply_config(
     if not config_file.exists():
         if strict:
             msg = f"Config file not found: {config_file}"
-            raise FileNotFoundError(msg)
+            raise AppFileNotFoundError(msg)
         logger.warning(
             "Config file not found: %s. Proceeding with environment variables only.",
             config_file,

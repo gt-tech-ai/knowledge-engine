@@ -1,12 +1,13 @@
 // Package s3 is the S3 OutboxSink: it writes each record as one object, keyed by
-// a template, with a Content-MD5 integrity header (required by Object Lock
-// buckets) and SSE-KMS when the record names a key.
+// a template, with a SHA-256 integrity checksum (Object Lock buckets require an
+// integrity checksum and accept it in place of Content-MD5) and SSE-KMS when
+// the record names a key.
 package s3
 
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // S3's Content-MD5 integrity header is MD5 by definition, not a security use
+	"crypto/sha256"
 	"encoding/base64"
 	"strings"
 
@@ -100,12 +101,13 @@ func (s *Sink) Send(ctx context.Context, recs []types.OutboxRecord) []error {
 
 // input builds the PutObject request for rec.
 func (s *Sink) input(rec *types.OutboxRecord) *awss3.PutObjectInput {
-	sum := md5.Sum(rec.Payload) //nolint:gosec // integrity header, see the import
+	sum := sha256.Sum256(rec.Payload)
 	in := &awss3.PutObjectInput{
-		Bucket:     aws.String(s.bucket),
-		Key:        aws.String(s.key(rec)),
-		Body:       bytes.NewReader(rec.Payload),
-		ContentMD5: aws.String(base64.StdEncoding.EncodeToString(sum[:])),
+		Bucket:            aws.String(s.bucket),
+		Key:               aws.String(s.key(rec)),
+		Body:              bytes.NewReader(rec.Payload),
+		ChecksumAlgorithm: s3types.ChecksumAlgorithmSha256,
+		ChecksumSHA256:    aws.String(base64.StdEncoding.EncodeToString(sum[:])),
 	}
 	if kms := rec.Attributes[KMSKeyAttribute]; kms != "" {
 		in.ServerSideEncryption = s3types.ServerSideEncryptionAwsKms

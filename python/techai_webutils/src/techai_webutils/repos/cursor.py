@@ -9,6 +9,8 @@ import base64
 import json
 from dataclasses import dataclass
 
+from techai_webutils.core.errors import AppValueError
+
 
 @dataclass(frozen=True)
 class CursorPayload:
@@ -46,4 +48,4 @@ class CursorCodec:
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             msg = f"invalid cursor: {cursor!r}"
-            raise ValueError(msg) from e
+            raise AppValueError(msg) from e

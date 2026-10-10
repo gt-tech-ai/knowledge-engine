@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.embedding import EmbeddingProvider
 
@@ -65,4 +67,4 @@ def new_embedding_from_config(config: EmbeddingConfig) -> EmbeddingProvider:
 
         return StubEmbeddingProvider(model=config.model, dimension=config.dimension)
     msg = f"unknown embedding kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

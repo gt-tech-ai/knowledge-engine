@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 import grpc
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -30,7 +32,7 @@ class RetryInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: ignore[mi
         """
         if max_attempts < 1:
             msg = f"max_attempts must be >= 1, got {max_attempts}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         self._max_attempts = max_attempts
         self._base_delay = base_delay
 

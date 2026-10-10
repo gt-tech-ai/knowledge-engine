@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 from opentelemetry import trace
 
 from techai_webutils.clients.decorators.metrics_proxy import MetricsProxy
+from techai_webutils.core.errors import AppRuntimeError, AppValueError
 from techai_webutils.core.errors.errors import AppError
 from techai_webutils.foundation.logger.logger import get_logger
 from techai_webutils.foundation.resilience.async_retry import retry_after_s
@@ -202,7 +203,7 @@ class RetryProxy:
         """
         if max_attempts < 1:
             msg = f"max_attempts must be >= 1, got {max_attempts}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         self._wrapped = wrapped
         self._max_attempts = max_attempts
         self._max_pushback_s = max_pushback_s
@@ -238,7 +239,7 @@ class RetryProxy:
                 if last_err is not None:
                     raise last_err
                 msg = "unreachable"
-                raise RuntimeError(msg)  # pragma: no cover
+                raise AppRuntimeError(msg)  # pragma: no cover
 
             return awrapper
 
@@ -258,7 +259,7 @@ class RetryProxy:
             if last_err is not None:
                 raise last_err
             msg = "unreachable"
-            raise RuntimeError(msg)  # pragma: no cover
+            raise AppRuntimeError(msg)  # pragma: no cover
 
         return wrapper
 

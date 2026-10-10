@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.foundation.tracer.null_tracer import NullTracerProvider
 from techai_webutils.foundation.tracer.tracer import new_tracer
 
@@ -77,4 +78,4 @@ def new_tracer_from_config(config: TracerConfig) -> TracerProvider:
         return NullTracerProvider()
 
     msg = f"unknown tracer kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

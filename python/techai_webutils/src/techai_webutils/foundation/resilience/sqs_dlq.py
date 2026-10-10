@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Self
 
 import aiobotocore.session
 
+from techai_webutils.core.errors import AppRuntimeError
 from techai_webutils.core.interfaces.dlq import DeadLetterBackend
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ class SqsDeadLetterBackend(DeadLetterBackend):
         """
         if self._client is None:
             msg = "SqsDeadLetterBackend not initialized. Use as async context manager."
-            raise RuntimeError(msg)
+            raise AppRuntimeError(msg)
         reserved = {"reason", "source_id"}
         attributes: dict[str, MessageAttributeValueTypeDef] = {
             "reason": {"DataType": "String", "StringValue": letter.reason},

@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.parser import DocumentParser
 
@@ -56,4 +58,4 @@ def parser_from_config(config: ParserConfig) -> DocumentParser:
             memory_bytes=config.memory_bytes, timeout_seconds=config.timeout_seconds
         )
     msg = f"unknown parser kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

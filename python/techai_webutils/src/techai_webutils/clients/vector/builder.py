@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.vector_store import VectorStore
 
@@ -61,4 +63,4 @@ def new_vector_store_from_config(config: VectorStoreConfig) -> VectorStore:
 
         return StubVectorStore(dimension=config.dimension)
     msg = f"unknown vector store kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

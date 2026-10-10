@@ -24,6 +24,7 @@ from techai_webutils.clients.retrieval.filtering import (
     MinScore,
 )
 from techai_webutils.clients.retrieval.stub import StubRetrievalEngine
+from techai_webutils.core.errors import AppTypeError, AppValueError
 from techai_webutils.foundation.logger import get_logger
 
 if TYPE_CHECKING:
@@ -94,7 +95,7 @@ class RetrievalConfig:
         min_score = cast("object", self.min_score)
         if isinstance(min_score, bool) or not isinstance(min_score, int | float):
             msg = f"RetrievalConfig.min_score must be a number, got {min_score!r}"
-            raise TypeError(msg)
+            raise AppTypeError(msg)
 
 
 def wrap_retrieval_engine(
@@ -164,7 +165,7 @@ def new_retrieval_engine_from_config(
         inner = _build_vector_engine(config, store_filter_keys)
     else:
         msg = f"unknown retrieval kind: {config.kind!r}"
-        raise ValueError(msg)
+        raise AppValueError(msg)
     return wrap_retrieval_engine(inner, config, policies=policies)
 
 

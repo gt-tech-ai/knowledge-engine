@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, override
 
 from techai_webutils.clients.vector.composition import require_matching_dimension
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.knowledge_base import (
     KBDocument,
     KBSyncResult,
@@ -91,7 +92,7 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
         base_metadata = dict(attributes or {})
         if reserved := sorted(_RESERVED_ATTRIBUTE_KEYS.intersection(base_metadata)):
             msg = f"attributes may not use the reserved metadata keys {reserved}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         if not chunks:
             return
         name = document_name or document_id
@@ -134,7 +135,7 @@ class VectorKnowledgeBase(NoOpAsyncResource, KnowledgeBase):
             # and loud so a partial embed is a clear error, not a corrupt index.
             if len(embeddings) != len(batch):
                 msg = f"embedder returned {len(embeddings)} embeddings for {len(batch)} chunks"
-                raise ValueError(msg)
+                raise AppValueError(msg)
             entries = [
                 VectorEntry(
                     id=ids[offset],

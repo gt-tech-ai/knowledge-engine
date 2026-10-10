@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Self
 
 import asyncpg
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.errors.errors import UnavailableError
 from techai_webutils.foundation.logger import get_logger
 
@@ -92,12 +93,12 @@ class PostgresAdvisoryLock:
         """
         if not key:
             msg = "PostgresAdvisoryLock requires a non-empty key"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         if not -(2**31) <= namespace < 2**31:
             msg = (
                 f"PostgresAdvisoryLock namespace {namespace} does not fit a signed int32"
             )
-            raise ValueError(msg)
+            raise AppValueError(msg)
         self._dsn = dsn
         self._key = key
         self._classid = namespace

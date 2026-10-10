@@ -2,7 +2,11 @@
 
 from techai_webutils.core.errors.errors import (
     AppError,
+    AppFileNotFoundError,
+    AppRuntimeError,
     AppTimeoutError,
+    AppTypeError,
+    AppValueError,
     ConflictError,
     ErrorCode,
     ForbiddenError,
@@ -17,7 +21,11 @@ from techai_webutils.core.errors.errors import (
 
 __all__ = [
     "AppError",
+    "AppFileNotFoundError",
+    "AppRuntimeError",
     "AppTimeoutError",
+    "AppTypeError",
+    "AppValueError",
     "ConflictError",
     "ErrorCode",
     "ForbiddenError",

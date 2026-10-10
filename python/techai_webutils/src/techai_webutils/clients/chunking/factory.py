@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.chunker import Chunker
 
@@ -44,4 +46,4 @@ def chunker_from_config(config: ChunkerConfig) -> Chunker:
 
         return FixedChunker(max_chars=config.max_chars)
     msg = f"unknown chunker kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.metadata import MetadataExtractor
 
@@ -44,4 +46,4 @@ def metadata_extractor_from_config(config: MetadataConfig) -> MetadataExtractor:
 
         return LangdetectMetadataExtractor()
     msg = f"unknown metadata extractor kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

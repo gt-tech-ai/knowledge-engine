@@ -13,6 +13,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.kb_ingestion import KnowledgeBaseIngestor
@@ -54,4 +55,4 @@ def new_kb_ingestor_from_config(config: KbConfig) -> KnowledgeBaseIngestor:
             region=config.region, endpoint=config.endpoint
         )
     msg = f"unknown knowledge-base kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)
