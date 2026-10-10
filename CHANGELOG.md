@@ -130,8 +130,17 @@ All notable changes to this project are recorded here. The format follows
 - `go/core/errors/testdata/codes.json`: the committed code → `{grpc, http, transient, permanent}`
   table. The Go suite regenerates it from the live maps and fails on drift; the Python suite compares
   its own maps against it, so the two languages cannot diverge silently.
+- Go `foundation/cache.ReadThrough` takes variadic `...ReadThroughOption[T]`; existing calls
+  compile unchanged. `WithCacheable(func(T) bool)` returns a rejected value to every coalesced
+  caller without storing it. A nil `ByteCache` skips the cache but still coalesces concurrent
+  loads per key.
 
 ### Changed
+
+- Go `foundation/cache.ReadThrough` detaches the shared load from the caller that started it: the
+  load runs on the single-flight goroutine and its cache write uses `context.WithoutCancel`. Each
+  caller returns when its own context ends, with `CANCELED` or `TIMEOUT`, and the other callers
+  still get the value. A panicking load returns an `INTERNAL` error instead of panicking the caller.
 
 - Go `rpc.Sanitize` now maps `CodeUnavailable` to `connect.CodeUnavailable` ("service
   unavailable") instead of the `INTERNAL` default, matching the Python gRPC map. Clients now see a
