@@ -215,8 +215,8 @@ func isTransientStatus(status int) bool {
 }
 
 // statusError codes an HTTP error status, quoting the server's error text when body is a
-// query-API envelope. A transient status (see isTransientStatus) is CodeUnavailable, so the
-// client stack retries it and its breaker counts it. A rejected query (400, 422) is
+// query-API envelope. A transient status (see isTransientStatus) is CodeUnavailable, so
+// the client stack retries it and its breaker counts it. A rejected query (400, 422) is
 // CodeInvalidInput. Any other status is CodeUpstream.
 func statusError(status int, body io.Reader) error {
 	msg := fmt.Sprintf("prometheus query failed (HTTP %d)", status)

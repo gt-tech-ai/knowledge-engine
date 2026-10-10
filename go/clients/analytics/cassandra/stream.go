@@ -149,7 +149,7 @@ func (p *readPlan) project(
 // stalls the readers. The first read error is terminal.
 type stream struct {
 	// ctx scopes the readers; cancel stops them.
-	ctx    context.Context //nolint:containedctx // the stream outlives Aggregate and owns its readers' context
+	ctx    context.Context //nolint:containedctx // the stream owns its readers' context
 	cancel context.CancelFunc
 	// plan reads pages.
 	plan *readPlan

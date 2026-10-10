@@ -3,11 +3,11 @@
 // around any core/interfaces.DistributedLock, without touching the backend.
 //
 // The stack mirrors the repository/service decorator builders and their ordering
-// (ARCHITECTURE.md#decorator-order): resilience nests closest to the backend and the observability
-// trio wraps it as Tracing → Metrics → Logging (Tracing outermost, Logging
-// innermost), so a span/metric covers the whole resilient operation including
-// retries. Every With* is nil-safe: a nil collaborator skips that decorator, so
-// dev/test paths run undecorated.
+// (ARCHITECTURE.md#decorator-order): resilience nests closest to the backend and the
+// observability trio wraps it as Tracing → Metrics → Logging (Tracing outermost, Logging
+// innermost), so a span/metric covers the whole resilient operation including retries.
+// Every With* is nil-safe: a nil collaborator skips that decorator, so dev/test paths run
+// undecorated.
 package decorators
 
 import (
@@ -103,10 +103,10 @@ func (b *Builder) WithTimeout(d time.Duration) *Builder {
 //
 //	base → retry → circuitBreaker → timeout → logging → metrics → tracing
 //
-// so resilience nests closest to the backend and the observability trio wraps it
-// as Tracing → Metrics → Logging (Tracing outermost, Logging innermost) per
-// ARCHITECTURE.md#decorator-order. A nil collaborator skips its decorator, so an all-nil builder
-// returns the base unchanged.
+// so resilience nests closest to the backend and the observability trio wraps it as
+// Tracing → Metrics → Logging (Tracing outermost, Logging innermost) per
+// ARCHITECTURE.md#decorator-order. A nil collaborator skips its decorator, so an all-nil
+// builder returns the base unchanged.
 func (b *Builder) Build() interfaces.DistributedLock {
 	lk := b.base
 

@@ -38,10 +38,11 @@ type Page[T any] struct {
 }
 
 // HasMore returns true if there are more pages available. A non-empty NextCursor is the
-// authoritative signal (both the offset and keyset pagers set it iff further rows exist), so it
-// is checked first — a keyset page carries no Total, and an offset page built with Count:false has
-// Total==0, yet either can still have a next page. The Total comparison is the fallback for an
-// offset page that computed a total but (defensively) left NextCursor empty.
+// authoritative signal (both the offset and keyset pagers set it iff further rows exist),
+// so it is checked first — a keyset page carries no Total, and an offset page built with
+// Count:false has Total==0, yet either can still have a next page. The Total comparison
+// is the fallback for an offset page that computed a total but (defensively) left
+// NextCursor empty.
 func (p Page[T]) HasMore() bool {
 	return p.NextCursor != "" || int64(p.PageNumber*p.PageSize) < p.Total
 }
@@ -58,7 +59,8 @@ type PageRequest struct {
 	PageNumber int `json:"page_number"`
 }
 
-// ListRequest is a container holding a [types.PageRequest] and a set of parameters for a list request.
+// ListRequest is a container holding a [types.PageRequest] and a set of parameters for a
+// list request.
 type ListRequest[T any] struct {
 	// Params holds list parameters specific to the target resource.
 	Params T

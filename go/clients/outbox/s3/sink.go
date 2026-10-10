@@ -26,7 +26,8 @@ const KMSKeyAttribute = "kms_key_id"
 
 // API is the part of the AWS S3 client the sink uses; *awss3.Client satisfies it.
 //
-// SDK seam — the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core port.
+// SDK seam — the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core
+// port.
 type API interface {
 	// PutObject writes one object.
 	PutObject(

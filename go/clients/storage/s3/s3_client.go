@@ -45,7 +45,8 @@ const maxUploadConcurrency = 5
 // mock without network access — mirroring the SQS client's API seam. *s3.Client and
 // the ListObjectsV2 paginator client both satisfy it.
 //
-// SDK seam — mocks the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core port.
+// SDK seam — mocks the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with
+// a core port.
 type S3API interface {
 	// PutObject stores a single object in one request.
 	PutObject(
@@ -143,7 +144,8 @@ type S3API interface {
 // s3Client implements interfaces.StorageClient against an S3-compatible backend.
 type s3Client struct {
 	// NoOp supplies the no-op Start/Stop: the S3 SDK client is stateless (each PutObject/
-	// GetObject is an independent request), so there is no persistent connection to open or close.
+	// GetObject is an independent request), so there is no persistent connection to open
+	// or close.
 	lifecycle.NoOp
 
 	// api is the underlying S3 API (a real *s3.Client in production, a mock in tests).
@@ -594,7 +596,8 @@ func contentDispositionAttachment(filename string) string {
 	)
 }
 
-// PresignPutURL returns a presigned PUT URL valid for expirySeconds, pinning Content-Type.
+// PresignPutURL returns a presigned PUT URL valid for expirySeconds, pinning
+// Content-Type.
 func (c *s3Client) PresignPutURL(
 	ctx context.Context,
 	bucket, key string,
@@ -790,9 +793,10 @@ func (c *s3Client) ListObjects(
 	return objs, nil
 }
 
-// ListObjectsPage returns at most limit objects under prefix in a SINGLE ListObjectsV2 request
-// (MaxKeys), the bounded counterpart of ListObjects — a cheap reachability/count probe rather than a
-// full, fully-paginated inventory. A non-positive limit lets S3 apply its default page size.
+// ListObjectsPage returns at most limit objects under prefix in a SINGLE ListObjectsV2
+// request (MaxKeys), the bounded counterpart of ListObjects — a cheap reachability/count
+// probe rather than a full, fully-paginated inventory. A non-positive limit lets S3 apply
+// its default page size.
 func (c *s3Client) ListObjectsPage(
 	ctx context.Context,
 	bucket, prefix string,
@@ -829,11 +833,12 @@ func (c *s3Client) ListObjectsPage(
 	return objs, nil
 }
 
-// ListObjectsPageToken lists at most limit objects under prefix starting after continuationToken and
-// returns the page plus the token to resume from ("" when the listing is exhausted) — the resumable,
-// memory-bounded streaming primitive a large-bucket crawl pages over (it holds one page at a time and
-// checkpoints the token to crash-resume). An empty continuationToken starts the listing; a non-positive
-// limit lets S3 apply its default page size.
+// ListObjectsPageToken lists at most limit objects under prefix starting after
+// continuationToken and returns the page plus the token to resume from ("" when the
+// listing is exhausted) — the resumable, memory-bounded streaming primitive a
+// large-bucket crawl pages over (it holds one page at a time and checkpoints the token to
+// crash-resume). An empty continuationToken starts the listing; a non-positive limit lets
+// S3 apply its default page size.
 func (c *s3Client) ListObjectsPageToken(
 	ctx context.Context,
 	bucket, prefix, continuationToken string,
@@ -870,8 +875,9 @@ func (c *s3Client) ListObjectsPageToken(
 			LastModified: formatTime(o.LastModified),
 		})
 	}
-	// IsTruncated + NextContinuationToken together signal "more pages"; when not truncated the token is
-	// absent, so nextToken == "" cleanly terminates the caller's loop.
+	// IsTruncated + NextContinuationToken together signal "more pages"; when not
+	// truncated the token is absent, so nextToken == "" cleanly terminates the caller's
+	// loop.
 	next := ""
 	if aws.ToBool(page.IsTruncated) {
 		next = aws.ToString(page.NextContinuationToken)

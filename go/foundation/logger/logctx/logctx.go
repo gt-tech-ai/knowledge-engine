@@ -79,7 +79,8 @@ var piiPattern = regexp.MustCompile(
 		`|(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}` + // phone
 		`|\b\d{3}-\d{2}-\d{4}\b` + // SSN
 		`|\b(?:\d{1,3}\.){3}\d{1,3}\b` + // IPv4
-		`|(?i:(?:bearer\s+|(?:access_)?token[=:]\s*)[a-zA-Z0-9\-._~+/]+=*)`, // auth token (incl. access_token= WS query param)
+		// auth token (incl. the access_token= WS query param)
+		`|(?i:(?:bearer\s+|(?:access_)?token[=:]\s*)[a-zA-Z0-9\-._~+/]+=*)`,
 )
 
 // RedactPII replaces PII (email, phone, SSN, IPv4, auth tokens) with

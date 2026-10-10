@@ -47,11 +47,11 @@ type EventStackDeps struct {
 
 // WrapHandler composes the EventHandler stack (ARCHITECTURE.md#decorator-order) around
 // inner, outermost → innermost: Dedup → DeadLetter → [Retry → CircuitBreaker → Timeout →
-// Tracing → Metrics → Logging] → Handler. (Decode is the handler's own concern.) The inner resilience +
-// observability reuses the shared client stack, so the mechanism is composed once, not
-// re-implemented. A message that still fails after retries is routed to the
-// dead-letter queue and acked when it lands there; pair Dedup with a DeadLetter so a
-// terminal failure is dead-lettered rather than skipped as a duplicate on redrive.
+// Tracing → Metrics → Logging] → Handler. (Decode is the handler's own concern.) The
+// inner resilience + observability reuses the shared client stack, so the mechanism is
+// composed once, not re-implemented. A message that still fails after retries is routed
+// to the dead-letter queue and acked when it lands there; pair Dedup with a DeadLetter so
+// a terminal failure is dead-lettered rather than skipped as a duplicate on redrive.
 func WrapHandler(
 	inner interfaces.MessageHandler,
 	deps EventStackDeps,

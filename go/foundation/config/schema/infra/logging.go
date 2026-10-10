@@ -19,7 +19,8 @@ type LoggingConfig struct {
 	// Format controls the output encoding ("json" or "text").
 	Format string `mapstructure:"format"`
 
-	// RedactPII enables automatic redaction of personally identifiable information in log output.
+	// RedactPII enables automatic redaction of personally identifiable information in log
+	// output.
 	RedactPII bool `mapstructure:"redact_pii"`
 }
 

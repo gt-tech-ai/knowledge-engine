@@ -86,11 +86,14 @@ func (r ReadListExistRepository[T, P, ID]) List(
 		ctx,
 		r.chain,
 		"List",
-		func(ctx context.Context) (*types.Page[T], error) { return r.store.List(ctx, params, page) },
+		func(ctx context.Context) (*types.Page[T], error) {
+			return r.store.List(ctx, params, page)
+		},
 	)
 }
 
-// Exists reports whether an entity with the given id exists, through the decorated read chain.
+// Exists reports whether an entity with the given id exists, through the decorated read
+// chain.
 func (r ReadListExistRepository[T, P, ID]) Exists(
 	ctx context.Context,
 	id ID,
@@ -186,7 +189,9 @@ func (r CRUDNoListRepository[T, ID]) Delete(ctx context.Context, id ID) error {
 		ctx,
 		r.chain,
 		"Delete",
-		func(ctx context.Context) (struct{}, error) { return struct{}{}, r.store.Delete(ctx, id) },
+		func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, r.store.Delete(ctx, id)
+		},
 	)
 	return err
 }

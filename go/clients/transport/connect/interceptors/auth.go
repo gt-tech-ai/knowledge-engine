@@ -1,8 +1,8 @@
 // Package interceptors provides Connect RPC interceptors for cross-cutting concerns.
 //
 // The auth interceptor extracts the identity headers a gateway sets after validating the
-// caller's token (the consumer names them in a HeaderMap) and stores them as AuthClaims in
-// the request context. Downstream handlers retrieve claims via GetAuthClaims.
+// caller's token (the consumer names them in a HeaderMap) and stores them as AuthClaims
+// in the request context. Downstream handlers retrieve claims via GetAuthClaims.
 package interceptors
 
 import (

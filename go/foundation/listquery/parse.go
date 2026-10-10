@@ -31,9 +31,9 @@ var opTokens = map[string]types.FilterOperator{
 // Filter contract. Blank input (or "{}") yields an empty CompositeFilter (IsEmpty() true)
 // — a store applies no WHERE. Malformed JSON, an unknown/duplicate operator, a
 // non-allow-listed field, a type-incompatible value, or nesting past maxFilterDepth is a
-// CodeInvalidInput error (ARCHITECTURE.md#error-codes). The result is the Filter interface — a
-// FilterClause for a single comparison, a CompositeFilter for $and/$or — never
-// *FilterClause, since a top-level $and/$or is composite.
+// CodeInvalidInput error (ARCHITECTURE.md#error-codes). The result is the Filter
+// interface — a FilterClause for a single comparison, a CompositeFilter for $and/$or —
+// never *FilterClause, since a top-level $and/$or is composite.
 func Parse(m *Map, jsonStr string) (types.Filter, error) {
 	if strings.TrimSpace(jsonStr) == "" {
 		return types.CompositeFilter{}, nil // no filter → IsEmpty
@@ -150,7 +150,8 @@ func parseClause(
 		}
 		return types.FilterClause{Field: field.Name, Operator: op, Value: value}, nil
 	}
-	// Unreachable given the len(fieldVal) == 1 guard; a coded error (never nil,nil) if reached.
+	// Unreachable given the len(fieldVal) == 1 guard; a coded error (never nil,nil) if
+	// reached.
 	return nil, errors.New(errors.CodeInvalidInput, "filter: empty operator body")
 }
 

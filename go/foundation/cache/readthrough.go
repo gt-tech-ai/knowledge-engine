@@ -26,36 +26,38 @@ func WithCacheable[T any](cacheable func(T) bool) ReadThroughOption[T] {
 	return func(o *readThroughOptions[T]) { o.cacheable = cacheable }
 }
 
-// ReadThrough is the shared read-through (cache-aside) primitive for a value of type T, folding the
-// versioned envelope (Encode/Decode) and single-flight (a stampede of concurrent misses on one key
-// collapses to ONE load) into one reuse point for every SCOPED cache decorator (suggest, count,
-// …). Its shape mirrors the repos-tier caching decorator, which predates this primitive and
-// still holds its own copy of the envelope + stampede logic; consolidating that decorator onto
-// ReadThrough is a future DRY cleanup.
+// ReadThrough is the shared read-through (cache-aside) primitive for a value of type T,
+// folding the versioned envelope (Encode/Decode) and single-flight (a stampede of
+// concurrent misses on one key collapses to ONE load) into one reuse point for every
+// SCOPED cache decorator (suggest, count, …). Its shape mirrors the repos-tier caching
+// decorator, which predates this primitive and still holds its own copy of the envelope +
+// stampede logic; consolidating that decorator onto ReadThrough is a future DRY cleanup.
 //
-// Flow: a version-matching hit returns the decoded value WITHOUT calling load; otherwise a single
-// load (per key, across concurrent callers) runs, its result is encoded and stored with ttl, and
-// returned. A load error propagates and nothing is cached (a cache Get/Set failure degrades to the
-// live load, never an error).
+// Flow: a version-matching hit returns the decoded value WITHOUT calling load; otherwise
+// a single load (per key, across concurrent callers) runs, its result is encoded and
+// stored with ttl, and returned. A load error propagates and nothing is cached (a cache
+// Get/Set failure degrades to the live load, never an error).
 //
-// A nil c skips the cache entirely but still coalesces concurrent loads per key. WithCacheable
-// keeps a rejected value out of the cache while still returning it to every coalesced caller.
-// The caller that starts a flight sets its load, cache and options; callers that join it get
-// that policy, so every caller of one key should pass the same cache and options.
+// A nil c skips the cache entirely but still coalesces concurrent loads per key.
+// WithCacheable keeps a rejected value out of the cache while still returning it to every
+// coalesced caller. The caller that starts a flight sets its load, cache and options;
+// callers that join it get that policy, so every caller of one key should pass the same
+// cache and options.
 //
-// A caller whose ctx is already done returns its CodeCanceled or CodeTimeout error at once,
-// without reading the cache or starting a load.
+// A caller whose ctx is already done returns its CodeCanceled or CodeTimeout error at
+// once, without reading the cache or starting a load.
 //
-// The shared load is detached from the caller that started it: it runs on the single-flight
-// goroutine, its cache write uses context.WithoutCancel(ctx), and each caller waits only until its
-// own ctx ends (returning a CodeCanceled or CodeTimeout error) — so one caller leaving neither
-// aborts the load nor fails the others. load takes no context, so a load that needs one should
-// close over context.WithoutCancel(ctx) for the same guarantee. A panicking load becomes a
-// CodeInternal error rather than crashing the process.
+// The shared load is detached from the caller that started it: it runs on the
+// single-flight goroutine, its cache write uses context.WithoutCancel(ctx), and each
+// caller waits only until its own ctx ends (returning a CodeCanceled or CodeTimeout
+// error) — so one caller leaving neither aborts the load nor fails the others. load takes
+// no context, so a load that needs one should close over context.WithoutCancel(ctx) for
+// the same guarantee. A panicking load becomes a CodeInternal error rather than crashing
+// the process.
 //
-// T is stored and returned BY VALUE (the envelope round-trips a value), so concurrent callers that
-// share the single-flight result never alias a mutable pointer — pass a value type (e.g.
-// types.Page[...] or a small count struct), not a pointer.
+// T is stored and returned BY VALUE (the envelope round-trips a value), so concurrent
+// callers that share the single-flight result never alias a mutable pointer — pass a
+// value type (e.g. types.Page[...] or a small count struct), not a pointer.
 func ReadThrough[T any](
 	ctx context.Context,
 	c interfaces.ByteCache,
@@ -108,9 +110,9 @@ func ReadThrough[T any](
 	}
 }
 
-// recoverLoad runs load and turns a panic into a CodeInternal error whose "stack" detail is
-// the panicking goroutine's stack: the load runs on the single-flight goroutine, where an
-// unrecovered panic would crash the process instead of reaching the caller's recovery
+// recoverLoad runs load and turns a panic into a CodeInternal error whose "stack" detail
+// is the panicking goroutine's stack: the load runs on the single-flight goroutine, where
+// an unrecovered panic would crash the process instead of reaching the caller's recovery
 // decorator.
 func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 	defer func() {

@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS outbox (
 	created_at      timestamptz NOT NULL DEFAULT now(),
 	next_attempt_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS outbox_due ON outbox (lane, next_attempt_at) WHERE state = 'pending';`
+CREATE INDEX IF NOT EXISTS outbox_due ON outbox (lane, next_attempt_at)
+	WHERE state = 'pending';`
 
 // claimSQL leases up to $2 due pending rows of lane $1 for $3 seconds, bumping
 // each row's attempt count; SKIP LOCKED keeps concurrent claims disjoint.
@@ -86,7 +87,8 @@ func (s *SQLStore) Enqueue(ctx context.Context, rec *types.OutboxRecord) error {
 	}
 	_, err = s.db.ExecContext(
 		ctx,
-		`INSERT INTO outbox (id, lane, tenant, key, payload, attributes, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		`INSERT INTO outbox (id, lane, tenant, key, payload, attributes, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)`,
 		rec.ID,
 		rec.Lane,
 		rec.Tenant,
@@ -165,7 +167,8 @@ func (s *SQLStore) Retry(
 	return s.exec(
 		ctx,
 		"retry",
-		`UPDATE outbox SET next_attempt_at = $2, last_error = $3 WHERE id = $1 AND state = 'pending'`,
+		`UPDATE outbox SET next_attempt_at = $2, last_error = $3
+		WHERE id = $1 AND state = 'pending'`,
 		id,
 		next,
 		lastErr,
@@ -212,7 +215,9 @@ func (s *SQLStore) LastError(
 	ctx context.Context,
 	id uuid.UUID,
 ) (state, lastErr string, err error) {
-	err = s.db.QueryRowContext(ctx, `SELECT state, last_error FROM outbox WHERE id = $1`, id).
+	err = s.db.QueryRowContext(
+		ctx, `SELECT state, last_error FROM outbox WHERE id = $1`, id,
+	).
 		Scan(&state, &lastErr)
 	if err != nil {
 		return "", "", coreerr.Wrap(err, coreerr.CodeNotFound, "outboxtest: row")

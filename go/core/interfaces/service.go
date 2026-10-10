@@ -38,7 +38,8 @@ type DecoratedService[T any, P any, ID comparable] interface {
 // ServiceHooks provides lifecycle hooks for service operations.
 // Implementations can override specific hooks while using no-op defaults for others.
 type ServiceHooks[T any] interface {
-	// BeforeCreate is called before entity creation. Can modify the entity or return an error.
+	// BeforeCreate is called before entity creation. Can modify the entity or return an
+	// error.
 	BeforeCreate(ctx context.Context, entity *T) error
 
 	// AfterCreate is called after successful entity creation.

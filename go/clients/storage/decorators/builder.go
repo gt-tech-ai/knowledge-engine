@@ -334,7 +334,8 @@ func (d *decorator) ListObjects(
 		})
 }
 
-// ListObjectsPage lists a bounded page of objects through the resilience/observability stack.
+// ListObjectsPage lists a bounded page of objects through the resilience/observability
+// stack.
 func (d *decorator) ListObjectsPage(
 	ctx context.Context,
 	bucket, prefix string,
@@ -346,8 +347,8 @@ func (d *decorator) ListObjectsPage(
 		})
 }
 
-// listPageResult bundles a token-paginated list's two results so the single-value clientstack.Run
-// carries both the page and the resume token through the decorator stack.
+// listPageResult bundles a token-paginated list's two results so the single-value
+// clientstack.Run carries both the page and the resume token through the decorator stack.
 type listPageResult struct {
 	// next is the continuation token for the following page ("" when exhausted).
 	next string
@@ -355,7 +356,8 @@ type listPageResult struct {
 	objects []interfaces.StorageObject
 }
 
-// ListObjectsPageToken lists a token-paginated page through the resilience/observability stack.
+// ListObjectsPageToken lists a token-paginated page through the resilience/observability
+// stack.
 func (d *decorator) ListObjectsPageToken(
 	ctx context.Context,
 	bucket, prefix, continuationToken string,

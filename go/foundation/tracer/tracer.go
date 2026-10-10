@@ -45,11 +45,12 @@ func TraceParentFromContext(ctx context.Context) string {
 	return carrier["traceparent"]
 }
 
-// TraceIDFromContext returns the 32-hex W3C trace id of the active span in ctx, or "" when
-// there is no valid span context. It is the bare trace id (not the full traceparent), used to
-// return the trace to a client that cannot read a response header — e.g. the WebSocket query
-// response's trace_id field, which a browser correlates against Tempo. The trace id
-// is the second dash-delimited field of the traceparent ("00-<trace-id>-<span-id>-<flags>").
+// TraceIDFromContext returns the 32-hex W3C trace id of the active span in ctx, or ""
+// when there is no valid span context. It is the bare trace id (not the full
+// traceparent), used to return the trace to a client that cannot read a response header —
+// e.g. the WebSocket query response's trace_id field, which a browser correlates against
+// Tempo. The trace id is the second dash-delimited field of the traceparent
+// ("00-<trace-id>-<span-id>-<flags>").
 func TraceIDFromContext(ctx context.Context) string {
 	parts := strings.SplitN(TraceParentFromContext(ctx), "-", 4)
 	if len(parts) >= 2 && len(parts[1]) == 32 {
@@ -58,12 +59,13 @@ func TraceIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// ContextWithForcedSample returns ctx seeded with a fresh, sampled REMOTE parent span context, so a
-// subsequent Tracer.Start under a ParentBased sampler records the span regardless of the configured
-// sample ratio. It force-samples a server-created ROOT span that has no client-supplied traceparent to
-// honour — e.g. a WebSocket message handler, whose browser client cannot stamp a per-frame
-// traceparent — such as an end-to-end telemetry check. The ids are crypto-random so the forced trace never
-// collides with a real one; on the (practically impossible) rand failure it returns ctx unchanged,
+// ContextWithForcedSample returns ctx seeded with a fresh, sampled REMOTE parent span
+// context, so a subsequent Tracer.Start under a ParentBased sampler records the span
+// regardless of the configured sample ratio. It force-samples a server-created ROOT span
+// that has no client-supplied traceparent to honour — e.g. a WebSocket message handler,
+// whose browser client cannot stamp a per-frame traceparent — such as an end-to-end
+// telemetry check. The ids are crypto-random so the forced trace never collides with a
+// real one; on the (practically impossible) rand failure it returns ctx unchanged,
 // degrading to the configured ratio rather than erroring on a request path.
 func ContextWithForcedSample(ctx context.Context) context.Context {
 	var tid oteltrace.TraceID

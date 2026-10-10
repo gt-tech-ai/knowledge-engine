@@ -2,12 +2,12 @@ package interfaces
 
 import "context"
 
-// Pipeline is the generic data transformation interface for stateless sequential operations.
-// In = input type, Out = output type.
+// Pipeline is the generic data transformation interface for stateless sequential
+// operations. In = input type, Out = output type.
 //
-// Pipelines model stateless sequential transformations where each stage consumes the output
-// of the prior stage. Unlike workflows, pipelines do not coordinate state or orchestrate
-// multiple services — they focus on pure data transformation.
+// Pipelines model stateless sequential transformations where each stage consumes the
+// output of the prior stage. Unlike workflows, pipelines do not coordinate state or
+// orchestrate multiple services — they focus on pure data transformation.
 //
 // Examples: NLP processing (tokenization → POS tagging → NER), document parsing
 // (text extraction → metadata extraction → chunking), ETL transformations.

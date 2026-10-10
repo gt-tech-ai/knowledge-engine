@@ -42,7 +42,8 @@ func markFor(explicit types.Mark, row, col fieldKind) types.Mark {
 	switch {
 	case row == kindQuantitative && col == kindQuantitative:
 		return types.MarkPoint
-	case (row == kindTemporal && col == kindQuantitative) || (row == kindQuantitative && col == kindTemporal):
+	case (row == kindTemporal && col == kindQuantitative) ||
+		(row == kindQuantitative && col == kindTemporal):
 		return types.MarkLine
 	case row == kindQuantitative || col == kindQuantitative:
 		return types.MarkBar

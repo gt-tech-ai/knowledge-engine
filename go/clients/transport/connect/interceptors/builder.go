@@ -18,7 +18,8 @@ import (
 // SERVICE on internal mounts and runs before end-user auth; caller-supplied
 // interceptors follow auth so the claims are present.
 type ServerBuilder struct {
-	// serviceValidator validates the caller's service-to-service bearer token (WithServiceAuth).
+	// serviceValidator validates the caller's service-to-service bearer token
+	// (WithServiceAuth).
 	serviceValidator interfaces.ServiceTokenValidator
 	// metrics collects request count and duration when set (WithMetrics).
 	metrics interfaces.Metrics
@@ -35,17 +36,20 @@ type ServerBuilder struct {
 	// extra holds the caller-supplied interceptors, run after auth and before
 	// validate (WithInterceptors).
 	extra []connect.Interceptor
-	// retryBudget caps per-request retries across the downstream chain; ≤0 disables it (WithRetryBudget).
+	// retryBudget caps per-request retries across the downstream chain; ≤0 disables it
+	// (WithRetryBudget).
 	retryBudget int32
 	// recovery enables the panic-recovery interceptor (WithRecovery).
 	recovery bool
 	// serviceAuth enables the service-to-service auth interceptor (WithServiceAuth).
 	serviceAuth bool
-	// authStub, when true, synthesizes dev claims instead of requiring real auth (local dev; WithAuth).
+	// authStub, when true, synthesizes dev claims instead of requiring real auth (local
+	// dev; WithAuth).
 	authStub bool
 	// serviceStub bypasses service-token validation for local dev (WithServiceAuth).
 	serviceStub bool
-	// serviceAudit logs the service-auth outcome but admits the call (staged rollout; WithServiceAuth).
+	// serviceAudit logs the service-auth outcome but admits the call (staged rollout;
+	// WithServiceAuth).
 	serviceAudit bool
 	// validate enables request payload validation (WithValidation).
 	validate bool

@@ -15,10 +15,12 @@ type ServerConfig struct {
 	// MaxMessageSize is the maximum allowed size in bytes for sent and received messages.
 	MaxMessageSize int
 
-	// KeepaliveTime is the interval between server keepalive pings to detect dead connections.
+	// KeepaliveTime is the interval between server keepalive pings to detect dead
+	// connections.
 	KeepaliveTime time.Duration
 
-	// KeepaliveTimeout is the duration the server waits for a keepalive ping acknowledgement.
+	// KeepaliveTimeout is the duration the server waits for a keepalive ping
+	// acknowledgement.
 	KeepaliveTimeout time.Duration
 
 	// KeepaliveMinTime is the minimum interval the server allows between a client's

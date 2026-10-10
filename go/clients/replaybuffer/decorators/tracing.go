@@ -9,8 +9,9 @@ import (
 // compile-time assertion that *tracingDecorator satisfies the seam.
 var _ interfaces.ReplayBuffer = (*tracingDecorator)(nil)
 
-// tracingDecorator opens a client span per buffer operation so the backend round-trips are visible
-// in Tempo. It is the outermost decorator, so a span covers the whole bounded operation.
+// tracingDecorator opens a client span per buffer operation so the backend round-trips
+// are visible in Tempo. It is the outermost decorator, so a span covers the whole bounded
+// operation.
 type tracingDecorator struct {
 	// inner is the next buffer in the decorator chain.
 	inner interfaces.ReplayBuffer

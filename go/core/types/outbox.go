@@ -36,7 +36,8 @@ type OutboxRecord struct {
 
 // OutboxStats is a point-in-time summary of one lane.
 type OutboxStats struct {
-	// OldestPending is the CreatedAt of the oldest undelivered, unparked row (zero when none).
+	// OldestPending is the CreatedAt of the oldest undelivered, unparked row (zero when
+	// none).
 	OldestPending time.Time
 	// Pending counts undelivered, unparked rows.
 	Pending int

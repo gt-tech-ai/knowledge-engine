@@ -11,7 +11,8 @@
 //	}
 //	l.Info("application started")
 //
-// Shared utilities (WithCorrelationID, CorrelationID, RedactPII) are available from this package.
+// Shared utilities (WithCorrelationID, CorrelationID, RedactPII) are available from this
+// package.
 package logger
 
 import (

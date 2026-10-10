@@ -32,8 +32,9 @@ type Cache struct {
 
 // Config tunes the data-layer pagination knobs.
 type Config struct {
-	// MaxPageSize caps every paginated LIMIT (clamps the page size in listquery.Run); 0 = uncapped.
-	// The cap that closes the unbounded-LIMIT gap on client-supplied page sizes.
+	// MaxPageSize caps every paginated LIMIT (clamps the page size in listquery.Run); 0 =
+	// uncapped. The cap that closes the unbounded-LIMIT gap on client-supplied page
+	// sizes.
 	MaxPageSize int `mapstructure:"max_page_size"`
 
 	// DefaultPageSize is the fallback page size when a request omits one.

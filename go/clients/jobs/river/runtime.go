@@ -102,10 +102,11 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*Runtime, error) {
 	return &Runtime{pool: pool, client: client}, nil
 }
 
-// buildQueues maps the runtime onto its single queue: queueName (empty → river.QueueDefault) capped at
-// maxWorkers (non-positive → defaultMaxWorkers). The cap is PER CLIENT (per replica), not global: K
-// workers on a named queue across N replicas run up to K × N jobs of that kind at once. Pure so the
-// construction is unit-tested without a database.
+// buildQueues maps the runtime onto its single queue: queueName (empty →
+// river.QueueDefault) capped at maxWorkers (non-positive → defaultMaxWorkers). The cap is
+// PER CLIENT (per replica), not global: K workers on a named queue across N replicas run
+// up to K × N jobs of that kind at once. Pure so the construction is unit-tested without
+// a database.
 func buildQueues(queueName string, maxWorkers int) map[string]river.QueueConfig {
 	if queueName == "" {
 		queueName = river.QueueDefault

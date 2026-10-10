@@ -163,7 +163,8 @@ func compactGroup(
 	table := TableName(cube, grain)
 	dimsKey := g.dimsKey
 	upsert := "INSERT INTO " + table +
-		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, '', ?, ?)"
+		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials)" +
+		" VALUES (?, ?, ?, ?, ?, '', ?, ?)"
 	var ttlArgs []any
 	if ttlSeconds > 0 {
 		upsert += " USING TTL ?"
@@ -182,7 +183,8 @@ func compactGroup(
 			append([]any{org, cube, bucket, g.ts, dimsKey, g.dims, next}, ttlArgs...)...)
 		for _, key := range g.keys[start:end] {
 			batch.Query("DELETE FROM "+table+
-				" WHERE org_id = ? AND cube = ? AND bucket = ? AND ts = ? AND dims_key = ? AND idempotency_key = ?",
+				" WHERE org_id = ? AND cube = ? AND bucket = ? AND ts = ?"+
+				" AND dims_key = ? AND idempotency_key = ?",
 				org, cube, bucket, g.ts, dimsKey, key)
 		}
 		if err := session.ExecuteBatch(batch); err != nil {

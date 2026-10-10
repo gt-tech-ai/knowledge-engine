@@ -55,8 +55,8 @@ type Config struct {
 	// Kind specifies which bulkhead implementation to use.
 	Kind Kind
 
-	// MaxConcurrent is the maximum number of concurrent operations allowed. For KindAdaptive it
-	// is the ceiling the self-tuning limit never grows above.
+	// MaxConcurrent is the maximum number of concurrent operations allowed. For
+	// KindAdaptive it is the ceiling the self-tuning limit never grows above.
 	MaxConcurrent int `yaml:"max_concurrent" mapstructure:"max_concurrent"`
 
 	// MinConcurrent is the floor the adaptive limit never drops below (KindAdaptive only).
@@ -75,7 +75,8 @@ type Config struct {
 }
 
 // DefaultConfig returns the default bulkhead configuration with KindChannel. The adaptive
-// fields carry sensible defaults too, so New(KindAdaptive) yields a usable self-tuning limiter.
+// fields carry sensible defaults too, so New(KindAdaptive) yields a usable self-tuning
+// limiter.
 func DefaultConfig() Config {
 	return Config{
 		Kind:              KindChannel,
@@ -94,9 +95,10 @@ func (c Config) ToOptions() []options.Option[Config] {
 	}
 }
 
-// WithMaxConcurrent sets the maximum number of concurrent operations. The adaptive kind's other
-// tunables (min/initial concurrency, RTT threshold, backoff ratio) are set via a Config passed to
-// NewFromConfig — the path the config loader uses — so they need no dedicated option helpers.
+// WithMaxConcurrent sets the maximum number of concurrent operations. The adaptive kind's
+// other tunables (min/initial concurrency, RTT threshold, backoff ratio) are set via a
+// Config passed to NewFromConfig — the path the config loader uses — so they need no
+// dedicated option helpers.
 func WithMaxConcurrent(n int) options.Option[Config] {
 	return func(c *Config) { c.MaxConcurrent = n }
 }

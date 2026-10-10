@@ -1,6 +1,6 @@
 // Package dedup provides message deduplication for exactly-once processing under
-// at-least-once delivery. The default Memory backend is single-process; a shared
-// store (Redis/Postgres) is the cross-replica sibling that lands when a second replica does.
+// at-least-once delivery. The default Memory backend is single-process; a shared store
+// (Redis/Postgres) is the cross-replica sibling that lands when a second replica does.
 package dedup
 
 import (
@@ -12,7 +12,8 @@ import (
 )
 
 // Memory is an in-memory Deduplicator with an optional TTL. A zero TTL means keys never
-// expire (bounded only by memory); a positive TTL lets a key be re-processed after it lapses.
+// expire (bounded only by memory); a positive TTL lets a key be re-processed after it
+// lapses.
 type Memory struct {
 	// seen maps a processed key to the time it was first recorded.
 	seen map[string]time.Time

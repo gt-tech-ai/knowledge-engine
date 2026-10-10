@@ -40,13 +40,13 @@ func invalid(msg string) error {
 	return errors.New(errors.CodeInvalidInput, "vizspec: "+msg)
 }
 
-// Parse decodes a JSON VizSpec and validates it against the cube's allow-list m:
-// every referenced field must be allow-listed; a measure must carry one of its
-// permitted aggregates and a dimension or time field none; detail fields must be
-// dimensions; shelves nest at most MaxShelfDepth levels; the grain, mark, time
-// range must be valid; a sort key must name a dimension or aggregated measure the
-// spec places (shelves, detail, encodings); a nil m is rejected; and the filter is compiled with
-// listquery.Parse. Every rejection is CodeInvalidInput.
+// Parse decodes a JSON VizSpec and validates it against the cube's allow-list m: every
+// referenced field must be allow-listed; a measure must carry one of its permitted
+// aggregates and a dimension or time field none; detail fields must be dimensions;
+// shelves nest at most MaxShelfDepth levels; the grain, mark, time range must be valid; a
+// sort key must name a dimension or aggregated measure the spec places (shelves, detail,
+// encodings); a nil m is rejected; and the filter is compiled with listquery.Parse. Every
+// rejection is CodeInvalidInput.
 func Parse(b []byte, m *listquery.Map) (types.VizSpec, error) {
 	var spec types.VizSpec
 	if err := json.Unmarshal(b, &spec); err != nil {

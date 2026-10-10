@@ -102,22 +102,24 @@ type StorageClient interface {
 	// ListObjects lists objects in a bucket with the given prefix.
 	ListObjects(ctx context.Context, bucket, prefix string) ([]StorageObject, error)
 
-	// ListObjectsPage lists AT MOST limit objects in a bucket with the given prefix — a bounded
-	// single-page variant of ListObjects for callers that need a cheap reachability/count probe
-	// rather than a full inventory (e.g. a connector's TestConnection against a large customer
-	// bucket). A non-positive limit lists at most one page's worth (backend default).
+	// ListObjectsPage lists AT MOST limit objects in a bucket with the given prefix — a
+	// bounded single-page variant of ListObjects for callers that need a cheap
+	// reachability/count probe rather than a full inventory (e.g. a connector's
+	// TestConnection against a large customer bucket). A non-positive limit lists at most
+	// one page's worth (backend default).
 	ListObjectsPage(
 		ctx context.Context,
 		bucket, prefix string,
 		limit int,
 	) ([]StorageObject, error)
 
-	// ListObjectsPageToken lists AT MOST limit objects under prefix STARTING AFTER continuationToken
-	// (empty token = start of the listing) and returns the objects plus the token to resume from
-	// (nextToken == "" when the listing is exhausted). It is the resumable, memory-bounded streaming
-	// primitive a large-bucket crawl pages over — never materializing the full key list — so a caller
-	// (e.g. a sync engine) holds at most one page at a time and can checkpoint the token to
-	// crash-resume. A non-positive limit lets the backend apply its default page size.
+	// ListObjectsPageToken lists AT MOST limit objects under prefix STARTING AFTER
+	// continuationToken (empty token = start of the listing) and returns the objects plus
+	// the token to resume from (nextToken == "" when the listing is exhausted). It is the
+	// resumable, memory-bounded streaming primitive a large-bucket crawl pages over —
+	// never materializing the full key list — so a caller (e.g. a sync engine) holds at
+	// most one page at a time and can checkpoint the token to crash-resume. A
+	// non-positive limit lets the backend apply its default page size.
 	ListObjectsPageToken(
 		ctx context.Context,
 		bucket, prefix, continuationToken string,

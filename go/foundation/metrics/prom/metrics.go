@@ -26,7 +26,8 @@ var (
 
 // Metrics implements interfaces.Metrics backed by Prometheus.
 type Metrics struct {
-	// reg is the Prometheus registry that all counters, histograms, and gauges register with.
+	// reg is the Prometheus registry that all counters, histograms, and gauges register
+	// with.
 	reg *prometheus.Registry
 }
 

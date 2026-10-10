@@ -1,8 +1,9 @@
-// Package s3 implements the S3 ConnectorSource for the connector family: a "test connection" probe that
-// lists a bounded page under a connector's bucket/prefix using the connector's OWN credentials, over the
-// shared StorageClient (INJECTED — this package never imports go/clients/storage, so there is no
-// lateral same-layer import). Its credential strategies (STS AssumeRole, static access key) are the
-// S3-specific, AWS-typed part of the family; an OAuth2-with-refresh strategy for SaaS connectors is a
+// Package s3 implements the S3 ConnectorSource for the connector family: a "test
+// connection" probe that lists a bounded page under a connector's bucket/prefix using the
+// connector's OWN credentials, over the shared StorageClient (INJECTED — this package
+// never imports go/clients/storage, so there is no lateral same-layer import). Its
+// credential strategies (STS AssumeRole, static access key) are the S3-specific,
+// AWS-typed part of the family; an OAuth2-with-refresh strategy for SaaS connectors is a
 // future sibling package.
 package s3
 
@@ -27,9 +28,10 @@ const (
 	authMethodAccessKey = "access_key"
 )
 
-// STS's constraint on AssumeRole's ExternalId: 2–1224 characters of [\w+=,.@:/-]. Checking it at
-// build turns a malformed id into CodeInvalidInput up front instead of an STS ValidationError inside
-// the first S3 call. (RE2 caps a repeat count at 1000, so the length is checked separately.)
+// STS's constraint on AssumeRole's ExternalId: 2–1224 characters of [\w+=,.@:/-].
+// Checking it at build turns a malformed id into CodeInvalidInput up front instead of an
+// STS ValidationError inside the first S3 call. (RE2 caps a repeat count at 1000, so the
+// length is checked separately.)
 const (
 	// minExternalIDLen is the shortest ExternalId STS accepts.
 	minExternalIDLen = 2
@@ -41,16 +43,17 @@ const (
 var externalIDChars = regexp.MustCompile(`^[\w+=,.@:/-]+$`)
 
 // credentialsFromConfig selects the S3 credential strategy for method, failing loudly
-// (CodeInvalidInput) on an unknown method (the foundation/logger NewFromConfig pattern) or on a
-// config that cannot authenticate:
+// (CodeInvalidInput) on an unknown method (the foundation/logger NewFromConfig pattern)
+// or on a config that cannot authenticate:
 //   - access_key presents the static key and requires a non-empty key id and secret;
-//   - iam_role assumes the connector's role via STS with the connector's ExternalId (lazy — the
-//     provider retrieves on first use) and requires a role ARN, an STS client, and an ExternalId
-//     within STS's format.
+//   - iam_role assumes the connector's role via STS with the connector's ExternalId (lazy
+//     — the provider retrieves on first use) and requires a role ARN, an STS client, and
+//     an ExternalId within STS's format.
 //
-// The ExternalId only defeats the confused deputy if the caller's platform generates it per tenant
-// and stores it with the connector; it must never be taken from the tenant's own input, or a tenant
-// could present another tenant's role ARN together with that tenant's id.
+// The ExternalId only defeats the confused deputy if the caller's platform generates it
+// per tenant and stores it with the connector; it must never be taken from the tenant's
+// own input, or a tenant could present another tenant's role ARN together with that
+// tenant's id.
 //
 // The returned provider marks every retrieval failure (see credentialsError) so the list
 // classifier reports it as a configuration problem rather than an unreachable store.
@@ -89,8 +92,8 @@ func credentialsFromConfig(
 	}
 }
 
-// validateIAMRole checks the iam_role inputs STS needs, returning a CodeInvalidInput error naming
-// the first missing or malformed one.
+// validateIAMRole checks the iam_role inputs STS needs, returning a CodeInvalidInput
+// error naming the first missing or malformed one.
 func validateIAMRole(
 	iamRoleARN, externalID string,
 	stsClient stscreds.AssumeRoleAPIClient,
@@ -121,17 +124,17 @@ func validateIAMRole(
 	return nil
 }
 
-// markedProvider wraps a credentials provider so a retrieval failure carries a credentialsError.
-// The SDK resolves credentials lazily inside the first S3 call, so without the mark a refused
-// AssumeRole (STS's AccessDenied is unmodeled, with an unknown fault) is indistinguishable from an
-// unreachable store.
+// markedProvider wraps a credentials provider so a retrieval failure carries a
+// credentialsError. The SDK resolves credentials lazily inside the first S3 call, so
+// without the mark a refused AssumeRole (STS's AccessDenied is unmodeled, with an unknown
+// fault) is indistinguishable from an unreachable store.
 type markedProvider struct {
 	// inner is the strategy's own provider (static or STS AssumeRole).
 	inner aws.CredentialsProvider
 }
 
-// Retrieve returns inner's credentials, marking a failure as a credentialsError unless it is the
-// caller's own cancellation or deadline (that is not a credentials problem).
+// Retrieve returns inner's credentials, marking a failure as a credentialsError unless it
+// is the caller's own cancellation or deadline (that is not a credentials problem).
 func (p markedProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	creds, err := p.inner.Retrieve(ctx)
 	if err == nil {
@@ -145,7 +148,8 @@ func (p markedProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
 }
 
 // credentialsError marks a failure to retrieve the connector's credentials (a refused or
-// misconfigured AssumeRole, rejected static keys). classifyListError maps it to CodeInvalidInput.
+// misconfigured AssumeRole, rejected static keys). classifyListError maps it to
+// CodeInvalidInput.
 type credentialsError struct {
 	// err is the provider's underlying failure.
 	err error

@@ -16,14 +16,15 @@ import (
 // "prometheus.<last path segment>" (prometheus.query, prometheus.query_range).
 //
 // Each attempt reads the whole response body before the stack's per-attempt timeout ends,
-// so the returned body is buffered and the deadline cannot cut a read short. A body larger
-// than maxBodyBytes is CodeInvalidInput (narrow the query); zero or less means no limit.
+// so the returned body is buffered and the deadline cannot cut a read short. A body
+// larger than maxBodyBytes is CodeInvalidInput (narrow the query); zero or less means no
+// limit.
 //
 // Query requests are GETs, so every attempt is retryable. A transport error keeps a code
 // it already carries; otherwise the caller's deadline is CodeTimeout, its cancellation
 // CodeCanceled, and any other failure CodeUnavailable. A throttling or unavailable status
-// (429, 502, 503, 504) is a CodeUnavailable error, so the stack retries it and its breaker
-// counts it. Any other status passes through for the client to code.
+// (429, 502, 503, 504) is a CodeUnavailable error, so the stack retries it and its
+// breaker counts it. Any other status passes through for the client to code.
 func DecorateDoer(
 	inner HTTPDoer,
 	stack *clientdecorators.Stack,

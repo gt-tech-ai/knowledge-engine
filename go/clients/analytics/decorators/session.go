@@ -39,7 +39,8 @@ func (s *session) Batch(kind cassandra.BatchKind) cassandra.Batch {
 	return &batch{inner: s.inner.Batch(kind), ctx: context.Background()}
 }
 
-// ExecuteBatch runs the batch through the stack (retried: batches here are idempotent upserts and deletes).
+// ExecuteBatch runs the batch through the stack (retried: batches here are idempotent
+// upserts and deletes).
 func (s *session) ExecuteBatch(b cassandra.Batch) error {
 	inner, ctx := b, context.Background()
 	if db, ok := b.(*batch); ok {
@@ -63,7 +64,7 @@ func (s *session) Close() { s.inner.Close() }
 // query is a decorated Query that remembers its context and idempotency.
 type query struct {
 	// ctx is the statement's context (set by WithContext).
-	ctx context.Context //nolint:containedctx // mirrors gocql's builder, which carries the context
+	ctx context.Context //nolint:containedctx // mirrors gocql's builder
 	// inner is the wrapped query.
 	inner cassandra.Query
 	// stack applies the client-boundary layers.
@@ -108,7 +109,9 @@ func (q *query) Exec() error {
 		q.stack,
 		"cassandra.exec",
 		clientdecorators.RunOpts{Retryable: q.idempotent},
-		func(cctx context.Context) (struct{}, error) { return struct{}{}, q.inner.WithContext(cctx).Exec() },
+		func(cctx context.Context) (struct{}, error) {
+			return struct{}{}, q.inner.WithContext(cctx).Exec()
+		},
 	)
 	return err
 }
@@ -119,7 +122,7 @@ func (q *query) Iter() cassandra.Iter { return q.inner.Iter() }
 // batch is a decorated Batch that remembers its context.
 type batch struct {
 	// ctx is the batch's context.
-	ctx context.Context //nolint:containedctx // mirrors gocql's builder, which carries the context
+	ctx context.Context //nolint:containedctx // mirrors gocql's builder
 	// inner is the wrapped batch.
 	inner cassandra.Batch
 }

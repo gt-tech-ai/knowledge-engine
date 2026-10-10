@@ -89,9 +89,9 @@ func ParseKind(s string) (Kind, error) {
 	}
 }
 
-// NewFromConfig builds the querier cfg selects, without I/O. The HTTP kind sends
-// through an http.Client bounded by cfg.Timeout and wrapped (DecorateDoer) in the client
-// stack built from cfg.Resilience and deps, capping bodies at cfg.MaxBodyBytes. An unknown
+// NewFromConfig builds the querier cfg selects, without I/O. The HTTP kind sends through
+// an http.Client bounded by cfg.Timeout and wrapped (DecorateDoer) in the client stack
+// built from cfg.Resilience and deps, capping bodies at cfg.MaxBodyBytes. An unknown
 // kind, or KindHTTP without a BaseURL, is CodeInvalidInput.
 func NewFromConfig(
 	cfg Config,

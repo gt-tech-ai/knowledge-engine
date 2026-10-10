@@ -250,7 +250,8 @@ type StreamingClientBuilder struct {
 	clientBuilderConfig[StreamingClientBuilder]
 }
 
-// NewStreamingClientBuilder creates a new StreamingClientBuilder with no interceptors enabled.
+// NewStreamingClientBuilder creates a new StreamingClientBuilder with no interceptors
+// enabled.
 func NewStreamingClientBuilder() *StreamingClientBuilder {
 	b := &StreamingClientBuilder{}
 	b.self = b

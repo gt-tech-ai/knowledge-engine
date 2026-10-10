@@ -34,7 +34,7 @@ func FullJitter(d time.Duration) time.Duration {
 // would overflow, so the full non-negative range is drawn directly.
 func upTo(n int64) int64 {
 	if n == math.MaxInt64 {
-		return rand.Int64() //nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
+		return rand.Int64() //nolint:gosec // backoff desync, not security: a weak PRNG is fine.
 	}
 	//nolint:gosec // backoff desync, not a security decision — a weak PRNG is fine.
 	return rand.Int64N(n + 1)

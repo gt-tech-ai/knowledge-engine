@@ -16,7 +16,8 @@ type noRunner struct{}
 // errNoRunner marks a command execution attempted on a runner-less gate.
 var errNoRunner = apperr.New(
 	apperr.CodeInternal,
-	"command executed on a runner-less gate (RunGateNoRunner): compose commands with RunGate instead",
+	"command executed on a runner-less gate (RunGateNoRunner): "+
+		"compose commands with RunGate instead",
 )
 
 // Run always fails with errNoRunner: a command was executed on a runner-less gate.
@@ -44,7 +45,8 @@ func (noRunner) RunBuffered(
 	return interfaces.CmdResult{Err: errNoRunner, ExitCode: -1}
 }
 
-// RunBufferedWithEnv always fails, returning a CmdResult carrying errNoRunner and exit code -1.
+// RunBufferedWithEnv always fails, returning a CmdResult carrying errNoRunner and exit
+// code -1.
 func (noRunner) RunBufferedWithEnv(
 	context.Context,
 	string,
@@ -58,7 +60,8 @@ func (noRunner) RunBufferedWithEnv(
 // Exists always reports false: no tools are resolvable on a runner-less gate.
 func (noRunner) Exists(string) bool { return false }
 
-// RequireTool always fails with errNoRunner: no tools are resolvable on a runner-less gate.
+// RequireTool always fails with errNoRunner: no tools are resolvable on a runner-less
+// gate.
 func (noRunner) RequireTool(_, _ string) error { return errNoRunner }
 
 // Compile-time assertion that noRunner satisfies interfaces.CommandRunner.

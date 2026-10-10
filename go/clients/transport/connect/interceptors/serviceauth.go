@@ -66,7 +66,8 @@ const (
 	headerAuthorization = "Authorization"
 	// bearerPrefix is the scheme prefix of an "Authorization: Bearer <token>" value.
 	bearerPrefix = "Bearer "
-	// stubCaller is the synthetic caller identity injected when service auth is stubbed (dev).
+	// stubCaller is the synthetic caller identity injected when service auth is stubbed
+	// (dev).
 	stubCaller = "stub-service"
 )
 
@@ -86,8 +87,8 @@ func GetCallerIdentity(ctx context.Context) (string, bool) {
 	return caller, ok
 }
 
-// serviceAuthInterceptor authenticates the CALLING SERVICE on the internal, non-gateway RPCs
-// for BOTH unary and streaming handlers — Connect applies a
+// serviceAuthInterceptor authenticates the CALLING SERVICE on the internal, non-gateway
+// RPCs for BOTH unary and streaming handlers — Connect applies a
 // connect.UnaryInterceptorFunc only to unary calls, so a unary-only guard would leave
 // server-streaming handlers unauthenticated.
 type serviceAuthInterceptor struct {
@@ -153,8 +154,9 @@ func (s serviceAuthInterceptor) WrapStreamingHandler(
 }
 
 // authenticate resolves + validates the caller credential, returning a context carrying
-// the caller identity, or a CodeUnauthenticated error. In stub mode it injects a synthetic
-// caller and skips validation; in audit mode it logs the outcome but always admits.
+// the caller identity, or a CodeUnauthenticated error. In stub mode it injects a
+// synthetic caller and skips validation; in audit mode it logs the outcome but always
+// admits.
 func (s serviceAuthInterceptor) authenticate(
 	ctx context.Context,
 	h http.Header,

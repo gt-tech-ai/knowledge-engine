@@ -125,7 +125,8 @@ func (l *Logger) With(keysAndValues ...any) interfaces.Logger {
 // WithContext returns a logger enriched with the correlation, trace, and span
 // IDs found in ctx. The receiver is returned unchanged when none are present.
 func (l *Logger) WithContext(ctx context.Context) interfaces.Logger {
-	// Extract all context fields independently - do NOT early-return on any single empty field
+	// Extract all context fields independently - do NOT early-return on any single empty
+	// field
 	correlationID := logctx.CorrelationID(ctx)
 	traceID := logctx.TraceID(ctx)
 	spanID := logctx.SpanID(ctx)

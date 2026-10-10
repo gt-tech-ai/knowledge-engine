@@ -27,7 +27,8 @@ type Fact struct {
 	Cube string
 	// OrgID is the organization the fact is partitioned under.
 	OrgID string
-	// IdempotencyKey is unique per observation; a redelivery overwrites, never double-counts.
+	// IdempotencyKey is unique per observation; a redelivery overwrites, never
+	// double-counts.
 	IdempotencyKey string
 	// Schema is the wire version (FactSchemaVersion).
 	Schema int

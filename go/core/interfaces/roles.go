@@ -6,11 +6,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// The role interfaces below decompose the fat data-access contract into small,
-// composable capabilities (ARCHITECTURE.md#interface-composition). Store/Repository/Service are
-// defined as compositions of these roles, so a full-CRUD resource embeds the whole
-// set while a read-only or append-only resource embeds only the roles it honors —
-// instead of implementing (and panicking) the operations it does not support.
+// The role interfaces below decompose the fat data-access contract into small, composable
+// capabilities (ARCHITECTURE.md#interface-composition). Store/Repository/Service are
+// defined as compositions of these roles, so a full-CRUD resource embeds the whole set
+// while a read-only or append-only resource embeds only the roles it honors — instead of
+// implementing (and panicking) the operations it does not support.
 //
 // T = entity type, P = query/filter params, ID = identifier type. Each role's
 // method signatures byte-match the corresponding Store/Repository/Service methods,
@@ -37,14 +37,14 @@ type Writer[T any, ID comparable] interface {
 	Update(ctx context.Context, id ID, entity *T) (*T, error)
 }
 
-// Updater is the standalone update-only write role: a single Update that
-// modifies an existing entity. It is the mirror of Inserter for the read-write
-// side — a resource whose creation happens through a bespoke path (not the
-// generic Create) but whose updates are the plain keyed mutation — e.g. a membership
-// created only from the identity provider's claims on first sign-in, never through the
-// generic Create, but updated by id. Like Inserter, it is NOT part of the Store/Repository/Service
-// composition (those embed Writer, which carries both Create and Update); it is
-// the role a create-less-but-updatable resource embeds in place of Writer.
+// Updater is the standalone update-only write role: a single Update that modifies an
+// existing entity. It is the mirror of Inserter for the read-write side — a resource
+// whose creation happens through a bespoke path (not the generic Create) but whose
+// updates are the plain keyed mutation — e.g. a membership created only from the identity
+// provider's claims on first sign-in, never through the generic Create, but updated by
+// id. Like Inserter, it is NOT part of the Store/Repository/Service composition (those
+// embed Writer, which carries both Create and Update); it is the role a
+// create-less-but-updatable resource embeds in place of Writer.
 type Updater[T any, ID comparable] interface {
 	// Update modifies an existing entity identified by id.
 	Update(ctx context.Context, id ID, entity *T) (*T, error)

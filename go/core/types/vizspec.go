@@ -76,8 +76,8 @@ const (
 	MarkPoint Mark = "point"
 )
 
-// FieldRef references one cube field on a shelf; Agg is set for a measure and
-// empty for a dimension. Wire form: {"field":"team"} or {"field":"tokens_in","agg":"sum"}.
+// FieldRef references one cube field on a shelf; Agg is set for a measure and empty for a
+// dimension. Wire form: {"field":"team"} or {"field":"tokens_in","agg":"sum"}.
 type FieldRef struct {
 	// Name is the cube field name.
 	Name string `json:"field"`
@@ -170,7 +170,8 @@ type Encodings struct {
 	Label *FieldRef `json:"label,omitempty"`
 }
 
-// Fields returns the encoded field references in channel order (color, size, shape, label).
+// Fields returns the encoded field references in channel order (color, size, shape,
+// label).
 func (e Encodings) Fields() []FieldRef {
 	var out []FieldRef
 	for _, ref := range []*FieldRef{e.Color, e.Size, e.Shape, e.Label} {

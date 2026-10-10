@@ -20,13 +20,14 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// SecretsManagerAPI is the subset of the aws-sdk-go-v2 Secrets Manager client used by
-// the source. It is an exported, injectable seam so unit tests drive it with a generated
-// mock without network access, mirroring the S3 client's S3API seam. *secretsmanager.Client
+// SecretsManagerAPI is the subset of the aws-sdk-go-v2 Secrets Manager client used by the
+// source. It is an exported, injectable seam so unit tests drive it with a generated mock
+// without network access, mirroring the S3 client's S3API seam. *secretsmanager.Client
 // satisfies it. The name is distinct (not a bare API) so its generated mock does not
 // collide with the SQS client's API seam in the shared mocks package.
 //
-// SDK seam — mocks the AWS Secrets Manager SDK client (aws-sdk-go-v2/service/secretsmanager), cannot compose with a core port.
+// SDK seam — mocks the AWS Secrets Manager SDK client
+// (aws-sdk-go-v2/service/secretsmanager), cannot compose with a core port.
 type SecretsManagerAPI interface {
 	// GetSecretValue retrieves a secret's value (the SecretString JSON blob).
 	GetSecretValue(

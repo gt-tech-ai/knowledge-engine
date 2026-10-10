@@ -131,7 +131,11 @@ func SpyTracer(onSetAttribute func(key string, value any)) interfaces.Tracer {
 
 	t := mocks.NewMockTracer(ctrl)
 	t.EXPECT().Start(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ string, _ ...interfaces.SpanOption) (context.Context, interfaces.Span) {
+		func(
+			ctx context.Context,
+			_ string,
+			_ ...interfaces.SpanOption,
+		) (context.Context, interfaces.Span) {
 			return ctx, span
 		},
 	).
@@ -201,7 +205,8 @@ func ErrPipeline(err error) *mocks.MockPipeline[string, string] {
 	return StubPipeline(func(context.Context, string) (string, error) { return "", err })
 }
 
-// PanicPipeline returns a MockPipeline whose Execute panics (for recovery-decorator tests).
+// PanicPipeline returns a MockPipeline whose Execute panics (for recovery-decorator
+// tests).
 func PanicPipeline() *mocks.MockPipeline[string, string] {
 	return StubPipeline(
 		func(context.Context, string) (string, error) { panic("test panic in pipeline") },
@@ -220,7 +225,9 @@ func StubWorkflow(
 // PassWorkflow returns a MockWorkflow that echoes "mock-workflow-output-"+input.
 func PassWorkflow() *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(
-		func(_ context.Context, in string) (string, error) { return "mock-workflow-output-" + in, nil },
+		func(_ context.Context, in string) (string, error) {
+			return "mock-workflow-output-" + in, nil
+		},
 	)
 }
 
@@ -229,7 +236,8 @@ func ErrWorkflow(err error) *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(func(context.Context, string) (string, error) { return "", err })
 }
 
-// PanicWorkflow returns a MockWorkflow whose Execute panics (for recovery-decorator tests).
+// PanicWorkflow returns a MockWorkflow whose Execute panics (for recovery-decorator
+// tests).
 func PanicWorkflow() *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(
 		func(context.Context, string) (string, error) { panic("test panic in workflow") },
@@ -349,7 +357,11 @@ func StubStore() *mocks.MockStore[TestEntity, TestParams, string] {
 		},
 	).AnyTimes()
 	s.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ TestParams, _ types.PageRequest) (*types.Page[TestEntity], error) {
+		func(
+			_ context.Context,
+			_ TestParams,
+			_ types.PageRequest,
+		) (*types.Page[TestEntity], error) {
 			out := make([]TestEntity, 0, len(items))
 			for _, e := range items {
 				out = append(out, *e)
@@ -359,11 +371,17 @@ func StubStore() *mocks.MockStore[TestEntity, TestParams, string] {
 	).
 		AnyTimes()
 	s.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, e *TestEntity) (*TestEntity, error) { items[e.ID] = e; return e, nil },
+		func(_ context.Context, e *TestEntity) (*TestEntity, error) {
+			items[e.ID] = e
+			return e, nil
+		},
 	).
 		AnyTimes()
 	s.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, id string, e *TestEntity) (*TestEntity, error) { items[id] = e; return e, nil },
+		func(_ context.Context, id string, e *TestEntity) (*TestEntity, error) {
+			items[id] = e
+			return e, nil
+		},
 	).
 		AnyTimes()
 	s.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(

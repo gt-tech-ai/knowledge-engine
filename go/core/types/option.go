@@ -43,7 +43,8 @@ func (o Option[T]) UnwrapOr(fallback T) T {
 	return fallback
 }
 
-// UnwrapOrElse returns the value if present, otherwise calls the fallback function to compute a value.
+// UnwrapOrElse returns the value if present, otherwise calls the fallback function to
+// compute a value.
 func (o Option[T]) UnwrapOrElse(fallback func() T) T {
 	if o.Valid {
 		return o.Value
@@ -69,9 +70,9 @@ func (o Option[T]) ToPtr() *T {
 	return nil
 }
 
-// SomeIfNotEmpty maps an optional string ("" → None) to an Option, used at the transport edge for
-// optional proto string fields where an empty value means "absent" / "leave unchanged" rather than
-// an explicit Some("").
+// SomeIfNotEmpty maps an optional string ("" → None) to an Option, used at the transport
+// edge for optional proto string fields where an empty value means "absent" / "leave
+// unchanged" rather than an explicit Some("").
 func SomeIfNotEmpty(s string) Option[string] {
 	if s == "" {
 		return None[string]()

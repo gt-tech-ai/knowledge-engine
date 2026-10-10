@@ -54,7 +54,8 @@ type Config struct {
 	Delay time.Duration `yaml:"delay" mapstructure:"delay"`
 }
 
-// DefaultConfig returns the default hedger configuration — disabled, because hedging is opt-in.
+// DefaultConfig returns the default hedger configuration — disabled, because hedging is
+// opt-in.
 func DefaultConfig() Config {
 	return Config{
 		Kind:  KindDisabled,
@@ -76,7 +77,8 @@ func New(kind Kind, opts ...options.Option[Config]) (interfaces.Hedger, error) {
 	return NewFromConfig(cfg)
 }
 
-// NewFromConfig creates a Hedger from a Config struct. Returns an error if the kind is unknown.
+// NewFromConfig creates a Hedger from a Config struct. Returns an error if the kind is
+// unknown.
 func NewFromConfig(cfg Config) (interfaces.Hedger, error) {
 	switch cfg.Kind {
 	case KindDisabled:
@@ -91,7 +93,8 @@ func NewFromConfig(cfg Config) (interfaces.Hedger, error) {
 	}
 }
 
-// disabledHedger runs op exactly once (no hedging) — the safe default for non-idempotent paths.
+// disabledHedger runs op exactly once (no hedging) — the safe default for non-idempotent
+// paths.
 type disabledHedger struct{}
 
 // compile-time check: disabledHedger satisfies the Hedger contract.
@@ -102,8 +105,8 @@ func (disabledHedger) Hedge(_ context.Context, op func() error) error {
 	return op()
 }
 
-// delayHedger is the delay-then-race Hedger: it fires a backup attempt after delay and returns
-// the first attempt to complete.
+// delayHedger is the delay-then-race Hedger: it fires a backup attempt after delay and
+// returns the first attempt to complete.
 type delayHedger struct {
 	// delay is how long to wait before firing the backup attempt.
 	delay time.Duration
@@ -112,9 +115,10 @@ type delayHedger struct {
 // compile-time check: *delayHedger satisfies the Hedger contract.
 var _ interfaces.Hedger = (*delayHedger)(nil)
 
-// Hedge runs op, firing a second concurrent attempt after the configured delay and returning
-// the first responder's result. The slower attempt's result is discarded; a buffered result
-// channel avoids a leaked goroutine. To actually cancel the loser's work, op must observe ctx.
+// Hedge runs op, firing a second concurrent attempt after the configured delay and
+// returning the first responder's result. The slower attempt's result is discarded; a
+// buffered result channel avoids a leaked goroutine. To actually cancel the loser's work,
+// op must observe ctx.
 func (h *delayHedger) Hedge(ctx context.Context, op func() error) error {
 	// Buffered for both attempts so the loser's goroutine never blocks on its send.
 	results := make(chan error, 2)

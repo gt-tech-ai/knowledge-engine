@@ -243,14 +243,16 @@ func unwrapAndValidate(body []byte, resourceType string) (unwrapped []byte, msg 
 	return out, ""
 }
 
-// reclassifyBindingError corrects the HTTP status of a Vanguard transcoding error. When Vanguard
-// cannot BIND a REST request to its target message — an unknown query/path field, an unparseable
-// value — it classifies the failure as the Connect code Unknown, which maps to HTTP 500. But a request
-// the server could not bind is the CLIENT's fault, so it must be 400. Application handler errors never
-// use Unknown (they carry apperr codes → Internal (13) / NotFound (5) / InvalidArgument (3) → already
-// 400 / …), so a 500 whose numeric error code is exactly Unknown is unambiguously a Vanguard
-// request-binding failure; every other status/code passes through unchanged. Vanguard writes the code
-// as a NUMBER (the google.rpc.Code enum, which connect.Code mirrors), not the string "unknown".
+// reclassifyBindingError corrects the HTTP status of a Vanguard transcoding error. When
+// Vanguard cannot BIND a REST request to its target message — an unknown query/path
+// field, an unparseable value — it classifies the failure as the Connect code Unknown,
+// which maps to HTTP 500. But a request the server could not bind is the CLIENT's fault,
+// so it must be 400. Application handler errors never use Unknown (they carry apperr
+// codes → Internal (13) / NotFound (5) / InvalidArgument (3) → already 400 / …), so a 500
+// whose numeric error code is exactly Unknown is unambiguously a Vanguard request-binding
+// failure; every other status/code passes through unchanged. Vanguard writes the code as
+// a NUMBER (the google.rpc.Code enum, which connect.Code mirrors), not the string
+// "unknown".
 func reclassifyBindingError(status int, body []byte) int {
 	if status != http.StatusInternalServerError {
 		return status

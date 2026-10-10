@@ -33,7 +33,8 @@ var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 // nil layer (or zero timeout) is skipped, so the zero-value Stack is a
 // passthrough. Build one with [New] + the With* options, or [StackFromConfig].
 type Stack struct {
-	// bulkhead bounds concurrent in-flight operations (the outermost layer); nil disables it.
+	// bulkhead bounds concurrent in-flight operations (the outermost layer); nil disables
+	// it.
 	bulkhead interfaces.Bulkhead
 
 	// retrier retries Retryable operations outside the circuit breaker; nil disables retry.
@@ -48,7 +49,8 @@ type Stack struct {
 	// logger records failed operations; nil disables the failure log.
 	logger interfaces.Logger
 
-	// ops counts every operation attempt (client_operations_total); nil (via WithMetrics) disables metrics.
+	// ops counts every operation attempt (client_operations_total); nil (via WithMetrics)
+	// disables metrics.
 	ops interfaces.Counter
 
 	// errs counts failed operation attempts (client_errors_total).

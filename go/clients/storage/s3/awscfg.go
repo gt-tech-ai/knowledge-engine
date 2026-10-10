@@ -69,11 +69,11 @@ func NewAWSClient(ctx context.Context, cfg infra.S3Config) (*s3.Client, error) {
 	return s3.NewFromConfig(awsCfg, s3OptionsApplier(cfg)), nil
 }
 
-// NewAWSClientWithCredentials builds an S3 client that signs with an EXPLICIT credentials provider
-// and region, instead of NewAWSClient's app-level MinIO-static / AWS-IRSA selection. It is the
-// connector-scoped path: a connector presents its OWN credentials (STS-assumed role or a
-// static access key) to reach an external bucket. Path-style/endpoint handling (MinIO vs AWS) still
-// comes from cfg via s3OptionsApplier.
+// NewAWSClientWithCredentials builds an S3 client that signs with an EXPLICIT credentials
+// provider and region, instead of NewAWSClient's app-level MinIO-static / AWS-IRSA
+// selection. It is the connector-scoped path: a connector presents its OWN credentials
+// (STS-assumed role or a static access key) to reach an external bucket.
+// Path-style/endpoint handling (MinIO vs AWS) still comes from cfg via s3OptionsApplier.
 func NewAWSClientWithCredentials(
 	ctx context.Context,
 	cfg infra.S3Config,

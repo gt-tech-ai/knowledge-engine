@@ -122,8 +122,8 @@ func (i tracingInterceptor) WrapStreamingHandler(
 	}
 }
 
-// ClientTracingInterceptor creates a client-side interceptor that traces Connect RPC calls
-// with SpanKindClient and injects W3C Trace Context into outgoing request headers.
+// ClientTracingInterceptor creates a client-side interceptor that traces Connect RPC
+// calls with SpanKindClient and injects W3C Trace Context into outgoing request headers.
 func ClientTracingInterceptor(tracer interfaces.Tracer) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {

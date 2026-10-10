@@ -146,11 +146,12 @@ func setup(ctx context.Context, cfg Config) (*sdktrace.TracerProvider, error) {
 			MaxInterval:     5 * time.Second,
 			MaxElapsedTime:  30 * time.Second,
 		}),
-		// Keepalive so a wedged / half-open connection is detected and re-established in ~1 minute
-		// instead of stalling exports for many minutes (retry alone reuses the same broken connection;
-		// keepalive PINGs during an in-flight export tear it down and reconnect). PermitWithoutStream is
-		// false so pings fire only while an export is active — this never trips the collector's default
-		// gRPC keepalive enforcement, which only polices pings sent with no active stream.
+		// Keepalive so a wedged / half-open connection is detected and re-established in
+		// ~1 minute instead of stalling exports for many minutes (retry alone reuses the
+		// same broken connection; keepalive PINGs during an in-flight export tear it down
+		// and reconnect). PermitWithoutStream is false so pings fire only while an export
+		// is active — this never trips the collector's default gRPC keepalive
+		// enforcement, which only polices pings sent with no active stream.
 		otlptracegrpc.WithDialOption(grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                1 * time.Minute,
 			Timeout:             20 * time.Second,
@@ -183,17 +184,19 @@ func setup(ctx context.Context, cfg Config) (*sdktrace.TracerProvider, error) {
 	case cfg.SampleRate <= 0:
 		sampler = sdktrace.NeverSample()
 	default:
-		// ParentBased so an incoming sampled parent (a W3C traceparent with sampled=1, extracted by
-		// the TraceContext propagator) forces the span sampled — the lever an end-to-end telemetry
-		// check relies on to guarantee its one request's trace reaches the backend without
-		// raising the ratio for normal traffic. A ROOT span with no parent still follows the ratio.
+		// ParentBased so an incoming sampled parent (a W3C traceparent with sampled=1,
+		// extracted by the TraceContext propagator) forces the span sampled — the lever
+		// an end-to-end telemetry check relies on to guarantee its one request's trace
+		// reaches the backend without raising the ratio for normal traffic. A ROOT span
+		// with no parent still follows the ratio.
 		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRate))
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		// A span queue larger than the SDK default (2048) so a burst on a freshly-started pod — a cold
-		// exporter catching up while its connection re-establishes — buffers spans instead of dropping
-		// them. Bounded so a prolonged outage still caps memory.
+		// A span queue larger than the SDK default (2048) so a burst on a freshly-started
+		// pod — a cold exporter catching up while its connection re-establishes — buffers
+		// spans instead of dropping them. Bounded so a prolonged outage still caps
+		// memory.
 		sdktrace.WithBatcher(exporter, sdktrace.WithMaxQueueSize(4096)),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sampler),

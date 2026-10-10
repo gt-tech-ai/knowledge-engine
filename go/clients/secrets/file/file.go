@@ -172,9 +172,10 @@ func upsert(data []byte, key, value string) []byte {
 // splitKV parses a single dotenv line into its key and value. It reports ok=false for a
 // blank line or a comment (leading '#'), or a line without '='. A leading `export ` is
 // tolerated (`export KEY=value`) so a git-ignored dotenv file maintained for BOTH shell
-// `source` and this backend parses identically — the key is matched without the prefix, and a
-// matching pair of surrounding single/double quotes on the value (shell quoting, e.g.
-// `KEY="value"`) is stripped so the value is the credential itself, not the quoted literal.
+// `source` and this backend parses identically — the key is matched without the prefix,
+// and a matching pair of surrounding single/double quotes on the value (shell quoting,
+// e.g. `KEY="value"`) is stripped so the value is the credential itself, not the quoted
+// literal.
 func splitKV(line string) (key, value string, ok bool) {
 	trimmed := strings.TrimSpace(line)
 	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "export "))

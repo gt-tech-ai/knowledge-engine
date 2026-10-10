@@ -92,9 +92,13 @@ func (m *metricsJob) Execute(
 	case results.HasFailures():
 		outcome = "failed"
 	}
-	m.metrics.Counter("execution_job_runs_total", "Job runs by name and outcome", "job", "outcome").
+	m.metrics.Counter(
+		"execution_job_runs_total", "Job runs by name and outcome", "job", "outcome",
+	).
 		Add(1, meta.Name, outcome)
-	m.metrics.Histogram("execution_job_duration_seconds", "Job duration in seconds", nil, "job").
+	m.metrics.Histogram(
+		"execution_job_duration_seconds", "Job duration in seconds", nil, "job",
+	).
 		Observe(elapsed.Seconds(), meta.Name)
 	return results, err
 }

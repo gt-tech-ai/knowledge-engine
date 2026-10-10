@@ -45,8 +45,9 @@ const (
 // disabled by a momentary outage. Close cancels all subscriptions and waits for
 // in-flight handlers to drain.
 type Subscriber struct {
-	// NoOp supplies the no-op Start/Stop: the long-poll receive loop is owned per-Subscribe
-	// call (cancelled via cancels), so the Subscriber itself opens/closes no shared resource.
+	// NoOp supplies the no-op Start/Stop: the long-poll receive loop is owned
+	// per-Subscribe call (cancelled via cancels), so the Subscriber itself opens/closes
+	// no shared resource.
 	lifecycle.NoOp
 
 	// api is the SQS API used for receive/delete (the real SDK client or a test double).

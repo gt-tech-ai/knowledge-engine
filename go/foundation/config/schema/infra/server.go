@@ -26,7 +26,8 @@ type ServerConfig struct {
 	// WriteTimeout is the maximum duration to write a response.
 	WriteTimeout time.Duration `mapstructure:"write_timeout"`
 
-	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive connection.
+	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive
+	// connection.
 	IdleTimeout time.Duration `mapstructure:"idle_timeout"`
 }
 

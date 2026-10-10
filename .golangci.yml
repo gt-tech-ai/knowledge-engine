@@ -276,12 +276,15 @@ linters:
           - perfsprint
           - sloglint
           - spancheck
-          - golines
-          - lll
           - prealloc
           - noctx
           - protogetter
           - funlen
+      # A struct tag is a single string literal that Go cannot wrap, so a field whose
+      # tag pushes it past the column limit has no compliant spelling.
+      - linters:
+          - lll
+        source: '^\s*\w+\s+[\w.*\[\]]+\s+`(\w+:"[^"]*"\s*)+`$'
     paths:
       - .*\.pb\.go$
       - .*\.gen\.go$

@@ -5,13 +5,15 @@ import coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 // OIDCConfig holds the OpenID Connect provider parameters a service validates end-user
 // tokens against (all non-secret).
 type OIDCConfig struct {
-	// Issuer is the provider's issuer URL (the JWT iss claim), e.g. "https://idp.example.com/".
+	// Issuer is the provider's issuer URL (the JWT iss claim), e.g.
+	// "https://idp.example.com/".
 	Issuer string `mapstructure:"issuer"`
 
 	// Audience is the API resource identifier the tokens must be issued for (the aud claim).
 	Audience string `mapstructure:"audience"`
 
-	// ClientID is this service's client id at the provider, when it calls the provider itself.
+	// ClientID is this service's client id at the provider, when it calls the provider
+	// itself.
 	ClientID string `mapstructure:"client_id"`
 }
 
@@ -44,7 +46,8 @@ type AuthConfig struct {
 	// (sends no credential); provisioned per service by the deployment.
 	ServiceToken string `mapstructure:"service_token" envalias:"SERVICE_AUTH_TOKEN"`
 
-	// Stub enables stub auth validation for local development; must never be true in production.
+	// Stub enables stub auth validation for local development; must never be true in
+	// production.
 	Stub bool `mapstructure:"stub" envalias:"STUB_AUTH"`
 
 	// ServiceStub bypasses service-to-service auth for local development (dev
@@ -61,7 +64,8 @@ type AuthConfig struct {
 }
 
 // DefaultAuthConfig returns a safe local-dev default with both the end-user and the
-// service-to-service auth stubs enabled (no identity provider or service tokens required locally).
+// service-to-service auth stubs enabled (no identity provider or service tokens required
+// locally).
 func DefaultAuthConfig() AuthConfig {
 	return AuthConfig{Stub: true, ServiceStub: true}
 }

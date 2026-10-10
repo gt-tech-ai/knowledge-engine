@@ -82,13 +82,14 @@ func ParseKind(s string) (Kind, error) {
 	}
 }
 
-// NewFromConfig builds a MessagePublisher selected by the tier kind — the SQS backend (KindSQS,
-// configured from cfg), the in-process stub (KindMemory, ignoring cfg), or Redis Pub/Sub (KindRedis,
-// whose shared go-redis client is injected via the WithRedisClient option — NOT from cfg; the
-// SQSConfig arg is inert for Redis) — wrapping the thin core in the messaging decorators. It is the
-// app-wiring entrypoint, sitting at the tier root above the backends exactly like cache/storage
-// NewFromConfig; additional options (logger, metrics, retrier, redis client) may be layered on. The
-// context is accepted for factory-signature symmetry with the other clients; publisher construction
+// NewFromConfig builds a MessagePublisher selected by the tier kind — the SQS backend
+// (KindSQS, configured from cfg), the in-process stub (KindMemory, ignoring cfg), or
+// Redis Pub/Sub (KindRedis, whose shared go-redis client is injected via the
+// WithRedisClient option — NOT from cfg; the SQSConfig arg is inert for Redis) — wrapping
+// the thin core in the messaging decorators. It is the app-wiring entrypoint, sitting at
+// the tier root above the backends exactly like cache/storage NewFromConfig; additional
+// options (logger, metrics, retrier, redis client) may be layered on. The context is
+// accepted for factory-signature symmetry with the other clients; publisher construction
 // itself is synchronous.
 func NewFromConfig(
 	_ context.Context,
@@ -129,8 +130,9 @@ func NewPublisher(
 		}), nil
 
 	case KindMemory:
-		// The in-process publisher ignores the SQS settings; a subscriber built from the same
-		// broker receives its messages (the roundtrip path is exercised via direct construction).
+		// The in-process publisher ignores the SQS settings; a subscriber built from the
+		// same broker receives its messages (the roundtrip path is exercised via direct
+		// construction).
 		return memory.NewPublisher(memory.NewBroker()), nil
 
 	case KindRedis:

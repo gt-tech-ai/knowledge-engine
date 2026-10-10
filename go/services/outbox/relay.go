@@ -283,7 +283,8 @@ func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error
 // ended (shutdown or deadline); such a failure is not a delivery attempt.
 func interrupted(ctx context.Context, sendErr error) bool {
 	return sendErr != nil && ctx.Err() != nil &&
-		(coreerr.StdIs(sendErr, context.Canceled) || coreerr.StdIs(sendErr, context.DeadlineExceeded))
+		(coreerr.StdIs(sendErr, context.Canceled) ||
+			coreerr.StdIs(sendErr, context.DeadlineExceeded))
 }
 
 // finalize records one row's outcome: sent, parked on its last attempt (or on
@@ -300,7 +301,8 @@ func (r *Relay) finalize(
 	case sendErr == nil:
 		err = r.store.MarkSent(ctx, rec.ID)
 		inc(r.sent, lane, err)
-	case rec.Attempts >= r.cfg.MaxAttempts || (r.cfg.ParkOnPermanent && coreerr.IsPermanent(sendErr)):
+	case rec.Attempts >= r.cfg.MaxAttempts ||
+		(r.cfg.ParkOnPermanent && coreerr.IsPermanent(sendErr)):
 		err = r.store.Park(ctx, rec.ID, sendErr.Error())
 		inc(r.parked, lane, err)
 	default:

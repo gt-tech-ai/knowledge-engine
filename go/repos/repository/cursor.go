@@ -10,10 +10,10 @@ import (
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// ParseUUIDCursor converts a keyset cursor's id string to a uuid.UUID for the seek predicate to bind
-// against a uuid-keyed secondary sort column. It is the shared ParseID callback for uuid-keyed keyset
-// pagination (returning the parsed id as any to satisfy the generic cursor config), rejecting a
-// malformed id rather than binding a zero value.
+// ParseUUIDCursor converts a keyset cursor's id string to a uuid.UUID for the seek
+// predicate to bind against a uuid-keyed secondary sort column. It is the shared ParseID
+// callback for uuid-keyed keyset pagination (returning the parsed id as any to satisfy
+// the generic cursor config), rejecting a malformed id rather than binding a zero value.
 func ParseUUIDCursor(s string) (any, error) {
 	return uuid.Parse(s)
 }

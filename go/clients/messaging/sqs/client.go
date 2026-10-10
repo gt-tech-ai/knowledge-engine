@@ -17,7 +17,8 @@ import (
 // or a black-box test with a generated mock — can supply its own client and
 // exercise the messaging logic without a network or a container.
 //
-// SDK seam — mocks the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a core port.
+// SDK seam — mocks the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose
+// with a core port.
 type API interface {
 	// GetQueueUrl resolves an existing queue's URL by name.
 	GetQueueUrl(

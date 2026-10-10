@@ -45,7 +45,10 @@ func (i recoveryInterceptor) logPanic(
 
 // WrapUnary recovers a panic in a unary handler into a CodeInternal error.
 func (i recoveryInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (resp connect.AnyResponse, err error) {
+	return func(
+		ctx context.Context,
+		req connect.AnyRequest,
+	) (resp connect.AnyResponse, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				resp, err = nil, i.logPanic(ctx, req.Spec().Procedure, r)

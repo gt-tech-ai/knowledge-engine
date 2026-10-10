@@ -37,13 +37,16 @@ type ServerConfig struct {
 	// WriteTimeout is the maximum duration before timing out writes of the response.
 	WriteTimeout time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 
-	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive connection.
+	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive
+	// connection.
 	IdleTimeout time.Duration `yaml:"idle_timeout" mapstructure:"idle_timeout"`
 
-	// MaxHeaderBytes controls the maximum number of bytes the server reads parsing request headers.
+	// MaxHeaderBytes controls the maximum number of bytes the server reads parsing
+	// request headers.
 	MaxHeaderBytes int `yaml:"max_header_bytes" mapstructure:"max_header_bytes"`
 
-	// ShutdownTimeout is the maximum duration to wait for in-flight requests during graceful shutdown.
+	// ShutdownTimeout is the maximum duration to wait for in-flight requests during
+	// graceful shutdown.
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" mapstructure:"shutdown_timeout"`
 }
 

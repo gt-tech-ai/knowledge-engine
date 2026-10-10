@@ -11,7 +11,8 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.MessagePublisher = (*Publisher)(nil)
 
-// Publisher enqueues messages onto a Broker instead of SQS (dev/test; no external broker).
+// Publisher enqueues messages onto a Broker instead of SQS (dev/test; no external
+// broker).
 type Publisher struct {
 	// broker is the in-process broker messages are enqueued onto.
 	broker *Broker
@@ -19,12 +20,14 @@ type Publisher struct {
 	seq atomic.Int64
 }
 
-// NewPublisher publishes onto broker; a Subscriber built from the same broker receives the messages.
+// NewPublisher publishes onto broker; a Subscriber built from the same broker receives
+// the messages.
 func NewPublisher(broker *Broker) *Publisher {
 	return &Publisher{broker: broker}
 }
 
-// Publish enqueues payload on topic as a Message, or returns ctx's error if it is cancelled first.
+// Publish enqueues payload on topic as a Message, or returns ctx's error if it is
+// cancelled first.
 func (p *Publisher) Publish(ctx context.Context, topic string, payload []byte) error {
 	msg := &interfaces.Message{
 		ID:      fmt.Sprintf("mem-%d", p.seq.Add(1)),

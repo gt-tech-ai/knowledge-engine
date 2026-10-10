@@ -38,7 +38,9 @@ func DecodePartial(b []byte) (Partial, error) {
 	if len(b) < partialHeaderLen || b[0] != partialCodecVersion {
 		return Partial{}, errors.New(errors.CodeInvalidInput, "vizql: malformed partial")
 	}
-	f := func(i int) float64 { return math.Float64frombits(binary.BigEndian.Uint64(b[1+8*i:])) }
+	f := func(i int) float64 {
+		return math.Float64frombits(binary.BigEndian.Uint64(b[1+8*i:]))
+	}
 	p := Partial{Sum: f(0), Count: f(1), Min: f(2), Max: f(3)}
 	if rest := b[partialHeaderLen:]; len(rest) > 0 {
 		sketch, err := ddsketch.DecodeDDSketch(rest, store.DefaultProvider, nil)

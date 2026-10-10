@@ -92,7 +92,9 @@ func (s CRUDNoListService[T, ID]) Delete(ctx context.Context, id ID) error {
 		ctx,
 		s.chain,
 		"Delete",
-		func(ctx context.Context) (struct{}, error) { return struct{}{}, s.repo.Delete(ctx, id) },
+		func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, s.repo.Delete(ctx, id)
+		},
 	)
 	return err
 }

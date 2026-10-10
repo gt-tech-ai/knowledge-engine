@@ -12,8 +12,8 @@ import (
 // TransformSingleResource converts a Vanguard single-resource response to
 // JSON:API format.
 //
-// Input:  {"user": {"id":"123", "email":"a@b.com", ...}}
-// Output: {"data": {"type":"users", "id":"123", "attributes":{...}}, "links":{"self":"..."}}
+// Input: {"user": {"id":"123", "email":"a@b.com", ...}} Output: {"data": {"type":"users",
+// "id":"123", "attributes":{...}}, "links":{"self":"..."}}
 func TransformSingleResource(
 	body map[string]any,
 	cfg ResourceConfig,
@@ -73,8 +73,9 @@ func TransformMeta(body map[string]any) map[string]any {
 
 // TransformCollection converts a Vanguard list response to JSON:API format.
 //
-// Input:  {"users": [...], "pagination": {"nextPageToken":"abc", "totalCount":45, "totalIsEstimate":true}}
-// Output: {"data": [...], "meta": {"totalCount":45, "totalIsEstimate":true}, "links":{"self":"...", "next":"..."}}
+// Input: {"users": [...], "pagination": {"nextPageToken":"abc", "totalCount":45,
+// "totalIsEstimate":true}} Output: {"data": [...], "meta": {"totalCount":45,
+// "totalIsEstimate":true}, "links":{"self":"...", "next":"..."}}
 func TransformCollection(
 	body map[string]any,
 	cfg ResourceConfig,

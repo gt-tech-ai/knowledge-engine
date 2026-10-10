@@ -16,9 +16,10 @@ func IsTransient(err error) bool {
 	}
 }
 
-// IsPermanent returns true if the error represents a permanent failure
-// that will not succeed on retry (not found, invalid input, unauthorized, forbidden, conflict).
-// CodeResourceExhausted is not permanent: the request succeeds once the quota window resets.
+// IsPermanent returns true if the error represents a permanent failure that will not
+// succeed on retry (not found, invalid input, unauthorized, forbidden, conflict).
+// CodeResourceExhausted is not permanent: the request succeeds once the quota window
+// resets.
 func IsPermanent(err error) bool {
 	code := Code(err)
 	switch code {

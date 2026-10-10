@@ -10,7 +10,8 @@ type RedisConfig struct {
 	// Password is the Redis AUTH password; empty string disables authentication.
 	Password string `mapstructure:"password" envalias:"REDIS_PASSWORD"`
 
-	// FailureMode controls cache behavior on Redis errors ("bypass" silently skips the cache).
+	// FailureMode controls cache behavior on Redis errors ("bypass" silently skips the
+	// cache).
 	FailureMode string `mapstructure:"failure_mode"`
 
 	// Port is the Redis server port (default 6379).

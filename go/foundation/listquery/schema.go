@@ -1,13 +1,13 @@
 package listquery
 
-// The domain-agnostic list-query schema descriptor types. These hand-written types
-// are the stable contract that the GENERATED per-resource accessors populate — but the
+// The domain-agnostic list-query schema descriptor types. These hand-written types are
+// the stable contract that the GENERATED per-resource accessors populate — but the
 // generated, business-specific code (`<Resource>Schema()`, `AllSchemas()`, …) lives in
-// the gen/go/listquery tier (package listqueryschema), NOT here, so foundation stays
-// free of resource/domain names. The index-obligation gate, the
-// runtime filter-schema endpoint read these types. FilterMap/order.Set (filter.go/order.go)
-// remain the runtime SQL-safety boundary; ResourceSchema is the richer descriptor carrying the
-// axes those two don't (index_kind, value_source, access_sensitivity).
+// the gen/go/listquery tier (package listqueryschema), NOT here, so foundation stays free
+// of resource/domain names. The index-obligation gate, the runtime filter-schema endpoint
+// read these types. FilterMap/order.Set (filter.go/order.go) remain the runtime
+// SQL-safety boundary; ResourceSchema is the richer descriptor carrying the axes those
+// two don't (index_kind, value_source, access_sensitivity).
 
 // ResourceSchema is the generated list-query schema for one resource.
 type ResourceSchema struct {
@@ -17,11 +17,12 @@ type ResourceSchema struct {
 	Fields []FieldSchema
 }
 
-// KeysetColumn returns the storage column of the resource's keyset-ordering field — the primary
-// time tiebreaker CompileOrder appends to every ORDER BY for a stable total order (created_at for
-// most resources, joined_at for the membership join tables). It falls back to created_at when no
-// field is marked keysettable, matching the Timestamps-mixin default. The keysettable annotation
-// is the single source of truth, so a store never hard-codes its tiebreaker column.
+// KeysetColumn returns the storage column of the resource's keyset-ordering field — the
+// primary time tiebreaker CompileOrder appends to every ORDER BY for a stable total order
+// (created_at for most resources, joined_at for the membership join tables). It falls
+// back to created_at when no field is marked keysettable, matching the Timestamps-mixin
+// default. The keysettable annotation is the single source of truth, so a store never
+// hard-codes its tiebreaker column.
 func (s ResourceSchema) KeysetColumn() string {
 	// Index rather than range-by-value: FieldSchema is a wide struct, so a value copy per
 	// iteration is wasteful (gocritic rangeValCopy).
@@ -37,7 +38,8 @@ func (s ResourceSchema) KeysetColumn() string {
 // Keyset pagination carries these across the opaque base64/JSON token boundary as a
 // unix-microsecond int64 — JSON has no native time type — and restores them to time.Time
 // before compiling the seek predicate. Driving the round-trip off this generated set ('s
-// single source) means a store never hand-lists which of its keyset columns are timestamps.
+// single source) means a store never hand-lists which of its keyset columns are
+// timestamps.
 func (s ResourceSchema) TimeColumns() map[string]bool {
 	out := make(map[string]bool)
 	for i := range s.Fields {
@@ -69,8 +71,9 @@ type FieldSchema struct {
 	// ValueSource is the decoded value-provisioning strategy for the field.
 	ValueSource ValueSource
 	// Join, when non-nil, marks this field as filtering a JOINED table's column; the
-	// index-obligation gate reads Join.Table + Join.Columns so it checks the TARGET table, not the
-	// resource's own. Populated from schema.json's `join` descriptor; nil for a same-table field.
+	// index-obligation gate reads Join.Table + Join.Columns so it checks the TARGET
+	// table, not the resource's own. Populated from schema.json's `join` descriptor; nil
+	// for a same-table field.
 	Join *JoinTarget
 	// Name is the DTO/proto field name — the filter/sort key clients use.
 	Name string
@@ -89,7 +92,8 @@ type FieldSchema struct {
 	CaseInsensitive bool
 	// Sortable reports whether the field may be used in an ORDER BY.
 	Sortable bool
-	// Keysettable reports whether the field is the keyset-ordering (pagination tiebreaker) column.
+	// Keysettable reports whether the field is the keyset-ordering (pagination
+	// tiebreaker) column.
 	Keysettable bool
 }
 

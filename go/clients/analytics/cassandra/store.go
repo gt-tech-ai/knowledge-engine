@@ -139,7 +139,8 @@ func SchemaCQL(keyspace, cube string, grain types.Grain) (string, error) {
 		)
 	}
 	return "CREATE TABLE IF NOT EXISTS " + keyspace + "." + TableName(cube, grain) + ` (
-  org_id text, cube text, bucket timestamp, ts timestamp, dims_key text, idempotency_key text,
+  org_id text, cube text, bucket timestamp, ts timestamp, dims_key text,
+  idempotency_key text,
   dims map<text, text>, partials map<text, blob>,
   PRIMARY KEY ((org_id, cube, bucket), ts, dims_key, idempotency_key))`, nil
 }
@@ -256,7 +257,8 @@ func (s *Store) insert(
 	partials map[string][]byte,
 ) error {
 	stmt := "INSERT INTO " + TableName(fact.Cube, grain) +
-		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials)" +
+		" VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	args := []any{
 		fact.OrgID,
 		fact.Cube,

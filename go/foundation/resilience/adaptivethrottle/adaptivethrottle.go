@@ -1,10 +1,10 @@
-// Package adaptivethrottle provides a client-side adaptive throttler (Google SRE "Handling
-// Overload"): it sheds a growing fraction of outbound requests locally when a backend's
-// accept-rate drops, protecting the backend from a client-side retry storm.
+// Package adaptivethrottle provides a client-side adaptive throttler (Google SRE
+// "Handling Overload"): it sheds a growing fraction of outbound requests locally when a
+// backend's accept-rate drops, protecting the backend from a client-side retry storm.
 //
-// Compose it OUTERMOST of the retry budget (Throttle → Retry → op): a local rejection returns
-// ErrThrottled before op runs, so the inner retrier never retries a shed request — the "not
-// retried" property the retry budget relies on..
+// Compose it OUTERMOST of the retry budget (Throttle → Retry → op): a local rejection
+// returns ErrThrottled before op runs, so the inner retrier never retries a shed request
+// — the "not retried" property the retry budget relies on..
 package adaptivethrottle
 
 import (
@@ -30,9 +30,11 @@ var _ interfaces.AdaptiveThrottler = (*Throttler)(nil)
 type Config struct {
 	// Rand is the [0,1) random source used for probabilistic shedding (nil → rand.Float64).
 	Rand func() float64
-	// K is the accepts multiplier in the rejection formula; higher K sheds less aggressively.
+	// K is the accepts multiplier in the rejection formula; higher K sheds less
+	// aggressively.
 	K float64
-	// Decay is the per-attempt exponential decay (0 < Decay ≤ 1) applied to the request/accept windows.
+	// Decay is the per-attempt exponential decay (0 < Decay ≤ 1) applied to the
+	// request/accept windows.
 	Decay float64
 }
 
@@ -58,9 +60,9 @@ type Throttler struct {
 }
 
 // NewDisabled returns a no-op AdaptiveThrottler that never sheds: Do runs op directly and
-// RejectionProbability is always 0. It is the "disabled" selection for the config-driven throttle
-// tier (resilience.adaptive_throttle kind=disabled) — a behavior-preserving pass-through,
-// mirroring hedge's disabled default.
+// RejectionProbability is always 0. It is the "disabled" selection for the config-driven
+// throttle tier (resilience.adaptive_throttle kind=disabled) — a behavior-preserving
+// pass-through, mirroring hedge's disabled default.
 func NewDisabled() interfaces.AdaptiveThrottler { return disabledThrottler{} }
 
 // disabledThrottler is the no-op throttler: it never sheds a request.
@@ -93,12 +95,13 @@ func New(cfg Config) *Throttler {
 }
 
 // Do runs op unless the throttler sheds it locally, in which case it returns ErrThrottled
-// WITHOUT invoking op. A success feeds the accept window; every attempt (shed or allowed) feeds
-// the request window, so a sustained backend failure raises the rejection probability and a
-// recovery lowers it.
+// WITHOUT invoking op. A success feeds the accept window; every attempt (shed or allowed)
+// feeds the request window, so a sustained backend failure raises the rejection
+// probability and a recovery lowers it.
 func (t *Throttler) Do(_ context.Context, op func() error) error {
 	t.mu.Lock()
-	// Age the window, then decide from the pre-attempt ratio so a cold start (0/0) never sheds.
+	// Age the window, then decide from the pre-attempt ratio so a cold start (0/0) never
+	// sheds.
 	t.requests *= t.decay
 	t.accepts *= t.decay
 	shed := t.rand() < t.rejectionProbability()
@@ -117,16 +120,16 @@ func (t *Throttler) Do(_ context.Context, op func() error) error {
 	return err
 }
 
-// RejectionProbability reports the current probability that a request is shed locally (for
-// metrics / observability).
+// RejectionProbability reports the current probability that a request is shed locally
+// (for metrics / observability).
 func (t *Throttler) RejectionProbability() float64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.rejectionProbability()
 }
 
-// rejectionProbability is the SRE formula max(0, (requests − K·accepts) / (requests + 1)); the
-// caller holds t.mu.
+// rejectionProbability is the SRE formula max(0, (requests − K·accepts) / (requests +
+// 1)); the caller holds t.mu.
 func (t *Throttler) rejectionProbability() float64 {
 	return math.Max(0, (t.requests-t.k*t.accepts)/(t.requests+1))
 }

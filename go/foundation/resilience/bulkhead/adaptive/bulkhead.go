@@ -2,9 +2,9 @@
 //
 // Unlike the fixed-size channel bulkhead, the limit adjusts to observed latency: a sample
 // slower than the RTT threshold — or a failed op, a load-shed signal — multiplicatively
-// decreases the limit; a fast, successful sample additively increases it up to MaxConcurrent.
-// This finds the concurrency that maximizes throughput without building a queue at a slowing
-// backend..
+// decreases the limit; a fast, successful sample additively increases it up to
+// MaxConcurrent. This finds the concurrency that maximizes throughput without building a
+// queue at a slowing backend..
 package adaptive
 
 import (
@@ -69,7 +69,8 @@ type Bulkhead struct {
 	minLimit float64
 	// maxLimit is the upper clamp bound for limit.
 	maxLimit float64
-	// rttThreshold is the latency above which a sample shrinks the limit (0 disables the latency signal).
+	// rttThreshold is the latency above which a sample shrinks the limit (0 disables the
+	// latency signal).
 	rttThreshold time.Duration
 	// backoffRatio is the multiplicative-decrease factor applied on a slow/failed sample.
 	backoffRatio float64
@@ -96,8 +97,8 @@ func New(cfg Config) *Bulkhead {
 	}
 }
 
-// Execute runs fn within the current adaptive limit, blocking until a slot frees or ctx is
-// cancelled, then adjusts the limit from fn's latency and outcome.
+// Execute runs fn within the current adaptive limit, blocking until a slot frees or ctx
+// is cancelled, then adjusts the limit from fn's latency and outcome.
 func (b *Bulkhead) Execute(ctx context.Context, fn func() error) error {
 	if err := b.acquire(ctx); err != nil {
 		return err
@@ -108,8 +109,8 @@ func (b *Bulkhead) Execute(ctx context.Context, fn func() error) error {
 	return err
 }
 
-// TryExecute runs fn only if a slot is immediately available under the current limit, otherwise
-// returns ErrBulkheadFull; it adjusts the limit from fn's latency and outcome.
+// TryExecute runs fn only if a slot is immediately available under the current limit,
+// otherwise returns ErrBulkheadFull; it adjusts the limit from fn's latency and outcome.
 func (b *Bulkhead) TryExecute(fn func() error) error {
 	b.mu.Lock()
 	if b.inFlight >= int(b.limit) {
@@ -152,7 +153,8 @@ func (b *Bulkhead) acquire(ctx context.Context) error {
 	}
 }
 
-// release decrements in-flight, adjusts the limit from the sample, and broadcasts a freed slot.
+// release decrements in-flight, adjusts the limit from the sample, and broadcasts a freed
+// slot.
 func (b *Bulkhead) release(rtt time.Duration, opErr error) {
 	b.mu.Lock()
 	if b.inFlight > 0 {
@@ -164,8 +166,9 @@ func (b *Bulkhead) release(rtt time.Duration, opErr error) {
 	b.mu.Unlock()
 }
 
-// adjust applies AIMD (caller holds b.mu): a slow or failed sample multiplicatively decreases
-// the limit; a fast, successful sample additively increases it, clamped into [min, max].
+// adjust applies AIMD (caller holds b.mu): a slow or failed sample multiplicatively
+// decreases the limit; a fast, successful sample additively increases it, clamped into
+// [min, max].
 func (b *Bulkhead) adjust(rtt time.Duration, opErr error) {
 	if opErr != nil || (b.rttThreshold > 0 && rtt > b.rttThreshold) {
 		b.limit = math.Max(b.minLimit, b.limit*b.backoffRatio)

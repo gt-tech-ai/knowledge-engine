@@ -165,7 +165,7 @@ func (j *Job[T]) Execute(
 	if j.tool != nil && j.tool.Binary() != "" {
 		if err := runner.RequireTool(j.tool.Binary(), j.tool.InstallHint()); err != nil {
 			// Missing tool is a skip, not a fatal error - the job is optional.
-			return types.StepResults{ //nolint:nilerr // intentional: missing tool => skip, not error
+			return types.StepResults{ //nolint:nilerr // a missing tool is a skip, not an error
 				{Name: j.name, Status: types.StatusSkip, Error: err.Error()},
 			}, nil
 		}

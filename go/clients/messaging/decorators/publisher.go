@@ -28,7 +28,8 @@ type PublisherDeps struct {
 	// Metrics records per-publish counts, errors, and latency; nil disables metrics.
 	Metrics interfaces.Metrics
 
-	// Retrier is reused as the stack's Retry layer (never a second retry); nil disables retry.
+	// Retrier is reused as the stack's Retry layer (never a second retry); nil disables
+	// retry.
 	Retrier interfaces.Retrier
 
 	// Bulkhead bounds concurrent publishes; nil disables it.

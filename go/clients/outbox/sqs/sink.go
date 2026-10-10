@@ -25,7 +25,8 @@ const fifoSuffix = ".fifo"
 
 // API is the part of the AWS SQS client the sink uses; *awssqs.Client satisfies it.
 //
-// SDK seam — the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a core port.
+// SDK seam — the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a
+// core port.
 type API interface {
 	// GetQueueUrl resolves an existing queue's URL by name.
 	GetQueueUrl(

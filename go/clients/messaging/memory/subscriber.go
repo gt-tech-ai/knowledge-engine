@@ -10,7 +10,8 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.MessageConsumer = (*Subscriber)(nil)
 
-// Subscriber consumes messages from a Broker instead of SQS (dev/test; no external broker).
+// Subscriber consumes messages from a Broker instead of SQS (dev/test; no external
+// broker).
 type Subscriber struct {
 	// broker is the in-process broker messages are consumed from.
 	broker *Broker
@@ -20,14 +21,16 @@ type Subscriber struct {
 	once sync.Once
 }
 
-// NewSubscriber consumes from broker; a Publisher built from the same broker feeds this subscriber.
+// NewSubscriber consumes from broker; a Publisher built from the same broker feeds this
+// subscriber.
 func NewSubscriber(broker *Broker) *Subscriber {
 	return &Subscriber{broker: broker, done: make(chan struct{})}
 }
 
-// Subscribe delivers each message on topic to handler until Close is called or ctx is cancelled.
-// A handler error is dropped: the in-memory broker has no redelivery, so this is a stub's best
-// effort — good enough to exercise the consume path with no SQS, not to model at-least-once.
+// Subscribe delivers each message on topic to handler until Close is called or ctx is
+// cancelled. A handler error is dropped: the in-memory broker has no redelivery, so this
+// is a stub's best effort — good enough to exercise the consume path with no SQS, not to
+// model at-least-once.
 func (s *Subscriber) Subscribe(
 	ctx context.Context,
 	topic string,

@@ -2,11 +2,12 @@ package infra
 
 // SQSConfig holds SQS-compatible messaging configuration.
 type SQSConfig struct {
-	// Queues maps logical queue names to their SQS queue names (e.g. "orders" -> "orders-v1");
-	// empty by default — the consumer names its queues.
+	// Queues maps logical queue names to their SQS queue names (e.g. "orders" ->
+	// "orders-v1"); empty by default — the consumer names its queues.
 	Queues map[string]string `mapstructure:"queues"`
 
-	// Endpoint is the SQS-compatible API endpoint URL (e.g. "http://localhost:9324" for ElasticMQ).
+	// Endpoint is the SQS-compatible API endpoint URL (e.g. "http://localhost:9324" for
+	// ElasticMQ).
 	Endpoint string `mapstructure:"endpoint" envalias:"SQS_ENDPOINT"`
 
 	// Region is the AWS region where the SQS queues are provisioned (e.g. "us-east-1").

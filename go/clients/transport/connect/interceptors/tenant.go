@@ -15,10 +15,10 @@ import (
 // resolved (a public or unauthenticated request). The nil UUID also counts as no
 // tenant.
 //
-// Read the tenant from the resolved principal (core/principal.PrincipalFrom) and register the
-// tenant-scope interceptor after the principal interceptor: the principal interceptor
-// clears the raw AuthClaims, so an extractor reading GetAuthClaims after it never sees
-// a tenant.
+// Read the tenant from the resolved principal (core/principal.PrincipalFrom) and register
+// the tenant-scope interceptor after the principal interceptor: the principal interceptor
+// clears the raw AuthClaims, so an extractor reading GetAuthClaims after it never sees a
+// tenant.
 type TenantExtractor func(ctx context.Context) (uuid.UUID, bool)
 
 // TenantStamper returns ctx scoped to tenant for one persistence mechanism — e.g.
