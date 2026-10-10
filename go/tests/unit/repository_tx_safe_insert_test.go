@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
 )
 
@@ -42,7 +42,7 @@ func (s *recordingInsertStore) Insert(_ context.Context, _ *int) error {
 func TestTxSafeInsertRepository_NoRetryInsideTx(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingInsertStore{err: errors.Internal("transient insert failure")}
+	store := &recordingInsertStore{err: apperr.Internal("transient insert failure")}
 	repo := repository.NewTxSafeInsertRepository[int]("test_outbox", store, nil, nil, nil)
 
 	v := 7

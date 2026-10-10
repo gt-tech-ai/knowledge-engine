@@ -2,14 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -30,7 +29,7 @@ func foundFullStack(
 		"test",
 		"svc",
 		fixtures.NopMetrics(),
-		decorator.DefaultBuckets,
+		decorator.DefaultBuckets(),
 	)
 	e = decorator.Tracing(e, fixtures.NopTracer(), "test", "svc")
 	e = decorator.Logging(e, fixtures.NopLogger(), "test", "svc")
@@ -87,7 +86,7 @@ func TestDecoratorUnwrapSeam(t *testing.T) {
 //   - A panicking base wrapped by Recovery returns exactly the onPanic error.
 func TestDecoratorRecoveryUsesOnPanic(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.New("recovered by contract")
+	sentinel := apperr.Sentinel("recovered by contract")
 	base := fixtures.PanicPipeline()
 
 	rec := decorator.Recovery[string, string](
@@ -169,7 +168,7 @@ func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 		inner,
 		"pipeline", "create-item",
 		metricsMock,
-		decorator.DefaultBuckets,
+		decorator.DefaultBuckets(),
 	)
 
 	_, err := m.Execute(context.Background(), "x")
@@ -203,17 +202,17 @@ func TestDecoratorCircuitBreakerCodesOnlyRejections(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	inner := mocks.NewMockPipeline[string, string](ctrl)
 	onOpen := func(err error) error {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "shed")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "shed")
 	}
 
 	open := mocks.NewMockCircuitBreaker(ctrl)
-	open.EXPECT().Execute(gomock.Any()).Return(coreerr.Sentinel("open"))
+	open.EXPECT().Execute(gomock.Any()).Return(apperr.Sentinel("open"))
 	_, err := decorator.CircuitBreaker[string, string](
 		inner,
 		open,
 		onOpen,
 	).Execute(context.Background(), "in")
-	require.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+	require.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
 
 	closed := mocks.NewMockCircuitBreaker(ctrl)
 	closed.EXPECT().

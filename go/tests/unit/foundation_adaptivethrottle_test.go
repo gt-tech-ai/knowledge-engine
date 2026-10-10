@@ -2,11 +2,11 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/adaptivethrottle"
 )
 
@@ -38,7 +38,10 @@ func TestThrottler_RejectionRisesOnFailureAndEasesOnRecovery(t *testing.T) {
 	require.Zero(t, th.RejectionProbability(), "a healthy backend is not throttled")
 
 	for range 20 { // backend down: accepts frozen while requests climb → rejection rises
-		require.Error(t, th.Do(ctx, func() error { return errors.New("backend down") }))
+		require.Error(
+			t,
+			th.Do(ctx, func() error { return apperr.Sentinel("backend down") }),
+		)
 	}
 	failProb := th.RejectionProbability()
 	require.Positive(
@@ -80,7 +83,7 @@ func TestThrottler_ShedsLocallyWithoutCallingOp(t *testing.T) {
 
 	// First call: probability is 0 at cold start, so it is allowed and its failure builds
 	// p > 0.
-	require.Error(t, th.Do(ctx, func() error { return errors.New("backend down") }))
+	require.Error(t, th.Do(ctx, func() error { return apperr.Sentinel("backend down") }))
 
 	called := false
 	err := th.Do(ctx, func() error {

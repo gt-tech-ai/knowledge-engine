@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	stderrors "errors"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorate"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -77,7 +77,7 @@ func TestDecorateExec_ArbitraryReturnTypes(t *testing.T) {
 //   - Exec returns (42, err) when fn returns (42, err).
 func TestDecorateExec_ReturnsResultUnmodifiedOnError(t *testing.T) {
 	t.Parallel()
-	want := stderrors.New("boom")
+	want := apperr.Sentinel("boom")
 	got, err := decorate.Exec(context.Background(), decorate.Chain(), "X",
 		func(context.Context) (int, error) { return 42, want })
 	require.ErrorIs(t, err, want)
@@ -185,7 +185,7 @@ func TestMetricsMW_RecordsCountAndError(t *testing.T) {
 		context.Background(),
 		mw,
 		"UpdateStatus",
-		func(context.Context) (struct{}, error) { return struct{}{}, stderrors.New("boom") },
+		func(context.Context) (struct{}, error) { return struct{}{}, apperr.Sentinel("boom") },
 	)
 	require.Error(t, err)
 }
@@ -208,7 +208,7 @@ func TestLoggingMW_LogsOnEntryAndFailure(t *testing.T) {
 		context.Background(),
 		mw,
 		"UpdateStatus",
-		func(context.Context) (struct{}, error) { return struct{}{}, stderrors.New("boom") },
+		func(context.Context) (struct{}, error) { return struct{}{}, apperr.Sentinel("boom") },
 	)
 	require.Error(t, err)
 	assert.Len(
@@ -310,7 +310,7 @@ func TestCircuitBreakerMW_ShortCircuitsWhenOpen(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	cb := mocks.NewMockCircuitBreaker(ctrl)
-	open := stderrors.New("circuit open")
+	open := apperr.Sentinel("circuit open")
 	cb.EXPECT().Execute(gomock.Any()).Return(open) // rejects without calling fn
 
 	ran := false
@@ -351,7 +351,7 @@ func TestAuthMW_ShortCircuitsOnDeny(t *testing.T) {
 	t.Parallel()
 
 	var gotAction string
-	deny := stderrors.New("forbidden")
+	deny := apperr.Sentinel("forbidden")
 	ran := false
 	_, err := decorate.Exec(context.Background(),
 		decorate.NewAuth("users", func(_ context.Context, action string) error {

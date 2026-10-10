@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead/adaptive"
@@ -133,8 +133,8 @@ func NewFromConfig(cfg Config) (interfaces.Bulkhead, error) {
 		return adaptive.New(adCfg), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown bulkhead kind: %v", cfg.Kind),
 		)
 	}

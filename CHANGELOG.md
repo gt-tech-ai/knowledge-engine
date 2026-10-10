@@ -19,7 +19,14 @@ All notable changes to this project are recorded here. The format follows
   config under it instead of `context.Background()`.
 - Go `fixtures.StubClientStream` no longer substitutes `context.Background()` for a nil
   context; pass the caller's context.
-
+- **Breaking (Go):** four exported package-level vars are now functions.
+  `decorator.DefaultBuckets` is `decorator.DefaultBuckets()` (a fresh slice per call);
+  callers must add `()`. `errors.Combine`, `errors.Append` and `listquery.IdentityColumn`
+  keep their signatures, so calls and value uses (`Resolve: listquery.IdentityColumn`)
+  still compile; only code that assigned to them breaks.
+- Go Redis messaging `Subscriber`: the handler context is now derived from the first
+  `Subscribe`/`PSubscribe` call's context without its cancellation, so handlers see that
+  call's context values. Cancelling that call still does not stop delivery; `Close` does.
 - Go: errors that came back raw from a third-party SDK, the standard library or a context
   (redis/postgres/gRPC/connect close and ping, cache envelope encode/decode, config
   unmarshal, rate-limiter and bulkhead waits, hedged calls, memory messaging, and others)

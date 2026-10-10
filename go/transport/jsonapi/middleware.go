@@ -31,8 +31,6 @@ const maxBodySize = 1 << 20 // 1 MiB
 // absent, or type-mismatched envelope); other roles pass their body through.
 // The response is then transformed by the route's Role — never by guessing
 // method/path/data-presence.
-//
-//nolint:gocyclo // linear flow with distinct per-role early returns
 func Middleware(
 	inner http.Handler,
 	cfg Config,

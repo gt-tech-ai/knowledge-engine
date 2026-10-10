@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	stderrors "errors"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/reswire"
@@ -48,7 +48,7 @@ resilience:
 	cb, err := reswire.NewBreaker(loader, "test.breaker")
 	require.NoError(t, err)
 
-	boom := stderrors.New("boom")
+	boom := apperr.Sentinel("boom")
 	_ = cb.Execute(func() error { return boom })
 	_ = cb.Execute(func() error { return boom })
 
@@ -84,7 +84,7 @@ func TestReswire_RetrierDefault_Builds(t *testing.T) {
 	err = r.Retry(context.Background(), func() error {
 		attempts++
 		if attempts < 2 {
-			return stderrors.New("transient")
+			return apperr.Sentinel("transient")
 		}
 		return nil
 	})
@@ -271,7 +271,7 @@ func TestReswire_AdaptiveThrottleDefault_NeverSheds(t *testing.T) {
 	th, err := reswire.NewAdaptiveThrottle(loader)
 	require.NoError(t, err)
 
-	boom := stderrors.New("boom")
+	boom := apperr.Sentinel("boom")
 	calls := 0
 	for range 100 {
 		_ = th.Do(context.Background(), func() error { calls++; return boom })
@@ -313,7 +313,7 @@ func TestReswire_AdaptiveThrottleReadsOverlay_Sheds(t *testing.T) {
 	th, err := reswire.NewAdaptiveThrottle(loader)
 	require.NoError(t, err)
 
-	boom := stderrors.New("boom")
+	boom := apperr.Sentinel("boom")
 	const attempts = 100
 	calls := 0
 	for range attempts {
@@ -362,7 +362,7 @@ resilience:
 	attempts := 0
 	err = r.Retry(context.Background(), func() error {
 		attempts++
-		return stderrors.New("always fails")
+		return apperr.Sentinel("always fails")
 	})
 	require.Error(t, err, "a persistently-failing op eventually gives up")
 	assert.Equal(

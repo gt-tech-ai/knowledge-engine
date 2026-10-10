@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -149,9 +149,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// contract, so a lifecycle.Manager can start it in sequence without hanging).
 	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"connect server listen on "+addr,
 		)
 	}
@@ -176,9 +176,9 @@ func (s *Server) Shutdown() error {
 	defer cancel()
 	s.logger.Info("Connect server shutting down")
 	if err := srv.Shutdown(ctx); err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.ContextCode(err, coreerrors.CodeInternal),
+			apperr.ContextCode(err, apperr.CodeInternal),
 			"shut down connect server",
 		)
 	}

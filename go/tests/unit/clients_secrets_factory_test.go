@@ -9,7 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -52,7 +52,7 @@ func TestNewFromConfig_FileKindRequiresRunner(t *testing.T) {
 		context.Background(),
 		secrets.Config{Kind: secrets.KindFile},
 	)
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }
 
 // TestNewFromConfig_FileKindBuildsWithRunner tests that the factory builds a file Source
@@ -89,7 +89,7 @@ func TestNewFromConfig_UnknownKindFailsLoudly(t *testing.T) {
 		context.Background(),
 		secrets.Config{Kind: secrets.Kind(99)},
 	)
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }
 
 // TestKind_String tests that each Kind renders its stable config string.

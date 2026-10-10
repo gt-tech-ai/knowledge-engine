@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -52,26 +52,26 @@ func New(locs map[types.Ref]Location, runner interfaces.CommandRunner) interface
 func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("no file location mapped for credential %s", ref),
 		)
 	}
 	data, err := os.ReadFile(loc.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return types.Secret{}, errors.NotFound(
+			return types.Secret{}, apperr.NotFound(
 				fmt.Sprintf("credential file %q does not exist for %s", loc.Path, ref),
 			)
 		}
-		return types.Secret{}, errors.Wrap(
+		return types.Secret{}, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"reading credential file",
 		)
 	}
 	value, found := lookup(data, loc.Key)
 	if !found || value == "" {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("key %q not found in credential file for %s", loc.Key, ref),
 		)
 	}
@@ -85,7 +85,7 @@ func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) error {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return errors.NotFound(
+		return apperr.NotFound(
 			fmt.Sprintf("no file location mapped for credential %s", ref),
 		)
 	}
@@ -93,7 +93,7 @@ func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) erro
 	// not-yet-created git-ignored store (e.g. .secrets/) succeeds; the check-ignore below
 	// also runs with this directory as its working dir.
 	if err := os.MkdirAll(filepath.Dir(loc.Path), 0o700); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "creating credential directory")
+		return apperr.Wrap(err, apperr.CodeInternal, "creating credential directory")
 	}
 	// `git check-ignore -q <path>` exits 0 when the path IS ignored; the CommandRunner
 	// returns a non-nil error for any non-zero exit (not-ignored, or git unavailable),
@@ -106,8 +106,8 @@ func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) erro
 		"-q",
 		loc.Path,
 	); err != nil {
-		return errors.New(
-			errors.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf(
 				"refusing to write credential to non-git-ignored path %q",
 				loc.Path,
@@ -117,11 +117,11 @@ func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) erro
 
 	data, err := os.ReadFile(loc.Path)
 	if err != nil && !os.IsNotExist(err) {
-		return errors.Wrap(err, errors.CodeInternal, "reading credential file for update")
+		return apperr.Wrap(err, apperr.CodeInternal, "reading credential file for update")
 	}
 	updated := upsert(data, loc.Key, value.Reveal())
 	if err := os.WriteFile(loc.Path, updated, credentialFilePerm); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "writing credential file")
+		return apperr.Wrap(err, apperr.CodeInternal, "writing credential file")
 	}
 	return nil
 }

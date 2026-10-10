@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -14,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/singleflight"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/cache"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -179,7 +179,7 @@ func TestReadThrough_LoadErrorPropagatesUncached(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := mocks.NewMockByteCache(ctrl)
 	const key = "kerr"
-	errLoad := errors.New("backend load failed")
+	errLoad := apperr.Sentinel("backend load failed")
 	m.EXPECT().Get(gomock.Any(), key).Return(nil, false)
 	m.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 

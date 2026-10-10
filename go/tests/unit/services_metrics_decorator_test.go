@@ -2,12 +2,12 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/prom"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service/decorators"
@@ -72,7 +72,7 @@ func TestServiceDecorator_WithMetrics_RecordsOperationsAndErrors(t *testing.T) {
 	// Failure path: one Get that errors.
 	regErr := prometheus.NewRegistry()
 	failing := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
-		fixtures.StubService(errors.New("boom"), false), "test",
+		fixtures.StubService(apperr.Sentinel("boom"), false), "test",
 	).WithMetrics(prom.NewFromRegistry(regErr)).Build()
 
 	_, err = failing.Get(context.Background(), "1")

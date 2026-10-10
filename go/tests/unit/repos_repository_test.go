@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -86,7 +86,7 @@ func TestBaseRepository_PropagatesStoreErrors(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	store := mocks.NewMockStore[fixtures.TestEntity, fixtures.TestParams, string](ctrl)
-	sentinel := errors.New(errors.CodeInternal, "store down")
+	sentinel := apperr.New(apperr.CodeInternal, "store down")
 
 	store.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, sentinel)
 	store.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, sentinel)

@@ -17,7 +17,7 @@ import (
 
 	cassandrabackend "github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra/keyspaces"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
 
@@ -65,9 +65,9 @@ func NewFromConfig(cfg *Config) (Session, error) {
 	}
 	s, err := cluster.CreateSession()
 	if err != nil {
-		return nil, coreerr.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerr.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"cassandra: create session",
 		)
 	}
@@ -113,8 +113,8 @@ func clusterFor(
 		})
 		return cluster, nil, err
 	default:
-		return nil, nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown cassandra kind: %v", cfg.Kind),
 		)
 	}

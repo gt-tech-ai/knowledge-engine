@@ -11,7 +11,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
 )
@@ -70,7 +70,7 @@ func (p *Publisher) Publish(ctx context.Context, topic string, payload []byte) e
 		QueueUrl:    aws.String(url),
 		MessageBody: aws.String(string(payload)),
 	}); err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "sqs send message")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "sqs send message")
 	}
 	return nil
 }
@@ -108,7 +108,7 @@ func (p *Publisher) PublishBatch(
 			Entries:  entries,
 		})
 		if err != nil {
-			return coreerr.Wrap(err, coreerr.CodeUnavailable, "sqs send message batch")
+			return apperr.Wrap(err, apperr.CodeUnavailable, "sqs send message batch")
 		}
 		if len(out.Failed) > 0 {
 			return failedEntriesError("sqs send message batch", out.Failed)
@@ -125,7 +125,7 @@ func failedEntriesError(op string, failed []sqstypes.BatchResultErrorEntry) erro
 	for i, f := range failed {
 		parts[i] = aws.ToString(f.Id) + ":" + aws.ToString(f.Code)
 	}
-	return coreerr.New(coreerr.CodeUnavailable, fmt.Sprintf(
+	return apperr.New(apperr.CodeUnavailable, fmt.Sprintf(
 		"%s: failed entries [%s]", op, strings.Join(parts, ", "),
 	))
 }

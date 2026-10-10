@@ -5,7 +5,7 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -34,19 +34,19 @@ type Partial struct {
 // CodeInvalidInput.
 func NewPartial(value float64) (Partial, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return Partial{}, errors.New(
-			errors.CodeInvalidInput,
+		return Partial{}, apperr.New(
+			apperr.CodeInvalidInput,
 			"vizql: observation must be finite",
 		)
 	}
 	sketch, err := ddsketch.NewDefaultDDSketch(SketchRelativeAccuracy)
 	if err != nil {
-		return Partial{}, errors.Wrap(err, errors.CodeInternal, "vizql: create sketch")
+		return Partial{}, apperr.Wrap(err, apperr.CodeInternal, "vizql: create sketch")
 	}
 	if err := sketch.Add(value); err != nil {
-		return Partial{}, errors.Wrap(
+		return Partial{}, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"vizql: add observation",
 		)
 	}

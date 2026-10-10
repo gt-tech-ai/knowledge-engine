@@ -35,7 +35,7 @@ func TestRiverMigrate_CreatesRiverSchema(t *testing.T) {
 
 	conn, err := sql.Open("pgx", db.GetDSN())
 	require.NoError(t, err)
-	defer conn.Close() //nolint:errcheck // test cleanup
+	defer conn.Close()
 
 	for _, table := range []string{"river_job", "river_leader"} {
 		var exists bool

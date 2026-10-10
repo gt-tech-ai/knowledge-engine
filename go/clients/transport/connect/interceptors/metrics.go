@@ -9,9 +9,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// defaultDurationBuckets are the default histogram bucket boundaries for RPC
+// defaultDurationBuckets returns the default histogram bucket boundaries for RPC
 // durations (in seconds). Matches Prometheus DefBuckets.
-var defaultDurationBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultDurationBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // metricsInterceptor records RPC metrics (request count + duration) for BOTH unary and
 // server-streaming RPCs. A stream is measured as one RPC — one counter increment and one
@@ -42,7 +44,7 @@ func MetricsInterceptor(m interfaces.Metrics) connect.Interceptor {
 		requestDuration: m.Histogram(
 			"connect_rpc_duration_seconds",
 			"Connect RPC request duration in seconds",
-			defaultDurationBuckets,
+			defaultDurationBuckets(),
 			"service", "method",
 		),
 	}

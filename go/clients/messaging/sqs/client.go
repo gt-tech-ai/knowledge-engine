@@ -9,7 +9,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // API is the subset of the AWS SQS client used by the publisher and subscriber.
@@ -93,7 +93,7 @@ func newSQSClient(ctx context.Context, cfg Config) (*awssqs.Client, error) {
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "load aws config for sqs")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "load aws config for sqs")
 	}
 
 	return awssqs.NewFromConfig(awsCfg, func(o *awssqs.Options) {
@@ -130,8 +130,8 @@ func ensureQueue(ctx context.Context, api API, queueName string) (string, error)
 	}
 
 	var notExist *sqstypes.QueueDoesNotExist
-	if !coreerr.As(err, &notExist) {
-		return "", coreerr.Wrap(err, coreerr.CodeUnavailable, "sqs get queue url")
+	if !apperr.As(err, &notExist) {
+		return "", apperr.Wrap(err, apperr.CodeUnavailable, "sqs get queue url")
 	}
 
 	created, cerr := api.CreateQueue(
@@ -139,7 +139,7 @@ func ensureQueue(ctx context.Context, api API, queueName string) (string, error)
 		&awssqs.CreateQueueInput{QueueName: aws.String(queueName)},
 	)
 	if cerr != nil {
-		return "", coreerr.Wrap(cerr, coreerr.CodeUnavailable, "sqs create queue")
+		return "", apperr.Wrap(cerr, apperr.CodeUnavailable, "sqs create queue")
 	}
 	return aws.ToString(created.QueueUrl), nil
 }

@@ -16,8 +16,8 @@ func SpecHandler(spec []byte) http.HandlerFunc {
 	}
 }
 
-// redocTmpl is a minimal HTML page that loads Redoc from CDN.
-var redocTmpl = template.Must(template.New("redoc").Parse(`<!DOCTYPE html>
+// redocHTML is the template of a minimal HTML page that loads Redoc from CDN.
+const redocHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -30,7 +30,7 @@ var redocTmpl = template.Must(template.New("redoc").Parse(`<!DOCTYPE html>
   <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 </body>
 </html>
-`))
+`
 
 // redocData holds template variables for the Redoc HTML page.
 type redocData struct {
@@ -44,6 +44,7 @@ type redocData struct {
 // RedocHandler returns an http.HandlerFunc that serves a Redoc UI page
 // pointing at the given spec URL.
 func RedocHandler(specURL, title string) http.HandlerFunc {
+	redocTmpl := template.Must(template.New("redoc").Parse(redocHTML))
 	data := redocData{
 		Title:   title,
 		SpecURL: specURL,

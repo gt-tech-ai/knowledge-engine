@@ -11,28 +11,27 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// nonRetryableGRPCCodes lists gRPC status codes that must not be retried:
-// permanent client/domain failures, plus ResourceExhausted — retrying a
-// rate-limited/quota-exceeded call immediately only adds load and deepens the
-// backpressure. A parent-context deadline/cancel is handled by the retrier's
-// context-awareness (it stops when ctx is done), not classified here, so a
-// per-attempt (child-context) timeout can still be retried.
-var nonRetryableGRPCCodes = map[codes.Code]bool{
-	codes.InvalidArgument:   true,
-	codes.NotFound:          true,
-	codes.AlreadyExists:     true,
-	codes.PermissionDenied:  true,
-	codes.Unauthenticated:   true,
-	codes.Unimplemented:     true,
-	codes.Canceled:          true,
-	codes.ResourceExhausted: true,
-}
-
 // isNonRetryableGRPC reports whether err carries a gRPC status code that must
 // not be retried — the framework-specific classifier the interceptorcore retry
-// loop calls.
+// loop calls. The non-retryable codes are permanent client/domain failures, plus
+// ResourceExhausted — retrying a rate-limited/quota-exceeded call immediately
+// only adds load and deepens the backpressure. A parent-context deadline/cancel
+// is handled by the retrier's context-awareness (it stops when ctx is done), not
+// classified here, so a per-attempt (child-context) timeout can still be retried.
 func isNonRetryableGRPC(err error) bool {
-	return nonRetryableGRPCCodes[status.Code(err)]
+	switch status.Code(err) {
+	case codes.InvalidArgument,
+		codes.NotFound,
+		codes.AlreadyExists,
+		codes.PermissionDenied,
+		codes.Unauthenticated,
+		codes.Unimplemented,
+		codes.Canceled,
+		codes.ResourceExhausted:
+		return true
+	default:
+		return false
+	}
 }
 
 // RetryClientInterceptor returns a client-side interceptor that retries

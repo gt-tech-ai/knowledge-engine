@@ -10,13 +10,15 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// defaultDurationBuckets are the default histogram bucket boundaries for RPC
+// defaultDurationBuckets returns the default histogram bucket boundaries for RPC
 // durations (in seconds). Matches Prometheus DefBuckets.
-var defaultDurationBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultDurationBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // MetricsServerInterceptor returns a server-side interceptor that records
 // request count (with service, method, code labels) and request duration
@@ -30,7 +32,7 @@ func MetricsServerInterceptor(m interfaces.Metrics) grpc.UnaryServerInterceptor 
 	requestDuration := m.Histogram(
 		"grpc_server_duration_seconds",
 		"gRPC server request duration in seconds",
-		defaultDurationBuckets,
+		defaultDurationBuckets(),
 		"service", "method",
 	)
 
@@ -70,7 +72,7 @@ func MetricsClientInterceptor(m interfaces.Metrics) grpc.UnaryClientInterceptor 
 	requestDuration := m.Histogram(
 		"grpc_client_duration_seconds",
 		"gRPC client request duration in seconds",
-		defaultDurationBuckets,
+		defaultDurationBuckets(),
 		"service", "method",
 	)
 
@@ -115,7 +117,7 @@ func MetricsStreamClientInterceptor(m interfaces.Metrics) grpc.StreamClientInter
 	requestDuration := m.Histogram(
 		"grpc_client_stream_duration_seconds",
 		"gRPC client stream duration in seconds",
-		defaultDurationBuckets,
+		defaultDurationBuckets(),
 		"service", "method",
 	)
 
@@ -215,7 +217,7 @@ func (s *metricsClientStream) watch(ctx context.Context) {
 func (s *metricsClientStream) finish(err error) {
 	s.once.Do(func() {
 		defer close(s.done)
-		if coreerrors.StdIs(err, io.EOF) {
+		if apperr.StdIs(err, io.EOF) {
 			s.record(nil)
 			return
 		}

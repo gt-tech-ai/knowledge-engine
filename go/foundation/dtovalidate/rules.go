@@ -18,7 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // NoLowerBound / NoUpperBound are the IntRange sentinels for an absent bound — the
@@ -33,7 +33,7 @@ const (
 // UUID checks that v is a valid RFC-4122 UUID (reuses google/uuid).
 func UUID(field, v string) error {
 	if _, err := uuid.Parse(v); err != nil {
-		return errors.InvalidInput(field + ": must be a valid UUID")
+		return apperr.InvalidInput(field + ": must be a valid UUID")
 	}
 	return nil
 }
@@ -44,7 +44,7 @@ func UUID(field, v string) error {
 func MinMaxLen(field, v string, minLen, maxLen int) error {
 	n := utf8.RuneCountInString(v)
 	if n < minLen || (maxLen > 0 && n > maxLen) {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			fmt.Sprintf("%s: length %d not in [%d, %d]", field, n, minLen, maxLen),
 		)
 	}
@@ -54,7 +54,7 @@ func MinMaxLen(field, v string, minLen, maxLen int) error {
 // MaxBytes checks that v's UTF-8 byte length does not exceed maxBytes.
 func MaxBytes(field, v string, maxBytes int) error {
 	if len(v) > maxBytes {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			fmt.Sprintf("%s: %d bytes exceeds max %d", field, len(v), maxBytes),
 		)
 	}
@@ -67,10 +67,10 @@ func MaxBytes(field, v string, maxBytes int) error {
 // mirroring the common.v1.filename proto CEL rule.
 func Filename(field, v string, maxBytes int) error {
 	if v == "" {
-		return errors.InvalidInput(field + ": must not be empty")
+		return apperr.InvalidInput(field + ": must not be empty")
 	}
 	if maxBytes > 0 && len(v) > maxBytes {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			fmt.Sprintf("%s: %d bytes exceeds max %d", field, len(v), maxBytes),
 		)
 	}
@@ -78,12 +78,12 @@ func Filename(field, v string, maxBytes int) error {
 	// that in addition to filepath.IsLocal (which only rejects an absolute/escaping path)
 	// and the separators.
 	if !filepath.IsLocal(v) || strings.ContainsAny(v, `/\`) || strings.Contains(v, "..") {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			field + ": must be a bare, local filename (no path separators or traversal)",
 		)
 	}
 	if strings.ContainsFunc(v, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
-		return errors.InvalidInput(field + ": must not contain control characters")
+		return apperr.InvalidInput(field + ": must not contain control characters")
 	}
 	return nil
 }
@@ -94,7 +94,7 @@ func Filename(field, v string, maxBytes int) error {
 func HTTPSURL(field, v string) error {
 	u, err := url.Parse(v)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return errors.InvalidInput(field + ": must be an http(s) URL")
+		return apperr.InvalidInput(field + ": must be an http(s) URL")
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func HTTPSURL(field, v string) error {
 func Email(field, v string) error {
 	addr, err := mail.ParseAddress(v)
 	if err != nil || addr.Name != "" || addr.Address != v {
-		return errors.InvalidInput(field + ": must be a valid email address")
+		return apperr.InvalidInput(field + ": must be a valid email address")
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ func Email(field, v string) error {
 // not mistaken for "unbounded".
 func IntRange(field string, v, lo, hi int64) error {
 	if v < lo || v > hi {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			fmt.Sprintf("%s: %d out of range [%d, %d]", field, v, lo, hi),
 		)
 	}
@@ -125,7 +125,7 @@ func IntRange(field string, v, lo, hi int64) error {
 // MaxItems checks that a repeated field's length n does not exceed maxItems.
 func MaxItems(field string, n, maxItems int) error {
 	if n > maxItems {
-		return errors.InvalidInput(
+		return apperr.InvalidInput(
 			fmt.Sprintf("%s: %d items exceeds max %d", field, n, maxItems),
 		)
 	}
@@ -140,7 +140,7 @@ func EnumDefined(field string, v int32, valid []int32) error {
 			return nil
 		}
 	}
-	return errors.InvalidInput(
+	return apperr.InvalidInput(
 		fmt.Sprintf("%s: %d is not a defined enum value", field, v),
 	)
 }

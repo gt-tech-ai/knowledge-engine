@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
@@ -130,8 +130,8 @@ func NewFromConfig(cfg Config) (interfaces.Retrier, error) {
 		return exponential.New(expCfg), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown retrier kind: %v", cfg.Kind),
 		)
 	}

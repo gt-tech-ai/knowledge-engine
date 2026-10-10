@@ -13,7 +13,6 @@ package unit_test
 import (
 	"compress/gzip"
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +29,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	zaplogger "github.com/gt-tech-ai/knowledge-engine/go/foundation/logger/zap"
@@ -428,7 +428,7 @@ func TestCORS_SpecificOrigin_Allowed(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -469,7 +469,7 @@ func TestCORS_SpecificOrigin_Disallowed(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -509,7 +509,7 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -553,7 +553,7 @@ func TestCORS_Preflight_SpecificOrigin(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			handlerCalled = true
 		}),
 	)
@@ -755,7 +755,7 @@ func TestRetryWithResult_SucceedsAfterRetries(t *testing.T) {
 	var attempts atomic.Int32
 	result, err := exponential.RetryWithResult(ctx, r, func() (int, error) {
 		if attempts.Add(1) < 3 {
-			return 0, errors.New("transient")
+			return 0, apperr.Sentinel("transient")
 		}
 		return 42, nil
 	})
@@ -787,7 +787,7 @@ func TestRetryWithResult_AllFailures(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	persistentErr := errors.New("always fails")
+	persistentErr := apperr.Sentinel("always fails")
 	result, err := exponential.RetryWithResult(ctx, r, func() (string, error) {
 		return "", persistentErr
 	})
@@ -822,7 +822,7 @@ func TestRetryWithResult_BudgetExhausted(t *testing.T) {
 	var attempts atomic.Int32
 	_, err := exponential.RetryWithResult(ctx, r, func() (int, error) {
 		attempts.Add(1)
-		return 0, errors.New("transient")
+		return 0, apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error when budget exhausted")
 	assert.ErrorIs(t, err, budget.ErrRetryBudgetExhausted)
@@ -854,7 +854,7 @@ func TestRetry_Retry_BudgetExhausted(t *testing.T) {
 	var attempts atomic.Int32
 	err := r.Retry(ctx, func() error {
 		attempts.Add(1)
-		return errors.New("transient")
+		return apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error when budget exhausted")
 	assert.ErrorIs(t, err, budget.ErrRetryBudgetExhausted)
@@ -891,7 +891,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 
 	err := r.Retry(ctx, func() error {
 		attempts.Add(1)
-		return errors.New("transient")
+		return apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error from cancelled context")
 }
@@ -1162,7 +1162,7 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	span.SetAttribute("score", 3.14)
 	span.SetAttribute("active", true)
 	span.SetAttribute("complex", struct{}{})
-	span.RecordError(errors.New("test error"))
+	span.RecordError(apperr.Sentinel("test error"))
 	span.SetStatus(interfaces.SpanStatusError, "failed")
 	assert.ElementsMatch(t, []attribute.KeyValue{
 		attribute.String("user.id", "abc-123"),

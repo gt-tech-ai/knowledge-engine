@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/sqs"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -135,7 +135,7 @@ func TestSubscriber_LogsAndRecoversFromQueueResolutionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		DoAndReturn(scriptedGetQueueURL(errors.New("resolve failed"), "http://q")).
+		DoAndReturn(scriptedGetQueueURL(apperr.Sentinel("resolve failed"), "http://q")).
 		AnyTimes()
 	batch := []sqstypes.Message{{
 		MessageId:     aws.String("m1"),
@@ -189,7 +189,7 @@ func TestSubscriber_LogsDeleteFailure(t *testing.T) {
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("delete failed")).AnyTimes()
+		Return(nil, apperr.Sentinel("delete failed")).AnyTimes()
 	spy := fixtures.NewSpyLogger()
 
 	sub, err := sqs.NewSubscriber(sqs.Config{
@@ -223,7 +223,7 @@ func TestPublisher_ReturnsErrorWhenQueueUnresolvable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("access denied"))
+		Return(nil, apperr.Sentinel("access denied"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
@@ -273,7 +273,7 @@ func TestPublisher_PublishBatch_StopsOnSendError(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("send boom"))
+		Return(nil, apperr.Sentinel("send boom"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestSubscriber_StopsDuringBackoff(t *testing.T) {
 			case received <- struct{}{}:
 			default:
 			}
-			return nil, errors.New("transient")
+			return nil, apperr.Sentinel("transient")
 		},
 	).
 		AnyTimes()
@@ -428,7 +428,7 @@ func TestPublisher_PropagatesSendError(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("sqs unavailable"))
+		Return(nil, apperr.Sentinel("sqs unavailable"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
@@ -523,7 +523,7 @@ func TestSubscriber_HandlerError_DoesNotDelete(t *testing.T) {
 	require.NoError(t, sub.Subscribe(context.Background(), "q",
 		func(_ context.Context, _ *interfaces.Message) error {
 			handled <- struct{}{}
-			return errors.New("transient failure")
+			return apperr.Sentinel("transient failure")
 		}))
 
 	recv(t, handled, "handler to be called")
@@ -555,7 +555,7 @@ func TestSubscriber_RetriesAfterReceiveError(t *testing.T) {
 	}}
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).DoAndReturn(
 		scriptedReceive([]receiveResult{
-			{err: errors.New("transient receive error")},
+			{err: apperr.Sentinel("transient receive error")},
 			{batch: batch},
 		}),
 	).AnyTimes()
@@ -792,7 +792,7 @@ func TestPublisher_PublishBatch_QueueResolveError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("access denied"))
+		Return(nil, apperr.Sentinel("access denied"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gocql/gocql"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // Config is the self-managed Cassandra connection configuration.
@@ -46,16 +46,16 @@ type Config struct {
 // consistency is CodeInvalidInput.
 func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if len(cfg.Hosts) == 0 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"cassandra: at least one host is required",
 		)
 	}
 	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"cassandra: unknown consistency "+cfg.Consistency,
 		)
 	}

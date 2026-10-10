@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"runtime"
 	"strings"
 )
@@ -116,10 +117,11 @@ func (e *AppError) StackTrace() string {
 	var sb strings.Builder
 	frames := runtime.CallersFrames(e.stack)
 	skipping := true
+	prefix := pkgPrefix()
 	for {
 		frame, more := frames.Next()
 		// Drop the New/Wrap/helper frames at the head of the trace.
-		if skipping && strings.HasPrefix(frame.Function, pkgPrefix) {
+		if skipping && strings.HasPrefix(frame.Function, prefix) {
 			if !more {
 				break
 			}
@@ -134,16 +136,13 @@ func (e *AppError) StackTrace() string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-// pkgPrefix is this package's import path plus the trailing dot that starts every
-// function name in it (e.g. "example.com/mod/go/core/errors."). It is read from the
-// running binary rather than written down, so StackTrace recognizes this package's
-// frames whatever module path or checkout it is built from.
-var pkgPrefix = func() string {
-	pc, _, _, _ := runtime.Caller(0)
-	name := runtime.FuncForPC(pc).Name()
-	pkgStart := strings.LastIndex(name, "/") + 1
-	return name[:pkgStart+strings.Index(name[pkgStart:], ".")+1]
-}()
+// pkgPrefix returns this package's import path plus the trailing dot that starts
+// every function name in it (e.g. "example.com/mod/go/core/errors."). It is read
+// from the AppError type rather than written down, so StackTrace recognizes this
+// package's frames whatever module path or checkout it is built from.
+func pkgPrefix() string {
+	return reflect.TypeFor[AppError]().PkgPath() + "."
+}
 
 // callers captures the program counters of the calling goroutine's stack,
 // excluding runtime.Callers and callers itself.

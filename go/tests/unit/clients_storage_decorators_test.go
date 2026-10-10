@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -52,7 +51,7 @@ func TestStorageDecorator_RetryClassification(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	base := mocks.NewMockStorageClient(ctrl)
 	base.EXPECT().Upload(gomock.Any(), "b", "k", gomock.Any(), "").
-		Return(errors.New("boom")).Times(1)
+		Return(apperr.Sentinel("boom")).Times(1)
 	up := storagedecorators.NewBuilder(base, "docs").
 		WithRetrier(fastStorageRetrier(t)).Build()
 	require.Error(t, up.Upload(ctx, "b", "k", strings.NewReader("x"), ""))
@@ -60,7 +59,7 @@ func TestStorageDecorator_RetryClassification(t *testing.T) {
 	// Delete is retryable: fails once, retried, then succeeds.
 	base2 := mocks.NewMockStorageClient(ctrl)
 	gomock.InOrder(
-		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(errors.New("boom")),
+		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(apperr.Sentinel("boom")),
 		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(nil),
 	)
 	del := storagedecorators.NewBuilder(base2, "docs").
@@ -172,7 +171,7 @@ func TestStorageDecorator_LogsAndCountsOnError(t *testing.T) {
 	base := mocks.NewMockStorageClient(ctrl)
 	base.EXPECT().
 		Upload(gomock.Any(), "b", "k", gomock.Any(), gomock.Any()).
-		Return(errors.New("boom"))
+		Return(apperr.Sentinel("boom"))
 
 	logger := mocks.NewMockLogger(ctrl)
 	logger.EXPECT().WithContext(gomock.Any()).Return(logger).AnyTimes()

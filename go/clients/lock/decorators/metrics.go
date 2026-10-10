@@ -40,7 +40,7 @@ func newMetricsDecorator(
 		duration: m.Histogram(
 			"lock_operation_duration_seconds",
 			"Lock operation duration in seconds",
-			defaultBuckets,
+			defaultBuckets(),
 			"lock", "operation",
 		),
 	}

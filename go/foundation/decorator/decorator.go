@@ -18,7 +18,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -46,9 +46,12 @@ type Unwrapper[In any, Out any] interface {
 	Unwrap() Executor[In, Out]
 }
 
-// DefaultBuckets are the default histogram bucket boundaries (in seconds) for
-// execution-duration metrics.
-var DefaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+// DefaultBuckets returns the default histogram bucket boundaries (in seconds) for
+// execution-duration metrics. Each call returns a fresh slice, so a caller may
+// modify it without affecting other callers.
+func DefaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // Timeout returns inner wrapped with a per-execution context deadline. A slow
 // execution is cancelled via context when the deadline elapses.
@@ -294,8 +297,8 @@ func (d *recovery[In, Out]) Execute(
 			if d.onPanic != nil {
 				err = d.onPanic(d.name, r)
 			} else {
-				err = coreerr.New(
-					coreerr.CodeInternal,
+				err = apperr.New(
+					apperr.CodeInternal,
 					fmt.Sprintf("%s panic recovered: %v", d.tier, r),
 				)
 			}

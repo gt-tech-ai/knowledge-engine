@@ -7,7 +7,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/decorators"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
 )
@@ -72,7 +72,7 @@ type Subscriber struct {
 // returns a coded InvalidInput error if the client is nil.
 func NewSubscriber(cfg Config) (*Subscriber, error) {
 	if cfg.Client == nil {
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "redis messaging: nil client")
+		return nil, apperr.New(apperr.CodeInvalidInput, "redis messaging: nil client")
 	}
 	return &Subscriber{
 		client:   cfg.Client,
@@ -88,13 +88,13 @@ func NewSubscriber(cfg Config) (*Subscriber, error) {
 func (s *Subscriber) Subscribe(
 	ctx context.Context, topic string, handler interfaces.MessageHandler,
 ) error {
-	ps, err := s.register(s.channels, topic, handler)
+	ps, err := s.register(ctx, s.channels, topic, handler)
 	if err != nil {
 		return err
 	}
 	if err := ps.Subscribe(ctx, topic); err != nil {
 		s.rollback(s.channels, topic)
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "redis subscribe")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "redis subscribe")
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (s *Subscriber) Unsubscribe(ctx context.Context, topic string) error {
 		return nil
 	}
 	if err := ps.Unsubscribe(ctx, topic); err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "redis unsubscribe")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "redis unsubscribe")
 	}
 	return nil
 }
@@ -117,13 +117,13 @@ func (s *Subscriber) Unsubscribe(ctx context.Context, topic string) error {
 func (s *Subscriber) PSubscribe(
 	ctx context.Context, pattern string, handler interfaces.MessageHandler,
 ) error {
-	ps, err := s.register(s.patterns, pattern, handler)
+	ps, err := s.register(ctx, s.patterns, pattern, handler)
 	if err != nil {
 		return err
 	}
 	if err := ps.PSubscribe(ctx, pattern); err != nil {
 		s.rollback(s.patterns, pattern)
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "redis psubscribe")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "redis psubscribe")
 	}
 	return nil
 }
@@ -136,15 +136,17 @@ func (s *Subscriber) PUnsubscribe(ctx context.Context, pattern string) error {
 		return nil
 	}
 	if err := ps.PUnsubscribe(ctx, pattern); err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "redis punsubscribe")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "redis punsubscribe")
 	}
 	return nil
 }
 
-// register lazily starts the subscription, records handler under reg[key] (wrapped
-// with observability), and returns the pubsub to issue the broker (P)SUBSCRIBE on.
-// It returns a coded error if the subscriber is already closed.
+// register lazily starts the subscription (deriving its lifetime context from ctx),
+// records handler under reg[key] (wrapped with observability), and returns the pubsub
+// to issue the broker (P)SUBSCRIBE on. It returns a coded error if the subscriber is
+// already closed.
 func (s *Subscriber) register(
+	ctx context.Context,
 	reg map[string]interfaces.MessageHandler,
 	key string,
 	handler interfaces.MessageHandler,
@@ -152,9 +154,9 @@ func (s *Subscriber) register(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return nil, coreerr.New(coreerr.CodeUnavailable, "redis subscriber closed")
+		return nil, apperr.New(apperr.CodeUnavailable, "redis subscriber closed")
 	}
-	s.ensureStartedLocked()
+	s.ensureStartedLocked(ctx)
 	reg[key] = s.obs.Wrap(handler)
 	return s.pubsub, nil
 }
@@ -205,20 +207,22 @@ func (s *Subscriber) Close() error {
 	err := ps.Close()
 	s.wg.Wait()
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "redis subscriber close")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "redis subscriber close")
 	}
 	return nil
 }
 
 // ensureStartedLocked lazily creates the one multiplexed subscription and launches
 // the dispatch goroutine on first use. The caller must hold s.mu (write).
-func (s *Subscriber) ensureStartedLocked() {
+func (s *Subscriber) ensureStartedLocked(ctx context.Context) {
 	if s.pubsub != nil {
 		return
 	}
 	// A subscriber-lifetime context, cancelled by Close, is passed to every handler
-	// so an in-flight handler can observe shutdown.
-	dispatchCtx, cancel := context.WithCancel(context.Background())
+	// so an in-flight handler can observe shutdown. It is derived from the first
+	// subscribing call's ctx without its cancellation: the dispatch loop outlives that
+	// call, so the call ending must not stop delivery to every other subscription.
+	dispatchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.cancel = cancel
 	// Subscribe with no channels: the subscription is opened, and channels/patterns
 	// are added dynamically by Subscribe/PSubscribe.

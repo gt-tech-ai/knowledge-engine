@@ -8,7 +8,6 @@
 package unit_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +56,7 @@ func TestToHTTPStatus_UnknownCode(t *testing.T) {
 func TestIs_NonAppError(t *testing.T) {
 	t.Parallel()
 
-	plainErr := errors.New("plain error")
+	plainErr := apperr.Sentinel("plain error")
 	assert.False(
 		t,
 		apperr.Is(plainErr, apperr.CodeNotFound),
@@ -116,7 +115,7 @@ func TestCode_AppError(t *testing.T) {
 func TestCode_PlainError(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, apperr.CodeUnknown, apperr.Code(errors.New("plain")))
+	assert.Equal(t, apperr.CodeUnknown, apperr.Code(apperr.Sentinel("plain")))
 }
 
 // TestCode_NilError tests that the Code function handles nil errors by
@@ -175,7 +174,7 @@ func TestIngestion_Constructor(t *testing.T) {
 func TestErrorString_WithCause(t *testing.T) {
 	t.Parallel()
 
-	cause := errors.New("connection refused")
+	cause := apperr.Sentinel("connection refused")
 	err := apperr.Wrap(cause, apperr.CodeUnavailable, "database failed")
 	assert.Equal(t, "UNAVAILABLE: database failed: connection refused", err.Error())
 }
@@ -296,8 +295,8 @@ func fieldKeySet(fields []zap.Field) map[string]bool {
 func TestCombine(t *testing.T) {
 	t.Parallel()
 
-	err1 := errors.New("err1")
-	err2 := errors.New("err2")
+	err1 := apperr.Sentinel("err1")
+	err2 := apperr.Sentinel("err2")
 
 	combined := apperr.Combine(err1, err2)
 	require.Error(t, combined)
@@ -334,10 +333,10 @@ func TestCombine_AllNils(t *testing.T) {
 func TestAppend(t *testing.T) {
 	t.Parallel()
 
-	result := apperr.Append(nil, errors.New("first"))
+	result := apperr.Append(nil, apperr.Sentinel("first"))
 	require.Error(t, result)
 
-	result = apperr.Append(result, errors.New("second"))
+	result = apperr.Append(result, apperr.Sentinel("second"))
 	errs := apperr.Errors(result)
 	require.Len(t, errs, 2)
 }
@@ -354,7 +353,7 @@ func TestAppend(t *testing.T) {
 func TestErrors_SingleError(t *testing.T) {
 	t.Parallel()
 
-	err := errors.New("single")
+	err := apperr.Sentinel("single")
 	errs := apperr.Errors(err)
 	require.Len(t, errs, 1)
 	assert.Same(t, err, errs[0])

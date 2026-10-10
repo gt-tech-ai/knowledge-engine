@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/job/decorators"
@@ -77,7 +77,7 @@ func TestDecorators_PassThrough(t *testing.T) {
 	failing := mocks.NewMockAnyJob(ctrl)
 	failing.EXPECT().Meta().Return(types.JobMeta{Name: "relay"}).AnyTimes()
 	failing.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("boom"))
+		Return(nil, apperr.Sentinel("boom"))
 	_, err = execFullStack(failing).Execute(context.Background(), nil, "")
 	require.Error(t, err)
 }

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -31,18 +31,18 @@ var _ interfaces.Encryptor = (*aesGCM)(nil)
 // a key of the wrong length rather than silently truncating or padding it.
 func New(key []byte) (interfaces.Encryptor, error) {
 	if len(key) != KeySize {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("crypto: key must be %d bytes, got %d", KeySize, len(key)),
 		)
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "crypto: new cipher")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "crypto: new cipher")
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "crypto: new gcm")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "crypto: new gcm")
 	}
 	return &aesGCM{gcm: gcm}, nil
 }
@@ -52,7 +52,7 @@ func New(key []byte) (interfaces.Encryptor, error) {
 func (a *aesGCM) Encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, a.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "crypto: read nonce")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "crypto: read nonce")
 	}
 	// Seal appends the sealed ciphertext to the nonce prefix passed as dst.
 	return a.gcm.Seal(nonce, nonce, plaintext, nil), nil
@@ -63,17 +63,17 @@ func (a *aesGCM) Encrypt(plaintext []byte) ([]byte, error) {
 func (a *aesGCM) Decrypt(ciphertext []byte) ([]byte, error) {
 	nonceSize := a.gcm.NonceSize()
 	if len(ciphertext) < nonceSize {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"crypto: ciphertext shorter than nonce",
 		)
 	}
 	nonce, sealed := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	plaintext, err := a.gcm.Open(nil, nonce, sealed, nil)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"crypto: decrypt failed (wrong key or tampered ciphertext)",
 		)
 	}

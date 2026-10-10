@@ -14,12 +14,12 @@ var _ interfaces.JobEnqueuer = (*Client)(nil)
 type Client struct{}
 
 // NewClient creates the no-op job client; cfg is not read.
-func NewClient(cfg Config) (*Client, error) {
+func NewClient(_ Config) (*Client, error) {
 	return &Client{}, nil
 }
 
 // Enqueue accepts job without queueing it and returns nil.
-func (c *Client) Enqueue(ctx context.Context, job interfaces.Job) error {
+func (c *Client) Enqueue(_ context.Context, _ interfaces.Job) error {
 	return nil
 }
 

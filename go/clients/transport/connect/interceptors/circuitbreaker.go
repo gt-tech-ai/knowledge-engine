@@ -6,7 +6,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -34,7 +34,7 @@ func CircuitBreakerInterceptor(
 				// Circuit breaker rejected the call (circuit open).
 				return nil, connect.NewError(
 					connect.CodeUnavailable,
-					coreerr.New(coreerr.CodeUnavailable, "circuit breaker open"),
+					apperr.New(apperr.CodeUnavailable, "circuit breaker open"),
 				)
 			}
 			if innerErr != nil {

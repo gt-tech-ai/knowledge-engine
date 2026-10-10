@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 )
@@ -13,31 +13,29 @@ import (
 // so a crafted deep spec is a clean CodeInvalidInput, not unbounded recursion.
 const MaxShelfDepth = 8
 
-// grains is the set of accepted time resolutions.
-var grains = map[types.Grain]bool{
-	types.GrainMinute: true,
-	types.GrainHour:   true,
-	types.GrainDay:    true,
-	types.GrainMonth:  true,
+// validMark reports whether m is an accepted explicit mark (MarkAuto included).
+func validMark(m types.Mark) bool {
+	switch m {
+	case types.MarkAuto, types.MarkText, types.MarkBar, types.MarkLine, types.MarkPoint:
+		return true
+	default:
+		return false
+	}
 }
 
-// marks is the set of accepted explicit marks (MarkAuto included).
-var marks = map[types.Mark]bool{
-	types.MarkAuto:  true,
-	types.MarkText:  true,
-	types.MarkBar:   true,
-	types.MarkLine:  true,
-	types.MarkPoint: true,
-}
-
-// ops is the set of accepted table-algebra operators.
-var ops = map[types.AlgebraOp]bool{
-	types.AlgebraCross: true, types.AlgebraConcat: true, types.AlgebraNest: true,
+// validOp reports whether op is an accepted table-algebra operator.
+func validOp(op types.AlgebraOp) bool {
+	switch op {
+	case types.AlgebraCross, types.AlgebraConcat, types.AlgebraNest:
+		return true
+	default:
+		return false
+	}
 }
 
 // invalid builds the CodeInvalidInput error every rejection returns.
 func invalid(msg string) error {
-	return errors.New(errors.CodeInvalidInput, "vizspec: "+msg)
+	return apperr.New(apperr.CodeInvalidInput, "vizspec: "+msg)
 }
 
 // Parse decodes a JSON VizSpec and validates it against the cube's allow-list m: every
@@ -50,9 +48,9 @@ func invalid(msg string) error {
 func Parse(b []byte, m *listquery.Map) (types.VizSpec, error) {
 	var spec types.VizSpec
 	if err := json.Unmarshal(b, &spec); err != nil {
-		return types.VizSpec{}, errors.Wrap(
+		return types.VizSpec{}, apperr.Wrap(
 			err,
-			errors.CodeOr(err, errors.CodeInvalidInput),
+			apperr.CodeOr(err, apperr.CodeInvalidInput),
 			"vizspec: invalid JSON",
 		)
 	}
@@ -89,10 +87,10 @@ func validateScalars(spec *types.VizSpec) error {
 	if spec.Cube == "" {
 		return invalid("cube is required")
 	}
-	if spec.Grain != "" && !grains[spec.Grain] {
+	if spec.Grain != "" && !ValidGrain(spec.Grain) {
 		return invalid("unknown grain " + string(spec.Grain))
 	}
-	if !marks[spec.Mark] {
+	if !validMark(spec.Mark) {
 		return invalid("unknown mark " + string(spec.Mark))
 	}
 	if tr := spec.TimeRange; !tr.From.IsZero() && !tr.To.IsZero() &&
@@ -141,7 +139,7 @@ func compileFilter(spec *types.VizSpec, m *listquery.Map) error {
 	}
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, spec.FilterJSON); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid filter JSON")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: invalid filter JSON")
 	}
 	spec.Filter, spec.FilterJSON = filter, compact.Bytes()
 	return nil
@@ -165,7 +163,7 @@ func validateShelf(
 		keys[e.Field.Key()] = true
 		return validateRef(*e.Field, m)
 	}
-	if !ops[e.Op] {
+	if !validOp(e.Op) {
 		return invalid("unknown shelf operator " + string(e.Op))
 	}
 	if len(e.Args) == 0 {

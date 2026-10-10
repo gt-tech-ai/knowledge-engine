@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 )
@@ -30,9 +30,12 @@ func (r keysetStubRunner) Count(context.Context, []types.Filter, int) (int, erro
 	return len(r.rows), nil
 }
 
-// keysetStubTime is a fixed instant the stub reports for the created_at keyset column (a
-// test never needs a live clock — a constant keeps the minted cursor deterministic).
-var keysetStubTime = time.Unix(1_700_000_000, 0).UTC()
+// keysetStubTime returns a fixed instant the stub reports for the created_at keyset
+// column (a test never needs a live clock — a constant keeps the minted cursor
+// deterministic).
+func keysetStubTime() time.Time {
+	return time.Unix(1_700_000_000, 0).UTC()
+}
 
 // keysetReader builds a keyset-wired Reader over the stub with the given sort (empty =
 // default order).
@@ -49,7 +52,7 @@ func keysetReader(rows []int, sort []types.OrderField) listquery.Reader[int, int
 			RowValue: func(row int, col string) (any, bool) {
 				switch col {
 				case "created_at":
-					return keysetStubTime, true
+					return keysetStubTime(), true
 				case "id":
 					return strconv.Itoa(row), true
 				case "name":
@@ -96,7 +99,7 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 			keysetReader([]int{1, 2, 3}, customSort),
 		)
 		require.Error(t, err)
-		assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		assert.True(t, apperr.Is(err, apperr.CodeInvalidInput),
 			"keyset on a custom sort → CodeInvalidInput, got %v", err)
 	})
 
@@ -166,7 +169,7 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 		require.Error(t, err)
 		assert.True(
 			t,
-			coreerrors.Is(err, coreerrors.CodeInvalidInput),
+			apperr.Is(err, apperr.CodeInvalidInput),
 			"a cursor whose sort⊕filter fingerprint no longer matches → CodeInvalidInput, got %v",
 			err,
 		)

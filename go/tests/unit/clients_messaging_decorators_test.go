@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -10,6 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/prom"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -62,7 +62,7 @@ func TestHandlerObservability_RecordsHandleMetrics(t *testing.T) {
 	)
 
 	bad := obs.Wrap(func(_ context.Context, _ *interfaces.Message) error {
-		return errors.New("boom")
+		return apperr.Sentinel("boom")
 	})
 	require.Error(t, bad(context.Background(), &interfaces.Message{Topic: "t", ID: "m2"}))
 
@@ -90,7 +90,7 @@ func TestWrapPublisher_LogsPublishFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	core := mocks.NewMockMessagePublisher(ctrl)
 	core.EXPECT().Publish(gomock.Any(), "topic", gomock.Any()).
-		Return(errors.New("send failed"))
+		Return(apperr.Sentinel("send failed"))
 	spy := fixtures.NewSpyLogger()
 
 	pub := decorators.WrapPublisher(core, decorators.PublisherDeps{Logger: spy})
@@ -231,7 +231,7 @@ func TestWrapPublisher_BatchFailureLoggedAndMeasured(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	core := mocks.NewMockMessagePublisher(ctrl)
 	core.EXPECT().PublishBatch(gomock.Any(), "topic", gomock.Any()).
-		Return(errors.New("batch failed"))
+		Return(apperr.Sentinel("batch failed"))
 	spy := fixtures.NewSpyLogger()
 
 	pub := decorators.WrapPublisher(core, decorators.PublisherDeps{
@@ -269,7 +269,7 @@ func TestHandlerObservability_LogsHandleFailure(t *testing.T) {
 	handler := decorators.NewHandlerObservability(spy, fixtures.NopMetrics()).Wrap(
 		func(_ context.Context, _ *interfaces.Message) error {
 			inner++
-			return errors.New("handler boom")
+			return apperr.Sentinel("handler boom")
 		},
 	)
 

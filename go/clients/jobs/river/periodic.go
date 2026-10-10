@@ -19,6 +19,6 @@ func NewScheduler() *Scheduler {
 }
 
 // Schedule accepts job without scheduling it and returns nil.
-func (s *Scheduler) Schedule(job interfaces.PeriodicJob, interval time.Duration) error {
+func (s *Scheduler) Schedule(_ interfaces.PeriodicJob, _ time.Duration) error {
 	return nil
 }

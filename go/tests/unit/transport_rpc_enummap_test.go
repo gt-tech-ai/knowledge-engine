@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	apprpc "github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
 )
 
@@ -60,7 +60,7 @@ func TestEnumMapper(t *testing.T) {
 
 	_, err := m.ToDomainOrError(enumP(99))
 	require.Error(t, err)
-	assert.Equal(t, errors.CodeInvalidInput, errors.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 
 	_, ok = m.ToDomainFilter(pUnspecified) // unspecified → "no filter"
 	assert.False(t, ok)

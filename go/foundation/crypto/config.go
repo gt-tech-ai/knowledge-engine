@@ -3,7 +3,7 @@ package crypto
 import (
 	"encoding/base64"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -19,13 +19,13 @@ type Config struct {
 // (New enforces the length), so bad key material is rejected at startup, not first use.
 func NewFromConfig(cfg Config) (interfaces.Encryptor, error) {
 	if cfg.Key == "" {
-		return nil, errors.New(errors.CodeInvalidInput, "crypto: key is required")
+		return nil, apperr.New(apperr.CodeInvalidInput, "crypto: key is required")
 	}
 	key, err := base64.StdEncoding.DecodeString(cfg.Key)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"crypto: key is not valid base64",
 		)
 	}

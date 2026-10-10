@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -47,8 +47,8 @@ func TestStorageMemory_ErrorPaths(t *testing.T) {
 	err = c.CompleteMultipartUpload(ctx, "b", "elsewhere", id, nil)
 	require.Equal(
 		t,
-		coreerrors.CodeNotFound,
-		coreerrors.Code(err),
+		apperr.CodeNotFound,
+		apperr.Code(err),
 		"a mismatched key is not the upload: %v",
 		err,
 	)

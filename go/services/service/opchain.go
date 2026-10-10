@@ -8,17 +8,19 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorate"
 )
 
-// svcMetricsSpec names the service custom-op metrics — identical to the CRUD metric
-// decorator's names/labels, so the get-or-create registry shares one set of collectors
-// between the CRUD and custom-op paths.
-var svcMetricsSpec = decorate.MetricsSpec{
-	OperationsName: "service_operations_total",
-	OperationsHelp: "Total service operations",
-	ErrorsName:     "service_errors_total",
-	ErrorsHelp:     "Total service errors",
-	DurationName:   "service_operation_duration_seconds",
-	DurationHelp:   "Service operation duration",
-	SubjectLabel:   "service",
+// svcMetricsSpec returns the spec naming the service custom-op metrics — identical
+// to the CRUD metric decorator's names/labels, so the get-or-create registry
+// shares one set of collectors between the CRUD and custom-op paths.
+func svcMetricsSpec() decorate.MetricsSpec {
+	return decorate.MetricsSpec{
+		OperationsName: "service_operations_total",
+		OperationsHelp: "Total service operations",
+		ErrorsName:     "service_errors_total",
+		ErrorsHelp:     "Total service errors",
+		DurationName:   "service_operation_duration_seconds",
+		DurationHelp:   "Service operation duration",
+		SubjectLabel:   "service",
+	}
 }
 
 // OpChain builds the custom-operation decoration chain for a service named name,
@@ -45,7 +47,7 @@ func OpChain(
 		)
 	}
 	if metrics != nil {
-		mws = append(mws, decorate.NewMetrics(metrics, name, svcMetricsSpec))
+		mws = append(mws, decorate.NewMetrics(metrics, name, svcMetricsSpec()))
 	}
 	if logger != nil {
 		mws = append(mws, decorate.NewLogging(logger, name, "service", "service"))

@@ -16,7 +16,7 @@ import (
 
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/prometheus"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/prom"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -73,7 +73,7 @@ func TestClient_QueryParsesVector(t *testing.T) {
 	cases := []struct {
 		name     string
 		body     string
-		wantCode coreerr.ErrorCode
+		wantCode apperr.ErrorCode
 		want     float64
 	}{
 		{
@@ -84,12 +84,12 @@ func TestClient_QueryParsesVector(t *testing.T) {
 		{
 			name:     "no sample",
 			body:     strings.Replace(promVector, "%s", "", 1),
-			wantCode: coreerr.CodeNotFound,
+			wantCode: apperr.CodeNotFound,
 		},
 		{
 			name:     "NaN",
 			body:     strings.Replace(promVector, "%s", promInstant("NaN"), 1),
-			wantCode: coreerr.CodeNotFound,
+			wantCode: apperr.CodeNotFound,
 		},
 		{
 			name: "two series",
@@ -99,12 +99,12 @@ func TestClient_QueryParsesVector(t *testing.T) {
 				promInstant("1")+","+promInstant("2"),
 				1,
 			),
-			wantCode: coreerr.CodeInvalidInput,
+			wantCode: apperr.CodeInvalidInput,
 		},
 		{
 			name:     "matrix",
 			body:     strings.Replace(promMatrix, "%s", "", 1),
-			wantCode: coreerr.CodeInvalidInput,
+			wantCode: apperr.CodeInvalidInput,
 		},
 	}
 	for _, tc := range cases {
@@ -129,7 +129,7 @@ func TestClient_QueryParsesVector(t *testing.T) {
 			assert.Equal(t, `sum(up)`, req.URL.Query().Get("query"))
 			if tc.wantCode != "" {
 				require.Error(t, err)
-				assert.Equal(t, tc.wantCode, coreerr.Code(err))
+				assert.Equal(t, tc.wantCode, apperr.Code(err))
 				return
 			}
 			require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestClient_QueryRangeParsesMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
 		body     string
-		wantCode coreerr.ErrorCode
+		wantCode apperr.ErrorCode
 		want     []prometheus.Sample
 	}{
 		{
@@ -181,12 +181,12 @@ func TestClient_QueryRangeParsesMatrix(t *testing.T) {
 				promSeries("1")+","+promSeries("2"),
 				1,
 			),
-			wantCode: coreerr.CodeInvalidInput,
+			wantCode: apperr.CodeInvalidInput,
 		},
 		{
 			name:     "NaN",
 			body:     strings.Replace(promMatrix, "%s", promSeries("NaN"), 1),
-			wantCode: coreerr.CodeNotFound,
+			wantCode: apperr.CodeNotFound,
 		},
 	}
 	for _, tc := range cases {
@@ -215,7 +215,7 @@ func TestClient_QueryRangeParsesMatrix(t *testing.T) {
 			assert.Equal(t, "3600", q.Get("step"))
 			if tc.wantCode != "" {
 				require.Error(t, err)
-				assert.Equal(t, tc.wantCode, coreerr.Code(err))
+				assert.Equal(t, tc.wantCode, apperr.Code(err))
 				return
 			}
 			require.NoError(t, err)
@@ -251,13 +251,13 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 		body     string
 		name     string
 		wantMsg  string
-		wantCode coreerr.ErrorCode
+		wantCode apperr.ErrorCode
 		status   int
 	}{
 		{
 			name:     "transport",
-			doErr:    coreerr.Sentinel("connection refused"),
-			wantCode: coreerr.CodeUnavailable,
+			doErr:    apperr.Sentinel("connection refused"),
+			wantCode: apperr.CodeUnavailable,
 		},
 		{
 			name: "caller canceled",
@@ -266,7 +266,7 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 				URL: "http://prom.test:9090",
 				Err: context.Canceled,
 			},
-			wantCode: coreerr.CodeCanceled,
+			wantCode: apperr.CodeCanceled,
 		},
 		{
 			name: "caller deadline",
@@ -275,58 +275,58 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 				URL: "http://prom.test:9090",
 				Err: context.DeadlineExceeded,
 			},
-			wantCode: coreerr.CodeTimeout,
+			wantCode: apperr.CodeTimeout,
 		},
 		{
 			name:     "HTTP 400",
 			status:   http.StatusBadRequest,
 			body:     `{"status":"error","error":"parse error at char 3"}`,
-			wantCode: coreerr.CodeInvalidInput,
+			wantCode: apperr.CodeInvalidInput,
 			wantMsg:  "parse error at char 3",
 		},
 		{
 			name:     "HTTP 429",
 			status:   http.StatusTooManyRequests,
 			body:     ``,
-			wantCode: coreerr.CodeUnavailable,
+			wantCode: apperr.CodeUnavailable,
 		},
 		{
 			name:     "HTTP 502 html",
 			status:   http.StatusBadGateway,
 			body:     `<html>`,
-			wantCode: coreerr.CodeUnavailable,
+			wantCode: apperr.CodeUnavailable,
 		},
 		{
 			name:     "HTTP 503",
 			status:   http.StatusServiceUnavailable,
 			body:     `{"status":"error","error":"starting up"}`,
-			wantCode: coreerr.CodeUnavailable,
+			wantCode: apperr.CodeUnavailable,
 			wantMsg:  "starting up",
 		},
 		{
 			name:     "HTTP 500",
 			status:   http.StatusInternalServerError,
 			body:     `{}`,
-			wantCode: coreerr.CodeUpstream,
+			wantCode: apperr.CodeUpstream,
 		},
 		{
 			name:     "status error",
 			status:   http.StatusOK,
 			body:     `{"status":"error","error":"query timed out"}`,
-			wantCode: coreerr.CodeUpstream,
+			wantCode: apperr.CodeUpstream,
 			wantMsg:  "query timed out",
 		},
 		{
 			name:     "bad json",
 			status:   http.StatusOK,
 			body:     `<html>`,
-			wantCode: coreerr.CodeUpstream,
+			wantCode: apperr.CodeUpstream,
 		},
 		{
 			name:     "bad sample",
 			status:   http.StatusOK,
 			body:     strings.Replace(promVector, "%s", promInstant("abc"), 1),
-			wantCode: coreerr.CodeUpstream,
+			wantCode: apperr.CodeUpstream,
 		},
 	}
 	for _, tc := range cases {
@@ -346,7 +346,7 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 				Query(t.Context(), `up`)
 
 			require.Error(t, err)
-			assert.Equal(t, tc.wantCode, coreerr.Code(err))
+			assert.Equal(t, tc.wantCode, apperr.Code(err))
 			assert.Contains(t, err.Error(), tc.wantMsg)
 		})
 	}
@@ -358,7 +358,7 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 		_, err := prometheus.New("http://[::1", doer).Query(t.Context(), `up`)
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 	})
 	t.Run("bad range", func(t *testing.T) {
 		t.Parallel()
@@ -369,10 +369,10 @@ func TestClient_ErrorStatusIsCoded(t *testing.T) {
 
 		_, err := c.QueryRange(t.Context(), `up`, t0, t0.Add(time.Hour), 0)
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 		_, err = c.QueryRange(t.Context(), `up`, t0.Add(time.Hour), t0, time.Minute)
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 	})
 }
 
@@ -401,7 +401,7 @@ func TestNewFromConfig_StubDefaultAndUnknownKind(t *testing.T) {
 	}
 	_, err := prometheus.ParseKind("victoria")
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 
 	q, err := prometheus.NewFromConfig(
 		prometheus.DefaultConfig(),
@@ -425,13 +425,13 @@ func TestNewFromConfig_StubDefaultAndUnknownKind(t *testing.T) {
 	unknown.Kind = prometheus.Kind(99)
 	_, err = prometheus.NewFromConfig(unknown, clientdecorators.Deps{})
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 
 	noURL := prometheus.DefaultConfig()
 	noURL.Kind = prometheus.KindHTTP
 	_, err = prometheus.NewFromConfig(noURL, clientdecorators.Deps{})
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 
 	withURL := noURL
 	withURL.BaseURL = "http://prom.invalid:9090"
@@ -475,7 +475,7 @@ func TestDecorateDoer_RetriesTransportErrorsAndBuffersBody(t *testing.T) {
 	})
 	src.EXPECT().Close().Return(nil)
 	gomock.InOrder(
-		inner.EXPECT().Do(gomock.Any()).Return(nil, coreerr.Sentinel("connection reset")),
+		inner.EXPECT().Do(gomock.Any()).Return(nil, apperr.Sentinel("connection reset")),
 		inner.EXPECT().
 			Do(gomock.Any()).
 			DoAndReturn(func(*http.Request) (*http.Response, error) {
@@ -505,10 +505,10 @@ func TestDecorateDoer_RetriesTransportErrorsAndBuffersBody(t *testing.T) {
 	)
 	require.NoError(t, err)
 	failing := mocks.NewMockPrometheusHTTPDoer(gomock.NewController(t))
-	failing.EXPECT().Do(gomock.Any()).Return(nil, coreerr.Sentinel("connection refused"))
+	failing.EXPECT().Do(gomock.Any()).Return(nil, apperr.Sentinel("connection refused"))
 	err = doClosed(prometheus.DecorateDoer(failing, bare, 0), req)
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
 
 	large := mocks.NewMockPrometheusHTTPDoer(gomock.NewController(t))
 	large.EXPECT().
@@ -518,5 +518,5 @@ func TestDecorateDoer_RetriesTransportErrorsAndBuffersBody(t *testing.T) {
 		})
 	err = doClosed(prometheus.DecorateDoer(large, bare, 8), req)
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 }

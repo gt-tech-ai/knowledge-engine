@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -64,7 +64,7 @@ func (m *Metrics) Counter(name, help string, labels ...string) interfaces.Counte
 	}, labels)
 	if err := m.reg.Register(c); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &counter{inner: are.ExistingCollector.(*prometheus.CounterVec)}
 		}
 		panic(err)
@@ -87,7 +87,7 @@ func (m *Metrics) Histogram(
 	}, labels)
 	if err := m.reg.Register(h); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &histogram{inner: are.ExistingCollector.(*prometheus.HistogramVec)}
 		}
 		panic(err)
@@ -105,7 +105,7 @@ func (m *Metrics) Gauge(name, help string, labels ...string) interfaces.Gauge {
 	}, labels)
 	if err := m.reg.Register(g); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &gauge{inner: are.ExistingCollector.(*prometheus.GaugeVec)}
 		}
 		panic(err)

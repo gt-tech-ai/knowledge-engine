@@ -8,7 +8,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // defaultInsertMaxConns caps an insert-only client's pgxpool. An enqueue-only producer
@@ -40,9 +40,9 @@ func NewInsertClient(
 ) (*InsertClient, error) {
 	poolCfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"river insert client: parse pool config",
 		)
 	}
@@ -52,18 +52,18 @@ func NewInsertClient(
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"river insert client: open pool",
 		)
 	}
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
 		pool.Close()
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"river insert client: new client",
 		)
 	}
@@ -80,9 +80,9 @@ func (c *InsertClient) Insert(
 ) (skippedAsDuplicate bool, err error) {
 	res, err := c.client.Insert(ctx, args, nil)
 	if err != nil {
-		return false, errors.Wrap(
+		return false, apperr.Wrap(
 			err,
-			errors.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"river insert client: insert job",
 		)
 	}

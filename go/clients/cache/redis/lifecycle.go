@@ -3,7 +3,7 @@ package redis
 import (
 	"context"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -28,7 +28,7 @@ func (c *Cache) Stop(_ context.Context) error {
 // self-check that does not touch Redis).
 func (c *Cache) Liveness(_ context.Context) error {
 	if c.client == nil {
-		return coreerrors.Internal("redis cache not initialized")
+		return apperr.Internal("redis cache not initialized")
 	}
 	return nil
 }

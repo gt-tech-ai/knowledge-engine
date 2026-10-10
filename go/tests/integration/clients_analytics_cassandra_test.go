@@ -20,7 +20,7 @@ import (
 
 	analyticscassandra "github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
@@ -244,7 +244,7 @@ func genFilter(r *rand.Rand, days []time.Time) randFilter {
 func (s *AnalyticsCassandraSuite) TestCassandra_PushdownMatchesFullScan() {
 	store := s.newStore(s.session, 7)
 	org := "org-pushdown"
-	r := rand.New(rand.NewSource(42)) //nolint:gosec // deterministic test data
+	r := rand.New(rand.NewSource(42))
 	var days []time.Time
 	first := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
@@ -415,7 +415,7 @@ func (q crashingQuery) Idempotent(b bool) cassandra.Query {
 
 // Exec fails with CodeUnavailable, as a process killed mid-write would.
 func (crashingQuery) Exec() error {
-	return coreerr.New(coreerr.CodeUnavailable, "process killed")
+	return apperr.New(apperr.CodeUnavailable, "process killed")
 }
 
 // TestCassandra_CrashBetweenWritesDoesNotLoseMeasures tests that a write that
@@ -440,7 +440,7 @@ func (s *AnalyticsCassandraSuite) TestCassandra_CrashBetweenWritesDoesNotLoseMea
 	)
 
 	err := crashing.Write(context.Background(), []types.Fact{f})
-	s.Equal(coreerr.CodeUnavailable, coreerr.Code(err))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(err))
 
 	store := s.newStore(s.session, 0)
 	s.Require().NoError(store.Write(context.Background(), []types.Fact{f}))

@@ -14,20 +14,23 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// bufferDurationBuckets are the histogram bucket boundaries (seconds) for replay-buffer
-// op durations — sub-millisecond (memory) to a few hundred ms (a slow Redis round-trip).
-var bufferDurationBuckets = []float64{
-	.0005,
-	.001,
-	.0025,
-	.005,
-	.01,
-	.025,
-	.05,
-	.1,
-	.25,
-	.5,
-	1,
+// bufferDurationBuckets returns the histogram bucket boundaries (seconds) for
+// replay-buffer op durations — sub-millisecond (memory) to a few hundred ms (a slow
+// Redis round-trip).
+func bufferDurationBuckets() []float64 {
+	return []float64{
+		.0005,
+		.001,
+		.0025,
+		.005,
+		.01,
+		.025,
+		.05,
+		.1,
+		.25,
+		.5,
+		1,
+	}
 }
 
 // Builder composes decorators around a base ReplayBuffer using a fluent API.

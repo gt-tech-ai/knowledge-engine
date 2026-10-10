@@ -7,7 +7,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // Migrate applies River's own database schema (the river_job, river_leader, …
@@ -24,16 +24,16 @@ import (
 func Migrate(ctx context.Context, databaseURL string) error {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "river migrate: open pool")
+		return apperr.Wrap(err, apperr.CodeInternal, "river migrate: open pool")
 	}
 	defer pool.Close()
 
 	migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	if err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "river migrate: new migrator")
+		return apperr.Wrap(err, apperr.CodeInternal, "river migrate: new migrator")
 	}
 	if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "river migrate: apply up")
+		return apperr.Wrap(err, apperr.CodeInternal, "river migrate: apply up")
 	}
 	return nil
 }

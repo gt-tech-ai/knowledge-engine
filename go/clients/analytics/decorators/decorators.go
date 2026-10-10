@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
@@ -84,8 +84,8 @@ func (b *Builder) Build() interfaces.AnalyticsStore {
 			func(ctx context.Context, a compactArgs) (struct{}, error) {
 				c, ok := b.base.(interfaces.AnalyticsCompactor)
 				if !ok {
-					return struct{}{}, coreerr.New(
-						coreerr.CodeInvalidInput,
+					return struct{}{}, apperr.New(
+						apperr.CodeInvalidInput,
 						"analytics: store does not compact",
 					)
 				}
@@ -116,9 +116,9 @@ func chain[In, Out any](
 	}
 	if b.cb != nil {
 		e = decorator.CircuitBreaker(e, b.cb, func(err error) error {
-			return coreerr.Wrap(
+			return apperr.Wrap(
 				err,
-				coreerr.CodeUnavailable,
+				apperr.CodeUnavailable,
 				"analytics: circuit breaker open",
 			)
 		})
@@ -127,11 +127,11 @@ func chain[In, Out any](
 		e = decorator.Tracing(e, b.tracer, tier, name)
 	}
 	if b.metrics != nil {
-		e = decorator.Metrics(e, tier, name, b.metrics, decorator.DefaultBuckets)
+		e = decorator.Metrics(e, tier, name, b.metrics, decorator.DefaultBuckets())
 	}
 	return decorator.Recovery(e, b.logger, tier, name, func(n string, r any) error {
-		return coreerr.New(
-			coreerr.CodeInternal,
+		return apperr.New(
+			apperr.CodeInternal,
 			fmt.Sprintf("analytics %s panic recovered: %v", n, r),
 		)
 	})
@@ -205,11 +205,11 @@ type codedTimeout[In, Out any] struct {
 // Execute runs inner and codes a deadline overrun.
 func (d *codedTimeout[In, Out]) Execute(ctx context.Context, in In) (Out, error) {
 	out, err := d.inner.Execute(ctx, in)
-	if err != nil && coreerr.StdIs(err, context.DeadlineExceeded) &&
-		coreerr.Code(err) != coreerr.CodeTimeout {
-		return out, coreerr.Wrap(
+	if err != nil && apperr.StdIs(err, context.DeadlineExceeded) &&
+		apperr.Code(err) != apperr.CodeTimeout {
+		return out, apperr.Wrap(
 			err,
-			coreerr.CodeTimeout,
+			apperr.CodeTimeout,
 			"analytics: operation timed out",
 		)
 	}

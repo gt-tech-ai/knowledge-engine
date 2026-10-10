@@ -26,8 +26,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// defaultBuckets are histogram bucket boundaries (seconds) for operation latency.
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+// defaultBuckets returns histogram bucket boundaries (seconds) for operation latency.
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // Stack composes resilience + observability layers around a client boundary. A
 // nil layer (or zero timeout) is skipped, so the zero-value Stack is a
@@ -113,7 +115,7 @@ func (s *Stack) WithMetrics(m interfaces.Metrics) *Stack {
 	s.dur = m.Histogram(
 		"client_operation_duration_seconds",
 		"Client operation duration in seconds",
-		defaultBuckets,
+		defaultBuckets(),
 		"client", "op",
 	)
 	return s

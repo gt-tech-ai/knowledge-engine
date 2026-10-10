@@ -1,7 +1,6 @@
 package unit_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,7 +9,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestErrorFieldAppError tests that ZapError() extracts structured fields from an
@@ -29,8 +28,8 @@ import (
 func TestErrorFieldAppError(t *testing.T) {
 	t.Parallel()
 
-	appErr := coreerrors.NotFound("record not found")
-	field := coreerrors.ZapError(appErr)
+	appErr := apperr.NotFound("record not found")
+	field := apperr.ZapError(appErr)
 
 	assert.Equal(t, "error", field.Key)
 	assert.Equal(t, zapcore.ObjectMarshalerType, field.Type)
@@ -49,8 +48,8 @@ func TestErrorFieldAppError(t *testing.T) {
 func TestErrorFieldPlainError(t *testing.T) {
 	t.Parallel()
 
-	plainErr := errors.New("something went wrong")
-	field := coreerrors.ZapError(plainErr)
+	plainErr := apperr.Sentinel("something went wrong")
+	field := apperr.ZapError(plainErr)
 
 	assert.Equal(t, "error", field.Key)
 	assert.Equal(t, zapcore.ErrorType, field.Type)
@@ -72,8 +71,8 @@ func TestErrorFieldPlainError(t *testing.T) {
 func TestFieldsExtraction(t *testing.T) {
 	t.Parallel()
 
-	appErr := coreerrors.Internal("database connection failed")
-	fields := coreerrors.ZapFields(appErr)
+	appErr := apperr.Internal("database connection failed")
+	fields := apperr.ZapFields(appErr)
 
 	fieldMap := make(map[string]zap.Field, len(fields))
 	for _, f := range fields {
@@ -82,7 +81,7 @@ func TestFieldsExtraction(t *testing.T) {
 
 	codeField, ok := fieldMap["error_code"]
 	require.True(t, ok, "expected error_code field")
-	assert.Equal(t, string(coreerrors.CodeInternal), codeField.String)
+	assert.Equal(t, string(apperr.CodeInternal), codeField.String)
 
 	msgField, ok := fieldMap["error_message"]
 	require.True(t, ok, "expected error_message field")
@@ -101,15 +100,15 @@ func TestFieldsExtraction(t *testing.T) {
 func TestFieldsWithDetails(t *testing.T) {
 	t.Parallel()
 
-	appErr := coreerrors.WithDetails(
-		coreerrors.NotFound("document not found"),
+	appErr := apperr.WithDetails(
+		apperr.NotFound("document not found"),
 		map[string]string{
 			"document_id": "doc-123",
 			"tenant_id":   "tenant-456",
 		},
 	)
 
-	fields := coreerrors.ZapFields(appErr)
+	fields := apperr.ZapFields(appErr)
 
 	found := false
 	for _, f := range fields {
@@ -136,27 +135,27 @@ func TestFieldsWithDetails(t *testing.T) {
 func TestCombineAppendErrors(t *testing.T) {
 	t.Parallel()
 
-	err1 := errors.New("error one")
-	err2 := errors.New("error two")
-	err3 := errors.New("error three")
+	err1 := apperr.Sentinel("error one")
+	err2 := apperr.Sentinel("error two")
+	err3 := apperr.Sentinel("error three")
 
-	combined := coreerrors.Combine(nil, err1, nil, err2)
+	combined := apperr.Combine(nil, err1, nil, err2)
 	require.Error(t, combined)
 
-	errs := coreerrors.Errors(combined)
+	errs := apperr.Errors(combined)
 	require.Len(t, errs, 2)
 	assert.Equal(t, "error one", errs[0].Error())
 	assert.Equal(t, "error two", errs[1].Error())
 
-	result := coreerrors.Append(nil, err1)
+	result := apperr.Append(nil, err1)
 	require.Error(t, result)
 	assert.Equal(t, "error one", result.Error())
 
-	combined = coreerrors.Append(combined, err3)
-	errs = coreerrors.Errors(combined)
+	combined = apperr.Append(combined, err3)
+	errs = apperr.Errors(combined)
 	require.Len(t, errs, 3)
 
-	assert.NoError(t, coreerrors.Combine(nil, nil))
+	assert.NoError(t, apperr.Combine(nil, nil))
 }
 
 // TestErrorsOnSingleError tests that Errors() on a non-combined error returns a
@@ -170,8 +169,8 @@ func TestCombineAppendErrors(t *testing.T) {
 func TestErrorsOnSingleError(t *testing.T) {
 	t.Parallel()
 
-	err := errors.New("standalone error")
-	errs := coreerrors.Errors(err)
+	err := apperr.Sentinel("standalone error")
+	errs := apperr.Errors(err)
 	require.Len(t, errs, 1)
 	assert.Same(t, err, errs[0])
 }
@@ -192,8 +191,8 @@ func TestFoundationLogErrorTransient(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	timeoutErr := coreerrors.Timeout("connection timed out")
-	coreerrors.LogError(logger, "request failed", timeoutErr)
+	timeoutErr := apperr.Timeout("connection timed out")
+	apperr.LogError(logger, "request failed", timeoutErr)
 
 	entries := observed.All()
 	require.Len(t, entries, 1)
@@ -205,7 +204,7 @@ func TestFoundationLogErrorTransient(t *testing.T) {
 	fieldMap := contextFieldMap(entry.ContextMap())
 	code, ok := fieldMap["error_code"]
 	assert.True(t, ok, "expected error_code field")
-	assert.Equal(t, string(coreerrors.CodeTimeout), code)
+	assert.Equal(t, string(apperr.CodeTimeout), code)
 }
 
 // TestLogErrorPermanent tests that LogError logs permanent errors at Error level.
@@ -224,8 +223,8 @@ func TestFoundationLogErrorPermanent(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	notFoundErr := coreerrors.NotFound("record missing")
-	coreerrors.LogError(logger, "lookup failed", notFoundErr)
+	notFoundErr := apperr.NotFound("record missing")
+	apperr.LogError(logger, "lookup failed", notFoundErr)
 
 	entries := observed.All()
 	require.Len(t, entries, 1)
@@ -245,7 +244,7 @@ func TestFoundationLogErrorPlainError(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	coreerrors.LogError(logger, "unexpected failure", errors.New("disk full"))
+	apperr.LogError(logger, "unexpected failure", apperr.Sentinel("disk full"))
 
 	entries := observed.All()
 	require.Len(t, entries, 1)
@@ -269,11 +268,11 @@ func TestLogErrorsMultiError(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	transientErr := coreerrors.Timeout("timed out")
-	permanentErr := coreerrors.Internal("data corruption")
-	combined := coreerrors.Combine(transientErr, permanentErr)
+	transientErr := apperr.Timeout("timed out")
+	permanentErr := apperr.Internal("data corruption")
+	combined := apperr.Combine(transientErr, permanentErr)
 
-	coreerrors.LogErrors(logger, "batch operation failed", combined)
+	apperr.LogErrors(logger, "batch operation failed", combined)
 
 	entries := observed.All()
 	require.Len(t, entries, 2)
@@ -304,7 +303,7 @@ func TestLogErrorsSingleError(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	coreerrors.LogErrors(logger, "single failure", coreerrors.Internal("oops"))
+	apperr.LogErrors(logger, "single failure", apperr.Internal("oops"))
 
 	assert.Equal(t, 1, observed.Len())
 }
@@ -326,7 +325,7 @@ func TestFoundationMarshalLogObject_NoDetails(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	appErr := coreerrors.NotFound("record not found")
+	appErr := apperr.NotFound("record not found")
 	logger.Error("test", zap.Object("error", appErr))
 
 	entries := observed.All()
@@ -340,10 +339,10 @@ func TestFoundationMarshalLogObject_NoDetails(t *testing.T) {
 	require.True(t, ok, "expected error field to be map, got %T", errObj)
 	assert.Equal(
 		t,
-		string(coreerrors.CodeNotFound),
+		string(apperr.CodeNotFound),
 		errMap["code"],
 		"expected code=%q",
-		coreerrors.CodeNotFound,
+		apperr.CodeNotFound,
 	)
 	assert.Equal(t, "record not found", errMap["message"])
 	assert.NotContains(
@@ -370,8 +369,8 @@ func TestMarshalLogObject_WithDetails(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	appErr := coreerrors.WithDetails(
-		coreerrors.NotFound("document not found"),
+	appErr := apperr.WithDetails(
+		apperr.NotFound("document not found"),
 		map[string]string{
 			"document_id": "doc-abc",
 		},
@@ -414,14 +413,16 @@ func TestMarshalLogObject_CauseAndStack(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	underlying := errors.New(`ERROR: column "deleted_at" does not exist (SQLSTATE 42703)`)
-	appErr := coreerrors.Wrap(
+	underlying := apperr.Sentinel(
+		`ERROR: column "deleted_at" does not exist (SQLSTATE 42703)`,
+	)
+	appErr := apperr.Wrap(
 		underlying,
-		coreerrors.CodeInternal,
+		apperr.CodeInternal,
 		"failed to query database",
 	)
 
-	logger.Error("test", coreerrors.ZapError(appErr))
+	logger.Error("test", apperr.ZapError(appErr))
 
 	entries := observed.All()
 	require.Len(t, entries, 1)

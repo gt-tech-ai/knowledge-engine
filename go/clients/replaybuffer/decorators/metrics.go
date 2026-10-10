@@ -40,7 +40,7 @@ func newMetricsDecorator(
 		duration: m.Histogram(
 			"replaybuffer_operation_duration_seconds",
 			"Replay-buffer operation duration in seconds",
-			bufferDurationBuckets,
+			bufferDurationBuckets(),
 			"buffer", "operation",
 		),
 	}

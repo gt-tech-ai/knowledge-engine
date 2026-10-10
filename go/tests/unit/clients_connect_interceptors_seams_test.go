@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,24 +32,29 @@ type otherPrincipal struct {
 	ID string
 }
 
-// customHeaders is a gateway header contract that differs from testHeaders.
-var customHeaders = interceptors.HeaderMap{
-	Sub:      "X-Sub",
-	Tenant:   "X-Tenant",
-	Email:    "X-Mail",
-	Name:     "X-Full-Name",
-	NickName: "X-Nick",
-	Roles:    "X-Groups",
+// customHeaders returns a gateway header contract that differs from testHeaders.
+func customHeaders() interceptors.HeaderMap {
+	return interceptors.HeaderMap{
+		Sub:      "X-Sub",
+		Tenant:   "X-Tenant",
+		Email:    "X-Mail",
+		Name:     "X-Full-Name",
+		NickName: "X-Nick",
+		Roles:    "X-Groups",
+	}
 }
 
-// serverPaths drives both server paths of an interceptor, so each seam test covers unary
-// and streaming RPCs alike.
-var serverPaths = map[string]func(
-	connect.Interceptor,
-	context.Context,
-) (context.Context, error){
-	"unary":     invokeUnary,
-	"streaming": invokeStreaming,
+// serverPath invokes an interceptor on one server path (unary or streaming) and
+// returns the context the handler saw.
+type serverPath func(connect.Interceptor, context.Context) (context.Context, error)
+
+// serverPaths returns both server paths of an interceptor, so each seam test covers
+// unary and streaming RPCs alike.
+func serverPaths() map[string]serverPath {
+	return map[string]serverPath{
+		"unary":     invokeUnary,
+		"streaming": invokeStreaming,
+	}
 }
 
 // TestAuthInterceptor_HeaderMap tests that the auth interceptor reads claims from the
@@ -69,7 +73,7 @@ var serverPaths = map[string]func(
 //   - Headers outside the map are ignored.
 func TestAuthInterceptor_HeaderMap(t *testing.T) {
 	t.Parallel()
-	ic := interceptors.NewAuthInterceptor(false, customHeaders)
+	ic := interceptors.NewAuthInterceptor(false, customHeaders())
 
 	ctx, err := invokeUnaryWith(
 		ic,
@@ -95,7 +99,7 @@ func TestAuthInterceptor_HeaderMap(t *testing.T) {
 		ic,
 		context.Background(),
 		newTestRequestWithHeaders(map[string]string{
-			testHeaders.Sub: "u1",
+			testHeaders().Sub: "u1",
 		}),
 	)
 	require.NoError(t, err)
@@ -167,7 +171,7 @@ func TestInterceptorWiring_FailsLoudlyOnMisconfiguration(t *testing.T) {
 //   - A request without claims passes through with no principal and no resolver call.
 func TestPrincipalInterceptor_ResolvesConsumerPrincipal(t *testing.T) {
 	t.Parallel()
-	for name, invoke := range serverPaths {
+	for name, invoke := range serverPaths() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			calls := 0
@@ -259,7 +263,7 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 		want connect.Code
 	}{
 		"connect code": {
-			connect.NewError(connect.CodeUnauthenticated, errors.New(secret)),
+			connect.NewError(connect.CodeUnauthenticated, apperr.Sentinel(secret)),
 			connect.CodeUnauthenticated,
 		},
 		"forbidden":     {apperr.Forbidden(secret), connect.CodePermissionDenied},
@@ -269,17 +273,17 @@ func TestPrincipalInterceptor_StubAndErrors(t *testing.T) {
 		"timeout":       {apperr.Timeout(secret), connect.CodeDeadlineExceeded},
 		"unavailable":   {apperr.Unavailable(secret), connect.CodeUnavailable},
 		"internal": {
-			apperr.Wrap(errors.New(secret), apperr.CodeInternal, "lookup"),
+			apperr.Wrap(apperr.Sentinel(secret), apperr.CodeInternal, "lookup"),
 			connect.CodeInternal,
 		},
-		"uncoded": {errors.New(secret), connect.CodeUnavailable},
+		"uncoded": {apperr.Sentinel(secret), connect.CodeUnavailable},
 		"wrapped coded": {
 			apperr.Wrap(apperr.Forbidden(secret), apperr.CodeForbidden, "resolve"),
 			connect.CodePermissionDenied,
 		},
 		"upstream coded": {apperr.Upstream(secret), connect.CodeUnavailable},
 	}
-	for path, invoke := range serverPaths {
+	for path, invoke := range serverPaths() {
 		for name, tc := range cases {
 			failing := func(context.Context, *interceptors.AuthClaims) (principal, error) {
 				return principal{}, tc.err
@@ -336,7 +340,7 @@ func TestPrincipalInterceptor_RejectsNilPrincipal(t *testing.T) {
 	nilStub := func(*interceptors.AuthClaims) *principal { return nil }
 	ic := interceptors.NewPrincipalInterceptor[*principal](nilResolve, nilStub)
 
-	for path, invoke := range serverPaths {
+	for path, invoke := range serverPaths() {
 		for name, claims := range map[string]*interceptors.AuthClaims{
 			"resolver": {Sub: "unknown"},
 			"stub":     {Sub: "dev", Synthetic: true},
@@ -377,7 +381,7 @@ func TestPrincipalInterceptor_RejectsNilPrincipal(t *testing.T) {
 //     stampers.
 func TestTenantScopeInterceptor_StampsExtractedTenant(t *testing.T) {
 	t.Parallel()
-	for name, invoke := range serverPaths {
+	for name, invoke := range serverPaths() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tenant, resolved := uuid.New(), true
@@ -450,7 +454,7 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 	}
 	opts := interceptors.NewServerBuilder().
 		WithValidation().
-		WithAuth(false, customHeaders).
+		WithAuth(false, customHeaders()).
 		WithInterceptors(probe("first"), probe("second")).
 		WithInterceptors(probe("third")).
 		Build()

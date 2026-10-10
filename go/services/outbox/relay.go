@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
@@ -38,7 +38,7 @@ type RelayConfig struct {
 	// MaxBackoff caps the backoff before jitter.
 	MaxBackoff time.Duration `yaml:"max_backoff" mapstructure:"max_backoff"`
 	// ParkOnPermanent parks a record on its first permanent failure (one
-	// coreerr.IsPermanent reports, e.g. a malformed payload the destination
+	// apperr.IsPermanent reports, e.g. a malformed payload the destination
 	// rejects) instead of retrying it until MaxAttempts.
 	ParkOnPermanent bool `yaml:"park_on_permanent" mapstructure:"park_on_permanent"`
 }
@@ -57,15 +57,15 @@ func DefaultRelayConfig(lane string) RelayConfig {
 func (c RelayConfig) Validate() error {
 	switch {
 	case c.Lane == "":
-		return coreerr.New(coreerr.CodeInvalidInput, "outbox relay: lane is required")
+		return apperr.New(apperr.CodeInvalidInput, "outbox relay: lane is required")
 	case c.BatchSize <= 0, c.SendBatch <= 0, c.Concurrency <= 0, c.MaxAttempts <= 0:
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"outbox relay: batch_size, send_batch, concurrency and max_attempts must be positive",
 		)
 	case c.BaseBackoff <= 0 || c.MaxBackoff < c.BaseBackoff:
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"outbox relay: base_backoff must be positive and max_backoff at least base_backoff",
 		)
 	}
@@ -84,9 +84,9 @@ func LoadRelayConfig(
 	cfg := DefaultRelayConfig(lane)
 	if loader.Get(key) != nil {
 		if err := loader.UnmarshalKey(key, &cfg); err != nil {
-			return RelayConfig{}, coreerr.Wrap(
+			return RelayConfig{}, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load outbox relay config "+key,
 			)
 		}
@@ -150,8 +150,8 @@ func NewRelay(
 	}
 	if store == nil || sink == nil {
 		panic(
-			coreerr.New(
-				coreerr.CodeInvalidInput,
+			apperr.New(
+				apperr.CodeInvalidInput,
 				"outbox relay: store and sink are required",
 			),
 		)
@@ -214,9 +214,9 @@ func (r *Relay) RunOnce(ctx context.Context) error {
 func (r *Relay) runOnce(ctx context.Context) error {
 	recs, err := r.store.Claim(ctx, r.cfg.Lane, r.cfg.BatchSize)
 	if err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeOr(err, coreerr.CodeUnavailable),
+			apperr.CodeOr(err, apperr.CodeUnavailable),
 			"outbox relay: claim",
 		)
 	}
@@ -254,8 +254,8 @@ func (r *Relay) runOnce(ctx context.Context) error {
 func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error {
 	results := r.sink.Send(ctx, chunk)
 	if len(results) != len(chunk) {
-		mismatch := coreerr.New(
-			coreerr.CodeInternal,
+		mismatch := apperr.New(
+			apperr.CodeInternal,
 			fmt.Sprintf(
 				"outbox relay: sink returned %d results for %d records",
 				len(results),
@@ -283,8 +283,8 @@ func (r *Relay) deliver(ctx context.Context, chunk []types.OutboxRecord) []error
 // ended (shutdown or deadline); such a failure is not a delivery attempt.
 func interrupted(ctx context.Context, sendErr error) bool {
 	return sendErr != nil && ctx.Err() != nil &&
-		(coreerr.StdIs(sendErr, context.Canceled) ||
-			coreerr.StdIs(sendErr, context.DeadlineExceeded))
+		(apperr.StdIs(sendErr, context.Canceled) ||
+			apperr.StdIs(sendErr, context.DeadlineExceeded))
 }
 
 // finalize records one row's outcome: sent, parked on its last attempt (or on
@@ -302,7 +302,7 @@ func (r *Relay) finalize(
 		err = r.store.MarkSent(ctx, rec.ID)
 		inc(r.sent, lane, err)
 	case rec.Attempts >= r.cfg.MaxAttempts ||
-		(r.cfg.ParkOnPermanent && coreerr.IsPermanent(sendErr)):
+		(r.cfg.ParkOnPermanent && apperr.IsPermanent(sendErr)):
 		err = r.store.Park(ctx, rec.ID, sendErr.Error())
 		inc(r.parked, lane, err)
 	default:
@@ -311,9 +311,9 @@ func (r *Relay) finalize(
 		inc(r.retried, lane, err)
 	}
 	if err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeOr(err, coreerr.CodeUnavailable),
+			apperr.CodeOr(err, apperr.CodeUnavailable),
 			"outbox relay: finalize "+rec.ID.String(),
 		)
 	}

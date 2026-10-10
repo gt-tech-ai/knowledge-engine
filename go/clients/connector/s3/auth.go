@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // Auth method vocabulary (mirrors the connector's stored auth_method values).
@@ -65,8 +65,8 @@ func credentialsFromConfig(
 	case authMethodAccessKey:
 		if strings.TrimSpace(accessKeyID) == "" ||
 			strings.TrimSpace(secretAccessKey) == "" {
-			return nil, coreerr.New(
-				coreerr.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"connector s3 auth: access_key requires an access key id and a secret access key",
 			)
 		}
@@ -85,8 +85,8 @@ func credentialsFromConfig(
 			func(o *stscreds.AssumeRoleOptions) { o.ExternalID = aws.String(externalID) },
 		)}, nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("connector s3 auth: unknown method %q", method),
 		)
 	}
@@ -100,24 +100,24 @@ func validateIAMRole(
 ) error {
 	switch {
 	case strings.TrimSpace(iamRoleARN) == "":
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"connector s3 auth: iam_role requires a role ARN",
 		)
 	case stsClient == nil:
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"connector s3 auth: iam_role requires an STS client",
 		)
 	case externalID == "":
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"connector s3 auth: iam_role requires an external id",
 		)
 	case len(externalID) < minExternalIDLen, len(externalID) > maxExternalIDLen,
 		!externalIDChars.MatchString(externalID):
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"connector s3 auth: external id must be 2-1224 characters of [A-Za-z0-9_+=,.@:/-]",
 		)
 	}
@@ -140,11 +140,11 @@ func (p markedProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	if err == nil {
 		return creds, nil
 	}
-	if coreerr.StdIs(err, context.Canceled) ||
-		coreerr.StdIs(err, context.DeadlineExceeded) {
-		return creds, coreerr.Wrap(
+	if apperr.StdIs(err, context.Canceled) ||
+		apperr.StdIs(err, context.DeadlineExceeded) {
+		return creds, apperr.Wrap(
 			err,
-			coreerr.ContextCode(err, coreerr.CodeCanceled),
+			apperr.ContextCode(err, apperr.CodeCanceled),
 			"retrieve credentials",
 		)
 	}

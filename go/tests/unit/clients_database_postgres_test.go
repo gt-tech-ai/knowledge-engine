@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/database/postgres"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics"
 )
 
@@ -122,8 +122,8 @@ func TestPingDB_BadDSNFailsFast(t *testing.T) {
 	assert.Contains(t, err.Error(), "database ping failed")
 	assert.Equal(
 		t,
-		coreerr.CodeUnavailable,
-		coreerr.Code(err),
+		apperr.CodeUnavailable,
+		apperr.Code(err),
 		"an unreachable DB is transient",
 	)
 }

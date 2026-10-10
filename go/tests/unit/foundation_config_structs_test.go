@@ -139,16 +139,18 @@ func TestDatabaseConfig_DSNEscapesCredentials(t *testing.T) {
 	}
 }
 
-// dsnHosts are the host spellings FuzzDatabaseConfig_DSNRoundTrip draws from: a DNS name,
-// an IPv4 address, and IPv6 addresses both bare and already bracketed (as some configs
-// write them).
-var dsnHosts = []string{
-	"db.example.com",
-	"10.0.0.7",
-	"::1",
-	"[::1]",
-	"2001:db8::5",
-	"[2001:db8::5]",
+// dsnHosts returns the host spellings FuzzDatabaseConfig_DSNRoundTrip draws from: a
+// DNS name, an IPv4 address, and IPv6 addresses both bare and already bracketed (as
+// some configs write them).
+func dsnHosts() []string {
+	return []string{
+		"db.example.com",
+		"10.0.0.7",
+		"::1",
+		"[::1]",
+		"2001:db8::5",
+		"[2001:db8::5]",
+	}
 }
 
 // FuzzDatabaseConfig_DSNRoundTrip fuzzes the DSN encode → driver-parse round trip.
@@ -176,7 +178,7 @@ func FuzzDatabaseConfig_DSNRoundTrip(f *testing.F) {
 		if strings.ContainsRune(user+password+database, 0) {
 			t.Skip("Postgres strings cannot contain NUL")
 		}
-		host := dsnHosts[int(hostIdx)%len(dsnHosts)]
+		host := dsnHosts()[int(hostIdx)%len(dsnHosts())]
 		cfg := infra.DatabaseConfig{
 			Host: host, Port: 5432, User: user, Password: password,
 			Database: database, SSLMode: "disable",

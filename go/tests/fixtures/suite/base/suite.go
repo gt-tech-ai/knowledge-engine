@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestSuite provides common test infrastructure for all suites.
@@ -62,11 +62,11 @@ func (s *TestSuite) TimesNotEqual(expected, actual time.Time) {
 
 // AssertDomainError asserts that the provided error is an application domain error
 // with the expected error code.
-func (s *TestSuite) AssertDomainError(err error, expectedCode errors.ErrorCode) {
+func (s *TestSuite) AssertDomainError(err error, expectedCode apperr.ErrorCode) {
 	s.T().Helper()
 
 	s.Truef(
-		errors.Is(err, expectedCode),
+		apperr.Is(err, expectedCode),
 		"expected app %s error, got %+v",
 		string(expectedCode),
 		err,

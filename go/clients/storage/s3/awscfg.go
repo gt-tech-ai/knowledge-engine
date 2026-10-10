@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
 
@@ -68,7 +68,7 @@ func NewAWSClient(ctx context.Context, cfg infra.S3Config) (*s3.Client, error) {
 	}
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, coreerrors.Wrap(err, coreerrors.CodeInternal, "loading aws config")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "loading aws config")
 	}
 	return s3.NewFromConfig(awsCfg, s3OptionsApplier(cfg)), nil
 }
@@ -92,9 +92,9 @@ func NewAWSClientWithCredentials(
 		awsconfig.WithCredentialsProvider(creds),
 	)
 	if err != nil {
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"loading aws config with credentials",
 		)
 	}

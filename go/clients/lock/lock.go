@@ -34,7 +34,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/lock/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/lock/local"
 	lockredis "github.com/gt-tech-ai/knowledge-engine/go/clients/lock/redis"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -113,17 +113,17 @@ func NewFromConfig(
 	client *goredis.Client,
 ) (interfaces.Locker, error) {
 	if cfg.TTL <= 0 {
-		return nil, errors.New(errors.CodeInvalidInput, "lock ttl must be positive")
+		return nil, apperr.New(apperr.CodeInvalidInput, "lock ttl must be positive")
 	}
 	if cfg.RenewInterval <= 0 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"lock renew_interval must be positive",
 		)
 	}
 	if cfg.RenewInterval*3 > cfg.TTL {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"lock renew_interval must be <= ttl/3",
 		)
 	}
@@ -134,15 +134,15 @@ func NewFromConfig(
 		backend = local.New()
 	case KindRedis:
 		if client == nil {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"redis lock requires a redis client",
 			)
 		}
 		backend = lockredis.New(client, cfg.TTL)
 	default:
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"unknown lock kind: "+cfg.Kind.String(),
 		)
 	}

@@ -10,7 +10,7 @@ import (
 	analyticscassandra "github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/stub"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
@@ -74,8 +74,8 @@ func NewFromConfig(cfg *Config) (interfaces.AnalyticsStore, error) {
 		}
 		return store, nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown analytics kind: %v", cfg.Kind),
 		)
 	}

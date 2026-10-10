@@ -12,7 +12,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -107,13 +107,13 @@ func (l *Loader) Load() error {
 	l.v.SetConfigType("yaml")
 	l.v.AutomaticEnv()
 	l.v.SetEnvPrefix(l.prefix)
-	l.v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	l.v.SetEnvKeyReplacer(envReplacer())
 
 	// Layer 1: Base config
 	l.v.SetConfigFile(l.baseDir + "/base.yaml")
 	if err := l.v.ReadInConfig(); err != nil {
 		if !os.IsNotExist(err) {
-			return coreerr.Wrap(err, coreerr.CodeInternal, "read base config")
+			return apperr.Wrap(err, apperr.CodeInternal, "read base config")
 		}
 	}
 
@@ -123,9 +123,9 @@ func (l *Loader) Load() error {
 		if _, err := os.Stat(envFile); err == nil {
 			l.v.SetConfigFile(envFile)
 			if err := l.v.MergeInConfig(); err != nil {
-				return coreerr.Wrap(
+				return apperr.Wrap(
 					err,
-					coreerr.CodeInternal,
+					apperr.CodeInternal,
 					"merge env config "+l.env,
 				)
 			}
@@ -137,7 +137,7 @@ func (l *Loader) Load() error {
 	if _, err := os.Stat(secretsFile); err == nil {
 		l.v.SetConfigFile(secretsFile)
 		if err := l.v.MergeInConfig(); err != nil {
-			return coreerr.Wrap(err, coreerr.CodeInternal, "merge secrets")
+			return apperr.Wrap(err, apperr.CodeInternal, "merge secrets")
 		}
 	}
 
@@ -177,9 +177,9 @@ func (l *Loader) GetBool(key string) bool {
 // Unmarshal decodes the full configuration into the target struct.
 func (l *Loader) Unmarshal(target any) error {
 	if err := l.v.Unmarshal(target); err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeOr(err, coreerr.CodeInvalidInput),
+			apperr.CodeOr(err, apperr.CodeInvalidInput),
 			"unmarshal config",
 		)
 	}
@@ -192,8 +192,8 @@ func (l *Loader) Unmarshal(target any) error {
 // built-in UnmarshalKey ignores for nested keys.
 func (l *Loader) UnmarshalKey(key string, target any) error {
 	if !l.v.IsSet(key) {
-		return coreerr.New(
-			coreerr.CodeNotFound,
+		return apperr.New(
+			apperr.CodeNotFound,
 			fmt.Sprintf("config key %q not found", key),
 		)
 	}
@@ -221,13 +221,13 @@ func (l *Loader) UnmarshalKey(key string, target any) error {
 		WeaklyTypedInput: true,
 	})
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "create decoder")
+		return apperr.Wrap(err, apperr.CodeInternal, "create decoder")
 	}
 
 	if err := decoder.Decode(resolved); err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeOr(err, coreerr.CodeInvalidInput),
+			apperr.CodeOr(err, apperr.CodeInvalidInput),
 			"decode config",
 		)
 	}

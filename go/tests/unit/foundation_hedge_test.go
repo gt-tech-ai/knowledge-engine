@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/hedge"
 )
 
@@ -30,7 +30,7 @@ func TestHedger_Delay_BackupBeatsSlowFirst(t *testing.T) {
 	op := func() error {
 		if atomic.AddInt32(&attempts, 1) == 1 {
 			time.Sleep(500 * time.Millisecond) // first attempt lands in the slow tail
-			return errors.New("slow first attempt")
+			return apperr.Sentinel("slow first attempt")
 		}
 		return nil // the backup responds immediately
 	}

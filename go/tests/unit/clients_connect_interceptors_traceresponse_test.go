@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -125,7 +125,7 @@ func TestTracingInterceptor_UnaryNilResponseNoPanic(t *testing.T) {
 		Start(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(spanCtx, anySpan(ctrl))
 
-	wantErr := errors.New("boom")
+	wantErr := apperr.Sentinel("boom")
 	handler := interceptors.TracingInterceptor(tr).WrapUnary(
 		func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, wantErr

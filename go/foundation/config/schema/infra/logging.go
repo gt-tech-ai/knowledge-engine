@@ -3,7 +3,7 @@ package infra
 import (
 	"strings"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
 )
 
@@ -45,8 +45,8 @@ func DefaultLoggingConfig() LoggingConfig {
 func (c LoggingConfig) Validate() error {
 	kind := strings.ToLower(c.Kind)
 	if kind != loggerKindZap && kind != loggerKindStdlib {
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"unknown logger kind: "+c.Kind,
 		)
 	}
@@ -61,8 +61,8 @@ func (c *LoggingConfig) GetKind() (logger.Kind, error) {
 	case loggerKindStdlib:
 		return logger.KindStdlib, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			"unknown logger kind: "+c.Kind,
 		)
 	}

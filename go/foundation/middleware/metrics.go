@@ -10,9 +10,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/helpers"
 )
 
-// httpDurationBuckets are the default histogram bucket boundaries for HTTP
+// httpDurationBuckets returns the default histogram bucket boundaries for HTTP
 // request durations (seconds). Matches Prometheus DefBuckets.
-var httpDurationBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func httpDurationBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // statusRecorder wraps http.ResponseWriter to capture the status code.
 type statusRecorder struct {
@@ -61,7 +63,7 @@ func HTTPMetrics(m interfaces.Metrics) Middleware {
 	duration := m.Histogram(
 		"http_server_request_duration_seconds",
 		"HTTP server request duration in seconds",
-		httpDurationBuckets,
+		httpDurationBuckets(),
 		"method", "route", "status",
 	)
 

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -199,7 +199,7 @@ func TestStorageClient_MultipartSurface(t *testing.T) {
 	// flows all branch on these errors to compensate (abort the upload, reap the doc).
 	t.Run("surfaces api errors", func(t *testing.T) {
 		t.Parallel()
-		apiErr := errors.New("s3 unavailable")
+		apiErr := apperr.Sentinel("s3 unavailable")
 
 		t.Run("create", func(t *testing.T) {
 			t.Parallel()

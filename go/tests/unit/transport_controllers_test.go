@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/decorators"
@@ -65,7 +65,7 @@ func TestHandlerFunc_Execution(t *testing.T) {
 func TestHandlerFunc_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	expectedErr := errors.New("handler failed")
+	expectedErr := apperr.Sentinel("handler failed")
 
 	var handler transport.HandlerFunc[TestRequest, TestResponse] = func(
 		context.Context,
@@ -92,7 +92,7 @@ func TestTransportLoggingDecorator(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "output-" + req.Input}, nil
 	}
 
@@ -119,8 +119,8 @@ func TestTransportLoggingDecorator_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("handler error")
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	expectedErr := apperr.Sentinel("handler error")
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		return TestResponse{}, expectedErr
 	}
 
@@ -147,7 +147,7 @@ func TestTransportMetricsDecorator(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "output"}, nil
 	}
 
@@ -176,7 +176,7 @@ func TestRecoveryDecorator(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		panic("test panic")
 	}
 
@@ -203,7 +203,7 @@ func TestTransportBuilderComposition(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "composed-" + req.Input}, nil
 	}
 
@@ -234,7 +234,7 @@ func TestBuilderComposition_PanicRecovery(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		panic("composed panic")
 	}
 
@@ -263,8 +263,8 @@ func TestTransportBuilderComposition_ErrorFlow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("composed error")
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	expectedErr := apperr.Sentinel("composed error")
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		return TestResponse{}, expectedErr
 	}
 
@@ -290,7 +290,7 @@ func TestTransportBuilderComposition_ErrorFlow(t *testing.T) {
 //   - Both raw and decorated handlers are assignable to HandlerFunc
 func TestTypeCompliance(t *testing.T) {
 	t.Parallel()
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		return TestResponse{}, nil
 	}
 
@@ -320,7 +320,7 @@ func TestTransportTimeoutDecorator_PassesThrough(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "fast-" + req.Input}, nil
 	}
 
@@ -346,7 +346,7 @@ func TestTransportTimeoutDecorator_PassesThrough(t *testing.T) {
 func TestTransportTimeoutDecorator_CancelsSlowOp(t *testing.T) {
 	t.Parallel()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(ctx context.Context, _ TestRequest) (TestResponse, error) {
 		<-ctx.Done()
 		return TestResponse{}, ctx.Err()
 	}
@@ -377,7 +377,7 @@ func TestRateLimitDecorator_AllowsWithinLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "allowed-" + req.Input}, nil
 	}
 
@@ -435,7 +435,7 @@ func TestTimeoutWithRateLimit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "composed-" + req.Input}, nil
 	}
 
@@ -467,7 +467,7 @@ func TestRateLimitWithRecovery(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, _ TestRequest) (TestResponse, error) {
 		panic("handler panic")
 	}
 
@@ -496,7 +496,7 @@ func TestTransportFullResilienceChain(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	handler := func(ctx context.Context, req TestRequest) (TestResponse, error) {
+	handler := func(_ context.Context, req TestRequest) (TestResponse, error) {
 		return TestResponse{Output: "full-" + req.Input}, nil
 	}
 

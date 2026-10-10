@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -80,15 +80,15 @@ func (c *Client) Query(ctx context.Context, promql string) (float64, error) {
 		return 0, err
 	}
 	if body.Data.ResultType != "vector" {
-		return 0, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return 0, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"query returned a %q, want an instant vector", body.Data.ResultType,
 		))
 	}
 	switch n := len(body.Data.Result); {
 	case n == 0:
-		return 0, coreerr.New(coreerr.CodeNotFound, "query returned no sample (no data)")
+		return 0, apperr.New(apperr.CodeNotFound, "query returned no sample (no data)")
 	case n > 1:
-		return 0, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return 0, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"query returned %d series, want one (aggregate it, e.g. with sum or max)", n,
 		))
 	}
@@ -109,7 +109,7 @@ func (c *Client) QueryRange(
 	step time.Duration,
 ) ([]Sample, error) {
 	if step <= 0 || end.Before(start) {
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return nil, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"range query needs a positive step and end >= start (step %s, %s..%s)",
 			step, start.Format(time.RFC3339), end.Format(time.RFC3339),
 		))
@@ -124,7 +124,7 @@ func (c *Client) QueryRange(
 		return nil, err
 	}
 	if body.Data.ResultType != "matrix" {
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return nil, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"query returned a %q, want a range matrix", body.Data.ResultType,
 		))
 	}
@@ -132,7 +132,7 @@ func (c *Client) QueryRange(
 	case n == 0:
 		return []Sample{}, nil
 	case n > 1:
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return nil, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"query returned %d series, want one (aggregate it, e.g. with sum)", n,
 		))
 	}
@@ -158,9 +158,9 @@ func (c *Client) get(
 	endpoint := c.baseURL + path + "?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
-		return body, coreerr.Wrap(
+		return body, apperr.Wrap(
 			err,
-			coreerr.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"build prometheus query request",
 		)
 	}
@@ -174,11 +174,11 @@ func (c *Client) get(
 		return body, statusError(resp.StatusCode, resp.Body)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return body, coreerr.Wrap(err, coreerr.CodeUpstream, "decode prometheus response")
+		return body, apperr.Wrap(err, apperr.CodeUpstream, "decode prometheus response")
 	}
 	if body.Status != "success" {
-		return body, coreerr.New(
-			coreerr.CodeUpstream,
+		return body, apperr.New(
+			apperr.CodeUpstream,
 			"prometheus query failed: "+body.Error,
 		)
 	}
@@ -189,17 +189,17 @@ func (c *Client) get(
 // the caller's own deadline is CodeTimeout, its cancellation CodeCanceled, and any other
 // failure CodeUnavailable.
 func transportError(err error, msg string) error {
-	code := coreerr.Code(err)
+	code := apperr.Code(err)
 	switch {
-	case code != coreerr.CodeUnknown:
-	case coreerr.StdIs(err, context.DeadlineExceeded):
-		code = coreerr.CodeTimeout
-	case coreerr.StdIs(err, context.Canceled):
-		code = coreerr.CodeCanceled
+	case code != apperr.CodeUnknown:
+	case apperr.StdIs(err, context.DeadlineExceeded):
+		code = apperr.CodeTimeout
+	case apperr.StdIs(err, context.Canceled):
+		code = apperr.CodeCanceled
 	default:
-		code = coreerr.CodeUnavailable
+		code = apperr.CodeUnavailable
 	}
-	return coreerr.Wrap(err, code, msg)
+	return apperr.Wrap(err, code, msg)
 }
 
 // isTransientStatus reports whether an HTTP status means the server is throttling or
@@ -226,11 +226,11 @@ func statusError(status int, body io.Reader) error {
 	}
 	switch {
 	case isTransientStatus(status):
-		return coreerr.New(coreerr.CodeUnavailable, msg)
+		return apperr.New(apperr.CodeUnavailable, msg)
 	case status == http.StatusBadRequest, status == http.StatusUnprocessableEntity:
-		return coreerr.New(coreerr.CodeInvalidInput, msg)
+		return apperr.New(apperr.CodeInvalidInput, msg)
 	default:
-		return coreerr.New(coreerr.CodeUpstream, msg)
+		return apperr.New(apperr.CodeUpstream, msg)
 	}
 }
 
@@ -239,31 +239,31 @@ func statusError(status int, body io.Reader) error {
 func parseSample(pair [2]json.RawMessage) (Sample, error) {
 	var ts float64
 	if err := json.Unmarshal(pair[0], &ts); err != nil {
-		return Sample{}, coreerr.Wrap(
+		return Sample{}, apperr.Wrap(
 			err,
-			coreerr.CodeUpstream,
+			apperr.CodeUpstream,
 			"parse prometheus sample time",
 		)
 	}
 	var raw string
 	if err := json.Unmarshal(pair[1], &raw); err != nil {
-		return Sample{}, coreerr.Wrap(
+		return Sample{}, apperr.Wrap(
 			err,
-			coreerr.CodeUpstream,
+			apperr.CodeUpstream,
 			"parse prometheus sample",
 		)
 	}
 	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return Sample{}, coreerr.Wrap(
+		return Sample{}, apperr.Wrap(
 			err,
-			coreerr.CodeUpstream,
+			apperr.CodeUpstream,
 			"parse prometheus sample value",
 		)
 	}
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return Sample{}, coreerr.New(
-			coreerr.CodeNotFound,
+		return Sample{}, apperr.New(
+			apperr.CodeNotFound,
 			"query returned "+raw+" (no data)",
 		)
 	}

@@ -25,7 +25,7 @@ func NewEventPublisher(enqueuer interfaces.JobEnqueuer) *EventPublisher {
 }
 
 // Publish accepts event without publishing it and returns nil.
-func (p *EventPublisher) Publish(ctx context.Context, event events.Event) error {
+func (p *EventPublisher) Publish(_ context.Context, _ events.Event) error {
 	return nil
 }
 

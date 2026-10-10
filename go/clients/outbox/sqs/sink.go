@@ -13,7 +13,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -78,15 +78,15 @@ type Sink struct {
 // to an empty queue name is CodeInvalidInput.
 func New(cfg Config) (*Sink, error) {
 	if cfg.API == nil || (cfg.Queue == "" && len(cfg.Routes) == 0) {
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"outbox sqs sink: api and a queue or routes are required",
 		)
 	}
 	routes := make(map[string]string, len(cfg.Routes))
 	for route, queue := range cfg.Routes {
 		if route == "" || queue == "" {
-			return nil, coreerr.New(coreerr.CodeInvalidInput,
+			return nil, apperr.New(apperr.CodeInvalidInput,
 				"outbox sqs sink: route "+route+" needs a non-empty name and queue")
 		}
 		routes[route] = queue
@@ -133,8 +133,8 @@ func (s *Sink) route(rec *types.OutboxRecord) (string, error) {
 	if queue, ok := s.routes[route]; ok {
 		return queue, nil
 	}
-	return "", coreerr.New(
-		coreerr.CodeInvalidInput,
+	return "", apperr.New(
+		apperr.CodeInvalidInput,
 		"outbox sqs sink: no queue for route "+strconv.Quote(route),
 	)
 }
@@ -202,9 +202,9 @@ func (s *Sink) sendBatch(
 	if err != nil {
 		fill(
 			results,
-			coreerr.Wrap(
+			apperr.Wrap(
 				err,
-				coreerr.CodeOr(err, coreerr.CodeUnavailable),
+				apperr.CodeOr(err, apperr.CodeUnavailable),
 				"outbox sqs sink: send batch",
 			),
 		)
@@ -212,7 +212,7 @@ func (s *Sink) sendBatch(
 	}
 	fill(
 		results,
-		coreerr.New(coreerr.CodeInternal, "outbox sqs sink: no result for entry"),
+		apperr.New(apperr.CodeInternal, "outbox sqs sink: no result for entry"),
 	)
 	for _, ok := range out.Successful {
 		if i, valid := entryIndex(ok.Id, len(recs)); valid {
@@ -224,11 +224,11 @@ func (s *Sink) sendBatch(
 		if !valid {
 			continue
 		}
-		code := coreerr.CodeUnavailable
+		code := apperr.CodeUnavailable
 		if failed.SenderFault {
-			code = coreerr.CodeInvalidInput
+			code = apperr.CodeInvalidInput
 		}
-		results[i] = coreerr.New(
+		results[i] = apperr.New(
 			code,
 			"outbox sqs sink: "+aws.ToString(
 				failed.Code,
@@ -253,9 +253,9 @@ func (s *Sink) queueURL(ctx context.Context, queue string) (string, error) {
 		&awssqs.GetQueueUrlInput{QueueName: aws.String(queue)},
 	)
 	if err != nil {
-		return "", coreerr.Wrap(
+		return "", apperr.Wrap(
 			err,
-			coreerr.CodeOr(err, coreerr.CodeUnavailable),
+			apperr.CodeOr(err, apperr.CodeUnavailable),
 			"outbox sqs sink: resolve queue "+queue,
 		)
 	}

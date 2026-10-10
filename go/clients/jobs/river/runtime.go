@@ -9,7 +9,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // defaultMaxConns caps the River pgxpool conservatively. A caller that also
@@ -73,9 +73,9 @@ type Runtime struct {
 func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*Runtime, error) {
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"river runtime: parse pool config",
 		)
 	}
@@ -85,7 +85,7 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*Runtime, error) {
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "river runtime: open pool")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "river runtime: open pool")
 	}
 
 	queues := buildQueues(cfg.QueueName, cfg.MaxWorkers)
@@ -97,7 +97,7 @@ func NewRuntime(ctx context.Context, cfg RuntimeConfig) (*Runtime, error) {
 	})
 	if err != nil {
 		pool.Close()
-		return nil, errors.Wrap(err, errors.CodeInternal, "river runtime: new client")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "river runtime: new client")
 	}
 	return &Runtime{pool: pool, client: client}, nil
 }
@@ -120,7 +120,7 @@ func buildQueues(queueName string, maxWorkers int) map[string]river.QueueConfig 
 // Start begins fetching and working jobs (and scheduling periodics on the leader).
 func (r *Runtime) Start(ctx context.Context) error {
 	if err := r.client.Start(ctx); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "river runtime: start")
+		return apperr.Wrap(err, apperr.CodeInternal, "river runtime: start")
 	}
 	return nil
 }
@@ -131,7 +131,7 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	err := r.client.Stop(ctx)
 	r.pool.Close()
 	if err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "river runtime: stop")
+		return apperr.Wrap(err, apperr.CodeInternal, "river runtime: stop")
 	}
 	return nil
 }

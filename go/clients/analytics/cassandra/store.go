@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
@@ -101,22 +101,22 @@ func newStore(cfg Config) (*Store, error) {
 	}
 	for cube, grains := range cfg.Cubes {
 		if !identifier.MatchString(cube) {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"analytics: invalid cube name "+cube,
 			)
 		}
 		for _, g := range grains {
 			width, ok := cfg.BucketWidth[g]
 			if !ok {
-				return nil, errors.New(
-					errors.CodeInvalidInput,
+				return nil, apperr.New(
+					apperr.CodeInvalidInput,
 					"analytics: no bucket width for grain "+string(g),
 				)
 			}
 			if !vizql.ValidGrain(g) || !vizql.ValidGrain(width) {
-				return nil, errors.New(
-					errors.CodeInvalidInput,
+				return nil, apperr.New(
+					apperr.CodeInvalidInput,
 					"analytics: unknown grain or bucket width for "+string(g),
 				)
 			}
@@ -133,8 +133,8 @@ func TableName(cube string, grain types.Grain) string {
 // SchemaCQL returns the CREATE TABLE statement of cube at grain in keyspace.
 func SchemaCQL(keyspace, cube string, grain types.Grain) (string, error) {
 	if !identifier.MatchString(cube) || !identifier.MatchString(keyspace) {
-		return "", errors.New(
-			errors.CodeInvalidInput,
+		return "", apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: invalid keyspace or cube name",
 		)
 	}
@@ -177,7 +177,7 @@ func (s *Store) sess() (cassandra.Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.session == nil {
-		return nil, errors.New(errors.CodeUnavailable, "analytics: store is not started")
+		return nil, apperr.New(apperr.CodeUnavailable, "analytics: store is not started")
 	}
 	return s.session, nil
 }
@@ -211,20 +211,20 @@ func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 	for _, fact := range facts {
 		grains, ok := s.cfg.Cubes[fact.Cube]
 		if !ok {
-			return errors.New(
-				errors.CodeInvalidInput,
+			return apperr.New(
+				apperr.CodeInvalidInput,
 				"analytics: undeclared cube "+fact.Cube,
 			)
 		}
 		if fact.OrgID == "" || fact.IdempotencyKey == "" {
-			return errors.New(
-				errors.CodeInvalidInput,
+			return apperr.New(
+				apperr.CodeInvalidInput,
 				"analytics: a fact needs an org_id and an idempotency_key",
 			)
 		}
 		if fact.Schema != 0 && fact.Schema != types.FactSchemaVersion {
-			return errors.New(
-				errors.CodeInvalidInput,
+			return apperr.New(
+				apperr.CodeInvalidInput,
 				"analytics: unknown fact schema version",
 			)
 		}
@@ -286,8 +286,8 @@ func (s *Store) Aggregate(
 ) (interfaces.RowStream, error) {
 	grains, ok := s.cfg.Cubes[q.Cube]
 	if !ok {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: undeclared cube "+q.Cube,
 		)
 	}
@@ -296,15 +296,15 @@ func (s *Store) Aggregate(
 		grain = coarsest(grains)
 	}
 	if !slices.Contains(grains, grain) {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: cube "+q.Cube+" has no grain "+string(grain),
 		)
 	}
 	if q.OrgID == "" || q.TimeRange.From.IsZero() || q.TimeRange.To.IsZero() ||
 		!q.TimeRange.From.Before(q.TimeRange.To) {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: a query needs an org_id and a bounded time range",
 		)
 	}

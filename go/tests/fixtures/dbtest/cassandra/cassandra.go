@@ -14,7 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 const (
@@ -70,30 +70,30 @@ func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 	)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(container)
-		return nil, coreerr.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerr.CodeInternal,
+			apperr.CodeInternal,
 			"failed to start Cassandra container",
 		)
 	}
 	host, err := container.Host(ctx)
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerr.CodeInternal,
+			apperr.CodeInternal,
 			"failed to get container host",
 		)
 	}
 	mapped, err := container.MappedPort(ctx, cqlPort)
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "failed to get mapped port")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "failed to get mapped port")
 	}
 	port, err := strconv.Atoi(mapped.Port())
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "invalid mapped port")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "invalid mapped port")
 	}
 	return &TestCassandra{container: container, host: host, port: port}, nil
 }
@@ -109,11 +109,11 @@ func (c *TestCassandra) Port() int { return c.port }
 func (c *TestCassandra) Exec(ctx context.Context, cql string) error {
 	code, out, err := c.container.Exec(ctx, []string{"cqlsh", "-e", cql})
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "cqlsh exec failed")
+		return apperr.Wrap(err, apperr.CodeInternal, "cqlsh exec failed")
 	}
 	if code != 0 {
 		text, _ := io.ReadAll(out)
-		return coreerr.New(coreerr.CodeInternal, "cqlsh: "+string(text))
+		return apperr.New(apperr.CodeInternal, "cqlsh: "+string(text))
 	}
 	return nil
 }

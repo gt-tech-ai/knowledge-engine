@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/rest"
 )
 
@@ -40,42 +40,42 @@ func TestMapErrorToHTTPStatus_AppError(t *testing.T) {
 		expected int
 	}{
 		{
-			err:      coreerrors.NotFound("not found"),
+			err:      apperr.NotFound("not found"),
 			name:     "not found",
 			expected: http.StatusNotFound,
 		},
 		{
-			err:      coreerrors.Unauthorized("unauthorized"),
+			err:      apperr.Unauthorized("unauthorized"),
 			name:     "unauthorized",
 			expected: http.StatusUnauthorized,
 		},
 		{
-			err:      coreerrors.Forbidden("forbidden"),
+			err:      apperr.Forbidden("forbidden"),
 			name:     "forbidden",
 			expected: http.StatusForbidden,
 		},
 		{
-			err:      coreerrors.InvalidInput("bad input"),
+			err:      apperr.InvalidInput("bad input"),
 			name:     "invalid input",
 			expected: http.StatusBadRequest,
 		},
 		{
-			err:      coreerrors.Conflict("conflict"),
+			err:      apperr.Conflict("conflict"),
 			name:     "conflict",
 			expected: http.StatusConflict,
 		},
 		{
-			err:      coreerrors.Timeout("timeout"),
+			err:      apperr.Timeout("timeout"),
 			name:     "timeout",
 			expected: http.StatusGatewayTimeout,
 		},
 		{
-			err:      coreerrors.Internal("internal"),
+			err:      apperr.Internal("internal"),
 			name:     "internal",
 			expected: http.StatusInternalServerError,
 		},
 		{
-			err:      coreerrors.Unavailable("unavailable"),
+			err:      apperr.Unavailable("unavailable"),
 			name:     "unavailable",
 			expected: http.StatusServiceUnavailable,
 		},
@@ -188,7 +188,7 @@ func TestWriteError_AppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.NotFound("user not found")
+	appErr := apperr.NotFound("user not found")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -197,7 +197,7 @@ func TestWriteError_AppError(t *testing.T) {
 	body, _ := io.ReadAll(rec.Body)
 	var resp rest.ErrorResponse
 	require.NoError(t, json.Unmarshal(body, &resp))
-	assert.Equal(t, string(coreerrors.CodeNotFound), resp.Code)
+	assert.Equal(t, string(apperr.CodeNotFound), resp.Code)
 	assert.Equal(t, "user not found", resp.Error)
 }
 
@@ -218,7 +218,7 @@ func TestWriteError_InternalAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Internal("database connection failed")
+	appErr := apperr.Internal("database connection failed")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
@@ -226,7 +226,7 @@ func TestWriteError_InternalAppError(t *testing.T) {
 	body, _ := io.ReadAll(rec.Body)
 	var resp rest.ErrorResponse
 	require.NoError(t, json.Unmarshal(body, &resp))
-	assert.Equal(t, string(coreerrors.CodeInternal), resp.Code)
+	assert.Equal(t, string(apperr.CodeInternal), resp.Code)
 	assert.Equal(
 		t,
 		"internal server error",
@@ -359,7 +359,7 @@ func TestWriteError_UnauthorizedAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Unauthorized("invalid token")
+	appErr := apperr.Unauthorized("invalid token")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -387,7 +387,7 @@ func TestWriteError_ConflictAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Conflict("duplicate key")
+	appErr := apperr.Conflict("duplicate key")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusConflict, rec.Code)

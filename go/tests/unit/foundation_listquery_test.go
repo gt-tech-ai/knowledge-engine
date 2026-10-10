@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 )
@@ -156,7 +156,7 @@ func TestParse_RejectsUnknownFieldAndTypeMismatch(t *testing.T) {
 			t.Parallel()
 			_, err := listquery.Parse(m, filter)
 			require.Error(t, err, "must reject %q", filter)
-			assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput),
+			assert.True(t, apperr.Is(err, apperr.CodeInvalidInput),
 				"want CodeInvalidInput, got %v", err)
 		})
 	}
@@ -186,7 +186,7 @@ func TestParse_InEmptyAndMixedArray(t *testing.T) {
 
 	_, err = listquery.Parse(m, `{"$in": {"page_count": [1, "two"]}}`)
 	require.Error(t, err, "mixed-type $in array is rejected")
-	assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput))
+	assert.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }
 
 // TestParse_RejectsOverDepth tests that a filter nested past the depth cap is rejected
@@ -210,7 +210,7 @@ func TestParse_RejectsOverDepth(t *testing.T) {
 	}
 	_, err := listquery.Parse(m, nested)
 	require.Error(t, err)
-	assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput),
+	assert.True(t, apperr.Is(err, apperr.CodeInvalidInput),
 		"deeply-nested filter → CodeInvalidInput, got %v", err)
 }
 
@@ -235,7 +235,7 @@ func FuzzParse(f *testing.F) {
 	} {
 		f.Add(seed)
 	}
-	f.Fuzz(func(t *testing.T, jsonStr string) {
+	f.Fuzz(func(_ *testing.T, jsonStr string) {
 		got, err := listquery.Parse(m, jsonStr)
 		if err == nil && got != nil {
 			// A non-nil result must be a real Filter implementation.
@@ -277,7 +277,7 @@ func TestParse_ScalarTypes(t *testing.T) {
 	// Time: non-RFC3339 → CodeInvalidInput.
 	_, err = listquery.Parse(m, `{"$gt": {"created_at": "not-a-time"}}`)
 	require.Error(t, err)
-	assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput))
+	assert.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 
 	// Float.
 	f, err = listquery.Parse(m, `{"$gte": {"score": 0.75}}`)

@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
@@ -86,8 +86,8 @@ func NewFromConfig(cfg Config) (interfaces.Hedger, error) {
 	case KindDelay:
 		return &delayHedger{delay: cfg.Delay}, nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown hedger kind: %v", cfg.Kind),
 		)
 	}
@@ -133,9 +133,9 @@ func (h *delayHedger) Hedge(ctx context.Context, op func() error) error {
 	case err := <-results:
 		return err // first attempt beat the delay — no backup needed
 	case <-ctx.Done():
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			ctx.Err(),
-			coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+			apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
 			"hedged call canceled",
 		)
 	case <-timer.C:
@@ -146,9 +146,9 @@ func (h *delayHedger) Hedge(ctx context.Context, op func() error) error {
 	case err := <-results:
 		return err
 	case <-ctx.Done():
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			ctx.Err(),
-			coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+			apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
 			"hedged call canceled",
 		)
 	}

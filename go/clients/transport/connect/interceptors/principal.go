@@ -7,7 +7,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	coreprincipal "github.com/gt-tech-ai/knowledge-engine/go/core/principal"
 )
 
@@ -114,7 +114,7 @@ func (i principalInterceptor[P]) withPrincipal(
 		principal = resolved
 	}
 	if isNilPrincipal(principal) {
-		cause := errors.Unauthorized("principal resolver returned a nil principal")
+		cause := apperr.Unauthorized("principal resolver returned a nil principal")
 		return ctx, resolveError(ctx, cause, connect.CodeUnauthenticated)
 	}
 	return coreprincipal.WithPrincipal(ctx, principal), nil
@@ -124,7 +124,7 @@ func (i principalInterceptor[P]) withPrincipal(
 // returns the sanitized client-facing Connect error carrying code.
 func resolveError(ctx context.Context, err error, code connect.Code) error {
 	errctx.Capture(ctx, err)
-	return connect.NewError(code, errors.Sentinel(errPrincipalResolution))
+	return connect.NewError(code, apperr.Sentinel(errPrincipalResolution))
 }
 
 // resolveErrorCode classifies a resolver error from its code, never its message: a
@@ -132,30 +132,30 @@ func resolveError(ctx context.Context, err error, code connect.Code) error {
 // and an uncoded error is Unavailable (treated as transient).
 func resolveErrorCode(err error) connect.Code {
 	var connectErr *connect.Error
-	if errors.As(err, &connectErr) {
+	if apperr.As(err, &connectErr) {
 		return connectErr.Code()
 	}
-	switch errors.Code(err) {
-	case errors.CodeUnknown, errors.CodeUnavailable, errors.CodeUpstream:
+	switch apperr.Code(err) {
+	case apperr.CodeUnknown, apperr.CodeUnavailable, apperr.CodeUpstream:
 		return connect.CodeUnavailable
-	case errors.CodeNotFound:
+	case apperr.CodeNotFound:
 		return connect.CodeNotFound
-	case errors.CodeInvalidInput:
+	case apperr.CodeInvalidInput:
 		return connect.CodeInvalidArgument
-	case errors.CodeConflict:
+	case apperr.CodeConflict:
 		return connect.CodeAlreadyExists
-	case errors.CodeUnauthorized:
+	case apperr.CodeUnauthorized:
 		return connect.CodeUnauthenticated
-	case errors.CodeForbidden:
+	case apperr.CodeForbidden:
 		return connect.CodePermissionDenied
-	case errors.CodeTimeout:
+	case apperr.CodeTimeout:
 		return connect.CodeDeadlineExceeded
-	case errors.CodeCanceled:
+	case apperr.CodeCanceled:
 		return connect.CodeCanceled
-	case errors.CodeInternal,
-		errors.CodeIngestion,
-		errors.CodeQualityFailed,
-		errors.CodeResourceExhausted:
+	case apperr.CodeInternal,
+		apperr.CodeIngestion,
+		apperr.CodeQualityFailed,
+		apperr.CodeResourceExhausted:
 		return connect.CodeInternal
 	default:
 		return connect.CodeInternal

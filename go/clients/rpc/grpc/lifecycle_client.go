@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -37,7 +37,7 @@ func NewLifecycleClient(cfg ClientConfig, opts ...grpc.DialOption) *Client {
 func (c *Client) Start(_ context.Context) error {
 	conn, err := NewClient(c.cfg, c.opts...)
 	if err != nil {
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "dial grpc client")
+		return apperr.Wrap(err, apperr.CodeInternal, "dial grpc client")
 	}
 	c.conn = conn
 	return nil
@@ -46,9 +46,9 @@ func (c *Client) Start(_ context.Context) error {
 // Stop closes the connection.
 func (c *Client) Stop(_ context.Context) error {
 	if c.conn != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			c.conn.Close(),
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"close grpc connection",
 		)
 	}
@@ -58,7 +58,7 @@ func (c *Client) Stop(_ context.Context) error {
 // Liveness reports whether the client has been started.
 func (c *Client) Liveness(_ context.Context) error {
 	if c.conn == nil {
-		return coreerrors.Internal("grpc client not started")
+		return apperr.Internal("grpc client not started")
 	}
 	return nil
 }
@@ -66,11 +66,11 @@ func (c *Client) Liveness(_ context.Context) error {
 // Readiness reports whether the connection is out of a terminal failure state.
 func (c *Client) Readiness(_ context.Context) error {
 	if c.conn == nil {
-		return coreerrors.Internal("grpc client not started")
+		return apperr.Internal("grpc client not started")
 	}
 	if s := c.conn.GetState(); s == connectivity.TransientFailure ||
 		s == connectivity.Shutdown {
-		return coreerrors.Internal("grpc connection not ready: " + s.String())
+		return apperr.Internal("grpc connection not ready: " + s.String())
 	}
 	return nil
 }

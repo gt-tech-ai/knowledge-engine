@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	gb "github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker/gobreaker"
@@ -158,8 +158,8 @@ func NewFromConfig(cfg Config) (interfaces.CircuitBreaker, error) {
 		return gb.New(gbCfg), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown circuit breaker kind: %v", cfg.Kind),
 		)
 	}

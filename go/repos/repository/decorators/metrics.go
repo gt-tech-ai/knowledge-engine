@@ -8,9 +8,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// defaultBuckets are the default histogram bucket boundaries for repository
+// defaultBuckets returns the default histogram bucket boundaries for repository
 // operation durations (in seconds).
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // metricsDecorator records operation counts and durations using the core
 // interfaces.Metrics abstraction.
@@ -55,7 +57,7 @@ func newMetricsDecorator[T, P any, ID comparable](
 		duration: m.Histogram(
 			"repository_operation_duration_seconds",
 			"Repository operation duration",
-			defaultBuckets,
+			defaultBuckets(),
 			"repo",
 			"operation",
 		),

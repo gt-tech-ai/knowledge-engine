@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/job/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -125,7 +125,7 @@ func TestDecoratorBuilder_WithLogger_LogsErrorOnFailure(t *testing.T) {
 	inner := mocks.NewMockAnyJob(ctrl)
 	inner.EXPECT().Meta().Return(types.JobMeta{Name: "broken"}).AnyTimes()
 	inner.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("command failed")).AnyTimes()
+		Return(nil, apperr.Sentinel("command failed")).AnyTimes()
 
 	j := decorators.Wrap(inner).WithLogger(logger).Build()
 

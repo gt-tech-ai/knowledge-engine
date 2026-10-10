@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/nooptracer"
@@ -152,8 +152,8 @@ func NewFromConfig(ctx context.Context, cfg Config) (interfaces.Tracer, error) {
 		return nooptracer.New()
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown tracer kind: %v", cfg.Kind),
 		)
 	}

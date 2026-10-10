@@ -6,7 +6,6 @@ package e2ekit_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -324,7 +323,7 @@ func TestTelemetryClient_QueryError(t *testing.T) {
 func TestPollHelpers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	errCheck := errors.New("backend not ready")
+	errCheck := apperr.Sentinel("backend not ready")
 
 	t.Run("PollUntil returns once check succeeds", func(t *testing.T) {
 		t.Parallel()

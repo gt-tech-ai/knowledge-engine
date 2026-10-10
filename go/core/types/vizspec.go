@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // AlgebraOp is a table-algebra operator combining shelf expressions.
@@ -125,7 +125,7 @@ func (e *AlgebraExpr) MarshalJSON() ([]byte, error) {
 	}
 	out, err := json.Marshal(w)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "vizspec: encode shelf")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: encode shelf")
 	}
 	return out, nil
 }
@@ -135,9 +135,9 @@ func (e *AlgebraExpr) MarshalJSON() ([]byte, error) {
 func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	var w algebraWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(
+		return apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"vizspec: invalid shelf expression",
 		)
 	}
@@ -147,8 +147,8 @@ func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	case w.Field == "" && w.Op != "":
 		*e = AlgebraExpr{Op: w.Op, Args: w.Args}
 	default:
-		return errors.New(
-			errors.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"vizspec: a shelf node is either a field or an operator",
 		)
 	}
@@ -271,7 +271,7 @@ func (s VizSpec) MarshalJSON() ([]byte, error) {
 	}
 	out, err := json.Marshal(w)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "vizspec: encode")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: encode")
 	}
 	return out, nil
 }
@@ -281,7 +281,7 @@ func (s VizSpec) MarshalJSON() ([]byte, error) {
 func (s *VizSpec) UnmarshalJSON(b []byte) error {
 	var w vizSpecWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid JSON")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: invalid JSON")
 	}
 	*s = VizSpec{
 		TimeRange:  w.TimeRange,

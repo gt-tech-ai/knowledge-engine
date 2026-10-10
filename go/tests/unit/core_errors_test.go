@@ -49,7 +49,7 @@ func TestNewError(t *testing.T) {
 func TestWrapError(t *testing.T) {
 	t.Parallel()
 
-	cause := errors.New("connection refused")
+	cause := apperr.Sentinel("connection refused")
 	err := apperr.Wrap(cause, apperr.ErrUnavailable, "database connection failed")
 
 	appErr := &apperr.AppError{}
@@ -355,7 +355,7 @@ func TestZapErrorAppError(t *testing.T) {
 func TestZapErrorPlainError(t *testing.T) {
 	t.Parallel()
 
-	plainErr := errors.New("something went wrong")
+	plainErr := apperr.Sentinel("something went wrong")
 	field := apperr.ZapError(plainErr)
 
 	assert.Equal(t, "error", field.Key)
@@ -455,7 +455,7 @@ func TestCoreLogErrorPlainError(t *testing.T) {
 	core, observed := observer.New(zap.DebugLevel)
 	logger := zap.New(core)
 
-	apperr.LogError(logger, "unexpected failure", errors.New("disk full"))
+	apperr.LogError(logger, "unexpected failure", apperr.Sentinel("disk full"))
 
 	entries := observed.All()
 	require.Len(t, entries, 1, "expected exactly one log entry")

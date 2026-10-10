@@ -16,28 +16,28 @@ import (
 // retriers), so one request can never fan out into unbounded retries.
 const DefaultRetryBudget int32 = 10
 
-// nonRetryableConnectCodes lists Connect error codes that must not be retried:
-// permanent client/domain failures, plus ResourceExhausted — retrying a
-// rate-limited/quota-exceeded call immediately only adds load and deepens the
-// backpressure. A parent-context deadline/cancel is handled by the retrier's
-// context-awareness (it stops when ctx is done), not classified here, so a
-// per-attempt (child-context) timeout can still be retried.
-var nonRetryableConnectCodes = map[connect.Code]bool{
-	connect.CodeInvalidArgument:   true,
-	connect.CodeNotFound:          true,
-	connect.CodeAlreadyExists:     true,
-	connect.CodePermissionDenied:  true,
-	connect.CodeUnauthenticated:   true,
-	connect.CodeUnimplemented:     true,
-	connect.CodeCanceled:          true,
-	connect.CodeResourceExhausted: true,
-}
-
 // isNonRetryableConnect reports whether err carries a Connect error code that
 // must not be retried — the framework-specific classifier the interceptorcore
-// retry loop calls.
+// retry loop calls. The non-retryable codes are permanent client/domain
+// failures, plus ResourceExhausted — retrying a rate-limited/quota-exceeded call
+// immediately only adds load and deepens the backpressure. A parent-context
+// deadline/cancel is handled by the retrier's context-awareness (it stops when
+// ctx is done), not classified here, so a per-attempt (child-context) timeout
+// can still be retried.
 func isNonRetryableConnect(err error) bool {
-	return nonRetryableConnectCodes[connect.CodeOf(err)]
+	switch connect.CodeOf(err) {
+	case connect.CodeInvalidArgument,
+		connect.CodeNotFound,
+		connect.CodeAlreadyExists,
+		connect.CodePermissionDenied,
+		connect.CodeUnauthenticated,
+		connect.CodeUnimplemented,
+		connect.CodeCanceled,
+		connect.CodeResourceExhausted:
+		return true
+	default:
+		return false
+	}
 }
 
 // RetryInterceptor returns a client-side interceptor that retries transient

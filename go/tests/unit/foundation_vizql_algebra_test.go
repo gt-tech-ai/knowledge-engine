@@ -21,18 +21,20 @@ type randShelf struct {
 	E *types.AlgebraExpr
 }
 
-// shelfLeaves are the field references random shelves draw from.
-var shelfLeaves = []types.FieldRef{
-	{Name: "team"},
-	{Name: "model"},
-	{Name: "workspace"},
-	{Name: "tokens_in", Agg: types.AggSum},
+// shelfLeaves returns the field references random shelves draw from.
+func shelfLeaves() []types.FieldRef {
+	return []types.FieldRef{
+		{Name: "team"},
+		{Name: "model"},
+		{Name: "workspace"},
+		{Name: "tokens_in", Agg: types.AggSum},
+	}
 }
 
 // genShelf builds a random expression at most depth levels deep.
 func genShelf(r *rand.Rand, depth int) *types.AlgebraExpr {
 	if depth <= 1 || r.Intn(3) == 0 {
-		leaf := shelfLeaves[r.Intn(len(shelfLeaves))]
+		leaf := shelfLeaves()[r.Intn(len(shelfLeaves()))]
 		return &types.AlgebraExpr{Field: &leaf}
 	}
 	opsList := []types.AlgebraOp{

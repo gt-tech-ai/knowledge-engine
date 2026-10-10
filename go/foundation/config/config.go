@@ -22,7 +22,7 @@ package config
 import (
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
@@ -78,8 +78,8 @@ func NewFromConfig(cfg Config) (interfaces.ConfigLoader, error) {
 		return loader, nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown config kind: %v", cfg.Kind),
 		)
 	}

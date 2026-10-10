@@ -32,10 +32,11 @@ type OrdinalFn func(field string) []string
 // DerivedFn (a resource with no derived sort fields) is treated as "no derived sorts".
 type DerivedFn func(field string) *types.DerivedSort
 
-// IdentityColumn is the ColumnFn that returns its input unchanged. It is used to compile
+// IdentityColumn is a ColumnFn that returns its input unchanged. It is used to compile
 // a keyset SeekFilter, whose clauses already carry resolved storage columns (from
-// KeysetColumns), so no further field→column mapping is wanted.
-var IdentityColumn ColumnFn = func(field string) string { return field }
+// KeysetColumns), so no further field→column mapping is wanted. Pass it as a value
+// (Resolve: listquery.IdentityColumn) wherever a ColumnFn is expected.
+func IdentityColumn(field string) string { return field }
 
 // CompileSeek folds a keyset SeekFilter (whose clauses carry already-resolved columns)
 // into a backend predicate through the SAME QueryBackend algebra the user filter uses. A

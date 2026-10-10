@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/validator"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service/decorators"
@@ -18,7 +18,7 @@ import (
 // (ARCHITECTURE.md#error-codes).
 func nameRequired(e *fixtures.TestEntity) error {
 	if e.Name == "" {
-		return coreerrors.New(coreerrors.CodeInvalidInput, "name is required")
+		return apperr.New(apperr.CodeInvalidInput, "name is required")
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func TestServiceDecorator_WithValidation_RejectsInvalidAndShortCircuits(t *testi
 	require.Error(t, err)
 	require.True(
 		t,
-		coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"rejection must carry CodeInvalidInput",
 	)
 
@@ -92,7 +92,7 @@ func TestServiceDecorator_WithValidation_ValidatesUpdateAndPassesReadsThrough(
 	_, err := svc.Update(ctx, "1", &fixtures.TestEntity{ID: "1", Name: ""})
 	require.True(
 		t,
-		coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"invalid Update is rejected",
 	)
 	out, err := svc.Update(ctx, "1", &fixtures.TestEntity{ID: "1", Name: "ok"})

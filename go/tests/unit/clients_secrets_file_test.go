@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/file"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -66,7 +65,7 @@ func TestFileSource_PutRefusesNonIgnoredPath(t *testing.T) {
 	// Not ignored → check-ignore exits 1 → the CommandRunner returns a non-nil error.
 	runner.EXPECT().
 		Run(gomock.Any(), gomock.Any(), "git", "check-ignore", "-q", gomock.Any()).
-		Return(errors.New("exit status 1"))
+		Return(apperr.Sentinel("exit status 1"))
 
 	path := filepath.Join(t.TempDir(), "tracked.env")
 	ref := types.Ref{Env: "dev", Class: "bootstrap", Field: "client_secret"}
@@ -76,7 +75,7 @@ func TestFileSource_PutRefusesNonIgnoredPath(t *testing.T) {
 	)
 
 	err := src.Put(context.Background(), ref, types.NewSecret("must-not-write"))
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 
 	_, statErr := os.Stat(path)
 	assert.True(
@@ -109,7 +108,7 @@ func TestFileSource_GetMissingKeyIsNotFound(t *testing.T) {
 	)
 
 	_, err := src.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound))
+	require.True(t, apperr.Is(err, apperr.CodeNotFound))
 }
 
 // TestFileSource_ReadsExportAndQuotedDotenv tests that the file Source reads a shell-

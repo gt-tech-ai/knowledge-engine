@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	workflowscfg "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workflows"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -73,7 +73,7 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		_, err := workflowscfg.Load(loader)
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 	})
 
 	t.Run("unmarshal failure", func(t *testing.T) {
@@ -82,12 +82,12 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "soon"})
 		loader.EXPECT().
 			UnmarshalKey("workflows", gomock.Any()).
-			Return(coreerr.Sentinel("bad duration"))
+			Return(apperr.Sentinel("bad duration"))
 
 		_, err := workflowscfg.Load(loader)
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 		assert.Contains(t, err.Error(), "load workflows config")
 	})
 }

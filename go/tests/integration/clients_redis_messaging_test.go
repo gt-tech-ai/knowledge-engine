@@ -20,7 +20,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging"
 	msgredis "github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/redis"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	coreiface "github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	testsuite "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite"
@@ -168,7 +168,7 @@ func (s *RedisMessagingSuite) TestPublisher_Error_Unavailable() {
 
 	err = pub.Publish(context.Background(), "events", []byte("x"))
 	s.Require().Error(err)
-	s.Equal(coreerr.CodeUnavailable, coreerr.Code(err))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(err))
 }
 
 // TestSubscriber_DynamicSubscribeUnsubscribe tests runtime add/remove of channels on
@@ -250,6 +250,47 @@ func (s *RedisMessagingSuite) TestSubscriber_PatternSubscribeReceivesMatching() 
 	}
 }
 
+// TestSubscriber_FirstCallerCancel_KeepsDelivering tests that cancelling the context
+// of the Subscribe call that started the dispatch loop does not stop delivery.
+//
+// Why this test is important:
+//   - The dispatch loop is shared by every subscription and outlives the call that
+//     started it; tying it to that call's cancellation would silently stop delivery
+//     to every channel once the first request finished.
+//
+// What it tests:
+//   - After the first Subscribe's ctx is cancelled, a message on that channel and on
+//     a later-subscribed channel both arrive, and the handler's ctx is not done.
+func (s *RedisMessagingSuite) TestSubscriber_FirstCallerCancel_KeepsDelivering() {
+	probe := s.newClient()
+	sub, err := msgredis.NewSubscriber(msgredis.Config{Client: s.newClient()})
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { _ = sub.Close() })
+
+	firstCtx, cancel := context.WithCancel(context.Background())
+	got := make(chan string, 4)
+	alive := make(chan bool, 4)
+	handler := func(hctx context.Context, msg *coreiface.Message) error {
+		alive <- hctx.Err() == nil
+		got <- string(msg.Payload)
+		return nil
+	}
+	s.Require().NoError(sub.Subscribe(firstCtx, "first", handler))
+	s.waitSubscribed(probe, "first")
+	cancel()
+
+	ctx := context.Background()
+	s.Require().NoError(sub.Subscribe(ctx, "second", handler))
+	s.waitSubscribed(probe, "second")
+
+	s.Require().NoError(probe.Publish(ctx, "first", "f1").Err())
+	s.Equal("f1", recvChan(s.T(), got, "first channel after cancel"))
+	s.True(recvChan(s.T(), alive, "handler ctx state"), "handler ctx is live")
+	s.Require().NoError(probe.Publish(ctx, "second", "s1").Err())
+	s.Equal("s1", recvChan(s.T(), got, "second channel after cancel"))
+	s.True(recvChan(s.T(), alive, "handler ctx state"), "handler ctx is live")
+}
+
 // TestSubscriber_HandlerError_LoggedNotRequeued tests that a handler error is logged
 // and the loop keeps delivering — Pub/Sub has no requeue.
 //
@@ -271,7 +312,7 @@ func (s *RedisMessagingSuite) TestSubscriber_HandlerError_LoggedNotRequeued() {
 	received := make(chan string, 8)
 	failing := func(_ context.Context, msg *coreiface.Message) error {
 		received <- string(msg.Payload)
-		return coreerr.New(coreerr.CodeInternal, "boom")
+		return apperr.New(apperr.CodeInternal, "boom")
 	}
 	s.Require().NoError(sub.Subscribe(ctx, "err.chan", failing))
 	s.waitSubscribed(probe, "err.chan")

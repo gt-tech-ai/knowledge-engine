@@ -7,9 +7,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// defaultBuckets are the histogram bucket boundaries (seconds) for operation
+// defaultBuckets returns the histogram bucket boundaries (seconds) for operation
 // latency — the same set the repo and service metric decorators use.
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // MetricsSpec names the counters/histogram a metrics middleware registers, so the
 // same middleware serves the repo tier (repository_* / "repo") and the service tier
@@ -54,7 +56,7 @@ func NewMetrics(m interfaces.Metrics, name string, spec MetricsSpec) OpMiddlewar
 		dur: m.Histogram(
 			spec.DurationName,
 			spec.DurationHelp,
-			defaultBuckets,
+			defaultBuckets(),
 			spec.SubjectLabel,
 			"operation",
 		),

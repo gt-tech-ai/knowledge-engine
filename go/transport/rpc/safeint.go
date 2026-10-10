@@ -34,5 +34,5 @@ func CountToInt32(n int64) int32 {
 	if n > math.MaxInt32 {
 		return math.MaxInt32
 	}
-	return int32(n) //nolint:gosec // G115: clamped to [0, MaxInt32] above
+	return int32(n)
 }

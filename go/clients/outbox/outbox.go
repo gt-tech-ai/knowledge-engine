@@ -12,7 +12,7 @@ import (
 	outboxs3 "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/s3"
 	outboxsqs "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/sqs"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/stub"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -96,8 +96,8 @@ func NewFromConfig(
 		cfg.S3.API = decorators.S3API(cfg.S3.API, stack)
 		return outboxs3.New(cfg.S3)
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown outbox sink kind: %v", cfg.Kind),
 		)
 	}

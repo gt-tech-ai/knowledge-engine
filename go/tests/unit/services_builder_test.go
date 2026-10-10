@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/services"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -29,7 +29,7 @@ import (
 //     success and the operation's error verbatim on failure, with WithLog enabled.
 func TestOpServiceBuilder_NameAndResultPassThrough(t *testing.T) {
 	t.Parallel()
-	wantErr := errors.New("boom")
+	wantErr := apperr.Sentinel("boom")
 	tests := []struct {
 		wantErr error
 		run     services.RunFunc[string, int]

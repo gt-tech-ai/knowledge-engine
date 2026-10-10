@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // DatabaseConfig holds PostgreSQL connection configuration.
@@ -98,7 +98,7 @@ func (c *DatabaseConfig) DSN() string {
 // Validate returns an error if the configuration is invalid.
 func (c *DatabaseConfig) Validate() error {
 	if c.Host == "" {
-		return coreerr.InvalidInput("database.host is required")
+		return apperr.InvalidInput("database.host is required")
 	}
 	return nil
 }

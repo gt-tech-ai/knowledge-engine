@@ -99,7 +99,6 @@ func (s *Subscriber) Subscribe(
 	// (queue resolution, receive, ack) stays intrinsic to consume.
 	handler = s.obs.Wrap(handler)
 
-	//nolint:gosec // cancel is stored in s.cancels and invoked by Close (drains the loop).
 	loopCtx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
 	s.cancels = append(s.cancels, cancel)

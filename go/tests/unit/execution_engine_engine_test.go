@@ -295,7 +295,7 @@ func TestFanOut_CtxCancelStopsFeeding(t *testing.T) {
 // What it tests:
 //   - The returned observer accepts OnStepComplete/OnPhaseComplete/
 //     OnGateComplete calls without panicking.
-func TestObserverFromCtx_ReturnsNopWhenAbsent(t *testing.T) {
+func TestObserverFromCtx_ReturnsNopWhenAbsent(_ *testing.T) {
 	obs := engine.ObserverFromCtx(context.Background())
 	// NopObserver must not panic on any hook call.
 	obs.OnStepComplete(types.StepResult{})

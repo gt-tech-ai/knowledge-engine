@@ -43,9 +43,11 @@ func requireIntegration(t *testing.T) {
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 }
 
-// enqueuedAt is every enqueued record's creation time: fixed in the past, so
+// enqueuedAt returns every enqueued record's creation time: fixed in the past, so
 // the record is due at once and its date-partitioned S3 key is deterministic.
-var enqueuedAt = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+func enqueuedAt() time.Time {
+	return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+}
 
 // newOutboxStore starts Postgres and returns the migrated reference store.
 func newOutboxStore(t *testing.T) *outboxtest.SQLStore {
@@ -84,7 +86,7 @@ func enqueueN(t *testing.T, store *outboxtest.SQLStore, lane string, n int) []uu
 		ids[i] = uuid.New()
 		rec := types.OutboxRecord{
 			ID: ids[i], Lane: lane, Tenant: "org-1", Key: strconv.Itoa(i),
-			Payload: []byte(`{"seq":` + strconv.Itoa(i) + `}`), CreatedAt: enqueuedAt,
+			Payload: []byte(`{"seq":` + strconv.Itoa(i) + `}`), CreatedAt: enqueuedAt(),
 		}
 		require.NoError(t, store.Enqueue(context.Background(), &rec))
 	}
@@ -261,7 +263,7 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 	for _, o := range listed.Contents {
 		keys = append(keys, aws.ToString(o.Key))
 	}
-	day := enqueuedAt.Format("2006/01/02")
+	day := enqueuedAt().Format("2006/01/02")
 	want := make([]string, len(ids))
 	for i, id := range ids {
 		want[i] = "org-1/" + day + "/" + id.String()

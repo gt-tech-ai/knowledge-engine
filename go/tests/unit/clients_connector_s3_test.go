@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 	connector "github.com/gt-tech-ai/knowledge-engine/go/clients/connector"
 	connectordecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/decorators"
 	connectors3 "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/s3"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -110,7 +109,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 		_, err := src.TestConnection(ctx)
 		require.True(
 			t,
-			coreerr.Is(err, coreerr.CodeInvalidInput),
+			apperr.Is(err, apperr.CodeInvalidInput),
 			"bad bucket/creds is the user's problem",
 		)
 	})
@@ -121,7 +120,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 		sc := mocks.NewMockStorageClient(ctrl)
 		sc.EXPECT().
 			ListObjectsPage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("dial tcp: connection refused"))
+			Return(nil, apperr.Sentinel("dial tcp: connection refused"))
 
 		src, _ := connectors3.NewSource(
 			ctx,
@@ -132,7 +131,7 @@ func TestS3ConnectorSource_TestConnection(t *testing.T) {
 		_, err := src.TestConnection(ctx)
 		require.True(
 			t,
-			coreerr.Is(err, coreerr.CodeUnavailable),
+			apperr.Is(err, apperr.CodeUnavailable),
 			"a transport failure is transient",
 		)
 	})
@@ -198,7 +197,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 			stubBuilder(sc, nil),
 		)
 		_, _, err := src.ListPage(ctx, "", 1000)
-		require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+		require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 	})
 
 	t.Run("a transport error → Unavailable (transient)", func(t *testing.T) {
@@ -209,7 +208,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 			ListObjectsPageToken(
 				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 			).
-			Return(nil, "", errors.New("dial tcp: connection refused"))
+			Return(nil, "", apperr.Sentinel("dial tcp: connection refused"))
 
 		src, _ := connectors3.NewSource(
 			ctx,
@@ -218,7 +217,7 @@ func TestS3ConnectorSource_ListPage(t *testing.T) {
 			stubBuilder(sc, nil),
 		)
 		_, _, err := src.ListPage(ctx, "", 1000)
-		require.True(t, coreerr.Is(err, coreerr.CodeUnavailable))
+		require.True(t, apperr.Is(err, apperr.CodeUnavailable))
 	})
 }
 
@@ -245,7 +244,7 @@ func TestS3ConnectorSource_AuthSelection(t *testing.T) {
 	_, err := connectors3.NewSource(ctx, s3Cfg("bogus"), nil, stubBuilder(sc, nil))
 	require.True(
 		t,
-		coreerr.Is(err, coreerr.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"unknown auth method fails loud",
 	)
 
@@ -380,7 +379,7 @@ func TestS3ConnectorSource_RejectsInvalidAuthConfig(t *testing.T) {
 			)
 			require.True(
 				t,
-				coreerr.Is(err, coreerr.CodeInvalidInput),
+				apperr.Is(err, apperr.CodeInvalidInput),
 				"%s: %v",
 				tc.name,
 				err,
@@ -399,7 +398,7 @@ func TestS3ConnectorSource_RejectsInvalidAuthConfig(t *testing.T) {
 			connectordecorators.Deps{},
 		)
 		_, err := b.Build(ctx, cfg)
-		require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput), "%v", err)
+		require.True(t, apperr.Is(err, apperr.CodeInvalidInput), "%v", err)
 	})
 }
 
@@ -445,14 +444,14 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 				OperationName: "ListObjectsV2",
 				Err:           err,
 			}
-			return nil, coreerr.Wrap(opErr, coreerr.CodeInternal, "s3 list b/docs/")
+			return nil, apperr.Wrap(opErr, apperr.CodeInternal, "s3 list b/docs/")
 		}
 	}
 
 	credCases := []struct {
 		stsErr error
 		name   string
-		want   coreerr.ErrorCode
+		want   apperr.ErrorCode
 	}{
 		{
 			name: "STS AccessDenied → InvalidInput",
@@ -460,7 +459,7 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 				Code:    "AccessDenied",
 				Message: "not authorized to assume",
 			},
-			want: coreerr.CodeInvalidInput,
+			want: apperr.CodeInvalidInput,
 		},
 		{
 			name: "caller deadline → Unavailable",
@@ -469,7 +468,7 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 				OperationName: "AssumeRole",
 				Err:           context.DeadlineExceeded,
 			},
-			want: coreerr.CodeUnavailable,
+			want: apperr.CodeUnavailable,
 		},
 	}
 	for _, tc := range credCases {
@@ -494,29 +493,29 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 			)
 			require.NoError(t, err)
 			_, err = src.TestConnection(ctx)
-			require.Equal(t, tc.want, coreerr.Code(err), "%v", err)
+			require.Equal(t, tc.want, apperr.Code(err), "%v", err)
 		})
 	}
 
 	statusCases := []struct {
 		name   string
-		want   coreerr.ErrorCode
+		want   apperr.ErrorCode
 		status int
 	}{
 		{
 			name:   "unmodeled 403 → InvalidInput",
 			status: http.StatusForbidden,
-			want:   coreerr.CodeInvalidInput,
+			want:   apperr.CodeInvalidInput,
 		},
 		{
 			name:   "unmodeled 429 → Unavailable",
 			status: http.StatusTooManyRequests,
-			want:   coreerr.CodeUnavailable,
+			want:   apperr.CodeUnavailable,
 		},
 		{
 			name:   "unmodeled 503 → Unavailable",
 			status: http.StatusServiceUnavailable,
-			want:   coreerr.CodeUnavailable,
+			want:   apperr.CodeUnavailable,
 		},
 	}
 	for _, tc := range statusCases {
@@ -534,7 +533,7 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 			}
 			sc.EXPECT().
 				ListObjectsPage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(nil, coreerr.Wrap(apiErr, coreerr.CodeInternal, "s3 list b/docs/"))
+				Return(nil, apperr.Wrap(apiErr, apperr.CodeInternal, "s3 list b/docs/"))
 
 			src, err := connectors3.NewSource(
 				ctx,
@@ -544,7 +543,7 @@ func TestS3ConnectorSource_ClassifiesCredentialAndAPIFailures(t *testing.T) {
 			)
 			require.NoError(t, err)
 			_, err = src.TestConnection(ctx)
-			require.Equal(t, tc.want, coreerr.Code(err), "%v", err)
+			require.Equal(t, tc.want, apperr.Code(err), "%v", err)
 		})
 	}
 }
@@ -570,7 +569,7 @@ func TestConnectorSourceBuilder_Build(t *testing.T) {
 		t.Parallel()
 		b := connector.NewSourceBuilder(nil, nil, connectordecorators.Deps{})
 		_, err := b.Build(ctx, interfaces.SourceConfig{Kind: "bogus"})
-		require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+		require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 	})
 
 	t.Run(

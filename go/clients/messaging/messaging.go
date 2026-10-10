@@ -23,7 +23,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/memory"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/redis"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/sqs"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
@@ -75,8 +75,8 @@ func ParseKind(s string) (Kind, error) {
 	case "redis":
 		return KindRedis, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %q", s),
 		)
 	}
@@ -160,8 +160,8 @@ func newPublisher(
 		}), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}
@@ -188,8 +188,8 @@ func NewSubscriber(
 		return redis.NewSubscriber(cfg.Redis)
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}
@@ -207,14 +207,14 @@ func NewAdapter(kind Kind, opts ...options.Option[Config]) (*sqs.Adapter, error)
 		return sqs.NewAdapter(cfg.SQS), nil
 
 	case KindMemory, KindRedis:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("messaging kind %v has no adapter (only sqs does)", cfg.Kind),
 		)
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}

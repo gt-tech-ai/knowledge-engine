@@ -14,14 +14,16 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// goldenFactPath is the analytics-fact wire fixture shared with the Python suite.
-var goldenFactPath = filepath.Join(
-	"..",
-	"..",
-	"..",
-	"testdata",
-	"analytics_fact.golden.json",
-)
+// goldenFactPath returns the analytics-fact wire fixture shared with the Python suite.
+func goldenFactPath() string {
+	return filepath.Join(
+		"..",
+		"..",
+		"..",
+		"testdata",
+		"analytics_fact.golden.json",
+	)
+}
 
 // goldenFact is the value the golden fixture encodes.
 func goldenFact() types.Fact {
@@ -61,7 +63,7 @@ func goldenFact() types.Fact {
 func TestFact_MarshalMatchesGoldenFixture(t *testing.T) {
 	t.Parallel()
 
-	want, err := os.ReadFile(goldenFactPath)
+	want, err := os.ReadFile(goldenFactPath())
 	require.NoError(t, err)
 
 	got, err := json.Marshal(goldenFact())

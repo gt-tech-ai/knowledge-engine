@@ -15,7 +15,7 @@ import (
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	outboxs3 "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/s3"
 	outboxsqs "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/sqs"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // SQSAPI runs every SQS call through stack. Both calls are retryable: a queue
@@ -95,9 +95,9 @@ func (a *s3API) PutObject(
 		func(cctx context.Context) (*awss3.PutObjectOutput, error) {
 			if rewindable {
 				if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-					return nil, coreerr.Wrap(
+					return nil, apperr.Wrap(
 						err,
-						coreerr.CodeInternal,
+						apperr.CodeInternal,
 						"outbox s3: rewind body",
 					)
 				}
@@ -112,23 +112,23 @@ func (a *s3API) PutObject(
 // (retryable), access denial CodeForbidden, any other client fault
 // CodeInvalidInput; context errors and already-coded errors pass through.
 func classify(err error) error {
-	if err == nil || coreerr.Code(err) != coreerr.CodeUnknown ||
-		coreerr.StdIs(
+	if err == nil || apperr.Code(err) != apperr.CodeUnknown ||
+		apperr.StdIs(
 			err,
 			context.Canceled,
-		) || coreerr.StdIs(err, context.DeadlineExceeded) {
+		) || apperr.StdIs(err, context.DeadlineExceeded) {
 		return err
 	}
 	var apiErr smithy.APIError
-	if !coreerr.As(err, &apiErr) || apiErr.ErrorFault() != smithy.FaultClient {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "aws call failed")
+	if !apperr.As(err, &apiErr) || apiErr.ErrorFault() != smithy.FaultClient {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "aws call failed")
 	}
 	switch name := apiErr.ErrorCode(); {
 	case strings.Contains(name, "Throttl"), name == "SlowDown", name == "RequestTimeout":
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "aws call throttled")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "aws call throttled")
 	case strings.HasPrefix(name, "AccessDenied"):
-		return coreerr.Wrap(err, coreerr.CodeForbidden, "aws call denied")
+		return apperr.Wrap(err, apperr.CodeForbidden, "aws call denied")
 	default:
-		return coreerr.Wrap(err, coreerr.CodeInvalidInput, "aws call rejected")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "aws call rejected")
 	}
 }

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/job"
@@ -42,7 +42,7 @@ func TestJob_MissingToolSkips(t *testing.T) {
 	// attempt to run the command would surface as an unexpected-call failure.
 	r := mocks.NewMockCommandRunner(ctrl)
 	r.EXPECT().RequireTool("go", gomock.Any()).
-		Return(errors.New("go: command not found")).
+		Return(apperr.Sentinel("go: command not found")).
 		Times(1)
 
 	// The discoverer must never run once the tool is missing; a panic here would
@@ -146,7 +146,7 @@ func TestJob_RetryAbortsOnContextCancelDuringDelay(t *testing.T) {
 		func(context.Context, string, string, ...string) error {
 			atomic.AddInt64(&runCalls, 1)
 			cancel() // cancel before the retry delay so ctx.Done wins the select
-			return errors.New("transient")
+			return apperr.Sentinel("transient")
 		},
 	).Times(1)
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/validator"
 )
 
@@ -54,8 +54,8 @@ func TestEnsure_ShortCircuitsOnFirstViolation(t *testing.T) {
 		},
 	)
 
-	first := errors.InvalidInput("first bad dto")
-	second := errors.InvalidInput("second bad dto")
+	first := apperr.InvalidInput("first bad dto")
+	second := apperr.InvalidInput("second bad dto")
 	got := validator.Ensure(
 		nil,
 		stubValidatable{},
@@ -69,6 +69,6 @@ func TestEnsure_ShortCircuitsOnFirstViolation(t *testing.T) {
 	) // the FIRST violation, not the second
 	require.True(
 		t,
-		errors.Is(got, errors.CodeInvalidInput),
+		apperr.Is(got, apperr.CodeInvalidInput),
 	) // classified as invalid input
 }

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
@@ -187,7 +187,7 @@ func TestJob_DiscovererError(t *testing.T) {
 	t.Parallel()
 	disc := interfaces.DiscovererFunc[string](
 		func(_ context.Context, _ string) ([]string, error) {
-			return nil, errors.New("no go.work found")
+			return nil, apperr.Sentinel("no go.work found")
 		},
 	)
 
@@ -215,7 +215,7 @@ func TestJob_DiscovererError(t *testing.T) {
 func TestJob_WarnOnlyDowngradesFailToWarn(t *testing.T) {
 	t.Parallel()
 	// threshold beyond any attempt => the runner always fails.
-	failing := countingRunner(t, new(int64), 999, errors.New("lint failure"))
+	failing := countingRunner(t, new(int64), 999, apperr.Sentinel("lint failure"))
 
 	j := job.New[string]("lint", "quality").
 		WithDiscoverer(discoverItems("mod")).
@@ -251,7 +251,7 @@ func TestJob_RetrySucceedsAfterTransientFailure(t *testing.T) {
 	t.Parallel()
 	// Fails on calls 1 and 2; succeeds on call 3.
 	var callCount int64
-	cr := countingRunner(t, &callCount, 3, errors.New("transient"))
+	cr := countingRunner(t, &callCount, 3, apperr.Sentinel("transient"))
 
 	j := job.New[string]("build", "ci").
 		WithDiscoverer(discoverItems("mod")).
@@ -288,7 +288,7 @@ func TestJob_RetrySucceedsAfterTransientFailure(t *testing.T) {
 //     but a single result with StatusFail.
 func TestJob_RetryExhaustedRemainsFailure(t *testing.T) {
 	t.Parallel()
-	cr := countingRunner(t, new(int64), 999, errors.New("persistent"))
+	cr := countingRunner(t, new(int64), 999, apperr.Sentinel("persistent"))
 
 	j := job.New[string]("build", "ci").
 		WithDiscoverer(discoverItems("mod")).
@@ -399,7 +399,7 @@ func TestJob_WithConcurrency(t *testing.T) {
 func TestJob_WithRetryDelay(t *testing.T) {
 	t.Parallel()
 	var callCount int64
-	cr := countingRunner(t, &callCount, 2, errors.New("transient"))
+	cr := countingRunner(t, &callCount, 2, apperr.Sentinel("transient"))
 
 	j := job.New[string]("build", "ci").
 		WithDiscoverer(discoverItems("mod")).

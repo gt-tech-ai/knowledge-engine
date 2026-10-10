@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -66,9 +66,9 @@ func queryFingerprint(q types.AggregateQuery) (string, error) {
 	//nolint:musttag // a hash input, never a wire format: untagged field names are fine
 	b, err := json.Marshal(q)
 	if err != nil {
-		return "", errors.Wrap(
+		return "", apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"analytics: query is not serializable",
 		)
 	}
@@ -84,14 +84,14 @@ func decodeToken(b []byte, fingerprint string) (*resumeToken, error) {
 	}
 	var t resumeToken
 	if err := json.Unmarshal(b, &t); err != nil || t.Bucket == nil {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: malformed resume token",
 		)
 	}
 	if t.Query != fingerprint {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: resume token belongs to a different query",
 		)
 	}
@@ -257,9 +257,9 @@ func (s *stream) Next(ctx context.Context) ([]types.Row, bool, error) {
 			s.token = s.position(p)
 			return p.rows, len(p.next) > 0 || s.cur+1 < len(s.buckets), nil
 		case <-ctx.Done():
-			return nil, false, errors.Wrap(
+			return nil, false, apperr.Wrap(
 				ctx.Err(),
-				errors.CodeCanceled,
+				apperr.CodeCanceled,
 				"analytics: stream read canceled",
 			)
 		}

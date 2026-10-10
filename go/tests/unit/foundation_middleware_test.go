@@ -65,7 +65,7 @@ func TestRequestID_PreservesExisting(t *testing.T) {
 	t.Parallel()
 
 	handler := middleware.RequestID()(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			id := middleware.GetRequestID(r.Context())
 			assert.Equal(t, "existing-id", id)
 		}),
@@ -99,7 +99,7 @@ func TestRecovery_CatchesPanic(t *testing.T) {
 	handler := middleware.Recovery(
 		logger,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			panic("test panic")
 		}),
 	)
@@ -129,7 +129,7 @@ func TestRecovery_PassesThroughNormally(t *testing.T) {
 	handler := middleware.Recovery(
 		logger,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -159,7 +159,7 @@ func TestCORS_SetsHeaders(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
@@ -241,7 +241,7 @@ func TestCORS_PreflightReturns204(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			assert.Fail(t, "handler should not be called for OPTIONS")
 		}),
 	)
@@ -765,7 +765,7 @@ func TestChain_AppliesInOrder(t *testing.T) {
 		m1,
 		m2,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			order = append(order, "handler")
 		}),
 	)

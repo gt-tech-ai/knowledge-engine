@@ -15,18 +15,22 @@ import (
 // CPU on bodies too small to benefit.
 const compressionThreshold = 1024 // 1KB
 
-// gzipWriterPool reuses *gzip.Writer instances across requests to avoid
-// per-request allocation; writers are Reset onto the target before use and
-// returned on Close.
-var gzipWriterPool = sync.Pool{
-	New: func() any {
-		w, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
-		return w
-	},
+// newGzipWriterPool returns a pool that reuses *gzip.Writer instances across
+// requests to avoid per-request allocation; writers are Reset onto the target
+// before use and returned on Close.
+func newGzipWriterPool() *sync.Pool {
+	return &sync.Pool{
+		New: func() any {
+			w, _ := gzip.NewWriterLevel(io.Discard, gzip.DefaultCompression)
+			return w
+		},
+	}
 }
 
 // Compression returns middleware that gzip-compresses responses larger than 1KB.
+// Each returned middleware owns one gzip writer pool shared by its requests.
 func Compression() Middleware {
+	pool := newGzipWriterPool()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -37,6 +41,7 @@ func Compression() Middleware {
 			cw := &compressWriter{
 				ResponseWriter: w,
 				request:        r,
+				pool:           pool,
 			}
 			defer cw.Close()
 
@@ -54,6 +59,10 @@ type compressWriter struct {
 
 	// request is the inbound HTTP request, retained to inspect Accept-Encoding.
 	request *http.Request
+
+	// pool supplies and takes back the gzip writer; it belongs to the Compression
+	// middleware that created this writer.
+	pool *sync.Pool
 
 	// gzWriter is the gzip compressor, initialized once the buffer exceeds the threshold.
 	gzWriter *gzip.Writer
@@ -94,7 +103,7 @@ func (cw *compressWriter) startGzip() {
 	cw.Header().Set("Content-Encoding", "gzip")
 	cw.Header().Del("Content-Length")
 
-	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz := cw.pool.Get().(*gzip.Writer)
 	gz.Reset(cw.ResponseWriter)
 	cw.gzWriter = gz
 
@@ -112,7 +121,7 @@ func (cw *compressWriter) startGzip() {
 func (cw *compressWriter) Close() {
 	if cw.gzWriter != nil {
 		_ = cw.gzWriter.Close()
-		gzipWriterPool.Put(cw.gzWriter)
+		cw.pool.Put(cw.gzWriter)
 		return
 	}
 	if len(cw.buf) > 0 {

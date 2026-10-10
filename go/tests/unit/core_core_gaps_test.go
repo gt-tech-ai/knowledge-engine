@@ -106,7 +106,7 @@ func TestStackTraceStartsAtCaller(t *testing.T) {
 	var wrapped *apperr.AppError
 	require.ErrorAs(
 		t,
-		apperr.Wrap(errors.New("cause"), apperr.CodeInternal, "origin"),
+		apperr.Wrap(apperr.Sentinel("cause"), apperr.CodeInternal, "origin"),
 		&wrapped,
 	)
 	first, _, _ := strings.Cut(wrapped.StackTrace(), "\n")
@@ -128,7 +128,7 @@ func TestMarshalLogObjectWithCause(t *testing.T) {
 	t.Parallel()
 
 	wrapped := apperr.Wrap(
-		errors.New("connection refused"),
+		apperr.Sentinel("connection refused"),
 		apperr.CodeUnavailable,
 		"db down",
 	)
@@ -155,7 +155,7 @@ func TestMarshalLogObjectWithCause(t *testing.T) {
 func TestZapFieldsWithCause(t *testing.T) {
 	t.Parallel()
 
-	wrapped := apperr.Wrap(errors.New("boom"), apperr.CodeInternal, "op failed")
+	wrapped := apperr.Wrap(apperr.Sentinel("boom"), apperr.CodeInternal, "op failed")
 	appErr := &apperr.AppError{}
 	ok := errors.As(wrapped, &appErr)
 	require.True(t, ok)

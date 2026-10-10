@@ -9,7 +9,7 @@ import (
 	"path"
 
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // DecorateDoer runs every request inner sends through the client stack, as the operation
@@ -79,7 +79,7 @@ func (d *decoratedDoer) readBody(src io.ReadCloser) ([]byte, error) {
 		return nil, transportError(err, "read prometheus response")
 	}
 	if d.maxBodyBytes > 0 && int64(len(body)) > d.maxBodyBytes {
-		return nil, coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return nil, apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"prometheus response exceeds %d bytes; narrow the query", d.maxBodyBytes,
 		))
 	}

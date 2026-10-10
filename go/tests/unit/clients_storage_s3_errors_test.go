@@ -3,7 +3,6 @@ package unit_test
 import (
 	"bytes"
 	"context"
-	stderrors "errors"
 	"io"
 	"strings"
 	"testing"
@@ -16,12 +15,13 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
 // errS3 is a generic (non-not-found) backend failure used to drive the S3 client's
 // error-mapping branches.
-var errS3 = stderrors.New("s3 backend unavailable")
+var errS3 = apperr.Sentinel("s3 backend unavailable")
 
 // TestStorageClient_ErrorPaths tests that every S3 operation wraps a backend failure
 // (rather than swallowing it), across the single-part, multipart, read, and list

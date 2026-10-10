@@ -3,7 +3,7 @@ package infra
 import (
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // ServerConfig holds HTTP server configuration.
@@ -48,7 +48,7 @@ func DefaultServerConfig() ServerConfig {
 // Validate returns an error if the configuration is invalid.
 func (c ServerConfig) Validate() error {
 	if c.Port == 0 {
-		return coreerr.InvalidInput("server.port is required (got 0)")
+		return apperr.InvalidInput("server.port is required (got 0)")
 	}
 	return nil
 }

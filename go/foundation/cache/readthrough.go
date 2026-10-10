@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -117,9 +117,9 @@ func ReadThrough[T any](
 func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = coreerr.WithDetails(
-				coreerr.New(
-					coreerr.CodeInternal,
+			err = apperr.WithDetails(
+				apperr.New(
+					apperr.CodeInternal,
 					fmt.Sprintf("cache: load panicked: %v", r),
 				),
 				map[string]string{"stack": string(debug.Stack())},
@@ -132,12 +132,12 @@ func recoverLoad[T any](load func() (T, error)) (result T, err error) {
 // contextError codes a caller's context error: a deadline is CodeTimeout, anything else
 // CodeCanceled.
 func contextError(err error) error {
-	if coreerr.StdIs(err, context.DeadlineExceeded) {
-		return coreerr.Wrap(
+	if apperr.StdIs(err, context.DeadlineExceeded) {
+		return apperr.Wrap(
 			err,
-			coreerr.CodeTimeout,
+			apperr.CodeTimeout,
 			"cache: read-through wait timed out",
 		)
 	}
-	return coreerr.Wrap(err, coreerr.CodeCanceled, "cache: read-through wait canceled")
+	return apperr.Wrap(err, apperr.CodeCanceled, "cache: read-through wait canceled")
 }

@@ -161,7 +161,7 @@ func TestFinalize_ComputesEachAggregate(t *testing.T) {
 func TestSketch_MergePreservesQuantilesWithin1Pct(t *testing.T) {
 	t.Parallel()
 
-	r := rand.New(rand.NewSource(7)) //nolint:gosec // deterministic test data
+	r := rand.New(rand.NewSource(7))
 	for trial := range 50 {
 		n := 50 + r.Intn(2000)
 		values := make([]float64, n)

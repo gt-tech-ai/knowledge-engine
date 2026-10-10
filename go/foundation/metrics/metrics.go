@@ -17,7 +17,7 @@ package metrics
 import (
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/noop"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/prom"
@@ -66,8 +66,8 @@ func NewFromConfig(cfg Config) (interfaces.Metrics, error) {
 		return prom.New(), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown metrics kind: %v", cfg.Kind),
 		)
 	}

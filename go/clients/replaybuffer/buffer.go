@@ -13,7 +13,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/memory"
 	bufredis "github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/redis"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -77,13 +77,13 @@ type Config struct {
 // redis kind with no client.
 func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer, error) {
 	if cfg.MaxSize <= 0 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"replay max_size must be positive",
 		)
 	}
 	if cfg.TTL <= 0 {
-		return nil, errors.New(errors.CodeInvalidInput, "replay ttl must be positive")
+		return nil, apperr.New(apperr.CodeInvalidInput, "replay ttl must be positive")
 	}
 
 	var base interfaces.ReplayBuffer
@@ -92,8 +92,8 @@ func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer
 		base = memory.New(cfg.MaxSize, cfg.TTL)
 	case KindRedis:
 		if client == nil {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"replay redis kind requires a redis client",
 			)
 		}
@@ -103,8 +103,8 @@ func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer
 			KeyPrefix: cfg.KeyPrefix,
 		})
 	default:
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"unknown replay buffer kind: "+cfg.Kind.String(),
 		)
 	}

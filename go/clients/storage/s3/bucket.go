@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // EnsureBucket creates the named bucket if it does not already exist,
@@ -29,12 +29,12 @@ func (c *s3Client) EnsureBucket(ctx context.Context, bucket string) error {
 	); err != nil {
 		var owned *s3types.BucketAlreadyOwnedByYou
 		var exists *s3types.BucketAlreadyExists
-		if coreerrors.As(err, &owned) || coreerrors.As(err, &exists) {
+		if apperr.As(err, &owned) || apperr.As(err, &exists) {
 			return nil // created concurrently — idempotent success
 		}
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("create bucket %q", bucket),
 		)
 	}

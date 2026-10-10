@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
@@ -260,9 +260,9 @@ func retryDo(
 		if attempt > 0 && delay > 0 {
 			select {
 			case <-ctx.Done():
-				return coreerr.Wrap(
+				return apperr.Wrap(
 					ctx.Err(),
-					coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+					apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
 					"retry wait canceled",
 				)
 			case <-time.After(delay):
@@ -273,9 +273,9 @@ func retryDo(
 			return nil
 		}
 	}
-	return coreerr.Wrap(
+	return apperr.Wrap(
 		last,
-		coreerr.CodeInternal,
+		apperr.CodeInternal,
 		fmt.Sprintf("failed after %d attempt(s)", maxRetries+1),
 	)
 }

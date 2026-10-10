@@ -4,13 +4,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead/channel"
@@ -264,7 +264,7 @@ func TestExponential_RetryWithResult(t *testing.T) {
 	result, err = exponential.RetryWithResult(ctx, r, func() (string, error) {
 		attempt++
 		if attempt < 2 {
-			return "", errors.New("transient")
+			return "", apperr.Sentinel("transient")
 		}
 		return "recovered", nil
 	})

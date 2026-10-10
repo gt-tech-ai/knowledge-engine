@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -197,7 +197,7 @@ func TestCRUDNoListRepository_CreateIsRetryFreeButReadsRetry(t *testing.T) {
 	t.Parallel()
 
 	retrier, attempts := fixtures.StubRetrier(0, true) // alwaysFail → up to 3 attempts
-	store := &roleScopedCRUDStore{err: errors.Internal("transient failure")}
+	store := &roleScopedCRUDStore{err: apperr.Internal("transient failure")}
 	repo := repository.NewCRUDNoListRepository[int, string](
 		"test_crud", store, 0, nil, nil, nil, retrier, nil,
 	)

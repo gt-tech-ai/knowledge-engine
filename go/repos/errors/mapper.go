@@ -11,7 +11,7 @@ package errors
 import (
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/errors/postgres"
 )
 
@@ -46,8 +46,8 @@ func NewDBMapper(kind Kind) (DBMapperFunc, error) {
 	case KindPostgres:
 		return postgres.MapDBError, nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown db mapper kind: %v", kind),
 		)
 	}

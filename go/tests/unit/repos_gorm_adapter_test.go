@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	gormadapter "github.com/gt-tech-ai/knowledge-engine/go/repos/adapters/gorm"
@@ -89,8 +89,8 @@ func TestGormAdapter_LifecycleUnreachable(t *testing.T) {
 	require.Error(t, startErr, "Start against an unreachable host fails fast")
 	assert.Equal(
 		t,
-		coreerrors.CodeUnavailable,
-		coreerrors.Code(startErr),
+		apperr.CodeUnavailable,
+		apperr.Code(startErr),
 		"an unreachable DB is transient",
 	)
 	assert.Nil(t, client.DB(), "a failed Start keeps no pool")

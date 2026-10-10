@@ -5,7 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
@@ -49,9 +49,9 @@ func NewConnectorClientBuilder(base infra.S3Config) ConnectorClientBuilder {
 		}
 		client, err := NewAWSClientWithCredentials(ctx, cfg, creds, region)
 		if err != nil {
-			return nil, errors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				errors.CodeInternal,
+				apperr.CodeInternal,
 				"connector s3: build client",
 			)
 		}

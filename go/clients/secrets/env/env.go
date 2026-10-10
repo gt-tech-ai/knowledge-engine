@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -33,13 +33,13 @@ func New(vars map[types.Ref]string) interfaces.Source {
 func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 	name, ok := s.vars[ref]
 	if !ok {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("no environment variable mapped for credential %s", ref),
 		)
 	}
 	value := os.Getenv(name)
 	if value == "" {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("environment variable %s is unset for credential %s", name, ref),
 		)
 	}
@@ -50,8 +50,8 @@ func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 // process. It returns a coded error so a caller routing a write to this backend fails
 // loudly instead of silently losing the value.
 func (s source) Put(_ context.Context, ref types.Ref, _ types.Secret) error {
-	return errors.New(
-		errors.CodeInvalidInput,
+	return apperr.New(
+		apperr.CodeInvalidInput,
 		fmt.Sprintf("env credential source is read-only: cannot write %s", ref),
 	)
 }

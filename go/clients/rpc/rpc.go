@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	grpcbackend "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -66,8 +66,8 @@ func NewFromConfig(cfg Config) (RPCClient, error) {
 	case KindGRPC:
 		return grpcbackend.NewLifecycleClient(cfg.GRPC), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown rpc kind: %v", cfg.Kind),
 		)
 	}

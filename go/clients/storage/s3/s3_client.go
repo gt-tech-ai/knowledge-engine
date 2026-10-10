@@ -19,7 +19,7 @@ import (
 	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
 )
@@ -216,9 +216,9 @@ func (c *s3Client) Upload(
 ) error {
 	head, multipart, err := classifyBody(body, c.threshold)
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("reading upload body for %s/%s", bucket, key),
 		)
 	}
@@ -246,13 +246,13 @@ func classifyBody(
 	var buf bytes.Buffer
 	_, rerr := io.CopyN(&buf, body, threshold+1)
 	switch {
-	case coreerrors.StdIs(rerr, io.EOF):
+	case apperr.StdIs(rerr, io.EOF):
 		// Body smaller than threshold+1 → single-part.
 		return buf.Bytes(), false, nil
 	case rerr != nil:
-		return nil, false, coreerrors.Wrap(
+		return nil, false, apperr.Wrap(
 			rerr,
-			coreerrors.CodeOr(rerr, coreerrors.CodeInternal),
+			apperr.CodeOr(rerr, apperr.CodeInternal),
 			"read upload body",
 		)
 	default:
@@ -275,9 +275,9 @@ func (c *s3Client) putSingle(
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 put %s/%s", bucket, key),
 		)
 	}
@@ -303,9 +303,9 @@ func (c *s3Client) putMultipart(
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 create multipart %s/%s", bucket, key),
 		)
 	}
@@ -352,9 +352,9 @@ func (c *s3Client) putMultipart(
 					Body:       bytes.NewReader(data),
 				})
 				if uerr != nil {
-					return coreerrors.Wrap(
+					return apperr.Wrap(
 						uerr,
-						coreerrors.CodeInternal,
+						apperr.CodeInternal,
 						fmt.Sprintf("s3 upload part %d %s/%s", part, bucket, key),
 					)
 				}
@@ -367,15 +367,15 @@ func (c *s3Client) putMultipart(
 				return nil
 			})
 		}
-		if coreerrors.StdIs(rerr, io.EOF) || coreerrors.StdIs(rerr, io.ErrUnexpectedEOF) {
+		if apperr.StdIs(rerr, io.EOF) || apperr.StdIs(rerr, io.ErrUnexpectedEOF) {
 			break
 		}
 		if rerr != nil {
 			_ = g.Wait()
 			abort()
-			return coreerrors.Wrap(
+			return apperr.Wrap(
 				rerr,
-				coreerrors.CodeInternal,
+				apperr.CodeInternal,
 				fmt.Sprintf("reading multipart body %s/%s", bucket, key),
 			)
 		}
@@ -399,9 +399,9 @@ func (c *s3Client) putMultipart(
 	})
 	if err != nil {
 		abort()
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 complete multipart %s/%s", bucket, key),
 		)
 	}
@@ -419,11 +419,11 @@ func (c *s3Client) Download(
 	})
 	if err != nil {
 		if isNotFound(err) {
-			return nil, coreerrors.NotFound(fmt.Sprintf("object %s/%s", bucket, key))
+			return nil, apperr.NotFound(fmt.Sprintf("object %s/%s", bucket, key))
 		}
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 get %s/%s", bucket, key),
 		)
 	}
@@ -437,9 +437,9 @@ func (c *s3Client) Delete(ctx context.Context, bucket, key string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 delete %s/%s", bucket, key),
 		)
 	}
@@ -478,9 +478,9 @@ func (c *s3Client) deleteChunk(ctx context.Context, bucket string, keys []string
 		Delete: &types.Delete{Objects: objs, Quiet: aws.Bool(true)},
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 delete batch %s (%d keys)", bucket, len(keys)),
 		)
 	}
@@ -489,7 +489,7 @@ func (c *s3Client) deleteChunk(ctx context.Context, bucket string, keys []string
 	// them so a partial batch-delete failure is not silently swallowed.
 	if len(out.Errors) > 0 {
 		first := out.Errors[0]
-		return coreerrors.New(coreerrors.CodeInternal, fmt.Sprintf(
+		return apperr.New(apperr.CodeInternal, fmt.Sprintf(
 			"s3 delete batch %s: %d of %d objects failed (first: key=%s code=%s message=%s)",
 			bucket,
 			len(out.Errors),
@@ -512,9 +512,9 @@ func (c *s3Client) Exists(ctx context.Context, bucket, key string) (bool, error)
 		if isNotFound(err) {
 			return false, nil
 		}
-		return false, coreerrors.Wrap(
+		return false, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 head %s/%s", bucket, key),
 		)
 	}
@@ -532,13 +532,13 @@ func (c *s3Client) Stat(
 	})
 	if err != nil {
 		if isNotFound(err) {
-			return interfaces.StorageObject{}, coreerrors.NotFound(
+			return interfaces.StorageObject{}, apperr.NotFound(
 				fmt.Sprintf("object %s/%s", bucket, key),
 			)
 		}
-		return interfaces.StorageObject{}, coreerrors.Wrap(
+		return interfaces.StorageObject{}, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 head %s/%s", bucket, key),
 		)
 	}
@@ -572,9 +572,9 @@ func (c *s3Client) PresignURL(
 		c.presignOpts(expirySeconds),
 	)
 	if err != nil {
-		return "", coreerrors.Wrap(
+		return "", apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("presign get %s/%s", bucket, key),
 		)
 	}
@@ -618,9 +618,9 @@ func (c *s3Client) PresignPutURL(
 		c.presignOpts(expirySeconds),
 	)
 	if err != nil {
-		return "", coreerrors.Wrap(
+		return "", apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("presign put %s/%s", bucket, key),
 		)
 	}
@@ -639,9 +639,9 @@ func (c *s3Client) CreateMultipartUpload(
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
-		return "", coreerrors.Wrap(
+		return "", apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 create multipart %s/%s", bucket, key),
 		)
 	}
@@ -667,9 +667,9 @@ func (c *s3Client) PresignUploadPart(
 		c.presignOpts(expirySeconds),
 	)
 	if err != nil {
-		return "", coreerrors.Wrap(
+		return "", apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("presign upload part %d %s/%s", partNumber, bucket, key),
 		)
 	}
@@ -704,9 +704,9 @@ func (c *s3Client) CompleteMultipartUpload(
 		MultipartUpload: &types.CompletedMultipartUpload{Parts: completed},
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 complete multipart %s/%s", bucket, key),
 		)
 	}
@@ -724,9 +724,9 @@ func (c *s3Client) AbortMultipartUpload(
 		UploadId: aws.String(uploadID),
 	})
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 abort multipart %s/%s", bucket, key),
 		)
 	}
@@ -746,9 +746,9 @@ func (c *s3Client) ListMultipartUploads(
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, coreerrors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerrors.CodeInternal,
+				apperr.CodeInternal,
 				"s3 list multipart uploads "+bucket,
 			)
 		}
@@ -777,9 +777,9 @@ func (c *s3Client) ListObjects(
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, coreerrors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerrors.CodeInternal,
+				apperr.CodeInternal,
 				fmt.Sprintf("s3 list %s/%s", bucket, prefix),
 			)
 		}
@@ -819,9 +819,9 @@ func (c *s3Client) ListObjectsPage(
 	}
 	page, err := c.api.ListObjectsV2(ctx, in)
 	if err != nil {
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 list %s/%s", bucket, prefix),
 		)
 	}
@@ -864,9 +864,9 @@ func (c *s3Client) ListObjectsPageToken(
 	}
 	page, err := c.api.ListObjectsV2(ctx, in)
 	if err != nil {
-		return nil, "", coreerrors.Wrap(
+		return nil, "", apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			fmt.Sprintf("s3 list %s/%s", bucket, prefix),
 		)
 	}
@@ -895,11 +895,11 @@ func (c *s3Client) ListObjectsPageToken(
 func isNotFound(err error) bool {
 	var nsk *types.NoSuchKey
 	var nf *types.NotFound
-	if coreerrors.As(err, &nsk) || coreerrors.As(err, &nf) {
+	if apperr.As(err, &nsk) || apperr.As(err, &nf) {
 		return true
 	}
 	var apiErr smithy.APIError
-	if coreerrors.As(err, &apiErr) {
+	if apperr.As(err, &apiErr) {
 		switch apiErr.ErrorCode() {
 		case "NoSuchKey", "NotFound", "404":
 			return true

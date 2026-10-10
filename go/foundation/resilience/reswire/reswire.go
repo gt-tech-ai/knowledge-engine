@@ -9,7 +9,7 @@ package reswire
 import (
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	schemares "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/adaptivethrottle"
@@ -26,9 +26,9 @@ func NewRetrier(loader interfaces.ConfigLoader) (interfaces.Retrier, error) {
 	c := schemares.DefaultRetryConfig()
 	if loader.Get("resilience.retry") != nil {
 		if err := loader.UnmarshalKey("resilience.retry", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.retry",
 			)
 		}
@@ -56,9 +56,9 @@ func NewBreaker(
 	c := schemares.DefaultBreakerConfig()
 	if loader.Get("resilience.circuit_breaker") != nil {
 		if err := loader.UnmarshalKey("resilience.circuit_breaker", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.circuit_breaker",
 			)
 		}
@@ -93,9 +93,9 @@ func NewBulkhead(
 	c.MaxConcurrent = defaultMaxConcurrent
 	if loader.Get("resilience.adaptive_limit") != nil {
 		if err := loader.UnmarshalKey("resilience.adaptive_limit", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.adaptive_limit",
 			)
 		}
@@ -126,8 +126,8 @@ func bulkheadKind(s string) (bulkhead.Kind, error) {
 	case "adaptive":
 		return bulkhead.KindAdaptive, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf(
 				"unknown resilience.adaptive_limit kind: %q (want channel|adaptive)",
 				s,
@@ -145,9 +145,9 @@ func NewHedge(loader interfaces.ConfigLoader) (interfaces.Hedger, error) {
 	c := schemares.DefaultHedgeConfig()
 	if loader.Get("resilience.hedge") != nil {
 		if err := loader.UnmarshalKey("resilience.hedge", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.hedge",
 			)
 		}
@@ -171,8 +171,8 @@ func hedgeKind(s string) (hedge.Kind, error) {
 	case "delay":
 		return hedge.KindDelay, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown resilience.hedge kind: %q (want disabled|delay)", s),
 		)
 	}
@@ -190,9 +190,9 @@ func NewAdaptiveThrottle(
 	c := schemares.DefaultAdaptiveThrottleConfig()
 	if loader.Get("resilience.adaptive_throttle") != nil {
 		if err := loader.UnmarshalKey("resilience.adaptive_throttle", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.adaptive_throttle",
 			)
 		}
@@ -206,8 +206,8 @@ func NewAdaptiveThrottle(
 	case "enabled":
 		return adaptivethrottle.New(adaptivethrottle.Config{K: c.K, Decay: c.Decay}), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf(
 				"unknown resilience.adaptive_throttle kind: %q (want disabled|enabled)",
 				c.Kind,

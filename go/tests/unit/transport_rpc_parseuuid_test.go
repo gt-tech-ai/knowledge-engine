@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	apprpc "github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
 )
 
@@ -33,6 +33,6 @@ func TestParseUUID(t *testing.T) {
 	bad, err := apprpc.ParseUUID("not-a-uuid", "resource_id")
 	require.Error(t, err)
 	assert.Equal(t, uuid.Nil, bad)
-	assert.Equal(t, errors.CodeInvalidInput, errors.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 	assert.Contains(t, err.Error(), "resource_id")
 }

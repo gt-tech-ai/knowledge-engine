@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
 )
@@ -50,15 +50,15 @@ func (s *Store) Compact(
 ) error {
 	grains, ok := s.cfg.Cubes[cube]
 	if !ok || !slices.Contains(grains, grain) {
-		return errors.New(errors.CodeInvalidInput, "analytics: undeclared cube or grain")
+		return apperr.New(apperr.CodeInvalidInput, "analytics: undeclared cube or grain")
 	}
 	width := s.cfg.BucketWidth[grain]
 	bucket = bucket.UTC()
 	end := vizql.Next(bucket, width)
 	now := time.Now()
 	if !vizql.Truncate(bucket, width).Equal(bucket) || end.After(now) {
-		return errors.New(
-			errors.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"analytics: only a closed, aligned bucket can be compacted",
 		)
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging"
 	msgredis "github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/redis"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -83,18 +83,18 @@ func TestMessaging_ParseKind(t *testing.T) {
 func TestRedisMessaging_NilClient_Rejected(t *testing.T) {
 	t.Parallel()
 	_, _, fromErr := msgredis.NewFromConfig(msgredis.Config{})
-	require.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(fromErr))
+	require.Equal(t, apperr.CodeInvalidInput, apperr.Code(fromErr))
 
 	_, pubErr := msgredis.NewPublisher(msgredis.Config{})
-	require.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(pubErr))
+	require.Equal(t, apperr.CodeInvalidInput, apperr.Code(pubErr))
 
 	_, subErr := msgredis.NewSubscriber(msgredis.Config{})
-	require.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(subErr))
+	require.Equal(t, apperr.CodeInvalidInput, apperr.Code(subErr))
 
 	// The parent messaging factory also rejects KindRedis with no injected client
 	// (WithRedisClient omitted), rather than dialing or panicking on first publish.
 	_, parentPubErr := messaging.NewPublisher(messaging.KindRedis)
-	require.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(parentPubErr))
+	require.Equal(t, apperr.CodeInvalidInput, apperr.Code(parentPubErr))
 	_, parentSubErr := messaging.NewSubscriber(messaging.KindRedis)
-	require.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(parentSubErr))
+	require.Equal(t, apperr.CodeInvalidInput, apperr.Code(parentSubErr))
 }

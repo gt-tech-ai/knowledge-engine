@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/gocql/gocql"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // credentialsTimeout bounds one credentials refresh (an IRSA token exchange).
@@ -60,13 +60,13 @@ func Endpoint(region string) string {
 // default. A missing region or an unknown consistency is CodeInvalidInput.
 func New(cfg *Config) (*gocql.ClusterConfig, error) {
 	if cfg.Region == "" {
-		return nil, errors.New(errors.CodeInvalidInput, "keyspaces: region is required")
+		return nil, apperr.New(apperr.CodeInvalidInput, "keyspaces: region is required")
 	}
 	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"keyspaces: unknown consistency "+cfg.Consistency,
 		)
 	}
@@ -118,9 +118,9 @@ func credentialsCallback(
 		defer cancel()
 		creds, err := provider.Retrieve(ctx)
 		if err != nil {
-			return sigv4.SigV4Credentials{}, errors.Wrap(
+			return sigv4.SigV4Credentials{}, apperr.Wrap(
 				err,
-				errors.CodeUnavailable,
+				apperr.CodeUnavailable,
 				"keyspaces: retrieve AWS credentials",
 			)
 		}
@@ -147,9 +147,9 @@ func defaultChain(region string) aws.CredentialsProvider {
 					awsconfig.WithRegion(region),
 				)
 				if err != nil {
-					loadErr = errors.Wrap(
+					loadErr = apperr.Wrap(
 						err,
-						errors.CodeInternal,
+						apperr.CodeInternal,
 						"keyspaces: load AWS credentials chain",
 					)
 					return

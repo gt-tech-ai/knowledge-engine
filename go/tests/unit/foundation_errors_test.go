@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	repoerrors "github.com/gt-tech-ai/knowledge-engine/go/repos/errors"
 )
 
@@ -25,21 +25,21 @@ import (
 func TestErrorClassification(t *testing.T) {
 	t.Parallel()
 
-	timeoutErr := coreerrors.Timeout("operation timed out")
-	notFoundErr := coreerrors.NotFound("record not found")
+	timeoutErr := apperr.Timeout("operation timed out")
+	notFoundErr := apperr.NotFound("record not found")
 
 	assert.True(
 		t,
-		coreerrors.IsTransient(timeoutErr),
+		apperr.IsTransient(timeoutErr),
 		"timeout error should be transient",
 	)
 	assert.True(
 		t,
-		coreerrors.IsPermanent(notFoundErr),
+		apperr.IsPermanent(notFoundErr),
 		"not-found error should be permanent",
 	)
-	assert.Equal(t, 404, coreerrors.ToHTTPStatus(coreerrors.CodeNotFound))
-	assert.Equal(t, 401, coreerrors.ToHTTPStatus(coreerrors.CodeUnauthorized))
+	assert.Equal(t, 404, apperr.ToHTTPStatus(apperr.CodeNotFound))
+	assert.Equal(t, 401, apperr.ToHTTPStatus(apperr.CodeUnauthorized))
 }
 
 // TestDBErrorMapping tests that PostgreSQL error codes are correctly mapped to
@@ -62,7 +62,7 @@ func TestDBErrorMapping(t *testing.T) {
 	tests := []struct {
 		err          error
 		name         string
-		expectedCode coreerrors.ErrorCode
+		expectedCode apperr.ErrorCode
 		expectedNil  bool
 	}{
 		{
@@ -73,7 +73,7 @@ func TestDBErrorMapping(t *testing.T) {
 		{
 			name:         "pgx.ErrNoRows",
 			err:          pgx.ErrNoRows,
-			expectedCode: coreerrors.CodeNotFound,
+			expectedCode: apperr.CodeNotFound,
 		},
 		{
 			name: "unique violation",
@@ -81,7 +81,7 @@ func TestDBErrorMapping(t *testing.T) {
 				Code:    "23505",
 				Message: "duplicate key value",
 			},
-			expectedCode: coreerrors.CodeConflict,
+			expectedCode: apperr.CodeConflict,
 		},
 		{
 			name: "foreign key violation",
@@ -89,7 +89,7 @@ func TestDBErrorMapping(t *testing.T) {
 				Code:    "23503",
 				Message: "foreign key constraint",
 			},
-			expectedCode: coreerrors.CodeInvalidInput,
+			expectedCode: apperr.CodeInvalidInput,
 		},
 		{
 			name: "not null violation",
@@ -97,7 +97,7 @@ func TestDBErrorMapping(t *testing.T) {
 				Code:    "23502",
 				Message: "null value in column",
 			},
-			expectedCode: coreerrors.CodeInvalidInput,
+			expectedCode: apperr.CodeInvalidInput,
 		},
 		{
 			name: "undefined table",
@@ -105,7 +105,7 @@ func TestDBErrorMapping(t *testing.T) {
 				Code:    "42P01",
 				Message: "relation does not exist",
 			},
-			expectedCode: coreerrors.CodeInternal,
+			expectedCode: apperr.CodeInternal,
 		},
 	}
 
@@ -125,7 +125,7 @@ func TestDBErrorMapping(t *testing.T) {
 
 			require.Error(t, mappedErr, "mapper must return non-nil error")
 
-			var appErr *coreerrors.AppError
+			var appErr *apperr.AppError
 			require.ErrorAs(
 				t,
 				mappedErr, &appErr,

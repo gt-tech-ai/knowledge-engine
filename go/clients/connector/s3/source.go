@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/smithy-go"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -72,7 +72,7 @@ func NewSource(
 	}
 	client, err := build(ctx, creds, cfg.Region)
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "connector s3: build client")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "connector s3: build client")
 	}
 	return &Source{storage: client, bucket: cfg.Bucket, prefix: cfg.Prefix}, nil
 }
@@ -116,15 +116,15 @@ func (s *Source) ListPage(
 // CodeUnavailable.
 func classifyListError(err error) error {
 	if isConfigurationError(err) {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"connector s3: cannot list bucket (check bucket, prefix, region, and credentials)",
 		)
 	}
-	return coreerr.Wrap(
+	return apperr.Wrap(
 		err,
-		coreerr.CodeUnavailable,
+		apperr.CodeUnavailable,
 		"connector s3: object store is unreachable",
 	)
 }
@@ -138,15 +138,15 @@ func classifyListError(err error) error {
 // unknown and only the status identifies them).
 func isConfigurationError(err error) bool {
 	var credErr *credentialsError
-	if coreerr.As(err, &credErr) {
+	if apperr.As(err, &credErr) {
 		return true
 	}
 	var apiErr smithy.APIError
-	if coreerr.As(err, &apiErr) && apiErr.ErrorFault() == smithy.FaultClient {
+	if apperr.As(err, &apiErr) && apiErr.ErrorFault() == smithy.FaultClient {
 		return true
 	}
 	var respErr interface{ HTTPStatusCode() int }
-	if !coreerr.As(err, &respErr) {
+	if !apperr.As(err, &respErr) {
 		return false
 	}
 	status := respErr.HTTPStatusCode()

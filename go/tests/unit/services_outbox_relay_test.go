@@ -18,8 +18,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// relayNow is the fixed clock every relay test runs at.
-var relayNow = time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+// relayNow returns the fixed clock every relay test runs at.
+func relayNow() time.Time {
+	return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+}
 
 // relayConfig is a valid relay config for lane "audit" with the given batch shape.
 func relayConfig(sendBatch, concurrency, maxAttempts int) outbox.RelayConfig {
@@ -35,7 +37,7 @@ func outboxRecords(n, attempts int) []types.OutboxRecord {
 	for i := range recs {
 		recs[i] = types.OutboxRecord{
 			ID: uuid.New(), Tenant: "org-1", Lane: "audit", Payload: []byte{byte(i)},
-			Attempts: attempts, CreatedAt: relayNow,
+			Attempts: attempts, CreatedAt: relayNow(),
 		}
 	}
 	return recs
@@ -43,7 +45,7 @@ func outboxRecords(n, attempts int) []types.OutboxRecord {
 
 // fixedClock returns a relay option pinning the clock to relayNow.
 func fixedClock() outbox.Option {
-	return outbox.WithClock(func() time.Time { return relayNow })
+	return outbox.WithClock(relayNow)
 }
 
 // TestRelay_MarksSentOnSuccess tests that every delivered record is marked sent.
@@ -112,7 +114,7 @@ func TestRelay_PartialBatchFailureRetriesOnlyFailedRows(t *testing.T) {
 	store.EXPECT().MarkSent(gomock.Any(), recs[0].ID).Return(nil)
 	store.EXPECT().MarkSent(gomock.Any(), recs[2].ID).Return(nil)
 	store.EXPECT().
-		Retry(gomock.Any(), recs[1].ID, relayNow.Add(2*time.Second), sendErr.Error()).
+		Retry(gomock.Any(), recs[1].ID, relayNow().Add(2*time.Second), sendErr.Error()).
 		Return(nil)
 
 	relay := outbox.NewRelay(
@@ -131,7 +133,7 @@ func TestRelay_PartialBatchFailureRetriesOnlyFailedRows(t *testing.T) {
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(short, nil)
 	sink.EXPECT().Send(gomock.Any(), short).Return([]error{nil})
 	for _, r := range short {
-		store.EXPECT().Retry(gomock.Any(), r.ID, relayNow.Add(2*time.Second),
+		store.EXPECT().Retry(gomock.Any(), r.ID, relayNow().Add(2*time.Second),
 			"INTERNAL: outbox relay: sink returned 1 results for 2 records").Return(nil)
 	}
 
@@ -183,7 +185,7 @@ func TestRelay_BackoffIsExponentialWithJitterAndCapped(t *testing.T) {
 	}
 	for i, r := range recs {
 		store.EXPECT().
-			Retry(gomock.Any(), r.ID, relayNow.Add(wantNext[i]), "UNAVAILABLE: down").
+			Retry(gomock.Any(), r.ID, relayNow().Add(wantNext[i]), "UNAVAILABLE: down").
 			Return(nil)
 	}
 
@@ -213,7 +215,7 @@ func TestRelay_BackoffIsExponentialWithJitterAndCapped(t *testing.T) {
 	store.EXPECT().Claim(gomock.Any(), "audit", 100).Return(one, nil)
 	sink.EXPECT().Send(gomock.Any(), one).Return([]error{sendErr})
 	inWindow := gomock.Cond(func(x time.Time) bool {
-		return !x.Before(relayNow) && !x.After(relayNow.Add(8*time.Second))
+		return !x.Before(relayNow()) && !x.After(relayNow().Add(8*time.Second))
 	})
 	store.EXPECT().
 		Retry(gomock.Any(), one[0].ID, inWindow, "UNAVAILABLE: down").
@@ -323,7 +325,7 @@ func TestRelay_ReportsDepthAndLag(t *testing.T) {
 			types.OutboxStats{
 				Pending:       7,
 				Parked:        1,
-				OldestPending: relayNow.Add(-90 * time.Second),
+				OldestPending: relayNow().Add(-90 * time.Second),
 			},
 			nil,
 		)

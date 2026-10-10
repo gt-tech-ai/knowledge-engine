@@ -6,7 +6,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service"
@@ -376,7 +376,7 @@ func TestServiceDecorator_DeleteWithLogging(t *testing.T) {
 // What it tests:
 //   - List returns an error when the authorization function rejects the request
 func TestServiceDecorator_AuthBlocksList(t *testing.T) {
-	authErr := errors.New("unauthorized")
+	authErr := apperr.Sentinel("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
 	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
@@ -403,7 +403,7 @@ func TestServiceDecorator_AuthBlocksList(t *testing.T) {
 // What it tests:
 //   - Create returns an error when the authorization function rejects the request
 func TestServiceDecorator_AuthBlocksCreate(t *testing.T) {
-	authErr := errors.New("unauthorized")
+	authErr := apperr.Sentinel("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
 	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
@@ -429,7 +429,7 @@ func TestServiceDecorator_AuthBlocksCreate(t *testing.T) {
 // What it tests:
 //   - Update returns an error when the authorization function rejects the request
 func TestServiceDecorator_AuthBlocksUpdate(t *testing.T) {
-	authErr := errors.New("unauthorized")
+	authErr := apperr.Sentinel("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
 	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
@@ -455,7 +455,7 @@ func TestServiceDecorator_AuthBlocksUpdate(t *testing.T) {
 // What it tests:
 //   - Delete returns an error when the authorization function rejects the request
 func TestServiceDecorator_AuthBlocksDelete(t *testing.T) {
-	authErr := errors.New("unauthorized")
+	authErr := apperr.Sentinel("unauthorized")
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](
 		fixtures.StubService(nil, false), "test",
 	).WithLogging(fixtures.NopLogger()).WithAuthorization(func(
@@ -579,7 +579,7 @@ func TestServiceDecorator_RecoveryDelete(t *testing.T) {
 // What it tests:
 //   - Get, List, Create, Update, and Delete all return errors from a failing service
 func TestServiceDecorator_LoggingErrorPaths(t *testing.T) {
-	forced := errors.New("forced error")
+	forced := apperr.Sentinel("forced error")
 	ctrl := gomock.NewController(t)
 	errSvc := mocks.NewMockService[fixtures.TestEntity, fixtures.TestParams, string](ctrl)
 	errSvc.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, forced).AnyTimes()
@@ -636,7 +636,7 @@ func TestServiceDecorator_ErrorLogsAtDebugLevel(t *testing.T) {
 	errSvc := mocks.NewMockService[fixtures.TestEntity, fixtures.TestParams, string](ctrl)
 	errSvc.EXPECT().
 		Get(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("forced error")).
+		Return(nil, apperr.Sentinel("forced error")).
 		AnyTimes()
 	spy := fixtures.NewSpyLogger()
 	svc := decorators.NewBuilder[fixtures.TestEntity, fixtures.TestParams, string](

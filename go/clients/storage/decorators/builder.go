@@ -24,13 +24,13 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// retryable/nonRetryable are the per-operation flags passed to the stack.
-var (
-	// retryable marks an operation eligible for the stack's Retry layer.
-	retryable = clientstack.RunOpts{Retryable: true}
-	// nonRetryable keeps the stack's Retry layer off for an operation.
-	nonRetryable = clientstack.RunOpts{Retryable: false}
-)
+// retryable returns the per-operation flags that make an operation eligible for
+// the stack's Retry layer.
+func retryable() clientstack.RunOpts { return clientstack.RunOpts{Retryable: true} }
+
+// nonRetryable returns the per-operation flags that keep the stack's Retry layer
+// off for an operation.
+func nonRetryable() clientstack.RunOpts { return clientstack.RunOpts{Retryable: false} }
 
 // Builder composes the shared resilience stack around a base StorageClient.
 type Builder struct {
@@ -142,7 +142,7 @@ func (d *decorator) Upload(
 	body io.Reader,
 	contentType string,
 ) error {
-	_, err := clientstack.Run(ctx, d.stack, "upload", nonRetryable,
+	_, err := clientstack.Run(ctx, d.stack, "upload", nonRetryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.Upload(c, bucket, key, body, contentType)
 		})
@@ -192,7 +192,7 @@ func (c *cleanupReadCloser) Close() error {
 
 // Delete removes an object; idempotent, so retryable.
 func (d *decorator) Delete(ctx context.Context, bucket, key string) error {
-	_, err := clientstack.Run(ctx, d.stack, "delete", retryable,
+	_, err := clientstack.Run(ctx, d.stack, "delete", retryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.Delete(c, bucket, key)
 		})
@@ -201,7 +201,7 @@ func (d *decorator) Delete(ctx context.Context, bucket, key string) error {
 
 // DeleteBatch removes objects; idempotent, so retryable.
 func (d *decorator) DeleteBatch(ctx context.Context, bucket string, keys []string) error {
-	_, err := clientstack.Run(ctx, d.stack, "delete_batch", retryable,
+	_, err := clientstack.Run(ctx, d.stack, "delete_batch", retryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.DeleteBatch(c, bucket, keys)
 		})
@@ -210,7 +210,7 @@ func (d *decorator) DeleteBatch(ctx context.Context, bucket string, keys []strin
 
 // Exists reports object presence; a read, so retryable.
 func (d *decorator) Exists(ctx context.Context, bucket, key string) (bool, error) {
-	return clientstack.Run(ctx, d.stack, "exists", retryable,
+	return clientstack.Run(ctx, d.stack, "exists", retryable(),
 		func(c context.Context) (bool, error) {
 			return d.base.Exists(c, bucket, key)
 		})
@@ -221,7 +221,7 @@ func (d *decorator) Stat(
 	ctx context.Context,
 	bucket, key string,
 ) (interfaces.StorageObject, error) {
-	return clientstack.Run(ctx, d.stack, "stat", retryable,
+	return clientstack.Run(ctx, d.stack, "stat", retryable(),
 		func(c context.Context) (interfaces.StorageObject, error) {
 			return d.base.Stat(c, bucket, key)
 		})
@@ -234,7 +234,7 @@ func (d *decorator) PresignURL(
 	expirySeconds int,
 	displayFilename string,
 ) (string, error) {
-	return clientstack.Run(ctx, d.stack, "presign_get", retryable,
+	return clientstack.Run(ctx, d.stack, "presign_get", retryable(),
 		func(c context.Context) (string, error) {
 			return d.base.PresignURL(c, bucket, key, expirySeconds, displayFilename)
 		})
@@ -247,7 +247,7 @@ func (d *decorator) PresignPutURL(
 	expirySeconds int,
 	contentType string,
 ) (string, error) {
-	return clientstack.Run(ctx, d.stack, "presign_put", retryable,
+	return clientstack.Run(ctx, d.stack, "presign_put", retryable(),
 		func(c context.Context) (string, error) {
 			return d.base.PresignPutURL(c, bucket, key, expirySeconds, contentType)
 		})
@@ -259,7 +259,7 @@ func (d *decorator) CreateMultipartUpload(
 	ctx context.Context,
 	bucket, key, contentType string,
 ) (string, error) {
-	return clientstack.Run(ctx, d.stack, "create_multipart", nonRetryable,
+	return clientstack.Run(ctx, d.stack, "create_multipart", nonRetryable(),
 		func(c context.Context) (string, error) {
 			return d.base.CreateMultipartUpload(c, bucket, key, contentType)
 		})
@@ -272,7 +272,7 @@ func (d *decorator) PresignUploadPart(
 	partNumber int32,
 	expirySeconds int,
 ) (string, error) {
-	return clientstack.Run(ctx, d.stack, "presign_upload_part", retryable,
+	return clientstack.Run(ctx, d.stack, "presign_upload_part", retryable(),
 		func(c context.Context) (string, error) {
 			return d.base.PresignUploadPart(
 				c,
@@ -292,7 +292,7 @@ func (d *decorator) CompleteMultipartUpload(
 	bucket, key, uploadID string,
 	parts []interfaces.CompletedPart,
 ) error {
-	_, err := clientstack.Run(ctx, d.stack, "complete_multipart", nonRetryable,
+	_, err := clientstack.Run(ctx, d.stack, "complete_multipart", nonRetryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.CompleteMultipartUpload(
 				c,
@@ -310,7 +310,7 @@ func (d *decorator) AbortMultipartUpload(
 	ctx context.Context,
 	bucket, key, uploadID string,
 ) error {
-	_, err := clientstack.Run(ctx, d.stack, "abort_multipart", retryable,
+	_, err := clientstack.Run(ctx, d.stack, "abort_multipart", retryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.AbortMultipartUpload(c, bucket, key, uploadID)
 		})
@@ -322,7 +322,7 @@ func (d *decorator) ListMultipartUploads(
 	ctx context.Context,
 	bucket string,
 ) ([]interfaces.MultipartUpload, error) {
-	return clientstack.Run(ctx, d.stack, "list_multipart", retryable,
+	return clientstack.Run(ctx, d.stack, "list_multipart", retryable(),
 		func(c context.Context) ([]interfaces.MultipartUpload, error) {
 			return d.base.ListMultipartUploads(c, bucket)
 		})
@@ -333,7 +333,7 @@ func (d *decorator) ListObjects(
 	ctx context.Context,
 	bucket, prefix string,
 ) ([]interfaces.StorageObject, error) {
-	return clientstack.Run(ctx, d.stack, "list", retryable,
+	return clientstack.Run(ctx, d.stack, "list", retryable(),
 		func(c context.Context) ([]interfaces.StorageObject, error) {
 			return d.base.ListObjects(c, bucket, prefix)
 		})
@@ -346,7 +346,7 @@ func (d *decorator) ListObjectsPage(
 	bucket, prefix string,
 	limit int,
 ) ([]interfaces.StorageObject, error) {
-	return clientstack.Run(ctx, d.stack, "list_page", retryable,
+	return clientstack.Run(ctx, d.stack, "list_page", retryable(),
 		func(c context.Context) ([]interfaces.StorageObject, error) {
 			return d.base.ListObjectsPage(c, bucket, prefix, limit)
 		})
@@ -368,7 +368,7 @@ func (d *decorator) ListObjectsPageToken(
 	bucket, prefix, continuationToken string,
 	limit int,
 ) ([]interfaces.StorageObject, string, error) {
-	res, err := clientstack.Run(ctx, d.stack, "list_page_token", retryable,
+	res, err := clientstack.Run(ctx, d.stack, "list_page_token", retryable(),
 		func(c context.Context) (listPageResult, error) {
 			objs, next, listErr := d.base.ListObjectsPageToken(
 				c, bucket, prefix, continuationToken, limit,
@@ -380,7 +380,7 @@ func (d *decorator) ListObjectsPageToken(
 
 // EnsureBucket creates the bucket if absent; idempotent, so retryable.
 func (d *decorator) EnsureBucket(ctx context.Context, bucket string) error {
-	_, err := clientstack.Run(ctx, d.stack, "ensure_bucket", retryable,
+	_, err := clientstack.Run(ctx, d.stack, "ensure_bucket", retryable(),
 		func(c context.Context) (noResult, error) {
 			return noResult{}, d.base.EnsureBucket(c, bucket)
 		})

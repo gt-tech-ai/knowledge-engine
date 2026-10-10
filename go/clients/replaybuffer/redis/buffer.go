@@ -18,7 +18,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -37,6 +37,8 @@ type Config struct {
 type Buffer struct {
 	// client is the shared go-redis connection (reused from the lock/backplane pool).
 	client *goredis.Client
+	// pruneScript runs pruneLua (EVALSHA, falling back to EVAL).
+	pruneScript *goredis.Script
 	// cfg holds the bound + TTL.
 	cfg Config
 }
@@ -50,7 +52,7 @@ func New(client *goredis.Client, cfg Config) *Buffer {
 	if cfg.KeyPrefix == "" {
 		cfg.KeyPrefix = DefaultKeyPrefix
 	}
-	return &Buffer{client: client, cfg: cfg}
+	return &Buffer{client: client, cfg: cfg, pruneScript: goredis.NewScript(pruneLua)}
 }
 
 // compile-time assertion that *Buffer satisfies the seam.
@@ -75,7 +77,7 @@ func (b *Buffer) Append(ctx context.Context, key, msgID string, payload []byte) 
 	pipe.LTrim(ctx, lk, int64(-b.cfg.MaxSize), -1)
 	pipe.Expire(ctx, lk, b.cfg.TTL)
 	if _, err := pipe.Exec(ctx); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "replaybuffer append")
+		return apperr.Wrap(err, apperr.CodeInternal, "replaybuffer append")
 	}
 	return nil
 }
@@ -94,11 +96,11 @@ func (b *Buffer) ReplayAfter(
 	// not, before pruneScript); this read need not be.
 	elems, err := b.client.LRange(ctx, b.listKey(key), 0, -1).Result()
 	if err != nil {
-		return nil, false, errors.Wrap(err, errors.CodeInternal, "replaybuffer lrange")
+		return nil, false, apperr.Wrap(err, apperr.CodeInternal, "replaybuffer lrange")
 	}
 	lw, err := b.client.Get(ctx, b.lwKey(key)).Result()
-	if err != nil && !errors.StdIs(err, goredis.Nil) {
-		return nil, false, errors.Wrap(err, errors.CodeInternal, "replaybuffer get lw")
+	if err != nil && !apperr.StdIs(err, goredis.Nil) {
+		return nil, false, apperr.Wrap(err, apperr.CodeInternal, "replaybuffer get lw")
 	}
 	if len(elems) == 0 && lw == "" {
 		return nil, false, nil // absent or expired → gap
@@ -128,8 +130,8 @@ func (b *Buffer) ReplayAfter(
 // script with no other command interleaved). It matches an entry by the `msgID\x00`
 // prefix so "msg-7" never matches "msg-70", and keeps everything after it (Lua's 1-based
 // match index equals the 0-based index of the next element, so LTRIM(i, -1) is the
-// gapless tail).
-var pruneScript = goredis.NewScript(`
+// gapless tail). New wraps it as the Buffer's pruneScript.
+const pruneLua = `
 local elems = redis.call('LRANGE', KEYS[1], 0, -1)
 local prefix = ARGV[1] .. string.char(0)
 for i = 1, #elems do
@@ -140,19 +142,19 @@ for i = 1, #elems do
   end
 end
 return 0
-`)
+`
 
 // Prune drops entries up to and including upToMsgID and records it as the low-water mark,
 // atomically (see pruneScript). An upToMsgID not in the retained window is a no-op. TTL
 // is passed in ms because a sub-second TTL (used in tests) would round to 0s and be
 // rejected by EX.
 func (b *Buffer) Prune(ctx context.Context, key, upToMsgID string) error {
-	if err := pruneScript.Run(
+	if err := b.pruneScript.Run(
 		ctx, b.client,
 		[]string{b.listKey(key), b.lwKey(key)},
 		upToMsgID, b.cfg.TTL.Milliseconds(),
 	).Err(); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "replaybuffer prune")
+		return apperr.Wrap(err, apperr.CodeInternal, "replaybuffer prune")
 	}
 	return nil
 }
@@ -160,7 +162,7 @@ func (b *Buffer) Prune(ctx context.Context, key, upToMsgID string) error {
 // Delete removes the key's list and low-water mark.
 func (b *Buffer) Delete(ctx context.Context, key string) error {
 	if err := b.client.Del(ctx, b.listKey(key), b.lwKey(key)).Err(); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "replaybuffer delete")
+		return apperr.Wrap(err, apperr.CodeInternal, "replaybuffer delete")
 	}
 	return nil
 }

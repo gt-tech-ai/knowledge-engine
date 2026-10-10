@@ -47,7 +47,7 @@ func (f *OSFS) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) 
 // WriteFile writes data to a file, delegating to os.WriteFile.
 func (f *OSFS) WriteFile(name string, data []byte, perm fs.FileMode) error {
 	return os.WriteFile(name, data, perm)
-} //nolint:gosec // caller controls perm
+}
 
 // RemoveAll removes a path and its children, delegating to os.RemoveAll.
 func (f *OSFS) RemoveAll(path string) error { return os.RemoveAll(path) }

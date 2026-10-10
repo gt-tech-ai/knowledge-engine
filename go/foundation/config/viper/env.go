@@ -5,15 +5,11 @@ import (
 	"strings"
 )
 
-// envSelectors are the environment variables ResolveEnv consults, in order, to
-// determine which {env}.yaml overlay to load: APP_ENV, then ENVIRONMENT. A consumer
-// with its own selector (e.g. MYAPP_ENV) calls ResolveEnvFrom instead.
-var envSelectors = []string{"APP_ENV", "ENVIRONMENT"}
-
 // ResolveEnv returns the deployment environment name for overlay selection from
-// APP_ENV, falling back to ENVIRONMENT; see ResolveEnvFrom.
+// APP_ENV, falling back to ENVIRONMENT; see ResolveEnvFrom. A consumer with its
+// own selector (e.g. MYAPP_ENV) calls ResolveEnvFrom instead.
 func ResolveEnv() string {
-	return ResolveEnvFrom(envSelectors...)
+	return ResolveEnvFrom("APP_ENV", "ENVIRONMENT")
 }
 
 // ResolveEnvFrom returns the first non-empty value among the given environment

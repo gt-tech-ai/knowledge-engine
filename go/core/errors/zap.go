@@ -90,16 +90,18 @@ func LogErrors(logger *zap.Logger, msg string, combined error) {
 	}
 }
 
-// Multierr re-exports for convenience.
-var (
-	// Combine merges multiple errors into a single error. nil errors are
-	// discarded. If all errors are nil, returns nil.
-	Combine = multierr.Combine
+// Combine merges multiple errors into a single error. nil errors are discarded.
+// If all errors are nil, it returns nil. It delegates to multierr.Combine.
+func Combine(errs ...error) error {
+	return multierr.Combine(errs...)
+}
 
-	// Append appends right into left, returning the combined error. Either
-	// value may be nil, in which case the other is returned unchanged.
-	Append = multierr.Append
-)
+// Append appends right into left, returning the combined error. Either value
+// may be nil, in which case the other is returned unchanged. It delegates to
+// multierr.Append.
+func Append(left, right error) error {
+	return multierr.Append(left, right)
+}
 
 // Errors extracts individual errors from a combined error. If the error is not
 // a combined error, returns a single-element slice.

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -11,6 +10,7 @@ import (
 
 	jobdec "github.com/gt-tech-ai/knowledge-engine/go/clients/jobs/decorators"
 	msgdec "github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/deadletter"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/dedup"
@@ -63,7 +63,7 @@ func TestWrapHandler_TerminalFailureDeadLettered(t *testing.T) {
 
 	stub := &deadletter.StubBackend{}
 	handler := msgdec.WrapHandler(
-		func(context.Context, *interfaces.Message) error { return errors.New("boom") },
+		func(context.Context, *interfaces.Message) error { return apperr.Sentinel("boom") },
 		msgdec.EventStackDeps{
 			DeadLetter: deadletter.New(stub, fixtures.NewSpyLogger()),
 			Name:       "test",

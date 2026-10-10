@@ -13,7 +13,7 @@ import (
 
 	connectordecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/decorators"
 	connectors3 "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/s3"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -58,8 +58,8 @@ func (b *builder) Build(
 		}
 		return connectordecorators.Wrap(src, "connector-s3", b.obs), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("connector: unknown kind %q", cfg.Kind),
 		)
 	}

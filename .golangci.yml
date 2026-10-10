@@ -46,13 +46,12 @@ linters:
     - testifylint
     # Architecture enforcement
     - depguard
-    # Error-theory enforcement (ARCHITECTURE.md#error-codes): ban code-less fmt.Errorf so every
-    # error crossing a boundary carries an ErrorCode via core/errors Wrap/New.
-    # Configured in settings.forbidigo; test files are excluded globally below.
+    # Error-theory enforcement (ARCHITECTURE.md#error-codes): ban code-less fmt.Errorf
+    # and stdlib errors.New so every error carries an ErrorCode via core/errors
+    # Wrap/New. Configured in settings.forbidigo; it runs on tests too.
     - forbidigo
-    # Documentation completeness: every exported symbol carries a doc comment
-    # Only revive's `exported` rule is enabled
-    # (see settings.revive) — the repo is already at 0 findings, so this locks it in.
+    # Documentation completeness and parameter hygiene: revive's `exported` and
+    # `unused-parameter` rules only (see settings.revive).
     - revive
     # --- correctness/quality linter set (vertiva_ekp's), enabled at 0 findings ---
     # Bug detection
@@ -80,7 +79,53 @@ linters:
     - usetesting
     - thelper
     - tparallel
+    # Architecture enforcement: no globals/inits (explicit DI), banned modules, and the
+    # import alias the codebase standardises on (apperr for core/errors).
+    - gochecknoglobals
+    - gochecknoinits
+    - gomodguard_v2
+    - importas
+    - nolintlint
   settings:
+    nolintlint:
+      # A suppression names its linter and says why, so it can be reviewed and later
+      # removed; a bare `//nolint` or an unexplained one is a finding.
+      require-explanation: true
+      require-specific: true
+    importas:
+      # Every import of the coded-errors package uses the apperr alias, and
+      # no-unaliased forbids importing it unaliased, so the codebase reads the same
+      # everywhere (and the same as its consumers).
+      alias:
+        - pkg: github.com/gt-tech-ai/knowledge-engine/go/core/errors
+          alias: apperr
+      no-unaliased: true
+    gomodguard_v2:
+      # Block modules this module must not depend on, each with the sanctioned
+      # replacement.
+      blocked:
+        - module: github.com/golang/protobuf
+          recommendations:
+            - google.golang.org/protobuf
+          reason: "use google.golang.org/protobuf"
+        - module: github.com/pkg/errors
+          reason: "use knowledge-engine/go/core/errors (coded errors)"
+        - module: golang.org/x/exp
+          reason: "promoted APIs live in the stdlib or golang.org/x/*"
+        - module: github.com/satori/go.uuid
+          recommendations:
+            - github.com/google/uuid
+          reason: "unmaintained"
+        - module: gopkg.in/yaml.v2
+          recommendations:
+            - go.yaml.in/yaml/v3
+          reason: "use yaml v3 (go.yaml.in/yaml/v3)"
+        - module: github.com/ghodss/yaml
+          recommendations:
+            - sigs.k8s.io/yaml
+          reason: "unmaintained"
+        - module: io/ioutil
+          reason: "deprecated since Go 1.16; use io and os"
     dogsled:
       # Fixture constructors return the whole wiring (service, repos, mocks); a test that
       # needs two of them ignores the rest, up to four.
@@ -136,24 +181,32 @@ linters:
     gocyclo:
       min-complexity: 15
     revive:
-      # Run ONLY the exported-doc rule (specifying rules overrides revive's default
-      # set), so this enforces "every exported symbol has a doc comment starting with
-      # its name" without revive's other opinionated checks. disableStutteringCheck
-      # scopes it to doc-completeness only — the rule's naming-stutter check (e.g.
-      # s3.S3API "stutters") is a separate concern, not this gate's job.
+      # Run ONLY the exported-doc rule and unused-parameter (specifying rules overrides
+      # revive's default set), so this enforces "every exported symbol has a doc comment
+      # starting with its name" and "every parameter is used or named `_`" without
+      # revive's other opinionated checks. disableStutteringCheck scopes the doc rule to
+      # completeness only — its naming-stutter check (e.g. s3.S3API "stutters") is a
+      # separate concern, not this gate's job.
       rules:
         - name: exported
           arguments:
             - disableStutteringCheck
+        - name: unused-parameter
     forbidigo:
-      # Every error crossing a boundary carries an ErrorCode via
-      # core/errors Wrap/New. A code-less fmt.Errorf is forbidden in production
-      # code and in tests (a test that needs an uncoded error uses apperr.Sentinel).
+      # Every error carries an ErrorCode via core/errors Wrap/New. Code-less
+      # fmt.Errorf and stdlib errors.New are forbidden in production code and in
+      # tests (a test that needs an uncoded error uses apperr.Sentinel).
       # Specifying `forbid` REPLACES forbidigo's default fmt.Print* patterns, so
-      # only fmt.Errorf is banned — fmt.Println/Printf are untouched.
+      # only the patterns below are banned — fmt.Println/Printf are untouched.
+      analyze-types: true
       forbid:
         - pattern: ^fmt\.Errorf$
           msg: use core/errors Wrap/New — no code-less fmt.Errorf
+        # Stdlib errors.New carries no ErrorCode. analyze-types scopes this to the
+        # stdlib package, so core/errors New(code, msg) (alias apperr) passes.
+        - pattern: ^errors\.New$
+          pkg: ^errors$
+          msg: use core/errors New — no stdlib errors.New
     govet:
       enable:
         - fieldalignment
@@ -190,6 +243,9 @@ linters:
         - \(\*golang\.org/x/sync/errgroup\.Group\)\.Wait\(
         - \(\*github\.com/sony/gobreaker/v2\.CircuitBreaker\[.*\]\)\.Execute\(
         - github\.com/cenkalti/backoff/v5\.Retry\[
+        # Aggregators of the caller's errors: each member keeps its own code, which a
+        # wrapper around the aggregate would hide.
+        - go\.uber\.org/multierr\.(Combine|Append)\(
         # A pass-through stream must return io.EOF itself: gRPC callers compare it
         # with ==, which a wrapped error fails.
         - \(google\.golang\.org/grpc\.ClientStream\)\.RecvMsg\(
@@ -369,16 +425,13 @@ linters:
       - path: ^go/foundation/tracer/oteltracer/tracer\.go$
         linters:
           - spancheck
-      # The Redis subscriber's first Subscribe starts a dispatch loop that outlives
-      # that call, so its handler context is a subscriber-lifetime context cancelled
-      # by Close. Deriving it from the caller's context would cancel every handler
-      # when that one call's context ends and hand the caller's trace values to
-      # unrelated messages. contextcheck cannot tell a lifetime context from a
-      # dropped request context.
-      - path: ^go/clients/messaging/redis/subscriber\.go$
+      # Sentinel is the one sanctioned uncoded constructor: it exists to wrap stdlib
+      # errors.New for the callers (tests, io.EOF-style markers) that need an error
+      # with no code, so it is the one place that may call it.
+      - path: ^go/core/errors/stdlib\.go$
         linters:
-          - contextcheck
-        text: register->ensureStartedLocked
+          - forbidigo
+        text: no stdlib errors.New
       # A struct tag is a single string literal that Go cannot wrap, so a field whose
       # tag pushes it past the column limit has no compliant spelling.
       - linters:

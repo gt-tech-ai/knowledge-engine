@@ -9,7 +9,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	rediscache "github.com/gt-tech-ai/knowledge-engine/go/clients/cache/redis"
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	testsuite "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite"
@@ -209,7 +208,7 @@ func (s *RedisCacheSuite) TestGetOrLoad_PopulatesOnMiss() {
 //   - A loader returning (nil, nil) makes GetOrLoad return (nil, nil).
 func (s *RedisCacheSuite) TestGetOrLoad_LoaderErrorAndNilValue() {
 	ctx := context.Background()
-	errLoad := errors.New("db connection failed")
+	errLoad := apperr.Sentinel("db connection failed")
 
 	val, err := s.cache.GetOrLoad(ctx, s.uniqueKey("err"), func() ([]byte, error) {
 		return nil, errLoad
@@ -468,11 +467,11 @@ func (s *RedisCacheSuite) TestUnreachable_InvalidationSurfacesErrors() {
 
 	prefixErr := c.InvalidatePrefix(ctx, "tenant:42:")
 	s.Require().Error(prefixErr, "a scan failure must surface, not be swallowed")
-	s.Equal(coreerrors.CodeUnavailable, coreerrors.Code(prefixErr))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(prefixErr))
 
 	allErr := c.InvalidateAll(ctx)
 	s.Require().Error(allErr, "a flushdb failure must surface")
-	s.Equal(coreerrors.CodeUnavailable, coreerrors.Code(allErr))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(allErr))
 }
 
 // TestUnreachable_Lifecycle tests the cache's lifecycle contract: the pool is

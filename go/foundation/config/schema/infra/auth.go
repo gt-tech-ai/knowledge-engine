@@ -1,6 +1,6 @@
 package infra
 
-import coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+import apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 
 // OIDCConfig holds the OpenID Connect provider parameters a service validates end-user
 // tokens against (all non-secret).
@@ -76,7 +76,7 @@ func (c *AuthConfig) Validate() error {
 	// A real deployment (end-user auth enforced) must not leave service-to-service auth
 	// bypassed — that would leave the internal surface unauthenticated.
 	if !c.Stub && c.ServiceStub {
-		return coreerr.InvalidInput(
+		return apperr.InvalidInput(
 			"auth.service_stub must be false when auth.stub is false",
 		)
 	}
@@ -84,10 +84,10 @@ func (c *AuthConfig) Validate() error {
 		return nil
 	}
 	if c.OIDC.Issuer == "" {
-		return coreerr.InvalidInput("auth.oidc.issuer is required when stub=false")
+		return apperr.InvalidInput("auth.oidc.issuer is required when stub=false")
 	}
 	if c.OIDC.Audience == "" {
-		return coreerr.InvalidInput("auth.oidc.audience is required when stub=false")
+		return apperr.InvalidInput("auth.oidc.audience is required when stub=false")
 	}
 	return nil
 }

@@ -217,7 +217,7 @@ func (s *StorageMinIOSuite) TestPresignedURL_PutGet() {
 	s.Require().NoError(err)
 	getResp, err := http.DefaultClient.Do(getReq)
 	s.Require().NoError(err)
-	defer getResp.Body.Close() //nolint:errcheck // test cleanup
+	defer getResp.Body.Close()
 	// The signed response-content-disposition override must round-trip: MinIO returns
 	// it verbatim on the GET, forcing an attachment download under the display name.
 	s.Contains(getResp.Header.Get("Content-Disposition"), "attachment")
@@ -351,7 +351,7 @@ func (s *StorageMinIOSuite) TestDelete_DeleteBatch_Exists() {
 func (s *StorageMinIOSuite) download(ctx context.Context, key string) []byte {
 	r, err := s.client.Download(ctx, testBucket, key)
 	s.Require().NoError(err)
-	defer r.Close() //nolint:errcheck // test cleanup
+	defer r.Close()
 	data, err := io.ReadAll(r)
 	s.Require().NoError(err)
 	return data

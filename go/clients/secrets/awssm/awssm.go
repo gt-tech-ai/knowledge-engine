@@ -15,7 +15,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -71,9 +71,9 @@ func NewClient(
 ) (interfaces.Source, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"loading aws config for secrets manager",
 		)
 	}
@@ -87,7 +87,7 @@ func NewClient(
 func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("no secrets-manager location mapped for credential %s", ref),
 		)
 	}
@@ -95,28 +95,28 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 		SecretId: aws.String(loc.SecretID),
 	})
 	if err != nil {
-		return types.Secret{}, errors.Wrap(
+		return types.Secret{}, apperr.Wrap(
 			err,
-			errors.CodeUpstream,
+			apperr.CodeUpstream,
 			"fetching secret from secrets manager",
 		)
 	}
 	if out.SecretString == nil {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("secret %q has no string value for %s", loc.SecretID, ref),
 		)
 	}
 	var fields map[string]string
 	if err := json.Unmarshal([]byte(*out.SecretString), &fields); err != nil {
-		return types.Secret{}, errors.Wrap(
+		return types.Secret{}, apperr.Wrap(
 			err,
-			errors.CodeInternal,
+			apperr.CodeInternal,
 			"decoding secrets manager json",
 		)
 	}
 	value, found := fields[loc.Field]
 	if !found || value == "" {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf(
 				"field %q not found in secret %q for %s",
 				loc.Field,
@@ -131,8 +131,8 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 // Put is unsupported: Secrets Manager secrets are written out-of-band by IaC. It returns
 // a coded error so a caller routing a write to this backend fails loudly.
 func (s source) Put(_ context.Context, ref types.Ref, _ types.Secret) error {
-	return errors.New(
-		errors.CodeInvalidInput,
+	return apperr.New(
+		apperr.CodeInvalidInput,
 		fmt.Sprintf(
 			"aws-sm credential source is read-only (IaC writes secrets): cannot write %s",
 			ref,

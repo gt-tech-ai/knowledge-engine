@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,13 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	decorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
 )
 
 // errBoom is a transient failure used to drive retry / circuit-breaker paths.
-var errBoom = errors.New("boom")
+var errBoom = apperr.Sentinel("boom")
 
 // fastRetrier builds a real Retrier with tiny intervals so retry tests run in
 // milliseconds rather than seconds.

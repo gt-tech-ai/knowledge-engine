@@ -81,8 +81,8 @@ type healthServer struct {
 // Check reports the serving status of the gRPC health protocol. It always reports
 // SERVING; dependency readiness is not folded in.
 func (h *healthServer) Check(
-	ctx context.Context,
-	req *grpc_health_v1.HealthCheckRequest,
+	_ context.Context,
+	_ *grpc_health_v1.HealthCheckRequest,
 ) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,

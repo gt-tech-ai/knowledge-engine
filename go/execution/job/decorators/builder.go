@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -161,8 +161,8 @@ func (r *recoveryJob) Execute(
 				r.logger.WithContext(ctx).
 					Error("job panic recovered", "name", meta.Name, "panic", rec)
 			}
-			err = coreerr.New(
-				coreerr.CodeInternal,
+			err = apperr.New(
+				apperr.CodeInternal,
 				fmt.Sprintf("job %q panicked: %v", meta.Name, rec),
 			)
 			results = types.StepResults{{

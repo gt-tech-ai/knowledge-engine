@@ -3,7 +3,6 @@ package unit_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -138,7 +138,7 @@ func TestBufferingRunner(t *testing.T) {
 	failingInner := mocks.NewMockCommandRunner(ctrl)
 	failingInner.EXPECT().
 		RunBuffered(gomock.Any(), "", "tool", "arg").
-		Return(system.CmdResult{Stderr: []byte("boom"), Err: errors.New("exit 1")})
+		Return(system.CmdResult{Stderr: []byte("boom"), Err: apperr.Sentinel("exit 1")})
 	failing := system.NewQuietBufferingRunner(failingInner)
 	err := failing.Run(context.Background(), "", "tool", "arg")
 	require.Error(t, err)
@@ -175,7 +175,7 @@ func TestBufferingRunner(t *testing.T) {
 	replayFailInner := mocks.NewMockCommandRunner(ctrl)
 	replayFailInner.EXPECT().
 		RunBuffered(gomock.Any(), "", "x").
-		Return(system.CmdResult{Err: errors.New("x")})
+		Return(system.CmdResult{Err: apperr.Sentinel("x")})
 	replayFail := system.NewBufferingRunner(replayFailInner)
 	require.Error(t, replayFail.Run(context.Background(), "", "x"))
 

@@ -17,7 +17,7 @@ import (
 	connectordecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/decorators"
 	connectors3 "github.com/gt-tech-ai/knowledge-engine/go/clients/connector/s3"
 	storages3 "github.com/gt-tech-ai/knowledge-engine/go/clients/storage/s3"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	miniofix "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/minio"
@@ -124,7 +124,7 @@ func TestConnectorS3Source_TestConnection_RealMinIO(t *testing.T) {
 	_, err = badSrc.TestConnection(ctx)
 	require.True(
 		t,
-		coreerr.Is(err, coreerr.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"a missing bucket is InvalidInput",
 	)
 }

@@ -19,7 +19,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage"
 	s3 "github.com/gt-tech-ai/knowledge-engine/go/clients/storage/s3"
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -131,7 +131,7 @@ func TestStorageClient_NotFoundMapping(t *testing.T) {
 	require.Error(t, statErr)
 	assert.True(
 		t,
-		coreerrors.Is(statErr, coreerrors.ErrNotFound),
+		apperr.Is(statErr, apperr.ErrNotFound),
 		"Stat must classify NotFound",
 	)
 
@@ -143,7 +143,7 @@ func TestStorageClient_NotFoundMapping(t *testing.T) {
 	require.Error(t, dlErr)
 	assert.True(
 		t,
-		coreerrors.Is(dlErr, coreerrors.ErrNotFound),
+		apperr.Is(dlErr, apperr.ErrNotFound),
 		"Download must classify NoSuchKey",
 	)
 }
@@ -526,7 +526,7 @@ func TestStorageClient_Multipart_AbortsWithLiveContextOnCancel(t *testing.T) {
 	// be dispatched before the first failure cancels the group — the abort behavior,
 	// not the exact part count, is what this test pins.
 	api.EXPECT().UploadPart(gomock.Any(), gomock.Any()).
-		Return(nil, coreerrors.Sentinel("part failed")).MinTimes(1)
+		Return(nil, apperr.Sentinel("part failed")).MinTimes(1)
 
 	var abortCtxErr error
 	aborted := false

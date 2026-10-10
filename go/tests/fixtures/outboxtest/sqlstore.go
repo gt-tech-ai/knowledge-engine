@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -65,7 +65,7 @@ func NewSQLStore(db *sql.DB, lease time.Duration) *SQLStore {
 // Migrate creates the reference table.
 func (s *SQLStore) Migrate(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, Schema); err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: migrate")
+		return apperr.Wrap(err, apperr.CodeInternal, "outboxtest: migrate")
 	}
 	return nil
 }
@@ -75,9 +75,9 @@ func (s *SQLStore) Migrate(ctx context.Context) error {
 func (s *SQLStore) Enqueue(ctx context.Context, rec *types.OutboxRecord) error {
 	attrs, err := json.Marshal(rec.Attributes)
 	if err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"outboxtest: encode attributes",
 		)
 	}
@@ -98,7 +98,7 @@ func (s *SQLStore) Enqueue(ctx context.Context, rec *types.OutboxRecord) error {
 		created,
 	)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: enqueue")
+		return apperr.Wrap(err, apperr.CodeInternal, "outboxtest: enqueue")
 	}
 	return nil
 }
@@ -111,9 +111,9 @@ func (s *SQLStore) Claim(
 ) ([]types.OutboxRecord, error) {
 	rows, err := s.db.QueryContext(ctx, claimSQL, lane, limit, s.lease.Seconds())
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: claim")
+		return nil, apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: claim")
 	}
-	defer rows.Close() //nolint:errcheck // read-only cursor
+	defer rows.Close()
 	var out []types.OutboxRecord
 	for rows.Next() {
 		var (
@@ -130,19 +130,19 @@ func (s *SQLStore) Claim(
 			&rec.Attempts,
 			&rec.CreatedAt,
 		); err != nil {
-			return nil, coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: scan claim")
+			return nil, apperr.Wrap(err, apperr.CodeInternal, "outboxtest: scan claim")
 		}
 		if err := json.Unmarshal(attrs, &rec.Attributes); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInternal,
+				apperr.CodeInternal,
 				"outboxtest: decode attributes",
 			)
 		}
 		out = append(out, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: claim rows")
+		return nil, apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: claim rows")
 	}
 	return out, nil
 }
@@ -198,9 +198,9 @@ SELECT count(*) FILTER (WHERE state = 'pending'),
        min(created_at) FILTER (WHERE state = 'pending')
 FROM outbox WHERE lane = $1`, lane).Scan(&stats.Pending, &stats.Parked, &oldest)
 	if err != nil {
-		return types.OutboxStats{}, coreerr.Wrap(
+		return types.OutboxStats{}, apperr.Wrap(
 			err,
-			coreerr.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"outboxtest: stats",
 		)
 	}
@@ -220,7 +220,7 @@ func (s *SQLStore) LastError(
 	).
 		Scan(&state, &lastErr)
 	if err != nil {
-		return "", "", coreerr.Wrap(err, coreerr.CodeNotFound, "outboxtest: row")
+		return "", "", apperr.Wrap(err, apperr.CodeNotFound, "outboxtest: row")
 	}
 	return state, lastErr, nil
 }
@@ -229,11 +229,11 @@ func (s *SQLStore) LastError(
 func (s *SQLStore) exec(ctx context.Context, op, query string, args ...any) error {
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: "+op)
+		return apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: "+op)
 	}
 	if n, err := res.RowsAffected(); err == nil && n == 0 {
-		return coreerr.New(
-			coreerr.CodeNotFound,
+		return apperr.New(
+			apperr.CodeNotFound,
 			"outboxtest: "+op+": no such pending row",
 		)
 	}

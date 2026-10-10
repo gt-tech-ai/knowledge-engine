@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	apperrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/budget"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
@@ -75,7 +74,7 @@ func TestCircuitBreaker_OpensAfterConsecutiveFailures(t *testing.T) {
 	})
 	require.NoError(t, err, "unexpected error")
 
-	testErr := errors.New("service unavailable")
+	testErr := apperr.Sentinel("service unavailable")
 
 	for range 3 {
 		_ = cb.Execute(func() error {
@@ -117,13 +116,13 @@ func TestCircuitBreaker_DomainErrorsDoNotTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	for range 10 {
-		_ = cb.Execute(func() error { return apperrors.NotFound("gone") })
+		_ = cb.Execute(func() error { return apperr.NotFound("gone") })
 	}
 
 	ran := false
 	got := cb.Execute(func() error {
 		ran = true
-		return apperrors.Conflict("dup")
+		return apperr.Conflict("dup")
 	})
 	require.True(
 		t,
@@ -163,7 +162,7 @@ func TestCircuitBreaker_FailureRatioTrips(t *testing.T) {
 	for i := range 60 {
 		var opErr error
 		if i%2 == 0 {
-			opErr = errors.New("unavailable") // infra failure (retryable)
+			opErr = apperr.Sentinel("unavailable") // infra failure (retryable)
 		}
 		ran := false
 		_ = cb.Execute(func() error {
@@ -302,7 +301,7 @@ func TestCircuitBreaker_MockReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockCircuitBreaker(ctrl)
 
-	openErr := errors.New("circuit breaker is open")
+	openErr := apperr.Sentinel("circuit breaker is open")
 	mock.EXPECT().Execute(gomock.Any()).Return(openErr)
 
 	var cb interfaces.CircuitBreaker = mock
@@ -487,7 +486,7 @@ func TestRetry_RetriesOnTransientError(t *testing.T) {
 	var attempts atomic.Int32
 	require.NoError(t, r.Retry(ctx, func() error {
 		if attempts.Add(1) < 3 {
-			return errors.New("transient")
+			return apperr.Sentinel("transient")
 		}
 		return nil
 	}), "unexpected error")
@@ -520,7 +519,7 @@ func TestRetry_DoesNotRetryPermanentError(t *testing.T) {
 	})
 	require.NoError(t, err, "unexpected error")
 
-	permanent := apperrors.New(apperrors.CodeConflict, "duplicate resource")
+	permanent := apperr.New(apperr.CodeConflict, "duplicate resource")
 	var attempts atomic.Int32
 	got := r.Retry(context.Background(), func() error {
 		attempts.Add(1)
@@ -530,8 +529,8 @@ func TestRetry_DoesNotRetryPermanentError(t *testing.T) {
 	require.Error(t, got, "expected the permanent error to be returned")
 	assert.Equal(
 		t,
-		apperrors.CodeConflict,
-		apperrors.Code(got),
+		apperr.CodeConflict,
+		apperr.Code(got),
 		"expected the real error code to survive",
 	)
 	assert.Equal(t, int32(1), attempts.Load(), "permanent error must not be retried")
@@ -618,7 +617,7 @@ func TestRetry_MockReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockRetrier(ctrl)
 
-	retryErr := errors.New("max retries exceeded")
+	retryErr := apperr.Sentinel("max retries exceeded")
 	mock.EXPECT().Retry(gomock.Any(), gomock.Any()).Return(retryErr)
 
 	var r interfaces.Retrier = mock
@@ -773,7 +772,7 @@ func TestBulkhead_MockTryExecuteFull(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockBulkhead(ctrl)
 
-	fullErr := errors.New("bulkhead full")
+	fullErr := apperr.Sentinel("bulkhead full")
 	mock.EXPECT().TryExecute(gomock.Any()).Return(fullErr)
 
 	var bh interfaces.Bulkhead = mock

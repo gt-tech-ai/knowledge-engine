@@ -8,7 +8,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -36,7 +36,7 @@ func EncodePartial(p Partial) []byte {
 // is CodeInvalidInput.
 func DecodePartial(b []byte) (Partial, error) {
 	if len(b) < partialHeaderLen || b[0] != partialCodecVersion {
-		return Partial{}, errors.New(errors.CodeInvalidInput, "vizql: malformed partial")
+		return Partial{}, apperr.New(apperr.CodeInvalidInput, "vizql: malformed partial")
 	}
 	f := func(i int) float64 {
 		return math.Float64frombits(binary.BigEndian.Uint64(b[1+8*i:]))
@@ -45,9 +45,9 @@ func DecodePartial(b []byte) (Partial, error) {
 	if rest := b[partialHeaderLen:]; len(rest) > 0 {
 		sketch, err := ddsketch.DecodeDDSketch(rest, store.DefaultProvider, nil)
 		if err != nil {
-			return Partial{}, errors.Wrap(
+			return Partial{}, apperr.Wrap(
 				err,
-				errors.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"vizql: malformed partial sketch",
 			)
 		}
@@ -93,5 +93,10 @@ func Next(start time.Time, g types.Grain) time.Time {
 
 // ValidGrain reports whether g is one of the grains Truncate and Next know.
 func ValidGrain(g types.Grain) bool {
-	return grains[g]
+	switch g {
+	case types.GrainMinute, types.GrainHour, types.GrainDay, types.GrainMonth:
+		return true
+	default:
+		return false
+	}
 }

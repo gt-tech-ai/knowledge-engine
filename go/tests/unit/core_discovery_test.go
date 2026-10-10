@@ -2,11 +2,11 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -40,7 +40,7 @@ func TestDiscovererFunc_Discover(t *testing.T) {
 	})
 
 	t.Run("propagates errors from the wrapped function", func(t *testing.T) {
-		sentinel := errors.New("discover failed")
+		sentinel := apperr.Sentinel("discover failed")
 		f := interfaces.DiscovererFunc[string](
 			func(_ context.Context, _ string) ([]string, error) {
 				return nil, sentinel

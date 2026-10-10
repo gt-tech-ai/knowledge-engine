@@ -13,7 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/singleflight"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/cache"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -231,7 +231,7 @@ func TestReadThrough_FirstCallerCancelDoesNotFailOthers(t *testing.T) {
 	select {
 	case r := <-resA:
 		require.Error(t, r.err)
-		assert.Equal(t, coreerr.CodeCanceled, coreerr.Code(r.err))
+		assert.Equal(t, apperr.CodeCanceled, apperr.Code(r.err))
 	case <-time.After(2 * time.Second):
 		t.Error("the cancelled caller was held until the shared load finished")
 	}
@@ -268,8 +268,8 @@ func TestReadThrough_LoadPanicBecomesCodedError(t *testing.T) {
 	_, err := cache.ReadThrough(context.Background(), m, &sf, "panic", time.Minute, 1,
 		func() (int, error) { panic("load blew up") })
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInternal, coreerr.Code(err))
-	var appErr *coreerr.AppError
+	assert.Equal(t, apperr.CodeInternal, apperr.Code(err))
+	var appErr *apperr.AppError
 	require.ErrorAs(t, err, &appErr)
 	assert.Contains(
 		t,
@@ -299,12 +299,12 @@ func TestReadThrough_DoneContextSkipsLoad(t *testing.T) {
 	cancel()
 	_, err := cache.ReadThrough(canceled, m, &sf, "done", time.Minute, 1, load)
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeCanceled, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeCanceled, apperr.Code(err))
 
 	expired, cancelExpired := context.WithDeadline(context.Background(), time.Unix(0, 0))
 	defer cancelExpired()
 	_, err = cache.ReadThrough(expired, m, &sf, "done", time.Minute, 1, load)
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeTimeout, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeTimeout, apperr.Code(err))
 	assert.Equal(t, int32(0), atomic.LoadInt32(&loads), "a done caller starts no load")
 }

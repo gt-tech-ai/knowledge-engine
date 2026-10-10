@@ -16,9 +16,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// defaultBuckets are the histogram bucket boundaries (seconds) for lock
+// defaultBuckets returns the histogram bucket boundaries (seconds) for lock
 // operation durations. Matches Prometheus DefBuckets.
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // Builder composes decorators around a base DistributedLock using a fluent API.
 type Builder struct {

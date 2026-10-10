@@ -11,7 +11,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/s3"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
@@ -80,7 +80,7 @@ func New(ctx context.Context, cfg Config) (interfaces.StorageClient, error) {
 		return s3.NewClientFromAPI(cfg.API, cfg.MultipartThreshold), nil
 	}
 	if err := cfg.S3.Validate(); err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeInvalidInput, "invalid s3 config")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "invalid s3 config")
 	}
 	client, err := s3.NewAWSClient(ctx, cfg.S3)
 	if err != nil {

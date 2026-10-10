@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -284,7 +284,7 @@ func StubCircuitBreaker(open bool) *mocks.MockCircuitBreaker {
 	cb := mocks.NewMockCircuitBreaker(newCtrl())
 	cb.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error {
 		if open {
-			return errors.Sentinel("circuit breaker is open")
+			return apperr.Sentinel("circuit breaker is open")
 		}
 		return fn()
 	}).AnyTimes()
@@ -298,7 +298,7 @@ func StubRateLimiter(allowed bool) *mocks.MockRateLimiter {
 	rl.EXPECT().Allow().Return(allowed).AnyTimes()
 	rl.EXPECT().Wait(gomock.Any()).DoAndReturn(func(context.Context) error {
 		if !allowed {
-			return errors.Sentinel("rate limit exceeded")
+			return apperr.Sentinel("rate limit exceeded")
 		}
 		return nil
 	}).AnyTimes()

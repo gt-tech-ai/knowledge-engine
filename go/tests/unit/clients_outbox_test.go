@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"context"
-	"crypto/md5" //nolint:gosec // asserts the S3 Content-MD5 integrity header, not a security use
+	"crypto/md5"
 	"encoding/base64"
 	"io"
 	"strconv"
@@ -399,7 +399,6 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	assert.Equal(t, []apperr.ErrorCode{"", "", apperr.CodeForbidden}, codesOf(results))
 	require.Len(t, puts, 3)
 	for i, p := range puts {
-		//nolint:gosec // the S3 integrity header is MD5 by definition
 		sum := md5.Sum(recs[i].Payload)
 		assert.Equal(t, "archive", aws.ToString(p.in.Bucket))
 		assert.Equal(

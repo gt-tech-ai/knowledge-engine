@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestCodeOr_KeepsCodeElseFallsBack tests the code-with-fallback extractor.
@@ -20,25 +20,25 @@ import (
 //   - An uncoded error and a nil error yield the fallback
 func TestCodeOr_KeepsCodeElseFallsBack(t *testing.T) {
 	t.Parallel()
-	conflict := coreerr.New(coreerr.CodeConflict, "dup")
+	conflict := apperr.New(apperr.CodeConflict, "dup")
 
 	assert.Equal(
 		t,
-		coreerr.CodeConflict,
-		coreerr.CodeOr(conflict, coreerr.CodeUnavailable),
+		apperr.CodeConflict,
+		apperr.CodeOr(conflict, apperr.CodeUnavailable),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeConflict,
-		coreerr.CodeOr(
-			coreerr.Wrap(conflict, coreerr.CodeConflict, "ctx"),
-			coreerr.CodeUnavailable,
+		apperr.CodeConflict,
+		apperr.CodeOr(
+			apperr.Wrap(conflict, apperr.CodeConflict, "ctx"),
+			apperr.CodeUnavailable,
 		),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeUnavailable,
-		coreerr.CodeOr(coreerr.Sentinel("sdk"), coreerr.CodeUnavailable),
+		apperr.CodeUnavailable,
+		apperr.CodeOr(apperr.Sentinel("sdk"), apperr.CodeUnavailable),
 	)
-	assert.Equal(t, coreerr.CodeInternal, coreerr.CodeOr(nil, coreerr.CodeInternal))
+	assert.Equal(t, apperr.CodeInternal, apperr.CodeOr(nil, apperr.CodeInternal))
 }

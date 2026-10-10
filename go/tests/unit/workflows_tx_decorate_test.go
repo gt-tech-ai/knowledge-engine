@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	workflowscfg "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workflows"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -39,10 +39,10 @@ func TestNewTxWorkflow_RunsPipelineInOneTransaction(t *testing.T) {
 			return fn(interfaces.WithInTx(ctx))
 		})
 	pipe.EXPECT().Execute(gomock.Any(), "order-7").Times(1).DoAndReturn(
-		func(ctx context.Context, in string) (int, error) {
+		func(ctx context.Context, _ string) (int, error) {
 			if !interfaces.InTx(ctx) {
-				return 0, coreerr.New(
-					coreerr.CodeInternal,
+				return 0, apperr.New(
+					apperr.CodeInternal,
 					"pipeline ran outside the transaction",
 				)
 			}
@@ -82,7 +82,7 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 			func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) })
 		pipe.EXPECT().
 			Execute(gomock.Any(), "dup").
-			Return(7, coreerr.New(coreerr.CodeConflict, "duplicate"))
+			Return(7, apperr.New(apperr.CodeConflict, "duplicate"))
 
 		out, err := workflow.NewTxWorkflow[string, int](
 			txMgr,
@@ -90,7 +90,7 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 		).Execute(context.Background(), "dup")
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeConflict, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeConflict, apperr.Code(err))
 		assert.Equal(t, 0, out)
 	})
 
@@ -104,7 +104,7 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 				if err := fn(ctx); err != nil {
 					return err
 				}
-				return coreerr.New(coreerr.CodeUnavailable, "commit failed")
+				return apperr.New(apperr.CodeUnavailable, "commit failed")
 			})
 		pipe.EXPECT().Execute(gomock.Any(), "ok").Return(9, nil)
 
@@ -114,7 +114,7 @@ func TestNewTxWorkflow_PropagatesCodedError(t *testing.T) {
 		).Execute(context.Background(), "ok")
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
 		assert.Equal(t, 0, out)
 	})
 }
@@ -154,7 +154,7 @@ func TestDecorate_AppliesTimeoutAndRecovery(t *testing.T) {
 	plain := workflow.NewBaseWorkflow(
 		func(ctx context.Context, in string) (string, error) {
 			if _, ok := ctx.Deadline(); ok {
-				return "", coreerr.New(coreerr.CodeInternal, "unexpected deadline")
+				return "", apperr.New(apperr.CodeInternal, "unexpected deadline")
 			}
 			return in + "-done", nil
 		},
@@ -170,6 +170,6 @@ func TestDecorate_AppliesTimeoutAndRecovery(t *testing.T) {
 	_, err = decorators.Decorate[string, string](panicky, "panic.op", nil, nil, nil,
 		workflowscfg.DefaultConfig()).Execute(ctx, "in")
 	require.Error(t, err)
-	assert.Equal(t, coreerr.CodeInternal, coreerr.Code(err))
+	assert.Equal(t, apperr.CodeInternal, apperr.Code(err))
 	assert.Contains(t, err.Error(), "panic recovered: boom")
 }

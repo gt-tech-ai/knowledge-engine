@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // TestContextCode_MapsContextErrors tests the context-aware code extractor.
@@ -25,33 +25,33 @@ func TestContextCode_MapsContextErrors(t *testing.T) {
 
 	assert.Equal(
 		t,
-		coreerr.CodeTimeout,
-		coreerr.ContextCode(context.DeadlineExceeded, coreerr.CodeInternal),
+		apperr.CodeTimeout,
+		apperr.ContextCode(context.DeadlineExceeded, apperr.CodeInternal),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeTimeout,
-		coreerr.ContextCode(
-			coreerr.Join(coreerr.Sentinel("op"), context.DeadlineExceeded),
-			coreerr.CodeInternal,
+		apperr.CodeTimeout,
+		apperr.ContextCode(
+			apperr.Join(apperr.Sentinel("op"), context.DeadlineExceeded),
+			apperr.CodeInternal,
 		),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeCanceled,
-		coreerr.ContextCode(context.Canceled, coreerr.CodeInternal),
+		apperr.CodeCanceled,
+		apperr.ContextCode(context.Canceled, apperr.CodeInternal),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeConflict,
-		coreerr.ContextCode(
-			coreerr.Wrap(context.Canceled, coreerr.CodeConflict, "dup"),
-			coreerr.CodeInternal,
+		apperr.CodeConflict,
+		apperr.ContextCode(
+			apperr.Wrap(context.Canceled, apperr.CodeConflict, "dup"),
+			apperr.CodeInternal,
 		),
 	)
 	assert.Equal(
 		t,
-		coreerr.CodeUnavailable,
-		coreerr.ContextCode(coreerr.Sentinel("sdk"), coreerr.CodeUnavailable),
+		apperr.CodeUnavailable,
+		apperr.ContextCode(apperr.Sentinel("sdk"), apperr.CodeUnavailable),
 	)
 }

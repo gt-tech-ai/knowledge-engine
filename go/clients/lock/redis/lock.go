@@ -24,29 +24,29 @@ import (
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// renewScript extends the lease iff the stored value still equals the caller's
+// renewLua extends the lease iff the stored value still equals the caller's
 // token. Returns 1 when renewed, 0 when the token no longer holds the key
 // (expired, released, or taken over). KEYS[1]=key, ARGV[1]=token, ARGV[2]=ttlMs.
-var renewScript = goredis.NewScript(`
+const renewLua = `
 if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("PEXPIRE", KEYS[1], ARGV[2])
 else
 	return 0
-end`)
+end`
 
-// releaseScript deletes the key iff the stored value still equals the caller's
+// releaseLua deletes the key iff the stored value still equals the caller's
 // token (compare-then-DEL), so a stale Release from a previous holder cannot
 // delete a new holder's lock. KEYS[1]=key, ARGV[1]=token.
-var releaseScript = goredis.NewScript(`
+const releaseLua = `
 if redis.call("GET", KEYS[1]) == ARGV[1] then
 	return redis.call("DEL", KEYS[1])
 else
 	return 0
-end`)
+end`
 
 // Lock is a token-fenced, cross-pod DistributedLock over a shared go-redis
 // client. The client is injected (reused from the cache — see
@@ -54,6 +54,10 @@ end`)
 type Lock struct {
 	// client is the shared go-redis client the lock issues commands through.
 	client *goredis.Client
+	// renewScript runs renewLua (EVALSHA, falling back to EVAL).
+	renewScript *goredis.Script
+	// releaseScript runs releaseLua (EVALSHA, falling back to EVAL).
+	releaseScript *goredis.Script
 	// ttl is the lease duration applied on Acquire and extended on Renew.
 	ttl time.Duration
 }
@@ -62,7 +66,12 @@ type Lock struct {
 // TTL. The client is expected to be the one shared with the cache; the lock does
 // not own it and never closes it.
 func New(client *goredis.Client, ttl time.Duration) *Lock {
-	return &Lock{client: client, ttl: ttl}
+	return &Lock{
+		client:        client,
+		ttl:           ttl,
+		renewScript:   goredis.NewScript(renewLua),
+		releaseScript: goredis.NewScript(releaseLua),
+	}
 }
 
 // compile-time assertion that *Lock satisfies the seam.
@@ -78,12 +87,12 @@ func (l *Lock) Acquire(
 ) (token string, acquired bool, err error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
-		return "", false, errors.Wrap(err, errors.CodeInternal, "generate lock token")
+		return "", false, apperr.Wrap(err, apperr.CodeInternal, "generate lock token")
 	}
 	token = id.String()
 	ok, err := l.client.SetNX(ctx, key, token, l.ttl).Result()
 	if err != nil {
-		return "", false, errors.Wrap(err, errors.CodeUnavailable, "acquire lock")
+		return "", false, apperr.Wrap(err, apperr.CodeUnavailable, "acquire lock")
 	}
 	if !ok {
 		return "", false, nil
@@ -94,10 +103,10 @@ func (l *Lock) Acquire(
 // Renew extends the lease iff token still holds key (compare-then-PEXPIRE).
 // held=false means the lease was lost; err is reserved for Redis failures.
 func (l *Lock) Renew(ctx context.Context, key, token string) (held bool, err error) {
-	res, err := renewScript.Run(ctx, l.client, []string{key}, token, l.ttl.Milliseconds()).
+	res, err := l.renewScript.Run(ctx, l.client, []string{key}, token, l.ttl.Milliseconds()).
 		Int64()
 	if err != nil {
-		return false, errors.Wrap(err, errors.CodeUnavailable, "renew lock")
+		return false, apperr.Wrap(err, apperr.CodeUnavailable, "renew lock")
 	}
 	return res == 1, nil
 }
@@ -105,8 +114,8 @@ func (l *Lock) Renew(ctx context.Context, key, token string) (held bool, err err
 // Release frees key iff token still holds it (compare-then-DEL); a foreign token
 // or an unheld key is a no-op. err is reserved for Redis failures.
 func (l *Lock) Release(ctx context.Context, key, token string) error {
-	if err := releaseScript.Run(ctx, l.client, []string{key}, token).Err(); err != nil {
-		return errors.Wrap(err, errors.CodeUnavailable, "release lock")
+	if err := l.releaseScript.Run(ctx, l.client, []string{key}, token).Err(); err != nil {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "release lock")
 	}
 	return nil
 }

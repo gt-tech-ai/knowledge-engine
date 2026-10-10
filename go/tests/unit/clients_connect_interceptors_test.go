@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -23,15 +22,17 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// testHeaders is the gateway header contract the interceptor tests send, passed to
+// testHeaders returns the gateway header contract the interceptor tests send, passed to
 // the auth interceptor explicitly (the library has no default header names).
-var testHeaders = interceptors.HeaderMap{
-	Sub:      "X-User-Sub",
-	Tenant:   "X-Org-ID",
-	Email:    "X-User-Email",
-	Name:     "X-User-Name",
-	NickName: "X-User-Nickname",
-	Roles:    "X-Roles",
+func testHeaders() interceptors.HeaderMap {
+	return interceptors.HeaderMap{
+		Sub:      "X-User-Sub",
+		Tenant:   "X-Org-ID",
+		Email:    "X-User-Email",
+		Name:     "X-User-Name",
+		NickName: "X-User-Nickname",
+		Roles:    "X-Roles",
+	}
 }
 
 // newTestRequest returns a minimal AnyRequest for testing.
@@ -123,7 +124,7 @@ func TestRecoveryInterceptor_PassesThroughError(t *testing.T) {
 	logger := fixtures.NopLogger()
 	interceptor := interceptors.RecoveryInterceptor(logger)
 
-	innerErr := connect.NewError(connect.CodeNotFound, errors.New("not found"))
+	innerErr := connect.NewError(connect.CodeNotFound, apperr.Sentinel("not found"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, innerErr
@@ -366,7 +367,7 @@ func TestTimeoutInterceptor_PassesThroughNonContextError(t *testing.T) {
 	t.Parallel()
 	interceptor := interceptors.TimeoutInterceptor(time.Minute)
 
-	sentinel := connect.NewError(connect.CodeInternal, errors.New("boom"))
+	sentinel := connect.NewError(connect.CodeInternal, apperr.Sentinel("boom"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, sentinel
@@ -455,7 +456,7 @@ func TestCircuitBreakerInterceptor_PropagatesInnerError(t *testing.T) {
 	cb := fixtures.StubCircuitBreaker(false)
 	interceptor := interceptors.CircuitBreakerInterceptor(cb)
 
-	innerErr := connect.NewError(connect.CodeNotFound, errors.New("not found"))
+	innerErr := connect.NewError(connect.CodeNotFound, apperr.Sentinel("not found"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, innerErr
@@ -522,7 +523,7 @@ func TestRetryInterceptor_RetriesTransientError(t *testing.T) {
 			if attempts <= 2 {
 				return nil, connect.NewError(
 					connect.CodeUnavailable,
-					errors.New("transient"),
+					apperr.Sentinel("transient"),
 				)
 			}
 			return expected, nil
@@ -558,7 +559,7 @@ func TestRetryInterceptor_StopsOnPermanentError(t *testing.T) {
 			attempts++
 			return nil, connect.NewError(
 				connect.CodeInvalidArgument,
-				errors.New("bad request"),
+				apperr.Sentinel("bad request"),
 			)
 		},
 	)
@@ -591,7 +592,7 @@ func TestRetryInterceptor_StopsOnResourceExhausted(t *testing.T) {
 			attempts++
 			return nil, connect.NewError(
 				connect.CodeResourceExhausted,
-				errors.New("rate limited"),
+				apperr.Sentinel("rate limited"),
 			)
 		},
 	)
@@ -785,7 +786,7 @@ func TestServerBuilder_FullComposition(t *testing.T) {
 		WithMetrics(metrics).
 		WithTracing(tracer).
 		WithLogging(logger).
-		WithAuth(false, testHeaders).
+		WithAuth(false, testHeaders()).
 		WithValidation().
 		Build()
 
@@ -938,23 +939,23 @@ func newTestRequestWithHeaders(headers map[string]string) connect.AnyRequest {
 func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
 	)
 
 	handler := interceptor.WrapUnary(
-		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok = interceptors.GetAuthClaims(ctx)
 			return newTestResponse(), nil
 		},
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub:    "user-42",
-		testHeaders.Tenant: "org-99",
-		testHeaders.Roles:  "admin,editor,viewer",
+		testHeaders().Sub:    "user-42",
+		testHeaders().Tenant: "org-99",
+		testHeaders().Roles:  "admin,editor,viewer",
 	})
 
 	resp, err := handler(context.Background(), req)
@@ -982,7 +983,7 @@ func TestAuthInterceptor_WithAllHeaders(t *testing.T) {
 func TestAuthInterceptor_NoSub(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var ok bool
 
 	handler := interceptor.WrapUnary(
@@ -1012,7 +1013,7 @@ func TestAuthInterceptor_NoSub(t *testing.T) {
 func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -1026,7 +1027,7 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub: "user-1",
+		testHeaders().Sub: "user-1",
 	})
 
 	_, err := handler(context.Background(), req)
@@ -1050,7 +1051,7 @@ func TestAuthInterceptor_SubOnly_NoRoles(t *testing.T) {
 func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -1064,8 +1065,8 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub:   "user-1",
-		testHeaders.Roles: "",
+		testHeaders().Sub:   "user-1",
+		testHeaders().Roles: "",
 	})
 
 	_, _ = handler(context.Background(), req)
@@ -1088,7 +1089,7 @@ func TestAuthInterceptor_EmptyRoles(t *testing.T) {
 func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -1102,8 +1103,8 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub:   "user-1",
-		testHeaders.Roles: "admin,,editor,",
+		testHeaders().Sub:   "user-1",
+		testHeaders().Roles: "admin,,editor,",
 	})
 
 	_, _ = handler(context.Background(), req)
@@ -1128,7 +1129,7 @@ func TestAuthInterceptor_RolesWithTrailingComma(t *testing.T) {
 func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(true, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -1177,7 +1178,7 @@ func TestAuthInterceptor_StubMode_SynthesizesDevClaims(t *testing.T) {
 func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(true, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(true, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -1191,8 +1192,8 @@ func TestAuthInterceptor_StubMode_RealHeadersWin(t *testing.T) {
 	)
 
 	req := newTestRequestWithHeaders(map[string]string{
-		testHeaders.Sub:    "real-user-from-gateway",
-		testHeaders.Tenant: "real-org-from-gateway",
+		testHeaders().Sub:    "real-user-from-gateway",
+		testHeaders().Tenant: "real-org-from-gateway",
 	})
 
 	_, err := handler(context.Background(), req)
@@ -1255,7 +1256,7 @@ func TestLoggingInterceptor_Error(t *testing.T) {
 	logger := fixtures.NopLogger()
 	interceptor := interceptors.NewLoggingInterceptor(logger)
 
-	innerErr := connect.NewError(connect.CodeNotFound, errors.New("not found"))
+	innerErr := connect.NewError(connect.CodeNotFound, apperr.Sentinel("not found"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, innerErr
@@ -1320,7 +1321,7 @@ func TestLoggingInterceptor_UsesWithContext_Error(t *testing.T) {
 
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			return nil, connect.NewError(connect.CodeInternal, errors.New("boom"))
+			return nil, connect.NewError(connect.CodeInternal, apperr.Sentinel("boom"))
 		},
 	)
 
@@ -1355,7 +1356,7 @@ func TestLoggingInterceptor_4xxCodeLogsAtWarn(t *testing.T) {
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, connect.NewError(
 				connect.CodeInvalidArgument,
-				errors.New("bad input"),
+				apperr.Sentinel("bad input"),
 			)
 		},
 	)
@@ -1384,7 +1385,10 @@ func TestLoggingInterceptor_5xxCodeLogsAtError(t *testing.T) {
 
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			return nil, connect.NewError(connect.CodeInternal, errors.New("server fault"))
+			return nil, connect.NewError(
+				connect.CodeInternal,
+				apperr.Sentinel("server fault"),
+			)
 		},
 	)
 
@@ -1414,7 +1418,7 @@ func TestLoggingInterceptor_CanceledLogsAtWarn(t *testing.T) {
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, connect.NewError(
 				connect.CodeCanceled,
-				errors.New("client canceled"),
+				apperr.Sentinel("client canceled"),
 			)
 		},
 	)
@@ -1472,7 +1476,7 @@ func TestMetricsInterceptor_Error(t *testing.T) {
 	metrics := fixtures.NopMetrics()
 	interceptor := interceptors.MetricsInterceptor(metrics)
 
-	innerErr := connect.NewError(connect.CodeInternal, errors.New("boom"))
+	innerErr := connect.NewError(connect.CodeInternal, apperr.Sentinel("boom"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, innerErr
@@ -1559,7 +1563,7 @@ func TestTracingInterceptor_Error(t *testing.T) {
 	tracer := fixtures.NopTracer()
 	interceptor := interceptors.TracingInterceptor(tracer)
 
-	innerErr := connect.NewError(connect.CodeInternal, errors.New("boom"))
+	innerErr := connect.NewError(connect.CodeInternal, apperr.Sentinel("boom"))
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			return nil, innerErr
@@ -1799,7 +1803,7 @@ func TestServerBuilder_AuthOnly(t *testing.T) {
 	t.Parallel()
 
 	opts := interceptors.NewServerBuilder().
-		WithAuth(false, testHeaders).
+		WithAuth(false, testHeaders()).
 		Build()
 
 	require.NotNil(t, opts, "expected non-nil options with auth")
@@ -1846,7 +1850,10 @@ func TestRetryInterceptor_RetriesExhausted(t *testing.T) {
 
 	handler := interceptor.WrapUnary(
 		func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-			return nil, connect.NewError(connect.CodeUnavailable, errors.New("transient"))
+			return nil, connect.NewError(
+				connect.CodeUnavailable,
+				apperr.Sentinel("transient"),
+			)
 		},
 	)
 
@@ -1886,7 +1893,7 @@ func TestServerBuilder_FullChain_ExecuteRequest(t *testing.T) {
 		WithMetrics(metrics).
 		WithTracing(tracer).
 		WithLogging(logger).
-		WithAuth(false, testHeaders).
+		WithAuth(false, testHeaders()).
 		WithValidation().
 		Build()
 
@@ -2015,9 +2022,9 @@ func TestGetAuthClaims_MissingReturnsNil(t *testing.T) {
 func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	handler := interceptor.WrapUnary(
-		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok := interceptors.GetAuthClaims(ctx)
 			assert.True(t, ok, "expected claims in context")
 			if !ok {
@@ -2029,8 +2036,8 @@ func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 	)
 
 	req := newTestRequest()
-	req.Header().Set(testHeaders.Sub, "user-1")
-	req.Header().Set(testHeaders.Roles, "admin,,editor")
+	req.Header().Set(testHeaders().Sub, "user-1")
+	req.Header().Set(testHeaders().Roles, "admin,,editor")
 	_, _ = handler(context.Background(), req)
 }
 
@@ -2047,9 +2054,9 @@ func TestAuthInterceptor_SplitRoles_DoubleComma(t *testing.T) {
 func TestAuthInterceptor_SingleRole(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	handler := interceptor.WrapUnary(
-		func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		func(ctx context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 			claims, ok := interceptors.GetAuthClaims(ctx)
 			assert.True(t, ok, "expected claims")
 			if !ok {
@@ -2061,8 +2068,8 @@ func TestAuthInterceptor_SingleRole(t *testing.T) {
 	)
 
 	req := newTestRequest()
-	req.Header().Set(testHeaders.Sub, "user-1")
-	req.Header().Set(testHeaders.Roles, "viewer")
+	req.Header().Set(testHeaders().Sub, "user-1")
+	req.Header().Set(testHeaders().Roles, "viewer")
 	_, _ = handler(context.Background(), req)
 }
 
@@ -2195,7 +2202,7 @@ func TestClientBuilder_MetricsAndTracing(t *testing.T) {
 func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	t.Parallel()
 
-	interceptor := interceptors.NewAuthInterceptor(false, testHeaders)
+	interceptor := interceptors.NewAuthInterceptor(false, testHeaders())
 	var (
 		claims *interceptors.AuthClaims
 		ok     bool
@@ -2209,8 +2216,8 @@ func TestAuthInterceptor_StreamingExtractsHeaders(t *testing.T) {
 	// hands the conn straight to next), so a generated StreamingHandlerConn mock that
 	// returns the request headers is all this test needs.
 	header := http.Header{}
-	header.Set(testHeaders.Sub, "stream-user")
-	header.Set(testHeaders.Tenant, "org-7")
+	header.Set(testHeaders().Sub, "stream-user")
+	header.Set(testHeaders().Tenant, "org-7")
 	conn := mocks.NewMockStreamingHandlerConn(gomock.NewController(t))
 	conn.EXPECT().RequestHeader().Return(header).AnyTimes()
 
