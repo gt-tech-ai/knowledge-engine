@@ -24,6 +24,9 @@ const (
 	cqlPort = "9042/tcp"
 	// LocalDC is the datacenter name of the single-node cluster.
 	LocalDC = "datacenter1"
+	// startupTimeout bounds each readiness step and the whole wait; a cold
+	// Cassandra 5 start on a CI runner takes longer than a minute.
+	startupTimeout = 4 * time.Minute
 )
 
 // TestCassandra wraps a testcontainers Cassandra instance.
@@ -37,8 +40,10 @@ type TestCassandra struct {
 }
 
 // NewTestCassandra starts a single-node Cassandra 5 with a small heap and waits
-// (up to 4 minutes) until cqlsh can query system.local. Each wait step gets the
-// same 4-minute budget: the per-step default (60s) is shorter than a cold start.
+// (up to 4 minutes) until cqlsh can query system.local. Each wait step sets its
+// own 4-minute timeout: a step without one falls back to its built-in 60s default
+// (ForAll's WithStartupTimeoutDefault does not override it), which is shorter than
+// a cold start on a CI runner.
 func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 	req := testcontainers.ContainerRequest{
 		Image:        cassandraImage,
@@ -50,10 +55,11 @@ func NewTestCassandra(ctx context.Context) (*TestCassandra, error) {
 			"CASSANDRA_ENDPOINT_SNITCH": "GossipingPropertyFileSnitch",
 		},
 		WaitingFor: wait.ForAll(
-			wait.ForListeningPort(cqlPort),
+			wait.ForListeningPort(cqlPort).WithStartupTimeout(startupTimeout),
 			wait.ForExec([]string{"cqlsh", "-e", "SELECT release_version FROM system.local"}).
-				WithExitCodeMatcher(func(code int) bool { return code == 0 }),
-		).WithStartupTimeoutDefault(4 * time.Minute).WithDeadline(4 * time.Minute),
+				WithExitCodeMatcher(func(code int) bool { return code == 0 }).
+				WithStartupTimeout(startupTimeout),
+		).WithDeadline(startupTimeout),
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
