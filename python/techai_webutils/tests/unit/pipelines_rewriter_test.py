@@ -8,13 +8,15 @@ call) independent of any product prompt.
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
 from techai_webutils.core.interfaces.retrieval import HistoryTurn
-
 from techai_webutils.pipelines.rewriter import LlmQueryRewriter, RewritePrompt
 
 
 class TestLlmQueryRewriter:
+    """Tests for the LLM query rewriter."""
+
     @pytest.mark.asyncio
     async def test_passthrough_on_first_turn(self) -> None:
         """Test that with no conversation context the query is returned unchanged (no LLM call).

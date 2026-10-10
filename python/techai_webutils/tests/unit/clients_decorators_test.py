@@ -6,9 +6,12 @@ plus the async-first behaviour: an awaited failure is logged/traced, transient e
 ``conftest.py``) is a ``MagicMock`` reproducing the canned returns the proxies forward.
 """
 
+import asyncio
 import json
 from io import StringIO
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from techai_webutils.clients.decorators.proxy import (
     CircuitBreakerProxy,
@@ -22,7 +25,6 @@ from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
 )
-import pytest
 
 
 class _AsyncBoom:
@@ -287,6 +289,7 @@ class TestRetryProxy:
         delays: list[float] = []
 
         async def _record_sleep(seconds: float) -> None:
+            await asyncio.sleep(0)
             delays.append(seconds)
 
         svc = MagicMock()

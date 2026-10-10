@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from typing import override
+
+import pytest
+
 from techai_webutils.clients.jobs.config import JobConfig, JobKind
 from techai_webutils.clients.jobs.memory import (
     InMemoryJobEnqueuer,
@@ -9,19 +13,21 @@ from techai_webutils.clients.jobs.memory import (
     InMemoryWorkerRegistry,
 )
 from techai_webutils.core.interfaces.jobs import Job, PeriodicJob, Worker
-import pytest
 
 
 class SimpleJob(Job):
     """Test job for assertions."""
 
     def __init__(self, kind: str = "test", **kwargs: object) -> None:
+        """Store the job ``kind`` and its keyword ``args``."""
         self._kind = kind
         self._args = dict(kwargs)
 
+    @override
     def kind(self) -> str:
         return self._kind
 
+    @override
     def args(self) -> dict[str, object]:
         return self._args
 
@@ -30,9 +36,11 @@ class CountingWorker(Worker):
     """Worker that counts invocations."""
 
     def __init__(self) -> None:
+        """Start with no calls recorded."""
         self.call_count = 0
         self.last_args: dict[str, object] = {}
 
+    @override
     async def work(self, args: dict[str, object]) -> None:
         self.call_count += 1
         self.last_args = args
@@ -41,6 +49,7 @@ class CountingWorker(Worker):
 class FailingWorker(Worker):
     """Worker that always raises."""
 
+    @override
     async def work(self, args: dict[str, object]) -> None:
         msg = "worker failed"
         raise RuntimeError(msg)
@@ -208,7 +217,7 @@ class TestInMemoryJobScheduler:
         assert len(scheduler.scheduled) == 1
         recorded_job, interval = scheduler.scheduled[0]
         assert recorded_job.kind == "cleanup"
-        assert interval == 300.0
+        assert interval == pytest.approx(300.0)
 
 
 class TestJobConfig:
@@ -228,7 +237,7 @@ class TestJobConfig:
         """
         cfg = JobConfig()
         assert cfg.kind == JobKind.MEMORY
-        assert cfg.database_url == ""
+        assert not cfg.database_url
         assert cfg.max_workers == 10
 
     def test_custom(self) -> None:

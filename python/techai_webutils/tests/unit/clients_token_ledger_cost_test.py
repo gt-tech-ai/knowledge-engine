@@ -27,7 +27,7 @@ _MICRO = Decimal("0.000001")
 def _record(
     model: str, input_tokens: int, output_tokens: int, embed_tokens: int
 ) -> UsageRecord:
-    """A usage record for ``model`` with the given token counts."""
+    """Return a usage record for ``model`` with the given token counts."""
     return UsageRecord(
         scope=UsageScope(org_id="org-1"),
         model=model,
@@ -45,7 +45,7 @@ _tokens = st.integers(min_value=0, max_value=10_000_000)
 @given(_tokens, _tokens, _tokens, st.integers(min_value=0, max_value=1_000_000))
 def test_cost_is_non_negative_monotonic_and_exact(
     input_tokens, output_tokens, embed_tokens, extra
-):
+) -> None:
     """Test that cost is non-negative, monotonic in every token count, and exact to the micro-dollar.
 
     **Why this test is important:**
@@ -54,7 +54,7 @@ def test_cost_is_non_negative_monotonic_and_exact(
 
     **What it tests:**
       - ``cost_of`` is a ``Decimal`` ≥ 0 quantized to 6 places
-      - it equals ``(in×p_in + out×p_out + embed×p_embed) / 1000`` rounded half-even
+      - it equals ``(in*p_in + out*p_out + embed*p_embed) / 1000`` rounded half-even
       - adding ``extra`` tokens to any one count never lowers the cost
     """
     cost = cost_of(
@@ -94,7 +94,7 @@ def test_cost_is_non_negative_monotonic_and_exact(
     )
 
 
-def test_unknown_model_raises():
+def test_unknown_model_raises() -> None:
     """Test that a model with no price fails loudly instead of costing zero.
 
     **Why this test is important:**

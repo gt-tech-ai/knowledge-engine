@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from techai_webutils.clients.cache.decorators import CacheBuilder
 from techai_webutils.core.interfaces.cache import Cache
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
 from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenError
-import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 def _mock_cache(**returns: object) -> AsyncMock:
-    """An ``AsyncMock`` bound to the ``Cache`` interface with optional per-op return values.
+    """Return an ``AsyncMock`` bound to the ``Cache`` interface with optional per-op return values.
 
     ``_mock_cache(get=b"v")`` makes ``get`` a hit; ``_mock_cache(get=None)`` a miss.
     Delegation is recorded natively, so callers can also ``assert_awaited*`` / ``assert_not_awaited``.
@@ -26,7 +30,7 @@ def _mock_cache(**returns: object) -> AsyncMock:
 
 
 def _slow(delay: float, result: object = None) -> Callable[..., Awaitable[object]]:
-    """An async side_effect that sleeps ``delay`` seconds then returns ``result`` (to trip the timeout)."""
+    """Return an async side_effect that sleeps ``delay`` seconds then returns ``result`` (to trip the timeout)."""
 
     async def _op(*_args: object, **_kwargs: object) -> object:
         await asyncio.sleep(delay)
@@ -36,14 +40,14 @@ def _slow(delay: float, result: object = None) -> Callable[..., Awaitable[object
 
 
 def _open_breaker() -> MagicMock:
-    """A ``CircuitBreakerInterface`` mock whose context entry raises ``CircuitOpenError`` (open circuit)."""
+    """Return a ``CircuitBreakerInterface`` mock whose context entry raises ``CircuitOpenError`` (open circuit)."""
     cb = MagicMock(spec=CircuitBreakerInterface)
     cb.__enter__.side_effect = CircuitOpenError()
     return cb
 
 
 def _closed_breaker() -> MagicMock:
-    """A ``CircuitBreakerInterface`` mock that passes through without suppressing errors (closed circuit)."""
+    """Return a ``CircuitBreakerInterface`` mock that passes through without suppressing errors (closed circuit)."""
     cb = MagicMock(spec=CircuitBreakerInterface)
     cb.__exit__.return_value = False
     return cb

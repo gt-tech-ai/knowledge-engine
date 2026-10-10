@@ -4,15 +4,10 @@ The old ``KbSyncBatcher`` dissolved into composable decorators; these preserve i
 (complete / poll-until-complete / poll-timeout / lock-skip) plus the new retry-with-backoff.
 """
 
+import asyncio
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
-from techai_webutils.core.errors.errors import AppError, ErrorCode
-from techai_webutils.core.interfaces.kb_ingestion import (
-    IngestionJob,
-    IngestionJobState,
-    KnowledgeBaseIngestor,
-)
 
 from techai_webutils.clients.kb_ingestion.decorators import (
     PollingIngestor,
@@ -21,10 +16,16 @@ from techai_webutils.clients.kb_ingestion.decorators import (
 from techai_webutils.clients.kb_ingestion.mapping import job_from_payload
 from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
 from techai_webutils.clients.lock import InMemoryLock, SingleWriterRunner
+from techai_webutils.core.errors.errors import AppError, ErrorCode
+from techai_webutils.core.interfaces.kb_ingestion import (
+    IngestionJob,
+    IngestionJobState,
+    KnowledgeBaseIngestor,
+)
 
 
 async def _noop_sleep(_seconds: float) -> None:
-    """A no-op sleep so poll tests run instantly."""
+    """Skip the wait so poll tests run instantly (a no-op sleep)."""
 
 
 def _ingestor_mock() -> MagicMock:
@@ -41,7 +42,7 @@ def _ingestor_mock() -> MagicMock:
 
 
 def _job(state: IngestionJobState, job_id: str = "job-1") -> IngestionJob:
-    """An ``IngestionJob`` in ``state`` (canned return for the ingestor mocks)."""
+    """Return an ``IngestionJob`` in ``state`` (canned return for the ingestor mocks)."""
     return IngestionJob(job_id=job_id, state=state)
 
 
@@ -51,6 +52,8 @@ def _polling(inner: KnowledgeBaseIngestor, **kwargs: float) -> PollingIngestor:
 
 
 class TestPollingIngestor:
+    """Tests for the polling ingestor."""
+
     @pytest.mark.asyncio
     async def test_returns_terminal_start_immediately(self) -> None:
         """Test that a job which starts terminal is returned without polling.
@@ -223,6 +226,8 @@ class TestStopIngestionJob:
 
 
 class TestSingleWriterRunner:
+    """Tests for the single writer runner."""
+
     @pytest.mark.asyncio
     async def test_runs_operation_under_free_lock(self) -> None:
         """Test that the runner runs the guarded op and returns its result when the lock is free.
@@ -260,6 +265,7 @@ class TestSingleWriterRunner:
         ran = False
 
         async def _op() -> str:
+            await asyncio.sleep(0)
             nonlocal ran
             ran = True
             return "started"
@@ -270,6 +276,8 @@ class TestSingleWriterRunner:
 
 
 class TestRetryingIngestor:
+    """Tests for the retrying ingestor."""
+
     @pytest.mark.asyncio
     async def test_retries_transient_then_succeeds(self) -> None:
         """Test that transient AWS failures are retried with backoff until the start succeeds.
@@ -359,6 +367,8 @@ class TestRetryingIngestor:
 
 
 class TestJobFromPayload:
+    """Tests for ``job_from_payload``."""
+
     def test_maps_status_and_flattens_failure_reasons(self) -> None:
         """Test that a Bedrock payload maps to state + a joined failure string.
 
@@ -412,7 +422,7 @@ class TestJobFromPayload:
             }).error
             == "boom"
         )
-        assert job_from_payload({"ingestionJobId": "j", "status": "COMPLETE"}).error == ""
+        assert not job_from_payload({"ingestionJobId": "j", "status": "COMPLETE"}).error
 
     def test_stopping_payload_maps_to_a_non_terminal_job(self) -> None:
         """Test that a STOPPING payload maps to a non-terminal job so the poller keeps polling.

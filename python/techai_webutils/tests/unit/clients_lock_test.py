@@ -33,6 +33,8 @@ def _mock_conn(*, lock_result: bool = True) -> AsyncMock:
 
 
 class TestInMemoryLock:
+    """Tests for the in-memory lock."""
+
     @pytest.mark.asyncio
     async def test_is_async_context_manager_yielding_self(self) -> None:
         """Test that InMemoryLock works as an async context manager and yields itself.
@@ -53,6 +55,8 @@ class TestInMemoryLock:
 
 
 class TestPostgresAdvisoryLock:
+    """Tests for the Postgres advisory lock."""
+
     @pytest.mark.asyncio
     async def test_acquire_returns_lock_result_and_connects_once_with_keepalive(
         self,
@@ -331,6 +335,8 @@ class TestPostgresAdvisoryLock:
 
 
 class TestLockFromConfig:
+    """Tests for ``new_lock_from_config``."""
+
     def test_memory_kind_builds_in_memory_lock(self) -> None:
         """Test the factory builds the in-process lock for kind=memory.
 

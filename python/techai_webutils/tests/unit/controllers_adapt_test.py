@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock
+
+import pytest
 
 from techai_webutils.controllers.adapt import adapt, adapt_no_content
 from techai_webutils.controllers.base import BaseController
 from techai_webutils.core.errors.errors import NotFoundError
-import pytest
 
 
 class TestAdapt:
@@ -29,12 +31,14 @@ class TestAdapt:
         ctrl = BaseController()
 
         async def handler(req: MagicMock) -> MagicMock:
+            await asyncio.sleep(0)
             # Derive the response from the parsed request so the id is threaded end to end.
             resp = MagicMock()
             resp.name = "entity-" + req.id
             return resp
 
         async def parse(raw: dict[str, str]) -> MagicMock:
+            await asyncio.sleep(0)
             req = MagicMock()
             req.id = raw["id"]
             return req
@@ -58,10 +62,13 @@ class TestAdapt:
         """
         ctrl = BaseController()
 
-        async def handler(req: MagicMock) -> MagicMock:
-            raise NotFoundError("not found")
+        async def handler(_req: MagicMock) -> MagicMock:
+            await asyncio.sleep(0)
+            msg = "not found"
+            raise NotFoundError(msg)
 
         async def parse(raw: dict[str, str]) -> MagicMock:
+            await asyncio.sleep(0)
             req = MagicMock()
             req.id = raw["id"]
             return req
@@ -92,6 +99,7 @@ class TestAdaptNoContent:
             pass
 
         async def parse(raw: dict[str, str]) -> MagicMock:
+            await asyncio.sleep(0)
             req = MagicMock()
             req.id = raw["id"]
             return req

@@ -23,8 +23,9 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-from techai_webutils.clients.cache.local import LocalCache
 import pytest
+
+from techai_webutils.clients.cache.local import LocalCache
 
 
 class TestLocalCache:

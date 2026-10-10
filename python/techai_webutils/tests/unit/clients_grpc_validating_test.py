@@ -21,7 +21,6 @@ from techai_webutils.clients.rpc.grpc.interceptors.auth import (
 )
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
-    _ValidatingServerInterceptor,
 )
 
 
@@ -33,9 +32,8 @@ def _details(method: str = "/svc/M") -> object:
 async def _wrap(handler_fn: AsyncMock) -> grpc.RpcMethodHandler:
     """Wrap a unary handler through the validate interceptor and return the rebuilt handler."""
     real = grpc.unary_unary_rpc_method_handler(handler_fn)
-    return await _ValidatingServerInterceptor().intercept_service(
-        AsyncMock(return_value=real), _details()
-    )
+    [interceptor] = ServerInterceptorBuilder().with_validation().build()
+    return await interceptor.intercept_service(AsyncMock(return_value=real), _details())
 
 
 _HEADERS = HeaderClaimMapping(
@@ -142,5 +140,5 @@ class TestValidatingServerInterceptor:
         interceptors = (
             ServerInterceptorBuilder().with_auth(_HEADERS).with_validation().build()
         )
-        types = [type(i) for i in interceptors]
-        assert types == [AuthServerInterceptor, _ValidatingServerInterceptor]
+        names = [type(i).__name__ for i in interceptors]
+        assert names == [AuthServerInterceptor.__name__, "_ValidatingServerInterceptor"]

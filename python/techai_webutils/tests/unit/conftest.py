@@ -6,8 +6,9 @@ now-collapsed ``tests/<layer>/conftest.py`` files:
 - ``isolate_config_env`` / ``mock_redis`` — from the former ``foundation/conftest.py``.
 - ``s3_config`` / ``sqs_config`` / ``mock_service`` — from the former ``clients/conftest.py``.
 - ``metrics_mock`` — the spec'd ``MetricsProvider`` shared by the client-decorator metric tests.
+- ``aws_client`` — the mocked aiobotocore client the S3/SQS clients open.
 
-The six fixture names are disjoint, so the merge introduces no collisions. The
+The seven fixture names are disjoint, so the merge introduces no collisions. The
 integration suite keeps its own ``sqs_config`` / ``s3_config`` (real ElasticMQ/MinIO)
 in ``tests/integration/conftest.py``, resolved independently for that directory.
 """
@@ -15,16 +16,18 @@ in ``tests/integration/conftest.py``, resolved independently for that directory.
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
-from unittest.mock import AsyncMock, MagicMock
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from techai_webutils.clients.messaging.config import SQSConfig
+from techai_webutils.clients.storage.config import S3Config
 from techai_webutils.core.interfaces.metrics import (
     MetricCounter,
     MetricHistogram,
     MetricsProvider,
 )
-from techai_webutils.clients.storage.config import S3Config
 from techai_webutils.foundation.config.bridge import reset_config
 from techai_webutils.foundation.config.settings import (
     DatabaseSettings,
@@ -35,7 +38,9 @@ from techai_webutils.foundation.config.settings import (
     ServerSettings,
     SQSSettings,
 )
-import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _TEST_PREFIX = "MYAPP_"
 """The env-var prefix the config tests export under."""
@@ -99,6 +104,7 @@ def mock_redis() -> AsyncMock:
 
 @pytest.fixture
 def s3_config() -> S3Config:
+    """Provide an S3 config pointed at the local MinIO defaults."""
     return S3Config(
         endpoint="http://localhost:9000",
         bucket="test-bucket",
@@ -110,6 +116,7 @@ def s3_config() -> S3Config:
 
 @pytest.fixture
 def sqs_config() -> SQSConfig:
+    """Provide an SQS config pointed at the local ElasticMQ defaults."""
     return SQSConfig(
         endpoint="http://localhost:9324",
         region="us-east-1",
@@ -120,8 +127,24 @@ def sqs_config() -> SQSConfig:
 
 
 @pytest.fixture
+def aws_client() -> Iterator[AsyncMock]:
+    """Patch ``aiobotocore.session.get_session`` for the test; yield the client it opens.
+
+    Every ``session.create_client(...)`` entered while the test runs yields this one mock, so a
+    test opens the real S3/SQS client through its async context and drives the AWS API mock.
+    """
+    client = AsyncMock()
+    opened = MagicMock()
+    opened.__aenter__ = AsyncMock(return_value=client)
+    session = MagicMock()
+    session.create_client = MagicMock(return_value=opened)
+    with patch("aiobotocore.session.get_session", return_value=session):
+        yield client
+
+
+@pytest.fixture
 def mock_service() -> MagicMock:
-    """A MagicMock service reproducing the canned returns the proxies forward.
+    """Return a MagicMock service reproducing the canned returns the proxies forward.
 
     ``get_item(id)`` -> ``{"id": id, "name": "test"}``; ``create_item(name)`` ->
     ``{"id": "new", "name": name}``; ``failing_method()`` raises ``RuntimeError``, so the
@@ -136,7 +159,7 @@ def mock_service() -> MagicMock:
 
 @pytest.fixture
 def metrics_mock() -> tuple[MagicMock, dict[str, MagicMock]]:
-    """A ``MetricsProvider`` mock plus its instruments, recorded by metric name as they are declared.
+    """Return a ``MetricsProvider`` mock plus its instruments, recorded by metric name as they are declared.
 
     Each ``counter`` / ``histogram`` declaration returns a fresh ``MagicMock(spec=MetricCounter)`` /
     ``MagicMock(spec=MetricHistogram)`` stored under the metric name.

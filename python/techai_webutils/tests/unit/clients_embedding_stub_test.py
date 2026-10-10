@@ -7,6 +7,7 @@ no Ollama — the stub-first property (ARCHITECTURE.md#stub-first-backends).
 from __future__ import annotations
 
 import pytest
+
 from techai_webutils.clients.embedding.builder import (
     EmbeddingConfig,
     EmbeddingKind,

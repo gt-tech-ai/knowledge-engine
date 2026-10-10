@@ -1,7 +1,8 @@
 """Tests for TokenBucketRateLimiter."""
 
-from techai_webutils.foundation.resilience.rate_limiter import TokenBucketRateLimiter
 import pytest
+
+from techai_webutils.foundation.resilience.rate_limiter import TokenBucketRateLimiter
 
 
 class TestTokenBucketRateLimiter:

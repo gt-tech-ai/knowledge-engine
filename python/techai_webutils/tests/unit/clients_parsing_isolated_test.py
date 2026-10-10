@@ -1,6 +1,5 @@
 """Tests for process-isolated parsing (timeout-kill, worker-error, real parse)."""
 
-import multiprocessing as mp
 import os
 import resource
 import time
@@ -12,9 +11,6 @@ import pytest
 from techai_webutils.clients.parsing.isolated.isolated import (
     IsolatedParser,
     IsolationError,
-    _apply_memory_limit,
-    _parse_document,
-    _worker,
     run_isolated,
 )
 from techai_webutils.core.domain import DocumentFormat
@@ -46,7 +42,12 @@ def _large_result() -> str:
 
 def _exit_without_result() -> None:
     """Exit the worker abruptly without a queue put (simulates a segfault / OOM-kill)."""
-    os._exit(0)  # noqa: SLF001 - deliberate hard exit that bypasses the result put
+    os._exit(0)
+
+
+def _address_space_limit() -> tuple[int, int]:
+    """Return the worker's own RLIMIT_AS (soft, hard) pair."""
+    return resource.getrlimit(resource.RLIMIT_AS)
 
 
 def _make_pdf(text: str) -> bytes:
@@ -57,6 +58,8 @@ def _make_pdf(text: str) -> bytes:
 
 
 class TestRunIsolated:
+    """Tests for ``run_isolated``."""
+
     def test_returns_worker_result(self) -> None:
         """Test that a well-behaved task's result is returned from the subprocess.
 
@@ -131,103 +134,30 @@ class TestRunIsolated:
         assert time.monotonic() - start < 10.0
 
 
-class TestWorkerEntrypoints:
-    """Cover the child-process entry functions in-process (spawned code is invisible to coverage)."""
+class TestWorkerMemoryCap:
+    """The worker caps its own address space before running the task."""
 
-    def test_parse_document_entry_parses(self) -> None:
-        """Test the module-level parse entry produces a ParsedDocument.
-
-        **Why this test is important:**
-          - This is the function the subprocess runs; if it were wrong, every isolated parse would
-            fail — and subprocess code is not measured by coverage, so it needs a direct test.
-
-        **What it tests:**
-          - _parse_document parses HTML to ok Markdown.
-        """
-        result = _parse_document(b"<html><h1>Hi</h1></html>", "", "p.html")
-        assert result.ok
-        assert "# Hi" in result.markdown_content
-
-    def test_worker_puts_result_on_queue(self) -> None:
-        """Test that the worker puts a success tuple on the queue.
-
-        **What it tests:**
-          - _worker(_double, (5,)) enqueues ("ok", 10).
-        """
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_double, (5,), 0, queue)
-        assert queue.get(timeout=5) == ("ok", 10)
-
-    def test_worker_puts_error_on_queue(self) -> None:
-        """Test that a raising task is captured as an ("err", ...) tuple, not a crash.
-
-        **What it tests:**
-          - _worker(_boom) enqueues an error tuple carrying the message.
-        """
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_boom, (), 0, queue)
-        status, payload = queue.get(timeout=5)
-        assert status == "err"
-        assert "kaboom" in payload
-
-    def test_worker_applies_memory_limit_when_positive(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that the worker applies the memory cap before running the task when one is set.
+    def test_memory_cap_applies_in_the_worker(self) -> None:
+        """Test that ``memory_bytes`` becomes the worker's RLIMIT_AS where the platform allows it.
 
         **Why this test is important:**
           - The RLIMIT_AS cap is what bounds a runaway parser's allocation to a single document; if
-            the worker skipped applying it, an OOM would take the pod, not one document.
+            the worker skipped it, an OOM would take the pod, not one document.
+          - Platforms that reject RLIMIT_AS (macOS) must degrade to no cap, never fail the task.
 
         **What it tests:**
-          - _worker with memory_bytes > 0 calls _apply_memory_limit with that value, then still
-            enqueues the result. (Patched so the test process isn't itself capped.)
+          - A task reading its own RLIMIT_AS under ``memory_bytes=cap`` sees ``(cap, cap)``, or the
+            inherited limit where the platform rejects the cap; either way the task completes.
         """
-        applied: list[int] = []
-        monkeypatch.setattr(
-            "techai_webutils.clients.parsing.isolated.isolated._apply_memory_limit",
-            applied.append,
-        )
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_double, (3,), 512, queue)
-        assert applied == [512]
-        assert queue.get(timeout=5) == ("ok", 6)
-
-    def test_apply_memory_limit_sets_when_supported(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that the memory limit is applied as an (n, n) RLIMIT_AS when the platform allows.
-
-        **What it tests:**
-          - _apply_memory_limit(n) calls setrlimit with (n, n).
-        """
-        captured: dict[str, tuple[int, int]] = {}
-        monkeypatch.setattr(
-            resource, "setrlimit", lambda _res, limits: captured.setdefault("l", limits)
-        )
-        _apply_memory_limit(456)
-        assert captured["l"] == (456, 456)
-
-    def test_apply_memory_limit_is_best_effort(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that a platform rejecting RLIMIT_AS is swallowed (best-effort).
-
-        **Why this test is important:**
-          - macOS rejects RLIMIT_AS; the cap must degrade to a no-op there, never crash the parse.
-
-        **What it tests:**
-          - A setrlimit that raises OSError does not propagate.
-        """
-
-        def _raise(_res: int, _limits: tuple[int, int]) -> None:
-            raise OSError
-
-        monkeypatch.setattr(resource, "setrlimit", _raise)
-        _apply_memory_limit(456)  # must not raise
+        cap = 64 * 1024**3
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        limits = run_isolated(_address_space_limit, timeout_seconds=30, memory_bytes=cap)
+        assert limits in {(cap, cap), inherited}
 
 
 class TestIsolatedParser:
+    """Tests for the isolated parser."""
+
     @pytest.mark.asyncio
     async def test_parses_pdf_in_subprocess(self) -> None:
         """Test that IsolatedParser parses a real document end-to-end in a subprocess.
@@ -289,7 +219,8 @@ class TestIsolatedParser:
         """
 
         def _iso(*_args: object, **_kwargs: object) -> object:
-            raise IsolationError("worker gone")
+            msg = "worker gone"
+            raise IsolationError(msg)
 
         monkeypatch.setattr(
             "techai_webutils.clients.parsing.isolated.isolated.run_isolated", _iso

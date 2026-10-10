@@ -20,6 +20,8 @@ from techai_webutils.core.interfaces.metadata import MetadataExtractor
 
 
 class TestExtractMetadata:
+    """Tests for ``extract_metadata``."""
+
     def test_produces_all_fields(self) -> None:
         """Test that extraction reports format, page/word count, language, and timestamp.
 
@@ -137,7 +139,7 @@ def test_metadata_package_imports_without_langdetect() -> None:
         "else:\n"
         "    raise AssertionError('expected the blocked langdetect import on backend selection')\n"
     )
-    result = subprocess.run(  # noqa: S603 — sys.executable on a fixed literal script (no external input)
+    result = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,

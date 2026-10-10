@@ -1,5 +1,6 @@
-"""De-risk probe: prove a Ray computation runs over a Ray TESTCONTAINER via the Ray JOBS API —
-reliably, with no ``ray://`` client hang across the macOS/Docker boundary.
+"""De-risk probe: a Ray computation runs over a Ray testcontainer via the Ray Jobs API.
+
+It runs reliably, with no ``ray://`` client hang across the macOS/Docker boundary.
 
 Ray deprecated the ``ray://`` client in favor of Ray Jobs; ``ray.init(address="ray://…")`` from a
 macOS host hangs indefinitely (see the plan's ## Deviations). This probe validates the chosen
@@ -39,8 +40,9 @@ _TERMINAL_STATUSES = {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.STOPPED}
 
 
 def _ray_image_present() -> bool:
-    """True if Docker is reachable AND the Ray image is already pulled — skip otherwise (never hang on
-    a cold pull or a missing daemon).
+    """Return True if Docker is reachable AND the Ray image is already pulled.
+
+    Skip otherwise: never hang on a cold pull or a missing daemon.
     """
     try:
         from testcontainers.core.docker_client import DockerClient
@@ -64,8 +66,10 @@ def submit_ray_job(
     runtime_env: Mapping[str, object] | None = None,
     timeout_s: int = 120,
 ) -> str:
-    """Submit a Ray job, retrying the transient ``No available agent`` 500 while the head's job agent
-    starts (it lags the dashboard API by a few seconds). Bounded — never an unbounded hang.
+    """Submit a Ray job, retrying the transient ``No available agent`` 500.
+
+    The head's job agent starts a few seconds after the dashboard API. Bounded — never an
+    unbounded hang.
     """
     deadline = time.monotonic() + timeout_s
     last_exc: Exception | None = None

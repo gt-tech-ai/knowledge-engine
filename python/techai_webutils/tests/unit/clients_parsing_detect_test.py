@@ -17,6 +17,8 @@ def _ooxml(kind_dir: str) -> bytes:
 
 
 class TestDetectFormat:
+    """Tests for ``detect_format``."""
+
     def test_pdf_magic_wins_over_wrong_extension(self) -> None:
         """Test that PDF magic bytes override a mismatched .txt extension.
 

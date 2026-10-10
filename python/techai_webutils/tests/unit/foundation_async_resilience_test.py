@@ -1,6 +1,9 @@
 """Tests for async retry + async circuit breaker (the asyncio-path resiliency variants)."""
 
+import asyncio
+
 import pytest
+
 from techai_webutils.core.errors.errors import (
     AppError,
     ErrorCode,
@@ -21,6 +24,8 @@ from techai_webutils.foundation.resilience.circuit_breaker import (
 
 
 class TestRetryTransientAsync:
+    """Tests for ``retry_transient_async``."""
+
     @pytest.mark.asyncio
     async def test_retries_transient_then_succeeds(self) -> None:
         """Test that a coroutine raising a transient AppError is retried until it succeeds.
@@ -36,6 +41,7 @@ class TestRetryTransientAsync:
 
         @retry_transient_async(max_attempts=3, base_delay=0.001, max_delay=0.005)
         async def call() -> str:
+            await asyncio.sleep(0)
             nonlocal attempts
             attempts += 1
             if attempts < 3:
@@ -60,9 +66,11 @@ class TestRetryTransientAsync:
 
         @retry_transient_async(max_attempts=3, base_delay=0.001)
         async def call() -> str:
+            await asyncio.sleep(0)
             nonlocal attempts
             attempts += 1
-            raise InvalidInputError("bad")
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         with pytest.raises(InvalidInputError):
             await call()
@@ -86,6 +94,7 @@ class TestRetryTransientAsync:
         delays: list[float] = []
 
         async def _record_sleep(seconds: float) -> None:
+            await asyncio.sleep(0)
             delays.append(seconds)
 
         attempts = 0
@@ -94,6 +103,7 @@ class TestRetryTransientAsync:
             max_attempts=3, base_delay=0.01, max_delay=1.0, sleep=_record_sleep
         )
         async def call() -> str:
+            await asyncio.sleep(0)
             nonlocal attempts
             attempts += 1
             if attempts < 3:
@@ -122,6 +132,7 @@ class TestRetryTransientAsync:
         delays: list[float] = []
 
         async def _record_sleep(seconds: float) -> None:
+            await asyncio.sleep(0)
             delays.append(seconds)
 
         pushbacks = iter(["2500", "60000"])
@@ -130,6 +141,7 @@ class TestRetryTransientAsync:
             max_attempts=3, base_delay=0.01, max_delay=5.0, sleep=_record_sleep
         )
         async def call() -> str:
+            await asyncio.sleep(0)
             delay = next(pushbacks, None)
             if delay is not None:
                 raise AppError(
@@ -156,6 +168,8 @@ class TestRetryTransientAsync:
 
 
 class TestAsyncCircuitBreaker:
+    """Tests for the async circuit breaker."""
+
     @pytest.mark.asyncio
     async def test_opens_after_threshold_and_fails_fast(self) -> None:
         """Test that the breaker opens after N failures and then fails fast without running the body.
@@ -170,7 +184,7 @@ class TestAsyncCircuitBreaker:
         """
         cb = AsyncCircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
         for _ in range(2):
-            with pytest.raises(ValueError):  # noqa: PT012
+            with pytest.raises(ValueError, match="fail"):  # noqa: PT012
                 async with cb:
                     msg = "fail"
                     raise ValueError(msg)

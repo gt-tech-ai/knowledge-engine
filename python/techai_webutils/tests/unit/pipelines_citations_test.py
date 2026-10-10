@@ -1,8 +1,8 @@
 """Tests for passage-based citation extraction (one citation per passage, positionally aligned)."""
 
 import pytest
-from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
+from techai_webutils.core.interfaces.retrieval import RetrievalResult
 from techai_webutils.pipelines.citations import PassageCitationExtractor
 
 
@@ -21,6 +21,8 @@ def _source(
 
 
 class TestPassageCitationExtractor:
+    """Tests for the passage citation extractor."""
+
     @pytest.mark.asyncio
     async def test_maps_passage_to_citation(self) -> None:
         """Test that a source passage maps to a Citation carrying its page + relevance.
@@ -38,7 +40,7 @@ class TestPassageCitationExtractor:
         assert len(citations) == 1
         assert citations[0].document_id == "doc-1"
         assert citations[0].page_number == 4
-        assert citations[0].confidence == 0.92
+        assert citations[0].confidence == pytest.approx(0.92)
 
     @pytest.mark.asyncio
     async def test_emits_one_citation_per_passage_in_order(self) -> None:

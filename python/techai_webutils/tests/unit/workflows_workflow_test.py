@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from unittest.mock import MagicMock
 
 import pytest
+
 from techai_webutils.workflows.base import BaseAsyncWorkflow, BaseWorkflow
 from techai_webutils.workflows.decorators import AsyncWorkflowBuilder, WorkflowBuilder
 
@@ -41,7 +43,7 @@ class TestBaseWorkflow:
           - ValueError raised by the callable is re-raised from execute
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "orchestration failed"
             raise ValueError(msg)
 
@@ -67,6 +69,7 @@ class TestBaseAsyncWorkflow:
         """
 
         async def orchestrate(x: str) -> str:
+            await asyncio.sleep(0)
             return x + "-processed"
 
         w = BaseAsyncWorkflow(orchestrate)
@@ -86,7 +89,8 @@ class TestBaseAsyncWorkflow:
           - ValueError raised by the async callable is re-raised from execute
         """
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async orchestration failed"
             raise ValueError(msg)
 
@@ -139,7 +143,7 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "workflow error"
             raise ValueError(msg)
 
@@ -247,7 +251,7 @@ class TestMetricsDecorator:
         """
         histogram = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "metrics error"
             raise ValueError(msg)
 
@@ -365,7 +369,7 @@ class TestWorkflowRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "unexpected boom"
             raise RuntimeError(msg)
 
@@ -392,8 +396,9 @@ class TestWorkflowRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InvalidInputError
 
-        def failing(x: str) -> str:
-            raise InvalidInputError("bad input")
+        def failing(_x: str) -> str:
+            msg = "bad input"
+            raise InvalidInputError(msg)
 
         w = (
             WorkflowBuilder(BaseWorkflow(failing), "app-error-workflow")
@@ -461,7 +466,7 @@ class TestSyncWorkflowInsideRunningLoop:
           - ValueError raised by the callable propagates through _run_sync
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "loop error"
             raise ValueError(msg)
 
@@ -517,7 +522,8 @@ class TestAsyncWorkflowResilienceDecorators:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async unexpected"
             raise RuntimeError(msg)
 
@@ -547,6 +553,7 @@ class TestAsyncWorkflowResilienceDecorators:
         """
 
         async def orchestrate(x: str) -> str:
+            await asyncio.sleep(0)
             return "full-" + x
 
         logger = MagicMock()

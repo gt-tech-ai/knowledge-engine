@@ -13,6 +13,7 @@ worker-side exception surfaces as an isolated FAIL (real RayTaskError), not a ba
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import pytest
@@ -32,15 +33,16 @@ if not os.environ.get("RAY_INTEGRATION"):
         allow_module_level=True,
     )
 
-from techai_webutils.core.interfaces.execution import StepResult  # noqa: E402
-from techai_webutils.execution.executor.pooled import PooledExecutor, PooledWorker  # noqa: E402
-from techai_webutils.execution.executor.ray_executor import RayExecutor  # noqa: E402
-from techai_webutils.execution.executor.real_ray_pool import ray_worker_factory  # noqa: E402
-from techai_webutils.execution.executor.real_ray_runtime import RealRayRuntime  # noqa: E402
+from techai_webutils.core.interfaces.execution import StepResult
+from techai_webutils.execution.executor.pooled import PooledExecutor, PooledWorker
+from techai_webutils.execution.executor.ray_executor import RayExecutor
+from techai_webutils.execution.executor.real_ray_pool import ray_worker_factory
+from techai_webutils.execution.executor.real_ray_runtime import RealRayRuntime
 
 
 async def _pass_even(item: int) -> StepResult:
     """Module-level mapper (picklable for Ray): pass even items, raise on odd ones."""
+    await asyncio.sleep(0)
     if item % 2 == 1:
         msg = f"odd item {item}"
         raise ValueError(msg)
@@ -63,6 +65,7 @@ class _EvenWorker:
 
 async def _build_even_worker() -> PooledWorker[int]:
     """Module-level WorkerFactory (picklable for Ray): build one _EvenWorker per actor."""
+    await asyncio.sleep(0)
     return _EvenWorker()
 
 

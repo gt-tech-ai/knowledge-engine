@@ -24,9 +24,10 @@ structured output format directly.
 Run with: pytest tests/python/test_foundation/test_logger.py
 """
 
-from io import StringIO
 import json
 import logging
+from io import StringIO
+from typing import NoReturn
 
 import pytest
 
@@ -35,6 +36,12 @@ from techai_webutils.foundation.logger.logger import (
     configure_logging,
     get_logger,
 )
+
+
+def _raise_boom() -> NoReturn:
+    """Raise the error whose traceback ``exception`` logs."""
+    msg = "boom"
+    raise ValueError(msg)
 
 
 class TestStructuredLogger:
@@ -197,7 +204,7 @@ class TestStructlogLoggerDelegation:
         log.warning("w")
         log.error("e")
         try:
-            raise ValueError("boom")
+            _raise_boom()
         except ValueError:
             log.exception("x")
         log.bind(a=2).info("bound")

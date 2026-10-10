@@ -12,7 +12,7 @@ from techai_webutils.clients.decorators.proxy import RetryProxy
 from techai_webutils.core.errors import AppError, ErrorCode, QuotaExceededError
 
 
-def test_resource_exhausted_maps_429_and_grpc_8():
+def test_resource_exhausted_maps_429_and_grpc_8() -> None:
     """Test that RESOURCE_EXHAUSTED maps to HTTP 429 and gRPC 8.
 
     **Why this test is important:**
@@ -30,7 +30,7 @@ def test_resource_exhausted_maps_429_and_grpc_8():
     assert err.grpc_status == 8
 
 
-def test_quota_exceeded_error_is_neither_transient_nor_permanent():
+def test_quota_exceeded_error_is_neither_transient_nor_permanent() -> None:
     """Test that ``QuotaExceededError`` carries the quota code and its details, unclassified.
 
     **Why this test is important:**
@@ -53,7 +53,7 @@ def test_quota_exceeded_error_is_neither_transient_nor_permanent():
 
 
 @pytest.mark.asyncio
-async def test_retry_proxy_does_not_retry_quota_exceeded():
+async def test_retry_proxy_does_not_retry_quota_exceeded() -> None:
     """Test that ``RetryProxy`` makes exactly one attempt on a quota rejection.
 
     **Why this test is important:**

@@ -7,8 +7,8 @@ are not empty for streamed traffic, while ``stream()`` stays the text-only API.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+import asyncio
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -26,9 +26,12 @@ from techai_webutils.core.interfaces.llm import (
 )
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 
 def _messages(user: str) -> list[LLMMessage]:
-    """A system + user message pair."""
+    """Return a system + user message pair."""
     return [
         LLMMessage(role="system", content="be brief"),
         LLMMessage(role="user", content=user),
@@ -42,18 +45,20 @@ async def _collect(iterator: AsyncIterator[Any]) -> list[Any]:
 
 async def _events(events: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
     """Yield Converse stream events in order (the shape aiobotocore's EventStream yields)."""
+    await asyncio.sleep(0)
     for event in events:
         yield event
 
 
 async def _lines(lines: list[str]) -> AsyncIterator[str]:
     """Yield NDJSON lines in order (the shape ``httpx.Response.aiter_lines`` yields)."""
+    await asyncio.sleep(0)
     for line in lines:
         yield line
 
 
 def _ollama_client(lines: list[str], *, status: int = 200) -> MagicMock:
-    """An ``httpx.AsyncClient`` mock whose ``stream()`` context yields the given NDJSON lines.
+    """Return an ``httpx.AsyncClient`` mock whose ``stream()`` context yields the given NDJSON lines.
 
     The response is a ``MagicMock(spec=httpx.Response)``; a non-2xx ``status`` makes its
     ``raise_for_status`` raise the real ``httpx.HTTPStatusError``.
@@ -61,7 +66,7 @@ def _ollama_client(lines: list[str], *, status: int = 200) -> MagicMock:
     response = MagicMock(spec=httpx.Response)
     response.status_code = status
     response.aiter_lines = MagicMock(return_value=_lines(lines))
-    if status >= 400:  # noqa: PLR2004
+    if status >= 400:
         request = httpx.Request("POST", "http://ollama/api/chat")
         response.raise_for_status = MagicMock(
             side_effect=httpx.HTTPStatusError(
@@ -77,7 +82,7 @@ def _ollama_client(lines: list[str], *, status: int = 200) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_bedrock_stream_with_usage_yields_usage_last():
+async def test_bedrock_stream_with_usage_yields_usage_last() -> None:
     """Test that Bedrock's streamed Converse ends with the ``metadata`` usage as a ``StreamUsage``.
 
     **Why this test is important:**
@@ -130,7 +135,7 @@ async def test_bedrock_stream_with_usage_yields_usage_last():
 
 
 @pytest.mark.asyncio
-async def test_ollama_stream_with_usage_yields_usage_last():
+async def test_ollama_stream_with_usage_yields_usage_last() -> None:
     """Test that Ollama's streamed chat ends with the ``done`` chunk's counts as a ``StreamUsage``.
 
     **Why this test is important:**
@@ -143,8 +148,10 @@ async def test_ollama_stream_with_usage_yields_usage_last():
     client = _ollama_client([
         '{"model":"llama3.2","message":{"content":"Ish"},"done":false}',
         '{"model":"llama3.2","message":{"content":"mael"},"done":false}',
-        '{"model":"llama3.2","message":{"content":""},"done":true,"done_reason":"stop",'
-        '"prompt_eval_count":7,"eval_count":2}',
+        (
+            '{"model":"llama3.2","message":{"content":""},"done":true,"done_reason":"stop",'
+            '"prompt_eval_count":7,"eval_count":2}'
+        ),
     ])
 
     items = await _collect(
@@ -166,7 +173,9 @@ async def test_ollama_stream_with_usage_yields_usage_last():
 @pytest.mark.parametrize(
     ("status", "code"), [(503, ErrorCode.UNAVAILABLE), (400, ErrorCode.INTERNAL)]
 )
-async def test_ollama_stream_with_usage_codes_http_errors(status: int, code: ErrorCode):
+async def test_ollama_stream_with_usage_codes_http_errors(
+    status: int, code: ErrorCode
+) -> None:
     """Test that a non-2xx streamed Ollama response raises a coded ``AppError``.
 
     **Why this test is important:**
@@ -190,7 +199,7 @@ async def test_ollama_stream_with_usage_codes_http_errors(status: int, code: Err
 
 
 @pytest.mark.asyncio
-async def test_stub_stream_with_usage_yields_usage_last():
+async def test_stub_stream_with_usage_yields_usage_last() -> None:
     """Test that the stub streams its echo and then a fixed, deterministic ``StreamUsage``.
 
     **Why this test is important:**
@@ -213,7 +222,7 @@ async def test_stub_stream_with_usage_yields_usage_last():
 
 
 @pytest.mark.asyncio
-async def test_stream_filters_out_usage():
+async def test_stream_filters_out_usage() -> None:
     """Test that ``stream()`` on a usage-aware provider yields only text.
 
     **Why this test is important:**
@@ -246,9 +255,10 @@ class _TextOnlyProvider(NoOpAsyncResource, LLMProvider):
         raise NotImplementedError
 
     async def stream(
-        self, messages: list[LLMMessage], config: LLMConfig | None = None
+        self, _messages: list[LLMMessage], _config: LLMConfig | None = None
     ) -> AsyncIterator[str]:
         async def _gen() -> AsyncIterator[str]:
+            await asyncio.sleep(0)
             yield "a"
             yield "b"
 
@@ -259,7 +269,7 @@ class _TextOnlyProvider(NoOpAsyncResource, LLMProvider):
 
 
 @pytest.mark.asyncio
-async def test_default_stream_with_usage_yields_no_usage():
+async def test_default_stream_with_usage_yields_no_usage() -> None:
     """Test that the base ``stream_with_usage`` re-yields ``stream()`` and adds no usage.
 
     **Why this test is important:**

@@ -7,10 +7,12 @@ untouched, so the tests assert exactly that: the connect retries, an exhausted c
 transient error, and ``submit`` connects-then-dispatches without retrying the task itself.
 """
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.errors.errors import ErrorCode, UnavailableError
 from techai_webutils.core.interfaces.execution import StepResult
 from techai_webutils.execution.executor.ray_runtime import RayRuntime
@@ -21,11 +23,14 @@ _FAST = {"max_attempts": 5, "base_delay": 0.0, "max_delay": 0.0}
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing mapper."""
+    """Map ``item`` to a passing step (a trivial always-passing mapper)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
 class TestResilientRayRuntime:
+    """Tests for the resilient Ray runtime."""
+
     @pytest.mark.asyncio
     async def test_warm_up_retries_a_flaky_cold_connect(self) -> None:
         """Test that warm_up retries a transient cold-connect failure until it succeeds.

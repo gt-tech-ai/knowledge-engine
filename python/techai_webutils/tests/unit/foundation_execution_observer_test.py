@@ -1,9 +1,11 @@
 """Tests for the MetricsLoggingObserver (sole per-item metric emitter for a fan-out)."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
 from techai_webutils.core.interfaces.execution import StepResult
 from techai_webutils.core.interfaces.logger import Logger
 from techai_webutils.core.interfaces.metrics import (
@@ -57,15 +59,17 @@ def _recording_metrics() -> tuple[MagicMock, SimpleNamespace]:
 
     counters = {"ingest_completed_total": completed, "ingest_failed_total": failed}
     metrics = MagicMock(spec=MetricsProvider)
-    metrics.gauge.side_effect = lambda name, help_text, labels=None: gauge
-    metrics.counter.side_effect = lambda name, help_text, labels=None: counters[name]
-    metrics.histogram.side_effect = lambda name, help_text, labels=None, buckets=None: (
-        histogram
+    metrics.gauge.side_effect = lambda _name, _help_text, _labels=None: gauge
+    metrics.counter.side_effect = lambda name, _help_text, _labels=None: counters[name]
+    metrics.histogram.side_effect = (
+        lambda _name, _help_text, _labels=None, _buckets=None: histogram
     )
     return metrics, acc
 
 
 class TestMetricsLoggingObserver:
+    """Tests for the metrics logging observer."""
+
     @pytest.mark.asyncio
     async def test_emits_series_and_inflight_returns_to_zero(self) -> None:
         """Test that a driven fan-out emits completed/failed/duration and inflight nets to zero.
@@ -85,6 +89,7 @@ class TestMetricsLoggingObserver:
         )
 
         async def fn(item: int) -> StepResult:
+            await asyncio.sleep(0)
             if item == 2:
                 msg = "boom"
                 raise ValueError(msg)
@@ -92,7 +97,7 @@ class TestMetricsLoggingObserver:
 
         await fan_out([0, 1, 2, 3], 2, fn, observer, name="poll")
 
-        assert acc.inflight == 0.0
+        assert acc.inflight == pytest.approx(0.0)
         assert acc.completed == 4
         assert acc.failed == 1
         assert len(acc.durations) == 1

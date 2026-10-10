@@ -7,6 +7,7 @@ S3/MinIO — the stub-first property (ARCHITECTURE.md#stub-first-backends). Pari
 from __future__ import annotations
 
 import pytest
+
 from techai_webutils.clients.storage.builder import (
     StorageConfig,
     StorageKind,

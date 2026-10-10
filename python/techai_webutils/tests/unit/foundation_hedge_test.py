@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import cast
 
 import pytest
+
 from techai_webutils.clients.decorators.proxy import HedgeProxy
 from techai_webutils.foundation.resilience.hedge import (
     DelayHedger,
@@ -73,6 +75,7 @@ async def test_disabled_hedger_runs_once() -> None:
     calls = 0
 
     async def op() -> str:
+        await asyncio.sleep(0)
         nonlocal calls
         calls += 1
         return "once"
@@ -93,9 +96,7 @@ def test_hedger_from_config_unknown_kind_raises() -> None:
     What it tests:
         - ``hedger_from_config`` raises ``ValueError`` for a kind outside the enum.
     """
-    bad = HedgeConfig.__new__(HedgeConfig)
-    object.__setattr__(bad, "kind", "bogus")
-    object.__setattr__(bad, "delay_seconds", 0.05)
+    bad = HedgeConfig(kind=cast("HedgeKind", "bogus"), delay_seconds=0.05)
 
     with pytest.raises(ValueError, match="unknown hedger kind"):
         hedger_from_config(bad)

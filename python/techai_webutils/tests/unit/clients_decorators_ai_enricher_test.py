@@ -6,8 +6,8 @@ GenAI semantic attributes, so the OTel span is the only boundary mocked here.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+import asyncio
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -26,12 +26,15 @@ from techai_webutils.core.interfaces.llm import (
 )
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 _SPAN_SOURCE = "techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"
 """Import site of the OTel current-span lookup the enricher stamps."""
 
 
 def _messages() -> list[LLMMessage]:
-    """A system + user message pair."""
+    """Return a system + user message pair."""
     return [
         LLMMessage(role="system", content="be brief"),
         LLMMessage(role="user", content="hello"),
@@ -44,14 +47,14 @@ def _attributes(span: MagicMock) -> dict[str, Any]:
 
 
 def _llm(response: LLMResponse) -> MagicMock:
-    """An ``LLMProvider`` mock (spec-bound) whose ``complete`` returns ``response``."""
+    """Return an ``LLMProvider`` mock (spec-bound) whose ``complete`` returns ``response``."""
     inner = MagicMock(spec=LLMProvider)
     inner.complete = AsyncMock(return_value=response)
     return inner
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
+async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response() -> None:
     """Test that ``complete`` stamps the GenAI usage, model, finish reason, system and step.
 
     **Why this test is important:**
@@ -93,7 +96,7 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system():
+async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system() -> None:
     """Test that the provider's class name selects ``gen_ai.system`` and other attributes pass through.
 
     **Why this test is important:**
@@ -123,12 +126,13 @@ async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system():
 
 async def _usage_stream(*items: str | StreamUsage) -> AsyncIterator[str | StreamUsage]:
     """Yield the given stream items in order."""
+    await asyncio.sleep(0)
     for item in items:
         yield item
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
+async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion() -> None:
     """Test that ``stream`` re-yields only text and stamps usage when the ``StreamUsage`` arrives.
 
     **Why this test is important:**
@@ -166,7 +170,7 @@ async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
+async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps() -> None:
     """Test that ``stream_with_usage`` is enriched and still hands the caller its ``StreamUsage``.
 
     **Why this test is important:**
@@ -204,7 +208,7 @@ async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_reports_requested_and_served_model():
+async def test_ai_span_enricher_reports_requested_and_served_model() -> None:
     """Test that ``complete`` stamps the requested and the served model separately.
 
     **Why this test is important:**
@@ -238,7 +242,7 @@ async def test_ai_span_enricher_reports_requested_and_served_model():
 
 
 def _result(i: int) -> RetrievalResult:
-    """A retrieval result whose document id is ``doc-<i>``."""
+    """Return a retrieval result whose document id is ``doc-<i>``."""
     return RetrievalResult(
         document_id=f"doc-{i}",
         document_name=f"d{i}",
@@ -250,7 +254,7 @@ def _result(i: int) -> RetrievalResult:
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stamps_retrieval_shape():
+async def test_ai_span_enricher_stamps_retrieval_shape() -> None:
     """Test that ``retrieve`` stamps top_k, the result count and at most 20 document ids.
 
     **Why this test is important:**
@@ -283,7 +287,7 @@ async def test_ai_span_enricher_stamps_retrieval_shape():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_capture_content_false_records_no_text():
+async def test_ai_span_enricher_capture_content_false_records_no_text() -> None:
     """Test that with ``capture_content=False`` no prompt or completion text reaches the span.
 
     **Why this test is important:**
@@ -309,7 +313,7 @@ async def test_ai_span_enricher_capture_content_false_records_no_text():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_capture_content_true_redacts_pii():
+async def test_ai_span_enricher_capture_content_true_redacts_pii() -> None:
     """Test that captured prompt and completion events are PII-redacted and capped at 4 KiB.
 
     **Why this test is important:**
@@ -360,7 +364,7 @@ async def test_ai_span_enricher_capture_content_true_redacts_pii():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_enrichment_error_does_not_propagate():
+async def test_ai_span_enricher_enrichment_error_does_not_propagate() -> None:
     """Test that a failure while stamping never fails or alters the wrapped call.
 
     **Why this test is important:**

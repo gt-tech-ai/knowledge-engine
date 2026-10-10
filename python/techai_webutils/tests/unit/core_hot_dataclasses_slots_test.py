@@ -35,6 +35,8 @@ def _hot_instances() -> list[object]:
 
 
 class TestHotDataclassSlots:
+    """Tests for the hot-path dataclasses' slots."""
+
     def test_hot_dataclasses_are_slotted(self) -> None:
         """Test that the five hot dataclasses carry no per-instance ``__dict__``.
 

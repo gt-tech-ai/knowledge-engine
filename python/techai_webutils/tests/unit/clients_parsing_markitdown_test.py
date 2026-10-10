@@ -34,6 +34,8 @@ class _FixedMarkdownConverter:
 
 
 class TestMarkItDownParser:
+    """Tests for the MarkItDown parser."""
+
     def test_pdf_converts_and_extracts_pages(self) -> None:
         """Test that a PDF converts to Markdown and yields per-page text for provenance.
 

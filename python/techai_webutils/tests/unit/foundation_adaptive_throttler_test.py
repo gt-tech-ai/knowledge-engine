@@ -7,7 +7,10 @@ backend call entirely.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+
 from techai_webutils.foundation.resilience.adaptive_throttler import (
     AdaptiveThrottler,
     ThrottledError,
@@ -33,7 +36,9 @@ async def test_rejection_rises_on_failure_and_eases_on_recovery() -> None:
 
     for _ in range(10):  # healthy: accepts keep pace with requests
         await throttle.do(_ok)
-    assert throttle.rejection_probability == 0.0, "a healthy backend is not throttled"
+    assert throttle.rejection_probability == pytest.approx(0.0), (
+        "a healthy backend is not throttled"
+    )
 
     for _ in range(20):  # backend down: accepts frozen while requests climb
         with pytest.raises(RuntimeError):
@@ -71,6 +76,7 @@ async def test_sheds_locally_without_calling_op() -> None:
     called = False
 
     async def op() -> None:
+        await asyncio.sleep(0)
         nonlocal called
         called = True
 
@@ -80,11 +86,13 @@ async def test_sheds_locally_without_calling_op() -> None:
 
 
 async def _ok() -> str:
-    """A successful backend call (feeds the accept window)."""
+    """Succeed like a backend call (feeds the accept window)."""
+    await asyncio.sleep(0)
     return "ok"
 
 
 async def _fail() -> str:
-    """A failing backend call (does not feed the accept window)."""
+    """Fail like a backend call (does not feed the accept window)."""
+    await asyncio.sleep(0)
     msg = "backend down"
     raise RuntimeError(msg)

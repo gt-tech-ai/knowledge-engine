@@ -20,7 +20,7 @@ _CODES_JSON = (
 )
 
 
-def test_go_and_python_error_code_status_parity():
+def test_go_and_python_error_code_status_parity() -> None:
     """Test that every Go error code maps to the same gRPC/HTTP status and retry class in Python.
 
     **Why this test is important:**

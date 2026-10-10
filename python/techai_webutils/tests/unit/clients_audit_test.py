@@ -51,7 +51,7 @@ def _record() -> AuditRecord:
     )
 
 
-def test_audit_record_is_frozen():
+def test_audit_record_is_frozen() -> None:
     """Test that audit records and their sources are immutable.
 
     **Why this test is important:**
@@ -72,7 +72,7 @@ def test_audit_record_is_frozen():
     assert isinstance(record.pii_flags, tuple)
 
 
-def test_factory_returns_stub_by_default():
+def test_factory_returns_stub_by_default() -> None:
     """Test that the default config builds the stub sink in shadow mode with zero infrastructure.
 
     **Why this test is important:**
@@ -100,7 +100,7 @@ def test_factory_returns_stub_by_default():
     assert caught.value.code is ErrorCode.INVALID_INPUT
 
 
-def test_factory_uses_injected_backend_for_grpc():
+def test_factory_uses_injected_backend_for_grpc() -> None:
     """Test that a consumer-supplied ``grpc`` kind is built by its injected factory.
 
     **Why this test is important:**
@@ -120,7 +120,7 @@ def test_factory_uses_injected_backend_for_grpc():
     factory.assert_called_once_with(config)
 
 
-def test_factory_unknown_kind_raises_coded_error():
+def test_factory_unknown_kind_raises_coded_error() -> None:
     """Test that an unknown kind (including ``grpc`` with no injected backend) fails loudly.
 
     **Why this test is important:**
@@ -137,7 +137,7 @@ def test_factory_unknown_kind_raises_coded_error():
 
 
 @pytest.mark.asyncio
-async def test_stub_audit_sink_records_without_infra():
+async def test_stub_audit_sink_records_without_infra() -> None:
     """Test that the stub sink keeps each record in order, in memory.
 
     **Why this test is important:**

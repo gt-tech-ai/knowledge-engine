@@ -1,7 +1,6 @@
 """Tests for the env-aware knowledge-base client factory (stub <-> bedrock)."""
 
 import pytest
-from techai_webutils.core.interfaces.kb_ingestion import IngestionJobState
 
 # Imported eagerly (unlike the factory, which lazy-imports it) so the bedrock-selection test can
 # isinstance-check the concrete type; the test venv has aiobotocore, so this load is harmless here.
@@ -12,9 +11,12 @@ from techai_webutils.clients.kb_ingestion.builder import (
     new_kb_ingestor_from_config,
 )
 from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
+from techai_webutils.core.interfaces.kb_ingestion import IngestionJobState
 
 
 class TestKnowledgeBaseFactory:
+    """Tests for the knowledge base factory."""
+
     def test_stub_kind_selects_stub_client(self) -> None:
         """Test that kind=stub builds the no-op ingestor (dev, no Bedrock emulator).
 

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.errors.errors import NotFoundError
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
@@ -1113,7 +1114,7 @@ class TestMetricsRepositoryDecoratorExtended:
 
 
 def _page_request():  # noqa: ANN202
-    """A first-page request (imported here to keep the module import list stable)."""
+    """Return a first-page request (imported here to keep the module import list stable)."""
     from techai_webutils.core.domain_types.types import PageRequest
 
     return PageRequest(page_size=10, page_number=1)

@@ -2,10 +2,11 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.errors.errors import NotFoundError
 from techai_webutils.core.interfaces.repository import Repository
-import pytest
 from techai_webutils.services.crud_service import BaseCrudService
 
 

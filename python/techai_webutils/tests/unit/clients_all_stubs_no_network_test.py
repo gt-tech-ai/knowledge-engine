@@ -8,7 +8,10 @@ fail, so if a factory wrongly took the real path the test would raise.
 
 from __future__ import annotations
 
-import pytest
+from typing import TYPE_CHECKING
+
+from techai_webutils.clients.audit import AuditSinkConfig, new_audit_sink_from_config
+from techai_webutils.clients.audit.stub import StubAuditSink
 from techai_webutils.clients.cache.builder import (
     CacheConfig,
     CacheKind,
@@ -27,19 +30,12 @@ from techai_webutils.clients.embedding.builder import (
     EmbeddingKind,
     new_embedding_from_config,
 )
-from techai_webutils.clients.audit import AuditSinkConfig, new_audit_sink_from_config
-from techai_webutils.clients.audit.stub import StubAuditSink
 from techai_webutils.clients.embedding.stub import StubEmbeddingProvider
 from techai_webutils.clients.facts import (
     FactPublisherConfig,
     new_fact_publisher_from_config,
 )
 from techai_webutils.clients.facts.stub import StubFactPublisher
-from techai_webutils.clients.token_ledger import (
-    TokenLedgerConfig,
-    token_ledger_from_config,
-)
-from techai_webutils.clients.token_ledger.stub import StubTokenLedger
 from techai_webutils.clients.jobs.builder import new_jobs_from_config
 from techai_webutils.clients.jobs.config import JobConfig, JobKind
 from techai_webutils.clients.jobs.memory import InMemoryJobEnqueuer
@@ -78,6 +74,11 @@ from techai_webutils.clients.storage.builder import (
 )
 from techai_webutils.clients.storage.config import S3Config
 from techai_webutils.clients.storage.memory import InMemoryStorageClient
+from techai_webutils.clients.token_ledger import (
+    TokenLedgerConfig,
+    token_ledger_from_config,
+)
+from techai_webutils.clients.token_ledger.stub import StubTokenLedger
 from techai_webutils.clients.vector.builder import (
     VectorStoreConfig,
     VectorStoreKind,
@@ -102,6 +103,9 @@ from techai_webutils.foundation.tracer.builder import (
     new_tracer_from_config,
 )
 from techai_webutils.foundation.tracer.null_tracer import NullTracerProvider
+
+if TYPE_CHECKING:
+    import pytest
 
 # Every real backend constructor (or the factory hook that builds it), patched to fail — none may be
 # called on the all-stubs path.
@@ -151,62 +155,80 @@ def test_service_builds_all_stubs_no_network(monkeypatch: pytest.MonkeyPatch) ->
     for target in _REAL_BACKENDS:
         monkeypatch.setattr(target, _boom)
 
-    storage = new_storage_from_config(
-        StorageConfig(
-            s3=S3Config(endpoint="", bucket="b", region="r"), kind=StorageKind.MEMORY
+    built: list[tuple[object, type]] = [
+        (
+            new_storage_from_config(
+                StorageConfig(
+                    s3=S3Config(endpoint="", bucket="b", region="r"),
+                    kind=StorageKind.MEMORY,
+                ),
+            ),
+            InMemoryStorageClient,
         ),
-    )
-    publisher = new_messaging_from_config(
-        MessagingConfig(
-            sqs=SQSConfig(endpoint="", region="r", queue_url=""),
-            kind=MessagingKind.MEMORY,
+        (
+            new_messaging_from_config(
+                MessagingConfig(
+                    sqs=SQSConfig(endpoint="", region="r", queue_url=""),
+                    kind=MessagingKind.MEMORY,
+                ),
+            ),
+            InMemoryPublisher,
         ),
-    )
-    subscriber = new_messaging_subscriber_from_config(
-        MessagingConfig(
-            sqs=SQSConfig(endpoint="", region="r", queue_url=""),
-            kind=MessagingKind.MEMORY,
+        (
+            new_messaging_subscriber_from_config(
+                MessagingConfig(
+                    sqs=SQSConfig(endpoint="", region="r", queue_url=""),
+                    kind=MessagingKind.MEMORY,
+                ),
+            ),
+            InMemorySubscriber,
         ),
-    )
-    embedding = new_embedding_from_config(
-        EmbeddingConfig(kind=EmbeddingKind.STUB, dimension=8)
-    )
-    vector = new_vector_store_from_config(
-        VectorStoreConfig(kind=VectorStoreKind.STUB, dimension=8)
-    )
-    email = new_email_from_config(EmailConfig(kind=EmailKind.NOOP))
-    llm = new_llm_from_config(LlmConfig(kind=LlmKind.STUB))
-    retrieval = new_retrieval_engine_from_config(
-        RetrievalConfig(kind=RetrievalKind.STUB), policies=[]
-    )
-    kb_ingestor = new_kb_ingestor_from_config(KbConfig(kind=KbKind.STUB))
-    lock = new_lock_from_config(LockConfig(kind=LockKind.MEMORY))
-    local_cache = new_cache_from_config(CacheConfig(kind=CacheKind.LOCAL))
-    null_cache = new_cache_from_config(CacheConfig(kind=CacheKind.NULL))
-    jobs = new_jobs_from_config(JobConfig(kind=JobKind.MEMORY))
-    tracer = new_tracer_from_config(TracerConfig(kind=TracerKind.NULL))
-    metrics = new_metrics_from_config(MetricsConfig(kind=MetricsKind.NULL))
-    executor = executor_from_config(ExecutorConfig(kind=ExecutorKind.ASYNCIO))
-    facts = new_fact_publisher_from_config(FactPublisherConfig(), publisher=None)
-    token_ledger = token_ledger_from_config(TokenLedgerConfig())
-    audit = new_audit_sink_from_config(AuditSinkConfig())
+        (
+            new_embedding_from_config(
+                EmbeddingConfig(kind=EmbeddingKind.STUB, dimension=8)
+            ),
+            StubEmbeddingProvider,
+        ),
+        (
+            new_vector_store_from_config(
+                VectorStoreConfig(kind=VectorStoreKind.STUB, dimension=8)
+            ),
+            StubVectorStore,
+        ),
+        (new_email_from_config(EmailConfig(kind=EmailKind.NOOP)), NoopEmailSender),
+        (new_llm_from_config(LlmConfig(kind=LlmKind.STUB)), StubLlmProvider),
+        (
+            new_retrieval_engine_from_config(
+                RetrievalConfig(kind=RetrievalKind.STUB), policies=[]
+            ),
+            FilteringRetrievalEngine,
+        ),
+        (
+            new_kb_ingestor_from_config(KbConfig(kind=KbKind.STUB)),
+            StubKnowledgeBaseIngestor,
+        ),
+        (new_lock_from_config(LockConfig(kind=LockKind.MEMORY)), InMemoryLock),
+        (new_cache_from_config(CacheConfig(kind=CacheKind.LOCAL)), LocalCache),
+        (new_cache_from_config(CacheConfig(kind=CacheKind.NULL)), NullCache),
+        (new_jobs_from_config(JobConfig(kind=JobKind.MEMORY)), InMemoryJobEnqueuer),
+        (new_tracer_from_config(TracerConfig(kind=TracerKind.NULL)), NullTracerProvider),
+        (
+            new_metrics_from_config(MetricsConfig(kind=MetricsKind.NULL)),
+            NullMetricsProvider,
+        ),
+        (
+            executor_from_config(ExecutorConfig(kind=ExecutorKind.ASYNCIO)),
+            AsyncioExecutor,
+        ),
+        (
+            new_fact_publisher_from_config(FactPublisherConfig(), publisher=None),
+            StubFactPublisher,
+        ),
+        (token_ledger_from_config(TokenLedgerConfig()), StubTokenLedger),
+        (new_audit_sink_from_config(AuditSinkConfig()), StubAuditSink),
+    ]
 
-    assert isinstance(storage, InMemoryStorageClient)
-    assert isinstance(publisher, InMemoryPublisher)
-    assert isinstance(subscriber, InMemorySubscriber)
-    assert isinstance(embedding, StubEmbeddingProvider)
-    assert isinstance(vector, StubVectorStore)
-    assert isinstance(email, NoopEmailSender)
-    assert isinstance(llm, StubLlmProvider)
-    assert isinstance(retrieval, FilteringRetrievalEngine)
-    assert isinstance(kb_ingestor, StubKnowledgeBaseIngestor)
-    assert isinstance(lock, InMemoryLock)
-    assert isinstance(local_cache, LocalCache)
-    assert isinstance(null_cache, NullCache)
-    assert isinstance(jobs, InMemoryJobEnqueuer)
-    assert isinstance(tracer, NullTracerProvider)
-    assert isinstance(metrics, NullMetricsProvider)
-    assert isinstance(executor, AsyncioExecutor)
-    assert isinstance(facts, StubFactPublisher)
-    assert isinstance(token_ledger, StubTokenLedger)
-    assert isinstance(audit, StubAuditSink)
+    for impl, stub_type in built:
+        assert isinstance(impl, stub_type), (
+            f"{type(impl).__name__} is not the stub {stub_type.__name__}"
+        )

@@ -20,7 +20,7 @@ from techai_webutils.clients.embedding.ollama import OllamaEmbeddingProvider
 
 
 def _client_returning(embeddings: list[list[float]]) -> httpx.AsyncClient:
-    """A mock httpx.AsyncClient whose post() returns an Ollama /api/embed response."""
+    """Return a mock httpx.AsyncClient whose post() returns an Ollama /api/embed response."""
     resp = MagicMock()
     resp.json.return_value = {"embeddings": embeddings}
     resp.raise_for_status.return_value = None
@@ -30,6 +30,8 @@ def _client_returning(embeddings: list[list[float]]) -> httpx.AsyncClient:
 
 
 class TestOllamaEmbeddingProvider:
+    """Tests for the Ollama embedding provider."""
+
     @pytest.mark.asyncio
     async def test_embed_posts_api_embed_and_returns_first_vector(self) -> None:
         """embed() POSTs /api/embed {model, input:[text]} and returns the first embedding, token_count=0.
@@ -112,6 +114,8 @@ class TestOllamaEmbeddingProvider:
 
 
 class TestEmbeddingFactory:
+    """Tests for the embedding factory."""
+
     def test_from_config_builds_ollama(self) -> None:
         """new_embedding_from_config(kind=ollama) builds an OllamaEmbeddingProvider from config."""
         provider = new_embedding_from_config(
@@ -141,7 +145,7 @@ class TestEmbeddingFactory:
             EmbeddingConfig(kind=EmbeddingKind.OLLAMA, timeout_seconds=123.0),
         )
         assert isinstance(provider, OllamaEmbeddingProvider)
-        assert provider._client.timeout.read == 123.0  # noqa: SLF001
+        assert provider._client.timeout.read == pytest.approx(123.0)  # noqa: SLF001
 
     def test_unknown_kind_raises(self) -> None:
         """An unknown embedding kind fails loudly."""

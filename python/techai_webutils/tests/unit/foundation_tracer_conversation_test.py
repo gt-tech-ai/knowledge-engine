@@ -25,14 +25,14 @@ _PREV_TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def _ctx(**members: str) -> Context:
-    """A context carrying the given baggage members."""
+    """Return a context carrying the given baggage members."""
     ctx = Context()
     for key, value in members.items():
         ctx = baggage.set_baggage(key.replace("_", "."), value, context=ctx)
     return ctx
 
 
-def test_root_span_stamped_with_conversation_id_and_turn_index():
+def test_root_span_stamped_with_conversation_id_and_turn_index() -> None:
     """Test that a turn's baggage round-trips into ``conversation.id`` / ``turn.index`` on the root span.
 
     **Why this test is important:**
@@ -64,7 +64,7 @@ def test_root_span_stamped_with_conversation_id_and_turn_index():
     ]
 
 
-def test_turn_links_to_previous_turn():
+def test_turn_links_to_previous_turn() -> None:
     """Test that a later turn links to the previous turn's root span and turn 0 links nothing.
 
     **Why this test is important:**
@@ -86,7 +86,7 @@ def test_turn_links_to_previous_turn():
     assert conversation_links(first) == []
 
 
-def test_missing_conversation_context_degrades_to_unthreaded_trace():
+def test_missing_conversation_context_degrades_to_unthreaded_trace() -> None:
     """Test that a request with no conversation baggage yields no conversation (no error).
 
     **Why this test is important:**
@@ -107,7 +107,7 @@ def test_missing_conversation_context_degrades_to_unthreaded_trace():
     ) == ConversationContext(conversation_id="c1", turn_index=2, prev=None)
 
 
-def test_malformed_conversation_id_is_dropped():
+def test_malformed_conversation_id_is_dropped() -> None:
     """Test that an id outside ``^[A-Za-z0-9_-]{1,64}$`` or a bad turn index drops the conversation.
 
     **Why this test is important:**

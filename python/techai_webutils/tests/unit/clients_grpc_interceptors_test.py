@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from io import StringIO
 from typing import TYPE_CHECKING
@@ -12,17 +13,17 @@ import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
 from techai_webutils.clients.rpc.grpc.interceptors.logging import LoggingInterceptor
-from techai_webutils.foundation.logger.logger import configure_logging
 from techai_webutils.clients.rpc.grpc.interceptors.metrics import MetricsInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.retry import RetryInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.timeout import TimeoutInterceptor
+from techai_webutils.foundation.logger.logger import configure_logging
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
 def _rpc_error(code: grpc.StatusCode) -> grpc.RpcError:
-    """A real grpc.RpcError (so ``except grpc.RpcError`` catches it) with a mocked ``code()``.
+    """Return a real grpc.RpcError (so ``except grpc.RpcError`` catches it) with a mocked ``code()``.
 
     The exception type must be real to be raisable/catchable; only its status code is mocked,
     which is what the transient-vs-fatal branch reads.
@@ -50,6 +51,7 @@ class _Call:
         """Yield the configured response, or raise the configured error."""
 
         async def _resolve() -> object:
+            await asyncio.sleep(0)
             if self._error is not None:
                 raise self._error
             return self._response
@@ -231,7 +233,7 @@ class TestTimeoutInterceptor:
         )
 
         passed_details, passed_request = continuation.await_args.args
-        assert passed_details.timeout == 12.5
+        assert passed_details.timeout == pytest.approx(12.5)
         assert passed_request is request
 
     @pytest.mark.asyncio
@@ -252,7 +254,7 @@ class TestTimeoutInterceptor:
 
         passed_details = continuation.await_args.args[0]
         assert passed_details is details
-        assert passed_details.timeout == 3.0
+        assert passed_details.timeout == pytest.approx(3.0)
 
 
 class TestLoggingInterceptor:

@@ -35,7 +35,7 @@ def test_factory_selects_isolated_backend() -> None:
     assert isinstance(parser, IsolatedParser)
     assert isinstance(parser, DocumentParser)
     assert parser._memory_bytes == 123  # noqa: SLF001 — asserting the config threaded to the backend
-    assert parser._timeout_seconds == 7.0  # noqa: SLF001
+    assert parser._timeout_seconds == pytest.approx(7.0)  # noqa: SLF001
 
 
 def test_factory_rejects_unknown_kind() -> None:
@@ -80,7 +80,7 @@ def test_parsing_package_imports_without_heavy_deps() -> None:
         "assert 'pymupdf' not in sys.modules, 'pymupdf was imported'\n"
         "print('LAZY_OK')\n"
     )
-    result = subprocess.run(  # noqa: S603 — sys.executable on a fixed literal script (no external input)
+    result = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,

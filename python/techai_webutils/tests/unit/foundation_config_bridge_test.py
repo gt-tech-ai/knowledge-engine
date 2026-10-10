@@ -151,7 +151,7 @@ database:
 
 
 def test_initialize_config_missing_directory_graceful_fallback(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that initialize_config() degrades to a warning when the config dir is missing.
 
@@ -292,9 +292,7 @@ def test_apply_yaml_defaults_stringifies_bool(monkeypatch: pytest.MonkeyPatch) -
     assert os.environ["MYAPP_FLAG"] == "True"
 
 
-def test_initialize_config_missing_base_yaml_is_graceful(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_initialize_config_missing_base_yaml_is_graceful() -> None:
     """A config dir without base.yaml initializes cleanly (env-vars-only deployments).
 
     **Why this test is important:**
@@ -357,8 +355,9 @@ def _write_widget_config(tmpdir: str, overlays: dict[str, str] | None = None) ->
 def test_initialize_config_prefix_round_trips_into_a_prefixed_settings_class(
     monkeypatch: pytest.MonkeyPatch, prefix: str
 ) -> None:
-    """The YAML reaches a settings class whose env_prefix is ``MYAPP_``, whether or not the bridge prefix
-    carries the trailing underscore.
+    """The YAML reaches a settings class whose env_prefix is ``MYAPP_``.
+
+    It does so whether or not the bridge prefix carries the trailing underscore.
 
     Why this test is important:
       - A consumer naturally passes its settings' ``env_prefix`` ("MYAPP_") to initialize_config. Joining

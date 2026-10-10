@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 @pytest_asyncio.fixture
 async def redis_client(redis_container: object) -> AsyncIterator[Redis]:
-    """A ``decode_responses`` async client bound to the session's Redis container."""
+    """Yield a ``decode_responses`` async client bound to the session's Redis container."""
     host = redis_container.get_container_host_ip()  # type: ignore[attr-defined]
     port = int(redis_container.get_exposed_port(redis_container.port))  # type: ignore[attr-defined]
     client = Redis(host=host, port=port, decode_responses=True)

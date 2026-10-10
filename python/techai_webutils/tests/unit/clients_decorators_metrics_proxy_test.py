@@ -36,7 +36,7 @@ class _KbClient(Protocol):
 
 
 def _client() -> MagicMock:
-    """A spec'd client mock: ``fetch`` returns ``"payload"``, the other two raise."""
+    """Return a spec'd client mock: ``fetch`` returns ``"payload"``, the other two raise."""
     client = MagicMock(spec=_KbClient)
     client.fetch = AsyncMock(return_value="payload")
     client.missing = AsyncMock(side_effect=AppError(ErrorCode.NOT_FOUND, "gone"))
@@ -47,7 +47,7 @@ def _client() -> MagicMock:
 @pytest.mark.asyncio
 async def test_client_stack_emits_red_metrics(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that the composed client stack records rate, errors and duration per client and method.
 
     **Why this test is important:**
@@ -94,7 +94,7 @@ async def test_client_stack_emits_red_metrics(
 
 def test_metrics_proxy_declares_instruments_once_with_contract_labels(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that ``MetricsProxy`` declares the three RED instruments once, with the contract labels.
 
     **Why this test is important:**
@@ -131,7 +131,7 @@ def test_metrics_proxy_declares_instruments_once_with_contract_labels(
 @pytest.mark.asyncio
 async def test_metrics_emit_failure_does_not_propagate(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that a failing metrics backend never changes a call's result, for both emitters.
 
     **Why this test is important:**

@@ -17,6 +17,8 @@ def _client_error(code: str, status: int) -> ClientError:
 
 
 class TestBotocoreErrorToAppError:
+    """Tests for ``botocore_error_to_app_error``."""
+
     @pytest.mark.parametrize(
         ("error", "expected_code"),
         [

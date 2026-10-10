@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import grpc
 import pytest
 from grpc.aio import AioRpcError, Metadata
@@ -23,6 +25,8 @@ def _rpc_error(
 
 
 class TestGrpcErrorToAppError:
+    """Tests for ``grpc_error_to_app_error``."""
+
     def test_transient_codes_map_to_transient_app_error(self) -> None:
         """Test that UNAVAILABLE / DEADLINE_EXCEEDED become transient AppErrors.
 
@@ -128,6 +132,8 @@ class TestGrpcErrorToAppError:
 
 
 class TestWrapGrpcErrors:
+    """Tests for ``wrap_grpc_errors``."""
+
     @pytest.mark.asyncio
     async def test_wraps_raw_rpc_error_into_app_error(self) -> None:
         """Test that the decorator translates a raised AioRpcError into a coded AppError.
@@ -144,6 +150,7 @@ class TestWrapGrpcErrors:
 
         @wrap_grpc_errors
         async def call() -> None:
+            await asyncio.sleep(0)
             raise _rpc_error(grpc.StatusCode.UNAVAILABLE)
 
         with pytest.raises(AppError) as excinfo:

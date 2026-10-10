@@ -9,9 +9,11 @@ no shared fakes package.
 from __future__ import annotations
 
 import asyncio
+from typing import Never
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.errors.errors import (
     ForbiddenError,
@@ -133,7 +135,8 @@ class TestServiceBuilder:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = ServiceBuilder(base, "users").with_authorization(allow).build()
@@ -155,7 +158,8 @@ class TestServiceBuilder:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def deny(action: str) -> bool:
+        async def deny(_action: str) -> bool:
+            await asyncio.sleep(0)
             return False
 
         svc = ServiceBuilder(base, "users").with_authorization(deny).build()
@@ -179,8 +183,10 @@ class TestServiceBuilder:
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
         # Inject an unexpected exception by overriding get
-        async def failing_get(id: str) -> str:
-            raise RuntimeError("boom")
+        async def failing_get(_id: str) -> str:
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         base.get = failing_get  # type: ignore[assignment]
         svc = ServiceBuilder(base, "users").build()
@@ -206,7 +212,8 @@ class TestServiceBuilder:
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
         logger = MagicMock()
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = (
@@ -577,7 +584,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = ServiceBuilder(base, "users").with_authorization(allow).build()
@@ -602,7 +610,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def deny(action: str) -> bool:
+        async def deny(_action: str) -> bool:
+            await asyncio.sleep(0)
             return False
 
         svc = ServiceBuilder(base, "users").with_authorization(deny).build()
@@ -627,7 +636,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = ServiceBuilder(base, "users").with_authorization(allow).build()
@@ -650,7 +660,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def deny(action: str) -> bool:
+        async def deny(_action: str) -> bool:
+            await asyncio.sleep(0)
             return False
 
         svc = ServiceBuilder(base, "users").with_authorization(deny).build()
@@ -673,7 +684,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = ServiceBuilder(base, "users").with_authorization(allow).build()
@@ -696,7 +708,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def deny(action: str) -> bool:
+        async def deny(_action: str) -> bool:
+            await asyncio.sleep(0)
             return False
 
         svc = ServiceBuilder(base, "users").with_authorization(deny).build()
@@ -719,7 +732,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def allow(action: str) -> bool:
+        async def allow(_action: str) -> bool:
+            await asyncio.sleep(0)
             return True
 
         svc = ServiceBuilder(base, "users").with_authorization(allow).build()
@@ -742,7 +756,8 @@ class TestAuthServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def deny(action: str) -> bool:
+        async def deny(_action: str) -> bool:
+            await asyncio.sleep(0)
             return False
 
         svc = ServiceBuilder(base, "users").with_authorization(deny).build()
@@ -770,8 +785,10 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def failing_list(params, page):  # type: ignore[no-untyped-def]
-            raise RuntimeError("boom")
+        async def failing_list(_params, _page) -> Never:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         base.list = failing_list  # type: ignore[assignment]
         svc = ServiceBuilder(base, "users").build()
@@ -798,8 +815,10 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock()
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def failing_create(entity):  # type: ignore[no-untyped-def]
-            raise RuntimeError("boom")
+        async def failing_create(_entity) -> Never:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         base.create = failing_create  # type: ignore[assignment]
         svc = ServiceBuilder(base, "users").build()
@@ -824,8 +843,10 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def failing_update(id, entity):  # type: ignore[no-untyped-def]
-            raise RuntimeError("boom")
+        async def failing_update(_id, _entity) -> Never:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         base.update = failing_update  # type: ignore[assignment]
         svc = ServiceBuilder(base, "users").build()
@@ -850,8 +871,10 @@ class TestRecoveryServiceDecoratorExtended:
         repo = _repo_mock(seed={"1": "entity"})
         base: BaseCrudService[str, dict, str] = BaseCrudService(repo)
 
-        async def failing_delete(id):  # type: ignore[no-untyped-def]
-            raise RuntimeError("boom")
+        async def failing_delete(_id) -> Never:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         base.delete = failing_delete  # type: ignore[assignment]
         svc = ServiceBuilder(base, "users").build()

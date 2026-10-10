@@ -57,8 +57,8 @@ class TestKbDocumentFromPayload:
             "status": "FAILED",
             "identifier": {"dataSourceType": "CUSTOM", "custom": {"id": "x"}},
         }
-        assert kb_document_from_payload(custom).s3_uri == ""
-        assert kb_document_from_payload({"status": "FAILED"}).s3_uri == ""
+        assert not kb_document_from_payload(custom).s3_uri
+        assert not kb_document_from_payload({"status": "FAILED"}).s3_uri
 
 
 class TestBedrockListDocuments:

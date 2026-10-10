@@ -28,8 +28,9 @@ Run with: pytest tests/python/test_foundation/test_config.py
 import os
 from pathlib import Path
 
-from techai_webutils.foundation.config.loader import load_config
 import pytest
+
+from techai_webutils.foundation.config.loader import load_config
 
 
 class TestConfigLoader:

@@ -1,5 +1,9 @@
 """Tests for enhanced BaseController, ErrorResponse, and authorization decorator."""
 
+import asyncio
+
+import pytest
+
 from techai_webutils.controllers.base import (
     BaseController,
     ErrorResponse,
@@ -16,7 +20,6 @@ from techai_webutils.core.errors.errors import (
     NotFoundError,
     UnauthorizedError,
 )
-import pytest
 
 
 class TestMapErrorToHTTPStatus:
@@ -133,7 +136,7 @@ class TestErrorResponse:
         resp = ErrorResponse(error="not found", code="NOT_FOUND")
         assert resp.error == "not found"
         assert resp.code == "NOT_FOUND"
-        assert resp.details == ""
+        assert not resp.details
 
 
 class TestBaseControllerEnhanced:
@@ -241,7 +244,7 @@ class TestBaseControllerEnhanced:
         assert result["status"] == 500
         data = result["data"]
         assert data["error"] == "internal server error"  # type: ignore[index]
-        assert data["details"] == ""  # type: ignore[index]
+        assert not data["details"]  # type: ignore[index]
 
     def test_write_error_unknown_exception(self) -> None:
         """Test that unknown exceptions are treated as internal errors.
@@ -281,7 +284,7 @@ class TestBaseControllerEnhanced:
         data = result["data"]
         assert data["error"] == "internal server error"  # type: ignore[index]
         assert "raw db text" not in data["error"]  # type: ignore[index]
-        assert data["details"] == ""  # type: ignore[index]
+        assert not data["details"]  # type: ignore[index]
 
     def test_write_error_ingestion_exposes_message(self) -> None:
         """Test that an INGESTION_ERROR exposes its message (matching Go's WriteError).
@@ -340,9 +343,11 @@ class TestHandlerBuilderAuthorization:
         """
 
         async def handler(req: str) -> str:
+            await asyncio.sleep(0)
             return f"ok-{req}"
 
         async def allow() -> bool:
+            await asyncio.sleep(0)
             return True
 
         h = HandlerBuilder(handler, "test").with_authorization(allow).build()
@@ -362,10 +367,12 @@ class TestHandlerBuilderAuthorization:
           - ForbiddenError is raised when authorization check returns False
         """
 
-        async def handler(req: str) -> str:
+        async def handler(_req: str) -> str:
+            await asyncio.sleep(0)
             return "should not reach"
 
         async def deny() -> bool:
+            await asyncio.sleep(0)
             return False
 
         h = HandlerBuilder(handler, "test").with_authorization(deny).build()

@@ -13,7 +13,9 @@ What they test:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import asyncio
+from contextlib import AsyncExitStack
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -21,12 +23,16 @@ from botocore.exceptions import ClientError
 
 from techai_webutils.clients.llm.decorators import FallbackLlmProvider
 from techai_webutils.core.errors import AppError, UnavailableError
-from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
 from techai_webutils.core.interfaces.llm import LLMMessage, LLMResponse, StreamUsage
+from techai_webutils.foundation.resilience.aws_boundary import botocore_error_to_app_error
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 async def _stream(*tokens: str | StreamUsage) -> AsyncIterator[str | StreamUsage]:
-    """An async token stream that yields the given items then completes."""
+    """Yield the given items then complete (an async token stream)."""
+    await asyncio.sleep(0)
     for token in tokens:
         yield token
 
@@ -34,7 +40,8 @@ async def _stream(*tokens: str | StreamUsage) -> AsyncIterator[str | StreamUsage
 async def _stream_then_fail(
     exc: Exception, *tokens: str
 ) -> AsyncIterator[str | StreamUsage]:
-    """An async token stream that yields the given tokens then raises exc."""
+    """Yield the given tokens then raise exc (an async token stream)."""
+    await asyncio.sleep(0)
     for token in tokens:
         yield token
     raise exc
@@ -52,7 +59,7 @@ def _client_error(code: str, status: int) -> ClientError:
 
 
 def _response(model: str) -> LLMResponse:
-    """A minimal LLMResponse tagged with the model that produced it."""
+    """Return a minimal LLMResponse tagged with the model that produced it."""
     return LLMResponse(
         content="answer",
         model=model,
@@ -116,7 +123,7 @@ async def test_non_retryable_error_reraises_without_fallback() -> None:
 
 
 def _coded_provider_error(code: str, status: int) -> AppError:
-    """The coded AppError a real provider raises for a botocore failure (``raise ... from exc``)."""
+    """Return the coded AppError a real provider raises for a botocore failure (``raise ... from exc``)."""
     client_error = _client_error(code, status)
     try:
         raise botocore_error_to_app_error(
@@ -213,8 +220,9 @@ async def test_aenter_rolls_back_primary_when_fallback_enter_fails() -> None:
     primary, fallback = AsyncMock(), AsyncMock()
     fallback.__aenter__.side_effect = RuntimeError("enter failed")
     provider = FallbackLlmProvider(primary, fallback)
-    with pytest.raises(RuntimeError):
-        await provider.__aenter__()
+    async with AsyncExitStack() as stack:
+        with pytest.raises(RuntimeError, match="enter failed"):
+            await stack.enter_async_context(provider)
     primary.__aexit__.assert_awaited_once()
 
 

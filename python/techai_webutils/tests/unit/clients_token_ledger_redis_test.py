@@ -50,7 +50,7 @@ def _record() -> UsageRecord:
 
 
 def _client() -> tuple[MagicMock, AsyncMock]:
-    """A mocked async Redis client and the registered record script it hands out."""
+    """Return a mocked async Redis client and the registered record script it hands out."""
     script = AsyncMock(return_value=b"1-0")
     client = MagicMock(spec=Redis)
     client.register_script.return_value = script
@@ -68,7 +68,7 @@ def _pipeline(client: MagicMock, results: list[object]) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_record_runs_single_script_with_scope_key():
+async def test_record_runs_single_script_with_scope_key() -> None:
     """Test that ``record`` is one atomic script: counters, window expiry and the usage stream.
 
     **Why this test is important:**
@@ -129,7 +129,7 @@ async def test_record_runs_single_script_with_scope_key():
 
 
 @pytest.mark.asyncio
-async def test_record_error_never_raises():
+async def test_record_error_never_raises() -> None:
     """Test that a Redis failure while recording is counted and swallowed.
 
     **Why this test is important:**
@@ -159,7 +159,7 @@ async def test_record_error_never_raises():
 
 
 @pytest.mark.asyncio
-async def test_check_budget_counter_arithmetic():
+async def test_check_budget_counter_arithmetic() -> None:
     """Test that ``check_budget`` subtracts the window's counters from the scope's limits.
 
     **Why this test is important:**
@@ -216,7 +216,7 @@ async def test_check_budget_counter_arithmetic():
 
 
 @pytest.mark.asyncio
-async def test_check_budget_fails_open_on_redis_error():
+async def test_check_budget_fails_open_on_redis_error() -> None:
     """Test that an unreachable Redis allows the call with a reason naming the outage.
 
     **Why this test is important:**
@@ -242,7 +242,7 @@ async def test_check_budget_fails_open_on_redis_error():
 
 
 @pytest.mark.asyncio
-async def test_usage_reads_counter_snapshot():
+async def test_usage_reads_counter_snapshot() -> None:
     """Test that ``usage`` returns the window counters as an approximate summary.
 
     **Why this test is important:**
@@ -294,7 +294,7 @@ async def test_usage_reads_counter_snapshot():
 
 
 @pytest.mark.asyncio
-async def test_check_budget_fails_open_on_malformed_limits():
+async def test_check_budget_fails_open_on_malformed_limits() -> None:
     """Test that an unparsable limits hash allows the call instead of raising.
 
     **Why this test is important:**
@@ -320,7 +320,7 @@ async def test_check_budget_fails_open_on_malformed_limits():
 
 
 @pytest.mark.asyncio
-async def test_record_rounds_cost_half_even_and_accepts_a_string_window():
+async def test_record_rounds_cost_half_even_and_accepts_a_string_window() -> None:
     """Test that cost is rounded half-even to micro-dollars and a plain-string window is honoured.
 
     **Why this test is important:**

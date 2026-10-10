@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from qdrant_client import AsyncQdrantClient
@@ -24,7 +24,7 @@ def _mock_client(
     exists: bool = True,
     retrieved: list[object] | None = None,
 ) -> AsyncQdrantClient:
-    """A mock AsyncQdrantClient: collection_exists/create/upsert/delete + query_points→.points + retrieve."""
+    """Return a mock AsyncQdrantClient: collection_exists/create/upsert/delete + query_points→.points + retrieve."""
     client = MagicMock(spec=AsyncQdrantClient)
     client.collection_exists = AsyncMock(return_value=exists)
     client.create_collection = AsyncMock()
@@ -41,7 +41,7 @@ def _mock_client(
 
 
 def _retrieved_point(entry_id: str, **metadata: str) -> object:
-    """A retrieved point whose ``id`` is the deterministic Qdrant point id of ``entry_id``.
+    """Return a retrieved point whose ``id`` is the deterministic Qdrant point id of ``entry_id``.
 
     Its payload carries the store's own keys plus ``metadata``, as ``QdrantVectorStore.upsert`` writes it.
     """
@@ -57,9 +57,11 @@ def _retrieved_point(entry_id: str, **metadata: str) -> object:
 
 
 class TestQdrantVectorStore:
+    """Tests for the Qdrant vector store."""
+
     @pytest.mark.asyncio
     async def test_upsert_creates_missing_collection_and_writes_payload(self) -> None:
-        """upsert ensures the collection (cosine+dim) then upserts points carrying the metadata payload.
+        """Upsert ensures the collection (cosine+dim) then upserts points carrying the metadata payload.
 
         Why this test is important:
           - The whole retrieval path depends on the payload (tenant/document_name/…) being written;
@@ -176,7 +178,7 @@ class TestQdrantVectorStore:
 
     @pytest.mark.asyncio
     async def test_search_filters_by_scope_and_maps_payload(self) -> None:
-        """search applies a payload scope filter and maps each hit's payload into VectorSearchResult.metadata.
+        """Search applies a payload scope filter and maps each hit's payload into VectorSearchResult.metadata.
 
         Why this test is important:
           - Without the pushed-down scope filter, queries mix scopes (e.g. tenants) before the policy
@@ -323,6 +325,8 @@ class TestQdrantVectorStore:
 
 
 class TestVectorStoreFactory:
+    """Tests for the vector store factory."""
+
     def test_from_config_builds_qdrant(self) -> None:
         """new_vector_store_from_config(kind=qdrant) builds a QdrantVectorStore."""
         store = new_vector_store_from_config(

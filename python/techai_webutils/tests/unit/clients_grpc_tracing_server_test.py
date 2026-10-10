@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -27,7 +28,7 @@ _TRACER_PATH = (
 
 
 def _real_span_tracer() -> tuple[Tracer, InMemorySpanExporter]:
-    """A real OTel tracer backed by an in-memory exporter, so a test sees genuine span contexts."""
+    """Return a real OTel tracer backed by an in-memory exporter, so a test sees genuine span contexts."""
     provider = TracerProvider()
     exporter = InMemorySpanExporter()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
@@ -35,19 +36,20 @@ def _real_span_tracer() -> tuple[Tracer, InMemorySpanExporter]:
 
 
 def _stream_handler(tracer: Tracer) -> grpc.RpcMethodHandler[object, object]:
-    """A unary-stream handler that yields chunks forever, so a test can cancel it mid-stream.
+    """Return a unary-stream handler that yields chunks forever, so a test can cancel it mid-stream.
 
     Each chunk is produced inside a ``produce`` child span started from the current context,
     the way a handler's client calls start their spans.
     """
 
     async def endless(_request: object, _context: object) -> AsyncIterator[str]:
+        await asyncio.sleep(0)
         index = 0
         while True:
             with tracer.start_as_current_span("produce"):
                 chunk = f"chunk-{index}"
+                index += 1
             yield chunk
-            index += 1
 
     handler = MagicMock(spec=grpc.RpcMethodHandler)
     handler.unary_unary = None
@@ -58,6 +60,8 @@ def _stream_handler(tracer: Tracer) -> grpc.RpcMethodHandler[object, object]:
 
 
 class TestTracingServerInterceptorStreaming:
+    """Tests for the tracing server interceptor on server-streaming RPCs."""
+
     @pytest.mark.asyncio
     async def test_server_span_closed_when_stream_cancelled_midway(self) -> None:
         """A client that cancels mid-stream still ends the SERVER span, without an ERROR status.
@@ -81,6 +85,7 @@ class TestTracingServerInterceptorStreaming:
             interceptor = TracingServerInterceptor("test")
 
         async def continuation(_details: object) -> grpc.RpcMethodHandler[object, object]:
+            await asyncio.sleep(0)
             return _stream_handler(tracer)
 
         details = MagicMock(spec=grpc.HandlerCallDetails)
@@ -109,6 +114,8 @@ class TestTracingServerInterceptorStreaming:
 
 
 class TestTracingServerInterceptorTraceResponse:
+    """Tests for the tracing server interceptor's trace-response span."""
+
     @pytest.mark.asyncio
     async def test_unary_returns_traceresponse_trailing_metadata(self) -> None:
         """A unary RPC returns the active span's trace id to the caller as ``traceresponse`` trailing metadata.
@@ -127,6 +134,7 @@ class TestTracingServerInterceptorTraceResponse:
             interceptor = TracingServerInterceptor("test")
 
         async def inner_unary(_request: object, _context: object) -> str:
+            await asyncio.sleep(0)
             return "ok"
 
         handler = MagicMock(spec=grpc.RpcMethodHandler)
@@ -136,6 +144,7 @@ class TestTracingServerInterceptorTraceResponse:
         handler.response_serializer = None
 
         async def continuation(_details: object) -> grpc.RpcMethodHandler[object, object]:
+            await asyncio.sleep(0)
             return handler
 
         details = MagicMock(spec=grpc.HandlerCallDetails)

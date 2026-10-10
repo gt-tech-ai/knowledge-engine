@@ -1,26 +1,47 @@
 """Tests for the stub LLM provider + env-aware LLM factory."""
 
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any, Self
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from techai_webutils.core.errors import AppError, ErrorCode
-from techai_webutils.core.interfaces.llm import LLMMessage
 
+from techai_webutils.clients.llm.bedrock import BedrockLlmProvider
 from techai_webutils.clients.llm.builder import LlmConfig, LlmKind, new_llm_from_config
 from techai_webutils.clients.llm.ollama import OllamaLlmProvider
 from techai_webutils.clients.llm.stub import StubLlmProvider
+from techai_webutils.core.errors import AppError, ErrorCode
+from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage
 
 
 def _messages(user: str) -> list[LLMMessage]:
-    """A system + user message pair."""
+    """Return a system + user message pair."""
     return [
         LLMMessage(role="system", content="instruction"),
         LLMMessage(role="user", content=user),
     ]
 
 
+async def _converse_args(
+    model: str, messages: list[LLMMessage], config: LLMConfig | None
+) -> dict[str, Any]:
+    """Run ``complete`` against a mocked bedrock-runtime client; return the Converse kwargs sent."""
+    runtime = MagicMock()
+    runtime.converse = AsyncMock(return_value={})
+    client_cm = MagicMock()
+    client_cm.__aenter__ = AsyncMock(return_value=runtime)
+    client_cm.__aexit__ = AsyncMock(return_value=None)
+    session = MagicMock()
+    session.create_client = MagicMock(return_value=client_cm)
+    with patch("aiobotocore.session.get_session", return_value=session):
+        async with BedrockLlmProvider(region="us-east-1", model=model) as provider:
+            await provider.complete(messages, config)
+    return runtime.converse.call_args.kwargs
+
+
 class TestStubLlmProvider:
+    """Tests for the stub LLM provider."""
+
     @pytest.mark.asyncio
     async def test_complete_echoes_last_user_message(self) -> None:
         """Test that the stub completion echoes the last user message deterministically.
@@ -67,7 +88,8 @@ class TestStubLlmProvider:
 class TestConverseArgs:
     """The model-agnostic Converse request mapping (Nova / Claude / Llama all share this shape)."""
 
-    def test_splits_system_and_maps_turns(self) -> None:
+    @pytest.mark.asyncio
+    async def test_splits_system_and_maps_turns(self) -> None:
         """Test that system messages become Converse ``system`` blocks and turns map to content lists.
 
         **Why this test is important:**
@@ -79,15 +101,14 @@ class TestConverseArgs:
           - modelId passes through; system messages go to ``system=[{"text": ...}]``; non-system turns
             become ``{"role", "content":[{"text": ...}]}``; inferenceConfig carries the default maxTokens.
         """
-        from techai_webutils.clients.llm.bedrock.provider import _converse_args
-
-        args = _converse_args("amazon.nova-lite-v1:0", _messages("hi"), None)
+        args = await _converse_args("amazon.nova-lite-v1:0", _messages("hi"), None)
         assert args["modelId"] == "amazon.nova-lite-v1:0"
         assert args["system"] == [{"text": "instruction"}]
         assert args["messages"] == [{"role": "user", "content": [{"text": "hi"}]}]
         assert args["inferenceConfig"]["maxTokens"] == 1024
 
-    def test_omits_system_when_no_system_message(self) -> None:
+    @pytest.mark.asyncio
+    async def test_omits_system_when_no_system_message(self) -> None:
         """Test that ``system`` is omitted entirely when there is no system message.
 
         **Why this test is important:**
@@ -97,14 +118,13 @@ class TestConverseArgs:
         **What it tests:**
           - A user-only message list produces args without a ``system`` key.
         """
-        from techai_webutils.clients.llm.bedrock.provider import _converse_args
-
-        args = _converse_args(
+        args = await _converse_args(
             "amazon.nova-lite-v1:0", [LLMMessage(role="user", content="hi")], None
         )
         assert "system" not in args
 
-    def test_inference_config_carries_temperature_and_omits_top_p(self) -> None:
+    @pytest.mark.asyncio
+    async def test_inference_config_carries_temperature_and_omits_top_p(self) -> None:
         """Test that a per-call LLMConfig's max_tokens/temperature reach inferenceConfig and topP is omitted.
 
         **Why this test is important:**
@@ -116,21 +136,19 @@ class TestConverseArgs:
             regressed every query to a 400 ValidationException.
 
         **What it tests:**
-          - _converse_args(config=LLMConfig(...)) sets maxTokens/temperature from the config and does
+          - complete(config=LLMConfig(...)) sends maxTokens/temperature from the config and does
             not send topP; the config=None path falls back to the provider defaults, still without topP.
         """
-        from techai_webutils.core.interfaces.llm import LLMConfig
-
-        from techai_webutils.clients.llm.bedrock.provider import _converse_args
-
-        inf = _converse_args(
-            "m", _messages("hi"), LLMConfig(max_tokens=4096, temperature=0.1, top_p=0.8)
-        )["inferenceConfig"]
+        config = LLMConfig(max_tokens=4096, temperature=0.1, top_p=0.8)
+        inf = (await _converse_args("m", _messages("hi"), config))["inferenceConfig"]
+        default = (await _converse_args("m", _messages("hi"), None))["inferenceConfig"]
         assert inf == {"maxTokens": 4096, "temperature": 0.1}
-        assert "topP" not in _converse_args("m", _messages("hi"), None)["inferenceConfig"]
+        assert "topP" not in default
 
 
 class TestLlmFactory:
+    """Tests for the LLM factory."""
+
     def test_stub_kind_selects_stub(self) -> None:
         """Test that kind=stub builds the stub provider (dev, no Bedrock).
 
@@ -325,7 +343,7 @@ class TestOllamaLlmProvider:
         ]
 
         class _StreamCtx:
-            async def __aenter__(self) -> "_StreamCtx":
+            async def __aenter__(self) -> Self:
                 return self
 
             async def __aexit__(self, *_: object) -> bool:

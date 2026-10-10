@@ -9,7 +9,7 @@ Why this suite matters:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pytest
@@ -19,17 +19,20 @@ from techai_webutils.clients.decorators.proxy import (
     RateLimitProxy,
     new_client_stack_from_config,
 )
-from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.core.errors.errors import AppError, ErrorCode
+from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
 )
 from techai_webutils.foundation.resilience.classify import is_transient
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
 
 def _client(**do_config: object) -> MagicMock:
-    """A mock client whose async ``do`` is an ``AsyncMock`` configured with ``do_config``.
+    """Return a mock client whose async ``do`` is an ``AsyncMock`` configured with ``do_config``.
 
     The resilience proxies forward ``getattr(client, "do")`` and branch on
     ``inspect.iscoroutinefunction`` (True for ``AsyncMock``), so this stands in for the direct-SDK
@@ -41,7 +44,7 @@ def _client(**do_config: object) -> MagicMock:
 
 
 def _sleeping_do(seconds: float) -> Callable[..., Awaitable[str]]:
-    """An async ``do`` side effect that sleeps ``seconds`` then returns ``"ok"``."""
+    """Return an async ``do`` side effect that sleeps ``seconds`` then returns ``"ok"``."""
 
     async def _do(*_args: object, **_kwargs: object) -> str:
         await asyncio.sleep(seconds)

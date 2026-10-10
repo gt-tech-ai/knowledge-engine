@@ -7,6 +7,7 @@ stub-first property (ARCHITECTURE.md#stub-first-backends) that makes the all-stu
 from __future__ import annotations
 
 import pytest
+
 from techai_webutils.clients.vector.builder import (
     VectorStoreConfig,
     VectorStoreKind,
@@ -125,7 +126,9 @@ async def test_stub_delete_by_id_filtered_search_and_zero_vector() -> None:
     )
 
     zero = await store.search("c", [0.0, 0.0, 0.0], top_k=10)
-    assert all(r.score == 0.0 for r in zero), "a zero-norm query scores 0, not a crash"
+    assert all(r.score == pytest.approx(0.0) for r in zero), (
+        "a zero-norm query scores 0, not a crash"
+    )
 
     await store.delete("c", ["1"])
     remaining = await store.search("c", [1.0, 0.0, 0.0], top_k=10)

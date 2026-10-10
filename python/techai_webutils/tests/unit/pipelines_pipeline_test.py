@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from techai_webutils.pipelines.base import BaseAsyncPipeline, BasePipeline
 from techai_webutils.pipelines.decorators import AsyncPipelineBuilder, PipelineBuilder
-import pytest
 
 
 class TestBasePipeline:
@@ -41,7 +43,7 @@ class TestBasePipeline:
           - ValueError raised by the callable is re-raised from execute
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "transform failed"
             raise ValueError(msg)
 
@@ -67,6 +69,7 @@ class TestBaseAsyncPipeline:
         """
 
         async def transform(x: str) -> str:
+            await asyncio.sleep(0)
             return x.upper()
 
         p = BaseAsyncPipeline(transform)
@@ -86,7 +89,8 @@ class TestBaseAsyncPipeline:
           - ValueError raised by the async callable is re-raised from execute
         """
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async transform failed"
             raise ValueError(msg)
 
@@ -140,7 +144,7 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "pipeline error"
             raise ValueError(msg)
 
@@ -199,8 +203,9 @@ class TestSyncLoggingDecorator:
 
         logger = MagicMock()
 
-        def failing(x: str) -> str:
-            raise ValueError("boom")
+        def failing(_x: str) -> str:
+            msg = "boom"
+            raise ValueError(msg)
 
         decorated = LoggingPipelineDecorator(BasePipeline(failing), "sync-err", logger)
 
@@ -252,7 +257,7 @@ class TestPipelineBuilder:
         """
         logger = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "composed error"
             raise ValueError(msg)
 
@@ -330,7 +335,7 @@ class TestMetricsDecorator:
         """
         histogram = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "metrics error"
             raise ValueError(msg)
 
@@ -448,7 +453,7 @@ class TestPipelineRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "unexpected boom"
             raise RuntimeError(msg)
 
@@ -475,8 +480,9 @@ class TestPipelineRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InvalidInputError
 
-        def failing(x: str) -> str:
-            raise InvalidInputError("bad input")
+        def failing(_x: str) -> str:
+            msg = "bad input"
+            raise InvalidInputError(msg)
 
         p = (
             PipelineBuilder(BasePipeline(failing), "app-error-pipeline")
@@ -544,7 +550,7 @@ class TestSyncPipelineInsideRunningLoop:
           - ValueError raised by the callable propagates through _run_sync
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "loop error"
             raise ValueError(msg)
 
@@ -600,7 +606,8 @@ class TestAsyncPipelineResilienceDecorators:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async unexpected"
             raise RuntimeError(msg)
 
@@ -630,6 +637,7 @@ class TestAsyncPipelineResilienceDecorators:
         """
 
         async def transform(x: str) -> str:
+            await asyncio.sleep(0)
             return "full-" + x
 
         logger = MagicMock()

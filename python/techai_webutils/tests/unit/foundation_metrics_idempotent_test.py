@@ -62,7 +62,7 @@ class TestMetricsIdempotency:
         provider = PrometheusMetricsProvider(registry=reg)
         provider.counter("conflict_widget", "help", labels=["a"])
 
-        with pytest.raises(ValueError, match="[Dd]uplicat"):
+        with pytest.raises(ValueError, match=r"[Dd]uplicat"):
             provider.counter("conflict_widget", "help", labels=["b"])
-        with pytest.raises(ValueError, match="[Dd]uplicat"):
+        with pytest.raises(ValueError, match=r"[Dd]uplicat"):
             provider.gauge("conflict_widget", "help")

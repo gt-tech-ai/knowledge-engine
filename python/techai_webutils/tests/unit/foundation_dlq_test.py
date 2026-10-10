@@ -3,6 +3,7 @@
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.dlq import DeadLetter, DeadLetterBackend
 from techai_webutils.foundation.resilience.dlq import (
     DeadLetterQueue,
@@ -11,6 +12,8 @@ from techai_webutils.foundation.resilience.dlq import (
 
 
 class TestDeadLetterQueue:
+    """Tests for the dead letter queue."""
+
     @pytest.mark.asyncio
     async def test_send_delivers_to_backend(self) -> None:
         """Test that a letter is handed to the backend and reported delivered.
@@ -41,7 +44,6 @@ class TestDeadLetterQueue:
         **What it tests:**
           - A raising backend causes send to return False (not raise).
         """
-
         backend = create_autospec(DeadLetterBackend, instance=True)
         backend.send.side_effect = RuntimeError("dlq down")
 

@@ -2,25 +2,56 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.auth import (
-    HeaderClaimMapping,
     AuthClaims,
     AuthServerInterceptor,
-    _auth_claims_var,
-    _split_roles,
+    HeaderClaimMapping,
     get_auth_claims,
     set_auth_claims,
 )
-
 
 _HEADERS = HeaderClaimMapping(
     user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
 )
 """The gateway header contract these tests send."""
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+
+async def _in_fresh_context[T](body: Coroutine[object, object, T]) -> T:
+    """Await ``body`` in an empty context: no claims are visible to it and none leak out."""
+    return await asyncio.create_task(body, context=contextvars.Context())
+
+
+async def _claims_after(
+    interceptor: AuthServerInterceptor, metadata: list[tuple[str, str]]
+) -> AuthClaims | None:
+    """Run ``interceptor`` over ``metadata`` in a fresh context; return the claims it stored."""
+
+    async def run() -> AuthClaims | None:
+        await interceptor.intercept_service(
+            AsyncMock(return_value="handler"), MagicMock(invocation_metadata=metadata)
+        )
+        return get_auth_claims()
+
+    return await _in_fresh_context(run())
+
+
+async def _roles(raw: str) -> frozenset[str]:
+    """Return the roles the interceptor parses from an ``x-roles`` header of ``raw``."""
+    claims = await _claims_after(
+        AuthServerInterceptor(_HEADERS), [("x-user-id", "u-1"), ("x-roles", raw)]
+    )
+    assert claims is not None
+    return claims.roles
 
 
 class TestAuthClaims:
@@ -39,8 +70,8 @@ class TestAuthClaims:
           - roles defaults to an empty frozenset (no privileges)
         """
         claims = AuthClaims()
-        assert claims.user_id == ""
-        assert claims.tenant_id == ""
+        assert not claims.user_id
+        assert not claims.tenant_id
         assert claims.roles == frozenset()
 
     def test_constructed_values(self) -> None:
@@ -83,9 +114,10 @@ class TestAuthClaims:
 
 
 class TestSplitRoles:
-    """Test suite for role string parsing."""
+    """Test suite for role header parsing."""
 
-    def test_empty_string(self) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_string(self) -> None:
         """Test that an empty x-roles header parses to no roles.
 
         **Why this test is important:**
@@ -94,11 +126,12 @@ class TestSplitRoles:
           - Confirms the deny-by-default behavior for role-free requests
 
         **What it tests:**
-          - _split_roles("") returns an empty frozenset
+          - an ``x-roles`` header of "" yields an empty frozenset
         """
-        assert _split_roles("") == frozenset()
+        assert await _roles("") == frozenset()
 
-    def test_single_role(self) -> None:
+    @pytest.mark.asyncio
+    async def test_single_role(self) -> None:
         """Test that a single-role header parses to exactly that role.
 
         **Why this test is important:**
@@ -107,11 +140,12 @@ class TestSplitRoles:
           - Confirms the base case of the comma-split logic
 
         **What it tests:**
-          - _split_roles("admin") returns a frozenset containing only "admin"
+          - an ``x-roles`` header of "admin" yields a frozenset containing only "admin"
         """
-        assert _split_roles("admin") == frozenset({"admin"})
+        assert await _roles("admin") == frozenset({"admin"})
 
-    def test_multiple_roles(self) -> None:
+    @pytest.mark.asyncio
+    async def test_multiple_roles(self) -> None:
         """Test that a comma-separated header yields every distinct role.
 
         **Why this test is important:**
@@ -120,15 +154,16 @@ class TestSplitRoles:
           - Confirms the splitter preserves each role across separators
 
         **What it tests:**
-          - _split_roles("admin,member,viewer") returns all three roles as a frozenset
+          - an ``x-roles`` header of "admin,member,viewer" yields all three roles as a frozenset
         """
-        assert _split_roles("admin,member,viewer") == frozenset({
+        assert await _roles("admin,member,viewer") == frozenset({
             "admin",
             "member",
             "viewer",
         })
 
-    def test_strips_whitespace(self) -> None:
+    @pytest.mark.asyncio
+    async def test_strips_whitespace(self) -> None:
         """Test that surrounding whitespace around roles is trimmed.
 
         **Why this test is important:**
@@ -137,11 +172,12 @@ class TestSplitRoles:
           - Confirms normalization so equality comparisons against role names work
 
         **What it tests:**
-          - _split_roles(" admin , member ") returns the trimmed roles {"admin", "member"}
+          - an ``x-roles`` header of " admin , member " yields the trimmed roles {"admin", "member"}
         """
-        assert _split_roles(" admin , member ") == frozenset({"admin", "member"})
+        assert await _roles(" admin , member ") == frozenset({"admin", "member"})
 
-    def test_discards_empty_segments(self) -> None:
+    @pytest.mark.asyncio
+    async def test_discards_empty_segments(self) -> None:
         """Test that empty segments from trailing or doubled commas are dropped.
 
         **Why this test is important:**
@@ -150,9 +186,9 @@ class TestSplitRoles:
           - Confirms the parser is resilient to sloppy header formatting
 
         **What it tests:**
-          - _split_roles("admin,,member,") returns only the real roles {"admin", "member"}
+          - an ``x-roles`` header of "admin,,member," yields only the real roles {"admin", "member"}
         """
-        assert _split_roles("admin,,member,") == frozenset({"admin", "member"})
+        assert await _roles("admin,,member,") == frozenset({"admin", "member"})
 
 
 class TestContextVars:
@@ -177,11 +213,7 @@ class TestContextVars:
             assert retrieved.user_id == "u-1"
             assert retrieved.tenant_id == "o-1"
         finally:
-            from techai_webutils.clients.rpc.grpc.interceptors.auth import (
-                _auth_claims_var,
-            )
-
-            _auth_claims_var.reset(token)
+            token.var.reset(token)
 
     def test_default_is_none(self) -> None:
         """Test that a context with no claims set reports None, not a default identity.
@@ -192,16 +224,9 @@ class TestContextVars:
           - Confirms the deny-by-default behavior at the context layer
 
         **What it tests:**
-          - get_auth_claims() returns None when the contextvar holds no claims
+          - get_auth_claims() returns None in a context where no claims were set
         """
-        # In a fresh context, claims should be None
-        from techai_webutils.clients.rpc.grpc.interceptors.auth import _auth_claims_var
-
-        token = _auth_claims_var.set(None)
-        try:
-            assert get_auth_claims() is None
-        finally:
-            _auth_claims_var.reset(token)
+        assert contextvars.Context().run(get_auth_claims) is None
 
 
 class TestAuthServerInterceptor:
@@ -231,21 +256,21 @@ class TestAuthServerInterceptor:
             ("x-roles", "admin,member"),
         ])
         continuation = AsyncMock(return_value="handler")
-        token = _auth_claims_var.set(None)
-        try:
+
+        async def run() -> tuple[object, AuthClaims | None]:
             result = await AuthServerInterceptor(_HEADERS).intercept_service(
                 continuation, details
             )
+            return result, get_auth_claims()
 
-            claims = get_auth_claims()
-            assert result == "handler"
-            assert claims is not None
-            assert claims.user_id == "u-1"
-            assert claims.tenant_id == "o-1"
-            assert claims.roles == frozenset({"admin", "member"})
-            continuation.assert_called_once_with(details)
-        finally:
-            _auth_claims_var.reset(token)
+        result, claims = await _in_fresh_context(run())
+
+        assert result == "handler"
+        assert claims is not None
+        assert claims.user_id == "u-1"
+        assert claims.tenant_id == "o-1"
+        assert claims.roles == frozenset({"admin", "member"})
+        continuation.assert_called_once_with(details)
 
     @pytest.mark.asyncio
     async def test_skips_claims_when_user_absent(self) -> None:
@@ -262,17 +287,18 @@ class TestAuthServerInterceptor:
         """
         details = self._details([("x-tenant-id", "o-1")])
         continuation = AsyncMock(return_value="handler")
-        token = _auth_claims_var.set(None)
-        try:
+
+        async def run() -> tuple[object, AuthClaims | None]:
             result = await AuthServerInterceptor(_HEADERS).intercept_service(
                 continuation, details
             )
+            return result, get_auth_claims()
 
-            assert result == "handler"
-            assert get_auth_claims() is None
-            continuation.assert_called_once_with(details)
-        finally:
-            _auth_claims_var.reset(token)
+        result, claims = await _in_fresh_context(run())
+
+        assert result == "handler"
+        assert claims is None
+        continuation.assert_called_once_with(details)
 
     @pytest.mark.asyncio
     async def test_reads_claims_from_the_consumers_header_mapping(self) -> None:
@@ -290,28 +316,16 @@ class TestAuthServerInterceptor:
             user_id="x-sub", tenant_id="x-tenant", roles="x-groups"
         )
         interceptor = AuthServerInterceptor(headers=mapping)
-        continuation = AsyncMock(return_value="handler")
-        token = _auth_claims_var.set(None)
-        try:
-            await interceptor.intercept_service(
-                continuation,
-                self._details([
-                    ("x-sub", "u-1"),
-                    ("x-tenant", "t-1"),
-                    ("x-groups", "a,b"),
-                ]),
-            )
-            assert get_auth_claims() == AuthClaims(
-                user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
-            )
 
-            _auth_claims_var.set(None)
-            await interceptor.intercept_service(
-                continuation, self._details([("x-user-id", "u-1")])
-            )
-            assert get_auth_claims() is None
-        finally:
-            _auth_claims_var.reset(token)
+        mapped = await _claims_after(
+            interceptor, [("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]
+        )
+        unmapped = await _claims_after(interceptor, [("x-user-id", "u-1")])
+
+        assert mapped == AuthClaims(
+            user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
+        )
+        assert unmapped is None
 
 
 class TestHeaderClaimMapping:
@@ -343,30 +357,19 @@ class TestHeaderClaimMapping:
         mapping = PackageMapping(
             user_id=" X-User-Sub ", tenant_id="X-Tenant", roles="X-Roles"
         )
-        continuation = AsyncMock(return_value="handler")
-        token = _auth_claims_var.set(None)
-        try:
-            await PackageInterceptor(mapping).intercept_service(
-                continuation,
-                MagicMock(
-                    invocation_metadata=[
-                        ("x-user-sub", "u-1"),
-                        ("x-tenant", "t-1"),
-                        ("x-roles", "a"),
-                    ]
-                ),
-            )
+        claims = await _claims_after(
+            PackageInterceptor(mapping),
+            [("x-user-sub", "u-1"), ("x-tenant", "t-1"), ("x-roles", "a")],
+        )
 
-            assert (mapping.user_id, mapping.tenant_id, mapping.roles) == (
-                "x-user-sub",
-                "x-tenant",
-                "x-roles",
-            )
-            assert get_auth_claims() == AuthClaims(
-                user_id="u-1", tenant_id="t-1", roles=frozenset({"a"})
-            )
-        finally:
-            _auth_claims_var.reset(token)
+        assert (mapping.user_id, mapping.tenant_id, mapping.roles) == (
+            "x-user-sub",
+            "x-tenant",
+            "x-roles",
+        )
+        assert claims == AuthClaims(
+            user_id="u-1", tenant_id="t-1", roles=frozenset({"a"})
+        )
 
     @pytest.mark.parametrize("field", ["user_id", "tenant_id", "roles"])
     @pytest.mark.parametrize("blank", ["", "   "])

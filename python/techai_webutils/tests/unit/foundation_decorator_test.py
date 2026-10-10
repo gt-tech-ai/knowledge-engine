@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -27,11 +26,11 @@ class _SyncInner:
     """Minimal sync execute() double: returns a value, raises, or sleeps."""
 
     def __init__(
-        self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0
+        self, *, result: object = "ok", exc: Exception | None = None, delay: float = 0.0
     ) -> None:
         self._result, self._exc, self._delay = result, exc, delay
 
-    def execute(self, _input: Any) -> Any:  # noqa: ANN401
+    def execute(self, _input: object) -> object:
         if self._delay:
             time.sleep(self._delay)
         if self._exc is not None:
@@ -43,11 +42,11 @@ class _AsyncInner:
     """Minimal async execute() double: returns a value, raises, or sleeps."""
 
     def __init__(
-        self, *, result: Any = "ok", exc: Exception | None = None, delay: float = 0.0
+        self, *, result: object = "ok", exc: Exception | None = None, delay: float = 0.0
     ) -> None:
         self._result, self._exc, self._delay = result, exc, delay
 
-    async def execute(self, _input: Any) -> Any:  # noqa: ANN401
+    async def execute(self, _input: object) -> object:
         if self._delay:
             import asyncio
 

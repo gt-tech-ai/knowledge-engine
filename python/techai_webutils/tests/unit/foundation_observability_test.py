@@ -1,25 +1,62 @@
-"""Tests for the observability helpers: trace-context logging, HTTP metrics,
-the gRPC tracing server interceptor, and the setup bootstrap."""
+"""Tests for the observability helpers.
+
+They cover trace-context logging, HTTP metrics, the gRPC tracing server interceptor, and the
+setup bootstrap.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 from io import StringIO
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
+
+import grpc
+import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import (
     TracingServerInterceptor,
 )
-from techai_webutils.core.interfaces.logger import Logger
-from techai_webutils.foundation.logger.logger import _add_trace_context, configure_logging
+from techai_webutils.foundation.logger.logger import configure_logging
 from techai_webutils.foundation.middleware import http_observability
 from techai_webutils.foundation.observability import parse_sample_rate
-import grpc
-import pytest
+
+
+def _serve(path: str, status: int = 200) -> None:
+    """Run one GET ``path`` returning ``status`` through the FastAPI observability middleware."""
+    from starlette.requests import Request
+    from starlette.responses import PlainTextResponse, Response
+
+    class _App:
+        title = "test-svc"
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": path,
+        "headers": [],
+        "query_string": b"",
+        "app": _App(),
+    }
+
+    async def call_next(_request: Request) -> Response:
+        await asyncio.sleep(0)
+        return PlainTextResponse("ok", status_code=status)
+
+    asyncio.run(
+        http_observability.fastapi_observability_middleware(Request(scope), call_next)
+    )
+
+
+def _http_logs(raw: str) -> list[dict[str, object]]:
+    """Return the rendered 'http request' log entries in ``raw``."""
+    entries = [json.loads(line) for line in raw.strip().split("\n") if line]
+    return [e for e in entries if e.get("message") == "http request"]
 
 
 class TestTraceContextProcessor:
+    """Tests for the trace context processor."""
+
     def test_no_span_is_noop(self) -> None:
         """Test that the trace-context processor adds nothing when no span is active.
 
@@ -30,13 +67,16 @@ class TestTraceContextProcessor:
             dead log-to-trace links that resolve to no trace
 
         **What it tests:**
-          - With no recording span, _add_trace_context leaves trace_id/span_id absent
-            from the event dict
+          - With no recording span, a rendered log line carries no trace_id/span_id
         """
-        event_dict: dict[str, object] = {"event": "hi"}
-        out = _add_trace_context(None, "info", event_dict)
-        assert "trace_id" not in out
-        assert "span_id" not in out
+        import structlog
+
+        output = StringIO()
+        configure_logging(level="INFO", stream=output)
+        structlog.get_logger("t").info("hi")
+        data = json.loads(output.getvalue().strip().split("\n")[-1])
+        assert "trace_id" not in data
+        assert "span_id" not in data
 
     def test_logger_emits_canonical_message_key(self) -> None:
         """Test that the configured logger renders the log message under the 'message' key.
@@ -92,24 +132,28 @@ class TestTraceContextProcessor:
 
 
 class TestHTTPMetrics:
+    """Tests for the HTTP metrics."""
+
     def test_record_increments(self) -> None:
-        """Test that _record increments the per-request counter for its label set.
+        """Test that a served request increments the per-request counter for its label set.
 
         **Why this test is important:**
           - The RED metrics this records (request rate/errors/duration) are the
-            backbone of the Grafana dashboards and alerting. If _record failed to
+            backbone of the Grafana dashboards and alerting. If a request failed to
             increment for a given method/route/status, traffic and error rates would
             silently under-report and mask outages
 
         **What it tests:**
-          - After _record("GET", "/healthz", 200, ...), the counter sample for that
-            method/route/status label combination is at least 1
+          - Serving GET /healthz with 200 raises the counter sample for that
+            method/route/status label combination by exactly 1
         """
-        http_observability._record("GET", "/healthz", 200, 0.0)
-        value = http_observability._REQUESTS.labels(
-            method="GET", route="/healthz", status="200"
-        )._value.get()
-        assert value >= 1
+        from prometheus_client import REGISTRY
+
+        labels = {"method": "GET", "route": "/healthz", "status": "200"}
+        before = REGISTRY.get_sample_value("http_server_requests_total", labels) or 0.0
+        _serve("/healthz")
+        after = REGISTRY.get_sample_value("http_server_requests_total", labels)
+        assert after == before + 1
 
     def test_metric_names_match_dashboards(self) -> None:
         """Test that the exposed Prometheus metrics use the exact names the dashboards query.
@@ -127,14 +171,12 @@ class TestHTTPMetrics:
         """
         from prometheus_client import generate_latest
 
-        http_observability._record("GET", "/does-not-exist", 200, 0.0)
+        _serve("/does-not-exist")
         exposed = generate_latest().decode()
         assert "http_server_requests_total" in exposed
         assert "http_server_request_duration_seconds" in exposed
 
-    def test_probe_and_scrape_paths_are_not_logged(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_probe_and_scrape_paths_are_not_logged(self) -> None:
         """Test that health-probe and Prometheus-scrape requests are not access-logged.
 
         **Why this test is important:**
@@ -144,29 +186,26 @@ class TestHTTPMetrics:
             alone floods a service's log every 15s)
 
         **What it tests:**
-          - _log_http for /healthz, /readyz, and /metrics emits nothing, while a
-            normal path still emits its 'http request' line
+          - Serving /healthz, /readyz, and /metrics renders no 'http request' line, while a
+            normal path still renders exactly one
         """
-        calls: list[str] = []
-
-        # A spec-bound Logger mock whose level methods record the message, so we can assert
-        # exactly which log lines were emitted (probe/scrape paths: none; normal path: one).
-        log = MagicMock(spec=Logger)
-        record = lambda msg, **_: calls.append(msg)  # noqa: E731
-        log.info.side_effect = record
-        log.warning.side_effect = record
-        log.error.side_effect = record
-        monkeypatch.setattr(http_observability, "_log", log)
+        out = StringIO()
+        configure_logging(level="INFO", stream=out)
 
         for probe in ("/healthz", "/readyz", "/metrics"):
-            http_observability._log_http("GET", probe, 200, 0.0)
-        assert calls == [], "health-probe and scrape paths must not be logged"
+            _serve(probe)
+        assert _http_logs(out.getvalue()) == [], (
+            "probe and scrape paths must not be logged"
+        )
 
-        http_observability._log_http("GET", "/api/things", 200, 0.0)
-        assert calls == ["http request"], "normal requests must still be logged"
+        _serve("/api/things")
+        [entry] = _http_logs(out.getvalue())
+        assert entry.get("path") == "/api/things", "normal requests must still be logged"
 
 
 class TestTracingServerInterceptor:
+    """Tests for the tracing server interceptor."""
+
     @pytest.mark.asyncio
     async def test_passes_through_client_streaming_handlers(self) -> None:
         """Test that the tracing interceptor returns client-streaming handlers untouched.
@@ -188,7 +227,7 @@ class TestTracingServerInterceptor:
             invocation_metadata = ()
 
         # A client-streaming handler (unary_unary AND unary_stream are None) is returned as-is.
-        non_unary = grpc.stream_stream_rpc_method_handler(lambda req, ctx: req)
+        non_unary = grpc.stream_stream_rpc_method_handler(lambda req, _ctx: req)
         result = await interceptor.intercept_service(
             AsyncMock(return_value=non_unary), _Details()
         )
@@ -212,6 +251,7 @@ class TestTracingServerInterceptor:
         interceptor = TracingServerInterceptor("test-svc")
 
         async def behavior(request: object, context: object):  # noqa: ANN202, ARG001
+            await asyncio.sleep(0)
             for chunk in ("a", "b", "c"):
                 yield chunk
 
@@ -247,6 +287,7 @@ class TestTracingServerInterceptor:
         interceptor = TracingServerInterceptor("test-svc")
 
         async def behavior(request: object, context: object) -> str:  # noqa: ARG001
+            await asyncio.sleep(0)
             return "ok"
 
         handler = grpc.unary_unary_rpc_method_handler(behavior)
@@ -264,6 +305,8 @@ class TestTracingServerInterceptor:
 
 
 class TestSampleRate:
+    """Tests for the sample rate."""
+
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [
@@ -295,9 +338,11 @@ class TestSampleRate:
 
 
 class TestHTTPRequestLogging:
-    """The 'http request' log must use a status-appropriate level and fire on
-    error paths. Regression: the aiohttp adapter logged nothing on 4xx/5xx (only
-    the success path logged), and both adapters logged everything at info."""
+    """The 'http request' log uses a status-appropriate level and fires on error paths.
+
+    Regression: the aiohttp adapter logged nothing on 4xx/5xx (only
+    the success path logged), and both adapters logged everything at info.
+    """
 
     @staticmethod
     def _last_http_log(raw: str) -> dict[str, object]:
@@ -319,14 +364,15 @@ class TestHTTPRequestLogging:
           - A handler raising HTTPNotFound produces a final "http request" log with
             status==404 and level=="warning"
         """
-        from aiohttp import web  # noqa: PLC0415
-        from aiohttp.test_utils import make_mocked_request  # noqa: PLC0415
+        from aiohttp import web
+        from aiohttp.test_utils import make_mocked_request
 
         out = StringIO()
         configure_logging(level="INFO", stream=out)
         middleware = http_observability.aiohttp_observability_middleware("test-svc")
 
         async def handler(_request: object) -> object:
+            await asyncio.sleep(0)
             raise web.HTTPNotFound
 
         with pytest.raises(web.HTTPNotFound):
@@ -351,14 +397,16 @@ class TestHTTPRequestLogging:
           - A handler raising ValueError yields a final "http request" log with
             status==500, level=="error", and an "exception" field present
         """
-        from aiohttp.test_utils import make_mocked_request  # noqa: PLC0415
+        from aiohttp.test_utils import make_mocked_request
 
         out = StringIO()
         configure_logging(level="INFO", stream=out)
         middleware = http_observability.aiohttp_observability_middleware("test-svc")
 
         async def handler(_request: object) -> object:
-            raise ValueError("boom")
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise ValueError(msg)
 
         with pytest.raises(ValueError, match="boom"):
             asyncio.run(
@@ -384,8 +432,8 @@ class TestHTTPRequestLogging:
           - A call_next returning a 404 response produces a final "http request" log
             with status==404 and level=="warning"
         """
-        from starlette.requests import Request  # noqa: PLC0415
-        from starlette.responses import PlainTextResponse, Response  # noqa: PLC0415
+        from starlette.requests import Request
+        from starlette.responses import PlainTextResponse, Response
 
         out = StringIO()
         configure_logging(level="INFO", stream=out)
@@ -403,6 +451,7 @@ class TestHTTPRequestLogging:
         }
 
         async def call_next(_request: Request) -> Response:
+            await asyncio.sleep(0)
             return PlainTextResponse("nope", status_code=404)
 
         asyncio.run(

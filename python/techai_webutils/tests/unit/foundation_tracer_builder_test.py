@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from techai_webutils.foundation.tracer.builder import (
     TracerConfig,
     TracerKind,
@@ -20,15 +22,12 @@ from techai_webutils.foundation.tracer.builder import (
 )
 from techai_webutils.foundation.tracer.null_tracer import NullTracerProvider
 from techai_webutils.foundation.tracer.tracer import OTelTracerProvider
-import pytest
 
 
 class TestTracerBuilder:
     """Test suite for tracer builder factory."""
 
-    @patch("techai_webutils.foundation.tracer.tracer._setup_provider")
-    @patch("opentelemetry.trace.get_tracer")
-    def test_new_tracer_otel(self, mock_get_tracer: object, mock_setup: object) -> None:
+    def test_new_tracer_otel(self) -> None:
         """Test that TracerKind.OTEL creates an OTelTracerProvider.
 
         **Why this test is important:**
@@ -40,7 +39,11 @@ class TestTracerBuilder:
           - Returned instance is an OTelTracerProvider
         """
         config = TracerConfig(kind=TracerKind.OTEL, service_name="test-svc")
-        tracer = new_tracer_from_config(config)
+        with (
+            patch("techai_webutils.foundation.tracer.tracer._setup_provider"),
+            patch("opentelemetry.trace.get_tracer"),
+        ):
+            tracer = new_tracer_from_config(config)
         assert isinstance(tracer, OTelTracerProvider)
 
     def test_new_tracer_null(self) -> None:

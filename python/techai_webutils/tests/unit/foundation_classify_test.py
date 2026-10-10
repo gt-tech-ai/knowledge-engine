@@ -7,6 +7,7 @@ import grpc.aio
 import httpx
 from botocore.exceptions import ClientError, EndpointConnectionError
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+
 from techai_webutils.core.errors.errors import InvalidInputError, UnavailableError
 from techai_webutils.foundation.resilience.classify import is_permanent, is_transient
 
@@ -40,6 +41,8 @@ def _rpc_error(code: grpc.StatusCode) -> MagicMock:
 
 
 class TestClassify:
+    """Tests for transient/permanent error classification."""
+
     def test_apperror_transient_vs_permanent(self) -> None:
         """Test that AppError classification delegates to its is_transient flag.
 

@@ -184,36 +184,34 @@ line-length = 90
 preview = true
 
 [tool.ruff.lint]
-exclude = ["tests/**"]
-
 select = ["ALL"]
 
 ignore = [
-    "ANN002", # Missing type annotation for `*args`
-    "ANN003", # Missing type annotation for `**kwargs`
-    "BLE001", # Do not catch blind exception: `Exception`
-    "COM812", # Trailing comma missing
-    "CPY001", # flake8-copyright: repo does not use file copyright headers
-    "D105", # Missing docstring in magic method
-    "D107", # Missing docstring in `__init__` method
-    "D202", # No blank lines allowed after function docstring
-    "D203", # 1 blank line before class docstring (conflicts with D211; ruff keeps D211)
-    "D213", # Multi-line summary on second line (conflicts with D212; ruff keeps D212)
+    "missing-type-args", # Missing type annotation for `*args`
+    "missing-type-kwargs", # Missing type annotation for `**kwargs`
+    "blind-except", # Do not catch blind exception: `Exception`
+    "missing-trailing-comma", # Trailing comma missing
+    "missing-copyright-notice", # flake8-copyright: repo does not use file copyright headers
+    "undocumented-magic-method", # Missing docstring in magic method
+    "undocumented-public-init", # Missing docstring in `__init__` method
+    "blank-line-after-function", # No blank lines allowed after function docstring
+    "incorrect-blank-line-before-class", # 1 blank line before class docstring (conflicts with D211; ruff keeps D211)
+    "multi-line-summary-second-line", # Multi-line summary on second line (conflicts with D212; ruff keeps D212)
     "DOC", # pydoclint family (preview): listed as "Consider", not adopted
-    "E501", # Line too long
-    "FIX002", # Line contains TODO, consider resolving the issue
+    "line-too-long", # Line too long
+    "line-contains-todo", # Line contains TODO, consider resolving the issue
     "FURB", # refurb family (preview): listed as "Consider", not adopted
-    "N802", # Function name `xxx` should be lowercase
-    "N999", # Invalid module name
+    "invalid-function-name", # Function name `xxx` should be lowercase
+    "invalid-module-name", # Invalid module name
     "pytest-fixture-autouse", # flake8-pytest-style (preview, no assigned rule code so it cannot be suppressed per-line via `# noqa`): autouse is a deliberate cross-cutting test pattern here — per-test env isolation and the integration-suite Docker gate — so this opinionated preview rule is deferred like DOC/FURB.
-    "RSE102", # Unnecessary parentheses on raise exception
-    "RUF105", # noqa-comments (preview): opinionated/stylistic rule preferring `# ruff: ignore[...]` over `# noqa`; ruff itself sanctions disabling it. We keep the universal, tool-agnostic `# noqa: <CODE>` form.
-    "TC006", # Add quotes to type expression in `typing.cast()`
-    "TD002", # Missing author in TODO
-    "TD003", # Missing issue link for this TODO
-    "TRY002", # Create your own exception
-    "TRY300", # Consider moving this statement to an `else` block
-    "UP032", # Use f-string instead of `format` call
+    "unnecessary-paren-on-raise-exception", # Unnecessary parentheses on raise exception
+    "noqa-comments", # noqa-comments (preview): opinionated/stylistic rule preferring `# ruff: ignore[...]` over `# noqa`; ruff itself sanctions disabling it. We keep the universal, tool-agnostic `# noqa: <CODE>` form.
+    "runtime-cast-value", # Add quotes to type expression in `typing.cast()`
+    "missing-todo-author", # Missing author in TODO
+    "missing-todo-link", # Missing issue link for this TODO
+    "raise-vanilla-class", # Create your own exception
+    "try-consider-else", # Consider moving this statement to an `else` block
+    "f-string", # Use f-string instead of `format` call
 ]
 
 [tool.ruff.lint.isort]
@@ -223,9 +221,18 @@ known-first-party = ["techai_webutils"]
 # The bedrock clients mirror the AWS bedrock-runtime / bedrock-agent-runtime / bedrock-agent APIs, whose
 # keyword params are camelCase (knowledgeBaseId, modelId, retrievalQuery, dataSourceId, …) — N803 does
 # not apply to a wire mirror.
-"src/techai_webutils/clients/llm/bedrock/*.py" = ["N803"]
-"src/techai_webutils/clients/retrieval/bedrock/*.py" = ["N803"]
-"src/techai_webutils/clients/kb_ingestion/bedrock/*.py" = ["N803"]
+"src/techai_webutils/clients/llm/bedrock/*.py" = ["invalid-argument-name"]
+"src/techai_webutils/clients/retrieval/bedrock/*.py" = ["invalid-argument-name"]
+"src/techai_webutils/clients/kb_ingestion/bedrock/*.py" = ["invalid-argument-name"]
+# Each entry is a rule wrong-by-design for the whole test tree.
+"**/tests/**" = [
+    "S", # flake8-bandit: bandit is the dedicated security gate and excludes tests; fixtures use fake credentials and intentionally exercise flagged patterns (assert, e2e subprocess, bind-all in local config)
+    "magic-value-comparison", # magic-value comparisons are expected in test assertions
+    "missing-type-function-argument", # test fixtures/params need no redundant annotations (types still resolve under basedpyright)
+    "no-self-use", # pytest groups tests as methods on a class; `self` is required by the collector even when unused
+    "implicit-namespace-package", # test trees are flat implicit-namespace packages (no __init__.py), collected by pytest
+    "import-outside-top-level", # tests import the concrete implementation under test locally to keep each case's deps explicit
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15

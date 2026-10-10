@@ -1,6 +1,7 @@
 """Tests for CursorCodec encode/decode round-trip."""
 
 import pytest
+
 from techai_webutils.repos.cursor import CursorCodec, CursorPayload
 
 
@@ -43,7 +44,7 @@ class TestCursorCodec:
         decoded = CursorCodec.decode(cursor)
 
         assert decoded.last_id == "id-only"
-        assert decoded.last_value == ""
+        assert not decoded.last_value
 
     def test_decode_invalid_cursor(self) -> None:
         """Test that malformed base64 input is rejected with a clear error.

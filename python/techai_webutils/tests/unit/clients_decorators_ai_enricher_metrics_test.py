@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
-from opentelemetry.trace import SpanContext
 import pytest
+from opentelemetry.trace import SpanContext
 
 from techai_webutils.clients.decorators.ai_enricher import AiSpanEnricher
 from techai_webutils.core.interfaces.fact_publisher import FactPublisher
@@ -23,7 +23,7 @@ _MODULE = "techai_webutils.clients.decorators.ai_enricher"
 
 
 def _llm() -> MagicMock:
-    """An ``LLMProvider`` mock returning a fixed response with 42 input / 7 output tokens."""
+    """Return an ``LLMProvider`` mock returning a fixed response with 42 input / 7 output tokens."""
     inner = MagicMock(spec=LLMProvider)
     inner.complete = AsyncMock(
         return_value=LLMResponse(
@@ -40,7 +40,7 @@ def _llm() -> MagicMock:
 @pytest.mark.asyncio
 async def test_enricher_emits_gen_ai_tokens_total_from_response(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that one ``complete`` increments ``gen_ai_tokens_total`` once per token type.
 
     **Why this test is important:**
@@ -73,7 +73,7 @@ async def test_enricher_emits_gen_ai_tokens_total_from_response(
 @pytest.mark.asyncio
 async def test_enricher_observes_request_duration(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that one ``complete`` observes its wall time on ``gen_ai_request_duration_seconds``.
 
     **Why this test is important:**
@@ -155,7 +155,7 @@ async def test_enricher_reports_metrics_and_fact_under_the_served_model(
 
 
 def _span(trace_id: int, span_id: int) -> MagicMock:
-    """A mock current span whose context carries the given (valid) trace and span ids."""
+    """Return a mock current span whose context carries the given (valid) trace and span ids."""
     span = MagicMock()
     span.get_span_context.return_value = SpanContext(
         trace_id=trace_id, span_id=span_id, is_remote=False
@@ -166,7 +166,7 @@ def _span(trace_id: int, span_id: int) -> MagicMock:
 @pytest.mark.asyncio
 async def test_enricher_emits_one_fact_per_call_with_configured_dims(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that each model call publishes exactly one ``genai_calls`` fact with the product dims.
 
     **Why this test is important:**
@@ -222,7 +222,7 @@ async def test_enricher_emits_one_fact_per_call_with_configured_dims(
 
 
 @pytest.mark.asyncio
-async def test_enricher_fact_publish_error_never_fails_call():
+async def test_enricher_fact_publish_error_never_fails_call() -> None:
     """Test that a raising fact publisher or dimensions callable never fails the model call.
 
     **Why this test is important:**
@@ -239,7 +239,8 @@ async def test_enricher_fact_publish_error_never_fails_call():
     quiet_publisher = MagicMock(spec=FactPublisher)
 
     def _bad_dims() -> dict[str, str]:
-        raise KeyError("team")
+        msg = "team"
+        raise KeyError(msg)
 
     cases = [
         (raising_publisher, lambda: {"org_id": "org-1"}),

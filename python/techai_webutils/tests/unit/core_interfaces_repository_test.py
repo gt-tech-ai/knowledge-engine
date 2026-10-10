@@ -2,16 +2,19 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.interfaces.repository import (
     Repository,
     Transaction,
     TransactionManager,
 )
-import pytest
 
 
 class TestRepository:
+    """Tests for the repository."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that the Repository ABC cannot be instantiated without all CRUD methods.
 
@@ -99,6 +102,8 @@ class TestRepository:
 
 
 class TestTransaction:
+    """Tests for the transaction."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that the Transaction ABC cannot be instantiated without commit/rollback.
 
@@ -117,6 +122,8 @@ class TestTransaction:
 
 
 class TestTransactionManager:
+    """Tests for the transaction manager."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that TransactionManager cannot be instantiated without begin/with_transaction.
 

@@ -7,7 +7,10 @@ runs only on the leader.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+
 from techai_webutils.clients.decorators.event_stack import EventStackDeps, wrap_handler
 from techai_webutils.clients.decorators.job_stack import JobStackDeps, wrap_job
 from techai_webutils.core.errors.errors import UnavailableError
@@ -47,6 +50,7 @@ async def test_wrap_handler_dedup_skips_duplicate() -> None:
     calls = 0
 
     async def inner(_msg: Message) -> None:
+        await asyncio.sleep(0)
         nonlocal calls
         calls += 1
 
@@ -76,9 +80,11 @@ async def test_wrap_handler_retries_then_dead_letters() -> None:
     attempts = 0
 
     async def inner(_msg: Message) -> None:
+        await asyncio.sleep(0)
         nonlocal attempts
         attempts += 1
-        raise UnavailableError("downstream down")
+        msg = "downstream down"
+        raise UnavailableError(msg)
 
     handler = wrap_handler(
         inner,
@@ -107,10 +113,12 @@ async def test_wrap_job_leader_gating() -> None:
     leader_calls = 0
 
     async def follower_job() -> None:
+        await asyncio.sleep(0)
         nonlocal follower_calls
         follower_calls += 1
 
     async def leader_job() -> None:
+        await asyncio.sleep(0)
         nonlocal leader_calls
         leader_calls += 1
 
@@ -147,7 +155,9 @@ async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler
     calls = 0
 
     async def failing() -> None:
-        raise UnavailableError("downstream down")
+        await asyncio.sleep(0)
+        msg = "downstream down"
+        raise UnavailableError(msg)
 
     def inner(_msg: Message) -> object:
         nonlocal calls

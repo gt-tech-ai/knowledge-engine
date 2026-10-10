@@ -9,6 +9,8 @@ a ``postgres:16-alpine`` testcontainer.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from techai_webutils.clients.lock import SingleWriterRunner
@@ -41,6 +43,7 @@ async def test_single_writer_runner_serializes_across_sessions(postgres_dsn: str
         ran: list[str] = []
 
         async def op() -> str:
+            await asyncio.sleep(0)
             ran.append("b")
             return "b"
 

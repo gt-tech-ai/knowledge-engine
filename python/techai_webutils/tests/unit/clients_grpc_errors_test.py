@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+import grpc
+
 from techai_webutils.clients.rpc.grpc.errors import to_grpc_status
 from techai_webutils.core.errors.errors import (
     AppError,
+    AppTimeoutError,
     ConflictError,
     ErrorCode,
     ForbiddenError,
     InternalError,
     InvalidInputError,
     NotFoundError,
-    AppTimeoutError,
     UnauthorizedError,
     UnavailableError,
 )
-import grpc
-from unittest.mock import MagicMock
 
 
 class TestToGrpcStatus:

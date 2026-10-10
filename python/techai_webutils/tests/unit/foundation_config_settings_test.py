@@ -7,8 +7,8 @@ Why these tests are important:
   - Field defaults must match config.yaml to work in all environments
 """
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 
 def test_database_settings_defaults() -> None:
@@ -107,7 +107,7 @@ def test_database_settings_frozen() -> None:
 
     # Act & Assert
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        settings.database_host = "mutated"  # type: ignore
+        settings.database_host = "mutated"
 
 
 def test_redis_settings_defaults() -> None:
@@ -259,7 +259,7 @@ def test_base_app_settings_has_correct_model_config() -> None:
     from techai_webutils.foundation.config.settings import BaseAppSettings
 
     # Assert
-    assert BaseAppSettings.model_config["env_prefix"] == ""
+    assert not BaseAppSettings.model_config["env_prefix"]
     assert BaseAppSettings.model_config["frozen"] is True
     assert BaseAppSettings.model_config["extra"] == "ignore"
 

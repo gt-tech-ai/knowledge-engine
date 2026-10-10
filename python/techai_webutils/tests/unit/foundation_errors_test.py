@@ -26,11 +26,11 @@ Run with: pytest tests/python/test_foundation/test_errors.py
 
 from techai_webutils.core.errors.errors import (
     AppError,
+    AppTimeoutError,
     ErrorCode,
     IngestionError,
     InternalError,
     NotFoundError,
-    AppTimeoutError,
     UnavailableError,
 )
 from techai_webutils.foundation.errors.errors import (

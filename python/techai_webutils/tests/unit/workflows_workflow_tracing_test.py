@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
+
 from techai_webutils.core.errors.errors import InvalidInputError
 from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 from techai_webutils.workflows.base import BaseAsyncWorkflow
@@ -23,6 +25,8 @@ def _tracer() -> tuple[TracerProvider, TracerSpan]:
 
 
 class TestAsyncWorkflowTracing:
+    """Tests for the async workflow tracing."""
+
     @pytest.mark.asyncio
     async def test_spans_execution(self) -> None:
         """Test that with_tracing wraps workflow execution in a span.
@@ -37,6 +41,7 @@ class TestAsyncWorkflowTracing:
         """
 
         async def orchestrate(x: str) -> str:
+            await asyncio.sleep(0)
             return x.upper()
 
         tracer, _span = _tracer()
@@ -62,7 +67,9 @@ class TestAsyncWorkflowTracing:
         """
 
         async def failing(_x: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         tracer, span = _tracer()
         w = (

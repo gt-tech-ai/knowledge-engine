@@ -2,18 +2,30 @@
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-from techai_webutils.clients.messaging.config import SQSConfig
-from techai_webutils.clients.messaging.sqs.sqs_publisher import SQSPublisher
 import pytest
+
+from techai_webutils.clients.messaging.sqs.sqs_publisher import SQSPublisher
+
+if TYPE_CHECKING:
+    from techai_webutils.clients.messaging.config import SQSConfig
+
+
+async def _open(config: SQSConfig) -> SQSPublisher:
+    """Open a publisher on the ``aws_client`` session; it stays open, as the session is a mock."""
+    return await AsyncExitStack().enter_async_context(SQSPublisher(config))
 
 
 class TestSQSPublisher:
     """Test suite for SQSPublisher message sending and lifecycle."""
 
     @pytest.mark.asyncio
-    async def test_publish_sends_message(self, sqs_config: SQSConfig) -> None:
+    async def test_publish_sends_message(
+        self, sqs_config: SQSConfig, aws_client: AsyncMock
+    ) -> None:
         """Test that publish sends a single message to the configured SQS queue.
 
         **Why this test is important:**
@@ -26,11 +38,10 @@ class TestSQSPublisher:
           - QueueUrl matches the configured queue URL
           - MessageBody matches the published payload
         """
-        mock_client = AsyncMock()
+        mock_client = aws_client
         mock_client.send_message = AsyncMock()
 
-        publisher = SQSPublisher(sqs_config)
-        publisher._client = mock_client
+        publisher = await _open(sqs_config)
 
         await publisher.publish("events", b'{"type":"test"}')
 
@@ -40,7 +51,9 @@ class TestSQSPublisher:
         assert call_kwargs["MessageBody"] == '{"type":"test"}'
 
     @pytest.mark.asyncio
-    async def test_publish_batch_sends_messages(self, sqs_config: SQSConfig) -> None:
+    async def test_publish_batch_sends_messages(
+        self, sqs_config: SQSConfig, aws_client: AsyncMock
+    ) -> None:
         """Test that publish_batch sends multiple messages in a single SQS batch request.
 
         **Why this test is important:**
@@ -52,11 +65,10 @@ class TestSQSPublisher:
           - send_message_batch is called exactly once
           - Entries list contains exactly 2 messages
         """
-        mock_client = AsyncMock()
+        mock_client = aws_client
         mock_client.send_message_batch = AsyncMock()
 
-        publisher = SQSPublisher(sqs_config)
-        publisher._client = mock_client
+        publisher = await _open(sqs_config)
 
         await publisher.publish_batch("events", [b"msg1", b"msg2"])
 

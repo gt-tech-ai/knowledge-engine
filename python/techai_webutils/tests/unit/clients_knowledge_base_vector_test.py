@@ -53,7 +53,7 @@ def _store(
 def _indexed(
     document_id: str, indexes: range, **attributes: str
 ) -> dict[str, dict[str, str]]:
-    """The stored metadata of chunks ``indexes`` of a document indexed with ``attributes`` and no name."""
+    """Return the stored metadata of chunks ``indexes`` of a document indexed with ``attributes`` and no name."""
     return {
         f"{document_id}:{i}": {
             **attributes,
@@ -65,6 +65,8 @@ def _indexed(
 
 
 class TestVectorKnowledgeBase:
+    """Tests for the vector knowledge base."""
+
     @pytest.mark.asyncio
     async def test_index_document_embeds_and_upserts_with_metadata_schema(self) -> None:
         """index_document embeds each chunk and upserts points carrying the consumer's attributes.
@@ -332,6 +334,8 @@ class TestVectorKnowledgeBase:
 
 
 class TestKnowledgeBaseFactory:
+    """Tests for the knowledge base factory."""
+
     def test_from_config_builds_vector_kb(self) -> None:
         """new_knowledge_base_from_config(kind=vector) builds a VectorKnowledgeBase."""
         kb = new_knowledge_base_from_config(

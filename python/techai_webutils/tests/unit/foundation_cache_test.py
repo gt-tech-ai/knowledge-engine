@@ -28,8 +28,9 @@ Run with: pytest tests/python/test_foundation/test_cache.py
 
 from unittest.mock import AsyncMock
 
-from techai_webutils.clients.cache.redis import FailureMode, RedisCache
 import pytest
+
+from techai_webutils.clients.cache.redis import FailureMode, RedisCache
 
 
 class TestRedisCache:

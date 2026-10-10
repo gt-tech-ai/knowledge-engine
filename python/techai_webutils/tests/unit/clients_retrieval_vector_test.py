@@ -40,7 +40,7 @@ def _store(hits: list[VectorSearchResult], dimension: int = 3) -> VectorStore:
 
 
 def _hit() -> VectorSearchResult:
-    """A search hit carrying a scope key, a document name and a page."""
+    """Return a search hit carrying a scope key, a document name and a page."""
     return VectorSearchResult(
         document_id="doc-1",
         chunk_id="doc-1:0",
@@ -55,6 +55,8 @@ def _hit() -> VectorSearchResult:
 
 
 class TestVectorRetrievalEngine:
+    """Tests for the vector retrieval engine."""
+
     @pytest.mark.asyncio
     async def test_retrieve_pushes_down_only_the_named_filters(self) -> None:
         """retrieve() embeds the query, then searches with only the filters named in filter_keys.
@@ -149,6 +151,8 @@ class TestVectorRetrievalEngine:
 
 
 class TestQdrantFactoryBranch:
+    """Tests for the Qdrant factory branch."""
+
     @pytest.mark.asyncio
     async def test_from_config_qdrant_pushes_the_store_filter_keys_down(self) -> None:
         """The qdrant factory branch builds a filtered vector engine that pushes store_filter_keys down.

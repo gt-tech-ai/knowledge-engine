@@ -27,7 +27,7 @@ from techai_webutils.core.interfaces.token_ledger import (
 
 
 def _record() -> UsageRecord:
-    """A usage record for one generation."""
+    """Return a usage record for one generation."""
     return UsageRecord(
         scope=UsageScope(org_id="org-1", team_id="t-1"),
         model="nova-lite",
@@ -38,7 +38,7 @@ def _record() -> UsageRecord:
     )
 
 
-def test_usage_scope_requires_org_id():
+def test_usage_scope_requires_org_id() -> None:
     """Test that a usage scope cannot be built without an organization.
 
     **Why this test is important:**
@@ -58,7 +58,7 @@ def test_usage_scope_requires_org_id():
     )
 
 
-def test_usage_records_are_frozen():
+def test_usage_records_are_frozen() -> None:
     """Test that usage records and scopes are immutable values.
 
     **Why this test is important:**
@@ -79,7 +79,7 @@ def test_usage_records_are_frozen():
     assert record.cost_usd == Decimal("0")
 
 
-def test_factory_returns_stub_by_default():
+def test_factory_returns_stub_by_default() -> None:
     """Test that the default config builds the stub ledger with zero infrastructure.
 
     **Why this test is important:**
@@ -100,7 +100,7 @@ def test_factory_returns_stub_by_default():
     assert config.stream == "token_ledger:usage"
 
 
-def test_factory_uses_injected_backend_for_extra_kind():
+def test_factory_uses_injected_backend_for_extra_kind() -> None:
     """Test that a consumer-supplied kind is built by its injected backend factory.
 
     **Why this test is important:**
@@ -121,7 +121,7 @@ def test_factory_uses_injected_backend_for_extra_kind():
     factory.assert_called_once_with(config)
 
 
-def test_factory_unknown_kind_raises_coded_error():
+def test_factory_unknown_kind_raises_coded_error() -> None:
     """Test that an unknown kind, or redis without a client, fails loudly with a coded error.
 
     **Why this test is important:**
@@ -140,7 +140,7 @@ def test_factory_unknown_kind_raises_coded_error():
 
 
 @pytest.mark.asyncio
-async def test_stub_allows_all_and_records_nothing():
+async def test_stub_allows_all_and_records_nothing() -> None:
     """Test that the stub allows every call, records nothing and reports empty usage.
 
     **Why this test is important:**

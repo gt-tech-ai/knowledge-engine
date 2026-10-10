@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
+
+import grpc
+import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
 from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import (
@@ -13,8 +17,6 @@ from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
 )
-import grpc
-import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -31,6 +33,7 @@ class _Call:
         """Resolve to the configured response."""
 
         async def _resolve() -> object:
+            await asyncio.sleep(0)
             return self._response
 
         return _resolve().__await__()

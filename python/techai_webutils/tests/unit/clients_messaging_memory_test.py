@@ -9,9 +9,10 @@ state), so two unrelated brokers are isolated under parallel test execution.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pytest
+
 from techai_webutils.clients.messaging.builder import (
     MessagingConfig,
     MessagingKind,
@@ -24,12 +25,16 @@ from techai_webutils.clients.messaging.memory import (
     InMemoryPublisher,
     InMemorySubscriber,
 )
-from techai_webutils.core.interfaces.messaging import Message
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from techai_webutils.core.interfaces.messaging import Message
 
 
-async def _wait_for(predicate: Callable[[], bool], timeout: float = 1.0) -> None:
-    """Poll ``predicate`` until truthy or the timeout elapses (condition-based waiting)."""
-    for _ in range(int(timeout / 0.01)):
+async def _wait_for(predicate: Callable[[], bool], within_s: float = 1.0) -> None:
+    """Poll ``predicate`` until truthy or ``within_s`` elapses (condition-based waiting)."""
+    for _ in range(int(within_s / 0.01)):
         if predicate():
             return
         await asyncio.sleep(0.01)
@@ -37,8 +42,9 @@ async def _wait_for(predicate: Callable[[], bool], timeout: float = 1.0) -> None
 
 @pytest.mark.asyncio
 async def test_messaging_memory_backend_publish_receive() -> None:
-    """A message published to a topic is delivered to a subscriber on the SAME broker; a second
-    broker sees nothing (isolation).
+    """A message published to a topic reaches a subscriber on the SAME broker only.
+
+    A second broker sees nothing (isolation).
 
     Why this test is important:
         - The memory backend only stands in for SQS if a publish reaches a subscriber on the same
@@ -55,6 +61,7 @@ async def test_messaging_memory_backend_publish_receive() -> None:
     received: list[bytes] = []
 
     async def handler(msg: Message) -> None:
+        await asyncio.sleep(0)
         received.append(msg.payload)
 
     await publisher.publish("topic", b"hello")
@@ -72,6 +79,7 @@ async def test_messaging_memory_backend_publish_receive() -> None:
     other_received: list[bytes] = []
 
     async def other_handler(msg: Message) -> None:
+        await asyncio.sleep(0)
         other_received.append(msg.payload)
 
     other_task = asyncio.create_task(other.subscribe("topic", other_handler))
@@ -103,6 +111,7 @@ async def test_messaging_memory_handler_error_does_not_stop_the_loop() -> None:
     received: list[bytes] = []
 
     async def handler(msg: Message) -> None:
+        await asyncio.sleep(0)
         if msg.payload == b"boom":
             msg_text = "handler failure"
             raise RuntimeError(msg_text)

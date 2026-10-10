@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
 
 from techai_webutils.clients.facts import (
     FactPublisherConfig,
@@ -29,7 +29,7 @@ _GOLDEN = Path(__file__).resolve().parents[4] / "testdata" / "analytics_fact.gol
 
 
 def _fact(i: int = 0) -> Fact:
-    """The golden fact (``i == 0``) or a variant with a distinct idempotency key."""
+    """Return the golden fact (``i == 0``) or a variant with a distinct idempotency key."""
     return Fact(
         cube="genai_calls",
         org_id="org-1",
@@ -47,14 +47,14 @@ def _fact(i: int = 0) -> Fact:
 
 
 def _dropped_counter() -> tuple[MagicMock, MagicMock]:
-    """A metrics provider whose only counter (``gen_ai_fact_dropped_total``) is returned too."""
+    """Return a metrics provider whose only counter (``gen_ai_fact_dropped_total``) is returned too."""
     counter = MagicMock(spec=MetricCounter)
     metrics = MagicMock(spec=MetricsProvider)
     metrics.counter.return_value = counter
     return metrics, counter
 
 
-def test_fact_json_matches_golden():
+def test_fact_json_matches_golden() -> None:
     """Test that ``Fact.to_json`` is byte-identical to the shared golden fixture.
 
     **Why this test is important:**
@@ -69,7 +69,7 @@ def test_fact_json_matches_golden():
     assert _fact().to_json() == _GOLDEN.read_bytes()
 
 
-def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
+def test_factory_builds_stub_by_default_and_rejects_unknown_kinds() -> None:
     """Test the config-selected factory: stub by default, coded errors on misconfiguration.
 
     **Why this test is important:**
@@ -100,7 +100,7 @@ def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_drops_and_counts_when_full():
+async def test_messaging_publisher_drops_and_counts_when_full() -> None:
     """Test that a full buffer drops the fact, counts it, and never blocks or raises.
 
     **Why this test is important:**
@@ -141,7 +141,7 @@ async def test_messaging_publisher_drops_and_counts_when_full():
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose():
+async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose() -> None:
     """Test that a dead sender task closes the publisher instead of buffering into the void.
 
     **Why this test is important:**
@@ -168,14 +168,14 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
         metrics=metrics,
     )
 
-    await publisher.__aenter__()
-    publisher.publish([_fact(1)])
-    sender = publisher._sender  # noqa: SLF001 — the only handle on the task whose death is under test
-    assert sender is not None
-    await asyncio.wait([sender])
-    publisher.publish([_fact(2), _fact(3)])
-    await publisher.aclose()
-    publisher.publish([_fact(4)])
+    async with publisher:
+        publisher.publish([_fact(1)])
+        sender = publisher._sender  # noqa: SLF001 — the only handle on the task whose death is under test
+        assert sender is not None
+        await asyncio.wait([sender])
+        publisher.publish([_fact(2), _fact(3)])
+        await publisher.aclose()
+        publisher.publish([_fact(4)])
 
     assert dropped.inc.call_args_list == [
         ((), {"reason": "publish_error"}),
@@ -186,7 +186,7 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_batches_by_ten():
+async def test_messaging_publisher_batches_by_ten() -> None:
     """Test that buffered facts are sent in batches of at most ten and fully drained on close.
 
     **Why this test is important:**
@@ -219,8 +219,8 @@ async def test_messaging_publisher_batches_by_ten():
     ]
 
 
-def test_fact_json_escapes_like_go():
-    """Test that ``to_json`` escapes the characters Go's ``encoding/json`` escapes by default.
+def test_fact_json_escapes_like_go() -> None:
+    r"""Test that ``to_json`` escapes the characters Go's ``encoding/json`` escapes by default.
 
     **Why this test is important:**
       - The idempotency key and dims are free-form; a ``<`` or ``&`` rendered raw in Python but
@@ -245,7 +245,7 @@ def test_fact_json_escapes_like_go():
     )
 
 
-def test_fact_json_renders_bool_measures_as_numbers():
+def test_fact_json_renders_bool_measures_as_numbers() -> None:
     """Test that a ``bool`` measure is written as ``1`` / ``0``, never as a JSON boolean.
 
     **Why this test is important:**
@@ -294,7 +294,7 @@ def test_fact_json_round_trips(
     dims: dict[str, str],
     measures: dict[str, float],
     key: str,
-):
+) -> None:
     """Test, over generated facts, that ``to_json`` decodes back to the fact's own values.
 
     **Why this test is important:**
