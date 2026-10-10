@@ -59,8 +59,9 @@ type Config struct {
 
 // Sink delivers outbox records to SQS queues chosen by each record's route.
 // Each message's body is the record's payload (which must therefore be valid SQS
-// message text) and it carries the outbox_id, tenant and lane string attributes,
-// so a consumer can deduplicate an at-least-once redelivery by outbox_id.
+// message text) and it carries the outbox_id string attribute, plus tenant and
+// lane when non-empty (SQS rejects an empty attribute value), so a consumer can
+// deduplicate an at-least-once redelivery by outbox_id.
 type Sink struct {
 	// api is the (decorated) SQS client.
 	api API
@@ -182,13 +183,9 @@ func (s *Sink) sendBatch(
 	for i := range recs {
 		rec := &recs[i]
 		entries[i] = sqstypes.SendMessageBatchRequestEntry{
-			Id:          aws.String(strconv.Itoa(i)),
-			MessageBody: aws.String(string(rec.Payload)),
-			MessageAttributes: map[string]sqstypes.MessageAttributeValue{
-				"outbox_id": stringAttr(rec.ID.String()),
-				"tenant":    stringAttr(rec.Tenant),
-				"lane":      stringAttr(rec.Lane),
-			},
+			Id:                aws.String(strconv.Itoa(i)),
+			MessageBody:       aws.String(string(rec.Payload)),
+			MessageAttributes: messageAttributes(rec),
 		}
 		if fifo {
 			entries[i].MessageGroupId = aws.String(groupID(rec))
@@ -280,6 +277,23 @@ func groupID(rec *types.OutboxRecord) string {
 		}
 	}
 	return rec.Lane
+}
+
+// messageAttributes is rec's outbox_id, tenant and lane String attributes. SQS
+// rejects an attribute with an empty value, so an empty tenant or lane is omitted.
+func messageAttributes(
+	rec *types.OutboxRecord,
+) map[string]sqstypes.MessageAttributeValue {
+	attrs := map[string]sqstypes.MessageAttributeValue{
+		"outbox_id": stringAttr(rec.ID.String()),
+	}
+	if rec.Tenant != "" {
+		attrs["tenant"] = stringAttr(rec.Tenant)
+	}
+	if rec.Lane != "" {
+		attrs["lane"] = stringAttr(rec.Lane)
+	}
+	return attrs
 }
 
 // stringAttr is a String message attribute.
