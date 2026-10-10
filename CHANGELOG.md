@@ -6,6 +6,8 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-09
+
 ### Added
 
 - `RESOURCE_EXHAUSTED` error code in both languages (Go `errors.CodeResourceExhausted`, Python
