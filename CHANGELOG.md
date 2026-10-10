@@ -6,6 +6,8 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-10
+
 ### Added
 
 - Go `errors.ContextCode(err, fallback)`: like `CodeOr`, but maps an uncoded
