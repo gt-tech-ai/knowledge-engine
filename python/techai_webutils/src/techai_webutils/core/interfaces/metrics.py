@@ -17,7 +17,9 @@ class MetricsProvider(ABC):
     """
 
     @abstractmethod
-    def counter(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricCounter:
+    def counter(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricCounter:
         """Create or retrieve a counter metric."""
         ...
 
@@ -33,7 +35,9 @@ class MetricsProvider(ABC):
         ...
 
     @abstractmethod
-    def gauge(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricGauge:
+    def gauge(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricGauge:
         """Create or retrieve a gauge metric."""
         ...
 

@@ -23,7 +23,18 @@ class TestSQSConfigClientKwargs:
     """
 
     def test_empty_endpoint_and_creds_collapse_to_none(self) -> None:
-        config = SQSConfig(endpoint="", region="us-east-1", queue_url="q", access_key="", secret_key="")
+        """Blank endpoint and credentials become ``None`` so the regional endpoint is used.
+
+        Why this test is important:
+          - aiobotocore rejects an empty-string ``endpoint_url``; a blanked cloud config
+            must not crash the service on startup.
+
+        What it tests:
+          - endpoint and both credentials map to ``None``; the region passes through.
+        """
+        config = SQSConfig(
+            endpoint="", region="us-east-1", queue_url="q", access_key="", secret_key=""
+        )
         kwargs = config.client_kwargs()
         assert kwargs["endpoint_url"] is None
         assert kwargs["aws_access_key_id"] is None
@@ -31,6 +42,15 @@ class TestSQSConfigClientKwargs:
         assert kwargs["region_name"] == "us-east-1"
 
     def test_non_empty_values_pass_through(self) -> None:
+        """A set endpoint and credentials (local ElasticMQ) pass through unchanged.
+
+        Why this test is important:
+          - Local dev points the client at ElasticMQ; collapsing real values would send
+            it to AWS instead.
+
+        What it tests:
+          - endpoint and both credentials are returned as configured.
+        """
         config = SQSConfig(
             endpoint="http://localhost:9324",
             region="us-east-1",

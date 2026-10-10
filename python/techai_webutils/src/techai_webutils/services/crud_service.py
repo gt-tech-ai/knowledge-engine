@@ -5,13 +5,13 @@ Mirrors Go's ``services/service/service.go``.
 
 from __future__ import annotations
 
-from typing import TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from techai_webutils.core.interfaces.crud_service import CrudService
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.repository import Repository
     from techai_webutils.core.domain_types.types import Page, PageRequest
+    from techai_webutils.core.interfaces.repository import Repository
 
 T = TypeVar("T")
 P = TypeVar("P")

@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -106,7 +107,7 @@ func (i loggingInterceptor) logAccess(
 	}
 	code := connect.CodeUnknown
 	var connectErr *connect.Error
-	if errors.As(err, &connectErr) {
+	if apperr.As(err, &connectErr) {
 		code = connectErr.Code()
 	}
 	// Prefer the real domain error captured by the error mapper over the sanitized client

@@ -1,25 +1,35 @@
 """Tests for the async bounded-concurrency fan-out engine."""
 
 import asyncio
+from typing import override
 
 import pytest
-from techai_webutils.core.interfaces.execution import BatchResult, StepResult, StepStatus
+
+from techai_webutils.core.interfaces.execution import (
+    BatchResult,
+    NopObserver,
+    StepResult,
+    StepStatus,
+)
 from techai_webutils.execution.engine.fan_out import fan_out
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing mapper used by the observer/empty tests."""
+    """Map ``item`` to a passing step (the observer/empty tests' trivial mapper)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
 class TestFanOut:
+    """Tests for ``fan_out``."""
+
     @pytest.mark.asyncio
     async def test_bounds_concurrency(self) -> None:
         """Test that fan_out never runs more than `concurrency` mappers at once.
 
         **Why this test is important:**
           - The whole point of the engine is *bounded* fan-out; an unbounded burst would
-            OOM the ingestion pod (N parses × 512Mi) — the concurrency cap is a hard safety limit.
+            OOM the ingestion pod (N parses x 512Mi) — the concurrency cap is a hard safety limit.
 
         **What it tests:**
           - With concurrency=3 over 12 items, the peak observed in-flight count is <= 3 and all
@@ -85,6 +95,7 @@ class TestFanOut:
         """
 
         async def fn(item: int) -> StepResult:
+            await asyncio.sleep(0)
             if item == 2:
                 msg = "boom"
                 raise ValueError(msg)
@@ -136,14 +147,19 @@ class TestFanOut:
         started: list[int] = []
         finished: list[BatchResult] = []
 
-        class Obs:
+        class Obs(NopObserver):
+            @override
             def on_batch_start(self, name: str, total: int) -> None:
                 started.append(total)
 
+            @override
             def on_step_complete(self, result: StepResult) -> None:
                 completed.append(result)
 
-            def on_batch_complete(self, name: str, result: BatchResult, elapsed: float) -> None:
+            @override
+            def on_batch_complete(
+                self, name: str, result: BatchResult, elapsed: float
+            ) -> None:
                 finished.append(result)
 
         batch = await fan_out(list(range(7)), 3, _ok, Obs())

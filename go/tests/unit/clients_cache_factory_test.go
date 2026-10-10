@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/clients/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/clients/cache"
 )
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ import (
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	outboxs3 "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/s3"
 	outboxsqs "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox/sqs"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // SQSAPI runs every SQS call through stack. Both calls are retryable: a queue
@@ -37,22 +37,34 @@ type sqsAPI struct {
 func (a *sqsAPI) GetQueueUrl(
 	ctx context.Context, in *awssqs.GetQueueUrlInput, optFns ...func(*awssqs.Options),
 ) (*awssqs.GetQueueUrlOutput, error) {
-	return clientdecorators.Run(ctx, a.stack, "sqs.get_queue_url", clientdecorators.RunOpts{Retryable: true},
+	return clientdecorators.Run(
+		ctx,
+		a.stack,
+		"sqs.get_queue_url",
+		clientdecorators.RunOpts{Retryable: true},
 		func(cctx context.Context) (*awssqs.GetQueueUrlOutput, error) {
 			out, err := a.inner.GetQueueUrl(cctx, in, optFns...)
 			return out, classify(err)
-		})
+		},
+	)
 }
 
 // SendMessageBatch sends one batch through the stack.
 func (a *sqsAPI) SendMessageBatch(
-	ctx context.Context, in *awssqs.SendMessageBatchInput, optFns ...func(*awssqs.Options),
+	ctx context.Context,
+	in *awssqs.SendMessageBatchInput,
+	optFns ...func(*awssqs.Options),
 ) (*awssqs.SendMessageBatchOutput, error) {
-	return clientdecorators.Run(ctx, a.stack, "sqs.send_message_batch", clientdecorators.RunOpts{Retryable: true},
+	return clientdecorators.Run(
+		ctx,
+		a.stack,
+		"sqs.send_message_batch",
+		clientdecorators.RunOpts{Retryable: true},
 		func(cctx context.Context) (*awssqs.SendMessageBatchOutput, error) {
 			out, err := a.inner.SendMessageBatch(cctx, in, optFns...)
 			return out, classify(err)
-		})
+		},
+	)
 }
 
 // S3API runs every PutObject through stack. A put is retried only when its body
@@ -75,36 +87,48 @@ func (a *s3API) PutObject(
 	ctx context.Context, in *awss3.PutObjectInput, optFns ...func(*awss3.Options),
 ) (*awss3.PutObjectOutput, error) {
 	seeker, rewindable := in.Body.(io.Seeker)
-	return clientdecorators.Run(ctx, a.stack, "s3.put_object", clientdecorators.RunOpts{Retryable: rewindable},
+	return clientdecorators.Run(
+		ctx,
+		a.stack,
+		"s3.put_object",
+		clientdecorators.RunOpts{Retryable: rewindable},
 		func(cctx context.Context) (*awss3.PutObjectOutput, error) {
 			if rewindable {
 				if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-					return nil, coreerr.Wrap(err, coreerr.CodeInternal, "outbox s3: rewind body")
+					return nil, apperr.Wrap(
+						err,
+						apperr.CodeInternal,
+						"outbox s3: rewind body",
+					)
 				}
 			}
 			out, err := a.inner.PutObject(cctx, in, optFns...)
 			return out, classify(err)
-		})
+		},
+	)
 }
 
 // classify codes an SDK error: a throttle or server fault is CodeUnavailable
 // (retryable), access denial CodeForbidden, any other client fault
 // CodeInvalidInput; context errors and already-coded errors pass through.
 func classify(err error) error {
-	if err == nil || coreerr.Code(err) != coreerr.CodeUnknown ||
-		coreerr.StdIs(err, context.Canceled) || coreerr.StdIs(err, context.DeadlineExceeded) {
+	if err == nil || apperr.Code(err) != apperr.CodeUnknown ||
+		apperr.StdIs(
+			err,
+			context.Canceled,
+		) || apperr.StdIs(err, context.DeadlineExceeded) {
 		return err
 	}
 	var apiErr smithy.APIError
-	if !coreerr.As(err, &apiErr) || apiErr.ErrorFault() != smithy.FaultClient {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "aws call failed")
+	if !apperr.As(err, &apiErr) || apiErr.ErrorFault() != smithy.FaultClient {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "aws call failed")
 	}
 	switch name := apiErr.ErrorCode(); {
 	case strings.Contains(name, "Throttl"), name == "SlowDown", name == "RequestTimeout":
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "aws call throttled")
+		return apperr.Wrap(err, apperr.CodeUnavailable, "aws call throttled")
 	case strings.HasPrefix(name, "AccessDenied"):
-		return coreerr.Wrap(err, coreerr.CodeForbidden, "aws call denied")
+		return apperr.Wrap(err, apperr.CodeForbidden, "aws call denied")
 	default:
-		return coreerr.Wrap(err, coreerr.CodeInvalidInput, "aws call rejected")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "aws call rejected")
 	}
 }

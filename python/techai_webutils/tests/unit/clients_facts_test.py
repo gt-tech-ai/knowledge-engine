@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
 
 from techai_webutils.clients.facts import (
     FactPublisherConfig,
@@ -25,16 +26,24 @@ from techai_webutils.core.interfaces.messaging import MessagePublisher
 from techai_webutils.core.interfaces.metrics import MetricCounter, MetricsProvider
 from techai_webutils.core.types.fact import Fact
 
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
 _GOLDEN = Path(__file__).resolve().parents[4] / "testdata" / "analytics_fact.golden.json"
 
 
 def _fact(i: int = 0) -> Fact:
-    """The golden fact (``i == 0``) or a variant with a distinct idempotency key."""
+    """Return the golden fact (``i == 0``) or a variant with a distinct idempotency key."""
     return Fact(
         cube="genai_calls",
         org_id="org-1",
         ts=datetime(2026, 10, 9, 12, 34, 56, 789000, tzinfo=UTC),
-        dims={"provider": "aws.bedrock", "model": "nova-lite", "step": "generate", "team": "t-1"},
+        dims={
+            "provider": "aws.bedrock",
+            "model": "nova-lite",
+            "step": "generate",
+            "team": "t-1",
+        },
         measures={"tokens_in": 42, "tokens_out": 7, "duration_s": 1.25},
         idempotency_key="4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b7:generate"
         + ("" if i == 0 else f"-{i}"),
@@ -42,14 +51,14 @@ def _fact(i: int = 0) -> Fact:
 
 
 def _dropped_counter() -> tuple[MagicMock, MagicMock]:
-    """A metrics provider whose only counter (``gen_ai_fact_dropped_total``) is returned too."""
+    """Return a metrics provider whose only counter (``gen_ai_fact_dropped_total``) is returned too."""
     counter = MagicMock(spec=MetricCounter)
     metrics = MagicMock(spec=MetricsProvider)
     metrics.counter.return_value = counter
     return metrics, counter
 
 
-def test_fact_json_matches_golden():
+def test_fact_json_matches_golden() -> None:
     """Test that ``Fact.to_json`` is byte-identical to the shared golden fixture.
 
     **Why this test is important:**
@@ -64,7 +73,7 @@ def test_fact_json_matches_golden():
     assert _fact().to_json() == _GOLDEN.read_bytes()
 
 
-def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
+def test_factory_builds_stub_by_default_and_rejects_unknown_kinds() -> None:
     """Test the config-selected factory: stub by default, coded errors on misconfiguration.
 
     **Why this test is important:**
@@ -84,7 +93,10 @@ def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
     for config, publisher in (
         (FactPublisherConfig(kind="kafka"), None),
         (FactPublisherConfig(kind=FactPublisherKind.MESSAGING, queue="facts"), None),
-        (FactPublisherConfig(kind=FactPublisherKind.MESSAGING), MagicMock(spec=MessagePublisher)),
+        (
+            FactPublisherConfig(kind=FactPublisherKind.MESSAGING),
+            MagicMock(spec=MessagePublisher),
+        ),
     ):
         with pytest.raises(AppError) as caught:
             new_fact_publisher_from_config(config, publisher=publisher)
@@ -92,7 +104,7 @@ def test_factory_builds_stub_by_default_and_rejects_unknown_kinds():
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_drops_and_counts_when_full():
+async def test_messaging_publisher_drops_and_counts_when_full() -> None:
     """Test that a full buffer drops the fact, counts it, and never blocks or raises.
 
     **Why this test is important:**
@@ -109,7 +121,10 @@ async def test_messaging_publisher_drops_and_counts_when_full():
     transport.publish_batch = AsyncMock(side_effect=RuntimeError("sqs down"))
     publisher = new_fact_publisher_from_config(
         FactPublisherConfig(
-            kind=FactPublisherKind.MESSAGING, queue="facts", max_buffer=2, flush_interval_s=0.01
+            kind=FactPublisherKind.MESSAGING,
+            queue="facts",
+            max_buffer=2,
+            flush_interval_s=0.01,
         ),
         publisher=transport,
         metrics=metrics,
@@ -123,12 +138,14 @@ async def test_messaging_publisher_drops_and_counts_when_full():
 
     assert dropped.inc.call_args_list[1] == ((2,), {"reason": "publish_error"})
     metrics.counter.assert_called_once_with(
-        "gen_ai_fact_dropped_total", "Analytics facts dropped before publish, by reason.", ["reason"]
+        "gen_ai_fact_dropped_total",
+        "Analytics facts dropped before publish, by reason.",
+        ["reason"],
     )
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose():
+async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose() -> None:
     """Test that a dead sender task closes the publisher instead of buffering into the void.
 
     **Why this test is important:**
@@ -147,17 +164,31 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
     transport = MagicMock(spec=MessagePublisher)
     transport.publish_batch = AsyncMock(side_effect=RuntimeError("sqs down"))
     publisher = MessagingFactPublisher(
-        transport, "facts", max_buffer=10, flush_interval_s=0.0, drain_timeout_s=0.5, metrics=metrics
+        transport,
+        "facts",
+        max_buffer=10,
+        flush_interval_s=0.0,
+        drain_timeout_s=0.5,
+        metrics=metrics,
     )
 
-    await publisher.__aenter__()
-    publisher.publish([_fact(1)])
-    sender = publisher._sender  # noqa: SLF001 — the only handle on the task whose death is under test
-    assert sender is not None
-    await asyncio.wait([sender])
-    publisher.publish([_fact(2), _fact(3)])
-    await publisher.aclose()
-    publisher.publish([_fact(4)])
+    senders: list[asyncio.Task[None]] = []
+    create_task = asyncio.create_task
+
+    def _track_sender(coro: Coroutine[object, object, None]) -> asyncio.Task[None]:
+        """Create the task as asyncio does and keep the handle whose death is under test."""
+        task = create_task(coro)
+        senders.append(task)
+        return task
+
+    with patch("asyncio.create_task", side_effect=_track_sender):
+        async with publisher:
+            publisher.publish([_fact(1)])
+            [sender] = senders
+            await asyncio.wait([sender])
+            publisher.publish([_fact(2), _fact(3)])
+            await publisher.aclose()
+            publisher.publish([_fact(4)])
 
     assert dropped.inc.call_args_list == [
         ((), {"reason": "publish_error"}),
@@ -168,7 +199,7 @@ async def test_messaging_publisher_closes_when_the_sender_dies_and_after_aclose(
 
 
 @pytest.mark.asyncio
-async def test_messaging_publisher_batches_by_ten():
+async def test_messaging_publisher_batches_by_ten() -> None:
     """Test that buffered facts are sent in batches of at most ten and fully drained on close.
 
     **Why this test is important:**
@@ -182,7 +213,9 @@ async def test_messaging_publisher_batches_by_ten():
     transport = MagicMock(spec=MessagePublisher)
     transport.publish_batch = AsyncMock(return_value=None)
     publisher = new_fact_publisher_from_config(
-        FactPublisherConfig(kind=FactPublisherKind.MESSAGING, queue="facts", flush_interval_s=0.01),
+        FactPublisherConfig(
+            kind=FactPublisherKind.MESSAGING, queue="facts", flush_interval_s=0.01
+        ),
         publisher=transport,
     )
     facts = [_fact(i) for i in range(1, 26)]
@@ -194,11 +227,13 @@ async def test_messaging_publisher_batches_by_ten():
     sent = [c.args for c in transport.publish_batch.await_args_list]
     assert [topic for topic, _ in sent] == ["facts", "facts", "facts"]
     assert [len(batch) for _, batch in sent] == [10, 10, 5]
-    assert [payload for _, batch in sent for payload in batch] == [f.to_json() for f in facts]
+    assert [payload for _, batch in sent for payload in batch] == [
+        f.to_json() for f in facts
+    ]
 
 
-def test_fact_json_escapes_like_go():
-    """Test that ``to_json`` escapes the characters Go's ``encoding/json`` escapes by default.
+def test_fact_json_escapes_like_go() -> None:
+    r"""Test that ``to_json`` escapes the characters Go's ``encoding/json`` escapes by default.
 
     **Why this test is important:**
       - The idempotency key and dims are free-form; a ``<`` or ``&`` rendered raw in Python but
@@ -223,7 +258,7 @@ def test_fact_json_escapes_like_go():
     )
 
 
-def test_fact_json_renders_bool_measures_as_numbers():
+def test_fact_json_renders_bool_measures_as_numbers() -> None:
     """Test that a ``bool`` measure is written as ``1`` / ``0``, never as a JSON boolean.
 
     **Why this test is important:**
@@ -266,8 +301,13 @@ _MEASURE = st.one_of(
     key=_TEXT,
 )
 def test_fact_json_round_trips(
-    cube: str, org_id: str, micros: int, dims: dict[str, str], measures: dict[str, float], key: str
-):
+    cube: str,
+    org_id: str,
+    micros: int,
+    dims: dict[str, str],
+    measures: dict[str, float],
+    key: str,
+) -> None:
     """Test, over generated facts, that ``to_json`` decodes back to the fact's own values.
 
     **Why this test is important:**
@@ -281,12 +321,20 @@ def test_fact_json_round_trips(
       - none of ``<``, ``>``, ``&`` appears raw in the bytes (Go's HTML-safe escaping)
     """
     ts = datetime(2020, 1, 1, tzinfo=UTC) + timedelta(microseconds=micros)
-    fact = Fact(cube=cube, org_id=org_id, ts=ts, dims=dims, measures=measures, idempotency_key=key)
+    fact = Fact(
+        cube=cube, org_id=org_id, ts=ts, dims=dims, measures=measures, idempotency_key=key
+    )
 
     raw = fact.to_json()
     body = json.loads(raw)
 
-    assert (body["cube"], body["org_id"], body["dims"], body["idempotency_key"], body["schema"]) == (
+    assert (
+        body["cube"],
+        body["org_id"],
+        body["dims"],
+        body["idempotency_key"],
+        body["schema"],
+    ) == (
         cube,
         org_id,
         dims,

@@ -9,17 +9,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/transport/rest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/transport/rest"
 )
 
 // ---------------------------------------------------------------------------
 // MapErrorToHTTPStatus
 // ---------------------------------------------------------------------------
 
-// TestMapErrorToHTTPStatus_AppError tests that each AppError category maps to the HTTP status code clients depend on.
+// TestMapErrorToHTTPStatus_AppError tests that each AppError category maps to the HTTP
+// status code clients depend on.
 //
 // Why this test is important:
 //   - The error-code-to-HTTP-status mapping is the public contract every API
@@ -38,42 +40,42 @@ func TestMapErrorToHTTPStatus_AppError(t *testing.T) {
 		expected int
 	}{
 		{
-			err:      coreerrors.NotFound("not found"),
+			err:      apperr.NotFound("not found"),
 			name:     "not found",
 			expected: http.StatusNotFound,
 		},
 		{
-			err:      coreerrors.Unauthorized("unauthorized"),
+			err:      apperr.Unauthorized("unauthorized"),
 			name:     "unauthorized",
 			expected: http.StatusUnauthorized,
 		},
 		{
-			err:      coreerrors.Forbidden("forbidden"),
+			err:      apperr.Forbidden("forbidden"),
 			name:     "forbidden",
 			expected: http.StatusForbidden,
 		},
 		{
-			err:      coreerrors.InvalidInput("bad input"),
+			err:      apperr.InvalidInput("bad input"),
 			name:     "invalid input",
 			expected: http.StatusBadRequest,
 		},
 		{
-			err:      coreerrors.Conflict("conflict"),
+			err:      apperr.Conflict("conflict"),
 			name:     "conflict",
 			expected: http.StatusConflict,
 		},
 		{
-			err:      coreerrors.Timeout("timeout"),
+			err:      apperr.Timeout("timeout"),
 			name:     "timeout",
 			expected: http.StatusGatewayTimeout,
 		},
 		{
-			err:      coreerrors.Internal("internal"),
+			err:      apperr.Internal("internal"),
 			name:     "internal",
 			expected: http.StatusInternalServerError,
 		},
 		{
-			err:      coreerrors.Unavailable("unavailable"),
+			err:      apperr.Unavailable("unavailable"),
 			name:     "unavailable",
 			expected: http.StatusServiceUnavailable,
 		},
@@ -88,7 +90,8 @@ func TestMapErrorToHTTPStatus_AppError(t *testing.T) {
 	}
 }
 
-// TestMapErrorToHTTPStatus_PlainError tests that an error carrying no AppError code falls back to 500.
+// TestMapErrorToHTTPStatus_PlainError tests that an error carrying no AppError code falls
+// back to 500.
 //
 // Why this test is important:
 //   - Unrecognized errors (raw Go errors, wrapped infra failures) must never
@@ -108,7 +111,8 @@ func TestMapErrorToHTTPStatus_PlainError(t *testing.T) {
 // WriteJSON
 // ---------------------------------------------------------------------------
 
-// TestWriteJSON_Success tests that WriteJSON emits the chosen status, JSON Content-Type, and serialized body.
+// TestWriteJSON_Success tests that WriteJSON emits the chosen status, JSON Content-Type,
+// and serialized body.
 //
 // Why this test is important:
 //   - WriteJSON is the single chokepoint every successful REST response flows
@@ -136,7 +140,8 @@ func TestWriteJSON_Success(t *testing.T) {
 	assert.Equal(t, "value", result["key"])
 }
 
-// TestWriteJSON_MarshalError tests that WriteJSON degrades to a safe 500 when the payload can't be serialized.
+// TestWriteJSON_MarshalError tests that WriteJSON degrades to a safe 500 when the payload
+// can't be serialized.
 //
 // Why this test is important:
 //   - A value that fails json.Marshal (e.g. math.Inf) mid-handler must not
@@ -166,7 +171,8 @@ func TestWriteJSON_MarshalError(t *testing.T) {
 // WriteError
 // ---------------------------------------------------------------------------
 
-// TestWriteError_AppError tests that a client-facing AppError surfaces its status, code, and message to the caller.
+// TestWriteError_AppError tests that a client-facing AppError surfaces its status, code,
+// and message to the caller.
 //
 // Why this test is important:
 //   - For expected, client-actionable failures (a missing record), the caller
@@ -182,7 +188,7 @@ func TestWriteError_AppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.NotFound("user not found")
+	appErr := apperr.NotFound("user not found")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -191,11 +197,12 @@ func TestWriteError_AppError(t *testing.T) {
 	body, _ := io.ReadAll(rec.Body)
 	var resp rest.ErrorResponse
 	require.NoError(t, json.Unmarshal(body, &resp))
-	assert.Equal(t, string(coreerrors.CodeNotFound), resp.Code)
+	assert.Equal(t, string(apperr.CodeNotFound), resp.Code)
 	assert.Equal(t, "user not found", resp.Error)
 }
 
-// TestWriteError_InternalAppError tests that internal AppErrors are redacted before reaching the client.
+// TestWriteError_InternalAppError tests that internal AppErrors are redacted before
+// reaching the client.
 //
 // Why this test is important:
 //   - Internal failure detail ("database connection failed") can expose
@@ -211,7 +218,7 @@ func TestWriteError_InternalAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Internal("database connection failed")
+	appErr := apperr.Internal("database connection failed")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
@@ -219,7 +226,7 @@ func TestWriteError_InternalAppError(t *testing.T) {
 	body, _ := io.ReadAll(rec.Body)
 	var resp rest.ErrorResponse
 	require.NoError(t, json.Unmarshal(body, &resp))
-	assert.Equal(t, string(coreerrors.CodeInternal), resp.Code)
+	assert.Equal(t, string(apperr.CodeInternal), resp.Code)
 	assert.Equal(
 		t,
 		"internal server error",
@@ -228,7 +235,8 @@ func TestWriteError_InternalAppError(t *testing.T) {
 	)
 }
 
-// TestWriteError_PlainError tests that an uncategorized error is treated as internal and redacted.
+// TestWriteError_PlainError tests that an uncategorized error is treated as internal and
+// redacted.
 //
 // Why this test is important:
 //   - A raw Go error escaping a handler carries no client-safe classification;
@@ -258,7 +266,8 @@ func TestWriteError_PlainError(t *testing.T) {
 // WriteSuccess / WriteCreated / WriteNoContent
 // ---------------------------------------------------------------------------
 
-// TestWriteSuccess tests that WriteSuccess is the 200-OK convenience wrapper over WriteJSON.
+// TestWriteSuccess tests that WriteSuccess is the 200-OK convenience wrapper over
+// WriteJSON.
 //
 // Why this test is important:
 //   - WriteSuccess is the helper most read endpoints call; pinning its status
@@ -283,7 +292,8 @@ func TestWriteSuccess(t *testing.T) {
 	assert.Contains(t, string(body), `"status":"ok"`)
 }
 
-// TestWriteCreated tests that WriteCreated signals resource creation with a 201 and the new entity.
+// TestWriteCreated tests that WriteCreated signals resource creation with a 201 and the
+// new entity.
 //
 // Why this test is important:
 //   - 201 (not 200) is the contract for successful creation; clients and REST
@@ -332,7 +342,8 @@ func TestWriteNoContent(t *testing.T) {
 // WriteError with various error codes
 // ---------------------------------------------------------------------------
 
-// TestWriteError_UnauthorizedAppError tests that an auth failure surfaces a 401 with its message intact.
+// TestWriteError_UnauthorizedAppError tests that an auth failure surfaces a 401 with its
+// message intact.
 //
 // Why this test is important:
 //   - 401 drives the client's re-authentication flow, and the message
@@ -348,7 +359,7 @@ func TestWriteError_UnauthorizedAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Unauthorized("invalid token")
+	appErr := apperr.Unauthorized("invalid token")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -359,7 +370,8 @@ func TestWriteError_UnauthorizedAppError(t *testing.T) {
 	assert.Equal(t, "invalid token", resp.Error)
 }
 
-// TestWriteError_ConflictAppError tests that a conflict surfaces a 409 with its message intact.
+// TestWriteError_ConflictAppError tests that a conflict surfaces a 409 with its message
+// intact.
 //
 // Why this test is important:
 //   - 409 tells the client a write lost to a uniqueness/version conflict rather
@@ -375,7 +387,7 @@ func TestWriteError_ConflictAppError(t *testing.T) {
 	c := &rest.BaseController{}
 	rec := httptest.NewRecorder()
 
-	appErr := coreerrors.Conflict("duplicate key")
+	appErr := apperr.Conflict("duplicate key")
 	c.WriteError(rec, appErr)
 
 	assert.Equal(t, http.StatusConflict, rec.Code)

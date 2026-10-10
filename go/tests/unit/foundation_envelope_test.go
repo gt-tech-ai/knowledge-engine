@@ -5,17 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/cache"
 )
 
 // TestEnvelope_RoundTrip tests that encoding a value and immediately decoding
 // it returns the original value with ok=true.
 //
 // Why this test is important:
-//   - The envelope is the serialization boundary between application code and
-//     the cache backend; a broken round-trip returns corrupted data without an error signal
+//   - The envelope is the serialization boundary between application code and the cache
+//     backend; a broken round-trip returns corrupted data without an error signal
 //
 // What it tests:
 //   - Encode then Decode with matching version returns the original struct and ok=true
@@ -87,7 +88,7 @@ func TestEnvelope_InvalidJSON(t *testing.T) {
 	val, ok, err := cache.Decode[payload](corrupt, 1)
 	require.Error(t, err, "Decode must return error for corrupt JSON")
 	assert.False(t, ok, "Decode must return ok=false for corrupt JSON")
-	assert.Equal(t, "", val.Value, "Decode must return zero value for corrupt JSON")
+	assert.Empty(t, val.Value, "Decode must return zero value for corrupt JSON")
 }
 
 // TestEnvelope_ZeroValue tests that encoding and decoding a zero-value struct
@@ -116,7 +117,7 @@ func TestEnvelope_ZeroValue(t *testing.T) {
 	decoded, ok, err := cache.Decode[empty](data, version)
 	require.NoError(t, err)
 	require.True(t, ok, "Decode must return ok=true for zero-value struct")
-	assert.Equal(t, "", decoded.Name)
+	assert.Empty(t, decoded.Name)
 	assert.Equal(t, 0, decoded.Count)
 }
 

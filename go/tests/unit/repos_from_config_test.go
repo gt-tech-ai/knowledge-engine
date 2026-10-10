@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/repository"
@@ -43,7 +43,7 @@ func TestDecoratedFromConfig_WiresStackAndDelegates(t *testing.T) {
 
 	want := &reposEnt{ID: "abc"}
 	gomock.InOrder(
-		store.EXPECT().Get(gomock.Any(), "abc").Return(nil, errors.New("transient")),
+		store.EXPECT().Get(gomock.Any(), "abc").Return(nil, apperr.Sentinel("transient")),
 		store.EXPECT().Get(gomock.Any(), "abc").Return(want, nil),
 	)
 

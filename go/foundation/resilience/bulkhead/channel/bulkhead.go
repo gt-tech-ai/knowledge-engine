@@ -49,7 +49,11 @@ func (b *Bulkhead) Execute(ctx context.Context, fn func() error) error {
 		defer func() { <-b.sem }()
 		return fn()
 	case <-ctx.Done():
-		return ctx.Err()
+		return apperr.Wrap(
+			ctx.Err(),
+			apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+			"bulkhead wait canceled",
+		)
 	}
 }
 

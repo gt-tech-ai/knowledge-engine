@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -54,8 +54,8 @@ func NewFromConfig(cfg Config) (interfaces.ServerTransport, error) {
 	case KindConnect:
 		return connect.NewServer(cfg.Connect, cfg.Logger), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown transport kind: %v", cfg.Kind),
 		)
 	}

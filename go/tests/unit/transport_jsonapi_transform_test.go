@@ -15,7 +15,8 @@ import (
 // TransformSingleResource
 // ---------------------------------------------------------------------------
 
-// TestTransformSingleResource tests how a single-resource body is converted to a JSON:API resource document and how it degrades.
+// TestTransformSingleResource tests how a single-resource body is converted to a JSON:API
+// resource document and how it degrades.
 //
 // Why this test is important:
 //   - This transform defines the resource-object contract (id lifted out,
@@ -104,7 +105,8 @@ func TestTransformSingleResource(t *testing.T) {
 // TransformCollection
 // ---------------------------------------------------------------------------
 
-// TestTransformCollection tests how a list body becomes a JSON:API collection, including pagination and empty cases.
+// TestTransformCollection tests how a list body becomes a JSON:API collection, including
+// pagination and empty cases.
 //
 // Why this test is important:
 //   - Collections must always present data as an array and surface paging so
@@ -154,7 +156,7 @@ func TestTransformCollection(t *testing.T) {
 
 		meta, ok := result["meta"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, float64(45), meta["totalCount"])
+		assert.InDelta(t, float64(45), meta["totalCount"], 0)
 
 		links, ok := result["links"].(map[string]any)
 		require.True(t, ok)
@@ -180,7 +182,7 @@ func TestTransformCollection(t *testing.T) {
 
 		meta, ok := result["meta"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, float64(10000), meta["totalCount"])
+		assert.InDelta(t, float64(10000), meta["totalCount"], 0)
 		assert.Equal(
 			t,
 			true,
@@ -231,7 +233,8 @@ func TestTransformCollection(t *testing.T) {
 // TransformError
 // ---------------------------------------------------------------------------
 
-// TestTransformError tests that Connect/Vanguard error bodies become JSON:API error objects across status codes and bad input.
+// TestTransformError tests that Connect/Vanguard error bodies become JSON:API error
+// objects across status codes and bad input.
 //
 // Why this test is important:
 //   - This is the uniform failure contract clients parse; the machine code and
@@ -359,7 +362,8 @@ func TestTransformError(t *testing.T) {
 // IsRESTRequest
 // ---------------------------------------------------------------------------
 
-// TestIsRESTRequest tests the protocol discriminator that decides whether a request gets JSON:API treatment.
+// TestIsRESTRequest tests the protocol discriminator that decides whether a request gets
+// JSON:API treatment.
 //
 // Why this test is important:
 //   - This predicate is the single switch separating REST traffic (which is

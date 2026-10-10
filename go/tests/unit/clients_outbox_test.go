@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"context"
-	"crypto/md5" //nolint:gosec // asserts the S3 Content-MD5 integrity header, not a security use
+	"crypto/sha256"
 	"encoding/base64"
 	"io"
 	"strconv"
@@ -36,8 +36,12 @@ func sinkRecords(n int) []types.OutboxRecord {
 	recs := make([]types.OutboxRecord, n)
 	for i := range recs {
 		recs[i] = types.OutboxRecord{
-			ID: uuid.New(), Tenant: "org-1", Lane: "audit", Payload: []byte(`{"n":` + strconv.Itoa(i) + `}`),
-			Attempts: 1, CreatedAt: time.Date(2026, 10, 9, 23, 30, 0, 0, time.FixedZone("x", -3600)),
+			ID:        uuid.New(),
+			Tenant:    "org-1",
+			Lane:      "audit",
+			Payload:   []byte(`{"n":` + strconv.Itoa(i) + `}`),
+			Attempts:  1,
+			CreatedAt: time.Date(2026, 10, 9, 23, 30, 0, 0, time.FixedZone("x", -3600)),
 		}
 	}
 	return recs
@@ -84,11 +88,16 @@ func TestOutboxSinkFromConfig_DefaultsToStubAndRejectsUnknownKind(t *testing.T) 
 	broken := map[string]func(*outbox.Config){
 		"unknown":    func(c *outbox.Config) { c.Kind = outbox.Kind(99) },
 		"sqs no api": func(c *outbox.Config) { c.Kind, c.SQS.Queue = outbox.KindSQS, "q" },
-		"sqs no q":   func(c *outbox.Config) { c.Kind, c.SQS.API = outbox.KindSQS, mocks.NewMockOutboxSQSAPI(ctrl) },
-		"s3 no api":  func(c *outbox.Config) { c.Kind, c.S3.Bucket = outbox.KindS3, "b" },
-		"s3 no bkt":  func(c *outbox.Config) { c.Kind, c.S3.API = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl) },
+		"sqs no q": func(c *outbox.Config) {
+			c.Kind, c.SQS.API = outbox.KindSQS, mocks.NewMockOutboxSQSAPI(ctrl)
+		},
+		"s3 no api": func(c *outbox.Config) { c.Kind, c.S3.Bucket = outbox.KindS3, "b" },
+		"s3 no bkt": func(c *outbox.Config) {
+			c.Kind, c.S3.API = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl)
+		},
 		"s3 no {id}": func(c *outbox.Config) {
-			c.Kind, c.S3.API, c.S3.Bucket, c.S3.KeyTemplate = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl), "b", "{tenant}"
+			c.Kind, c.S3.API = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl)
+			c.S3.Bucket, c.S3.KeyTemplate = "b", "{tenant}"
 		},
 	}
 	for name, mutate := range broken {
@@ -99,13 +108,18 @@ func TestOutboxSinkFromConfig_DefaultsToStubAndRejectsUnknownKind(t *testing.T) 
 	}
 
 	sqsCfg := outbox.DefaultConfig()
-	sqsCfg.Kind, sqsCfg.SQS = outbox.KindSQS, outboxsqs.Config{API: mocks.NewMockOutboxSQSAPI(ctrl), Queue: "q"}
+	sqsCfg.Kind, sqsCfg.SQS = outbox.KindSQS, outboxsqs.Config{
+		API:   mocks.NewMockOutboxSQSAPI(ctrl),
+		Queue: "q",
+	}
 	sqsSink, err := outbox.NewFromConfig(sqsCfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 	assert.IsType(t, &outboxsqs.Sink{}, sqsSink)
 
 	s3Cfg := outbox.DefaultConfig()
-	s3Cfg.Kind, s3Cfg.S3.API, s3Cfg.S3.Bucket = outbox.KindS3, mocks.NewMockOutboxS3API(ctrl), "b"
+	s3Cfg.Kind, s3Cfg.S3.API, s3Cfg.S3.Bucket = outbox.KindS3, mocks.NewMockOutboxS3API(
+		ctrl,
+	), "b"
 	s3Sink, err := outbox.NewFromConfig(s3Cfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 	assert.IsType(t, &outboxs3.Sink{}, s3Sink)
@@ -134,26 +148,47 @@ func TestSQSSink_MapsPartialBatchFailureToRecords(t *testing.T) {
 	url := "http://sqs.local/000000000000/audit-events"
 	var first *awssqs.SendMessageBatchInput
 
-	api.EXPECT().GetQueueUrl(gomock.Any(), &awssqs.GetQueueUrlInput{QueueName: aws.String("audit-events")}).
-		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String(url)}, nil).Times(1)
-	successful := []sqstypes.SendMessageBatchResultEntry{}
+	api.EXPECT().
+		GetQueueUrl(
+			gomock.Any(), &awssqs.GetQueueUrlInput{QueueName: aws.String("audit-events")},
+		).
+		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String(url)}, nil).
+		Times(1)
+	successful := make([]sqstypes.SendMessageBatchResultEntry, 0, 8)
 	for _, id := range []string{"0", "1", "2", "4", "5", "6", "8", "9"} {
-		successful = append(successful, sqstypes.SendMessageBatchResultEntry{Id: aws.String(id)})
+		successful = append(
+			successful,
+			sqstypes.SendMessageBatchResultEntry{Id: aws.String(id)},
+		)
 	}
 	gomock.InOrder(
 		api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+			DoAndReturn(func(
+				_ context.Context,
+				in *awssqs.SendMessageBatchInput,
+				_ ...func(*awssqs.Options),
+			) (*awssqs.SendMessageBatchOutput, error) {
 				first = in
 				return &awssqs.SendMessageBatchOutput{
 					Successful: successful,
 					Failed: []sqstypes.BatchResultErrorEntry{
-						{Id: aws.String("3"), SenderFault: true, Code: aws.String("InvalidMessageContents")},
-						{Id: aws.String("7"), SenderFault: false, Code: aws.String("InternalError")},
+						{
+							Id:          aws.String("3"),
+							SenderFault: true,
+							Code:        aws.String("InvalidMessageContents"),
+						},
+						{
+							Id:          aws.String("7"),
+							SenderFault: false,
+							Code:        aws.String("InternalError"),
+						},
 					},
 				}, nil
 			}),
 		api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).
-			Return(nil, &smithy.GenericAPIError{Code: "ServiceUnavailable", Fault: smithy.FaultServer}),
+			Return(
+				nil, &smithy.GenericAPIError{Code: "ServiceUnavailable", Fault: smithy.FaultServer},
+			),
 	)
 
 	cfg := outbox.DefaultConfig()
@@ -164,16 +199,36 @@ func TestSQSSink_MapsPartialBatchFailureToRecords(t *testing.T) {
 	results := sink.Send(context.Background(), recs)
 
 	u := apperr.CodeUnavailable
-	assert.Equal(t, []apperr.ErrorCode{"", "", "", apperr.CodeInvalidInput, "", "", "", u, "", "", u, u}, codesOf(results))
+	assert.Equal(
+		t,
+		[]apperr.ErrorCode{
+			"",
+			"",
+			"",
+			apperr.CodeInvalidInput,
+			"",
+			"",
+			"",
+			u,
+			"",
+			"",
+			u,
+			u,
+		},
+		codesOf(results),
+	)
 	require.NotNil(t, first)
 	assert.Equal(t, url, aws.ToString(first.QueueUrl))
 	require.Len(t, first.Entries, 10)
 	assert.Equal(t, "3", aws.ToString(first.Entries[3].Id))
 	assert.Equal(t, `{"n":3}`, aws.ToString(first.Entries[3].MessageBody))
 	assert.Equal(t, map[string]sqstypes.MessageAttributeValue{
-		"outbox_id": {DataType: aws.String("String"), StringValue: aws.String(recs[3].ID.String())},
-		"tenant":    {DataType: aws.String("String"), StringValue: aws.String("org-1")},
-		"lane":      {DataType: aws.String("String"), StringValue: aws.String("audit")},
+		"outbox_id": {
+			DataType:    aws.String("String"),
+			StringValue: aws.String(recs[3].ID.String()),
+		},
+		"tenant": {DataType: aws.String("String"), StringValue: aws.String("org-1")},
+		"lane":   {DataType: aws.String("String"), StringValue: aws.String("audit")},
 	}, first.Entries[3].MessageAttributes)
 }
 
@@ -201,28 +256,49 @@ func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 			recs[i].Attributes = map[string]string{types.OutboxRouteAttribute: r}
 		}
 	}
-	urlOf := map[string]string{"q-standard": "u-standard", "q-facet": "u-facet", "q-default": "u-default"}
+	urlOf := map[string]string{
+		"q-standard": "u-standard",
+		"q-facet":    "u-facet",
+		"q-default":  "u-default",
+	}
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).AnyTimes().
-		DoAndReturn(func(_ context.Context, in *awssqs.GetQueueUrlInput, _ ...func(*awssqs.Options)) (*awssqs.GetQueueUrlOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awssqs.GetQueueUrlInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.GetQueueUrlOutput, error) {
 			if u, ok := urlOf[aws.ToString(in.QueueName)]; ok {
 				return &awssqs.GetQueueUrlOutput{QueueUrl: aws.String(u)}, nil
 			}
-			return nil, &smithy.GenericAPIError{Code: "AWS.SimpleQueueService.NonExistentQueue", Fault: smithy.FaultClient}
+			return nil, &smithy.GenericAPIError{
+				Code:  "AWS.SimpleQueueService.NonExistentQueue",
+				Fault: smithy.FaultClient,
+			}
 		})
 	sentTo := map[string][]string{}
 	var mu sync.Mutex
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).AnyTimes().
-		DoAndReturn(func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			url := aws.ToString(in.QueueUrl)
 			if url == "u-facet" {
-				return nil, &smithy.GenericAPIError{Code: "ServiceUnavailable", Fault: smithy.FaultServer}
+				return nil, &smithy.GenericAPIError{
+					Code:  "ServiceUnavailable",
+					Fault: smithy.FaultServer,
+				}
 			}
 			out := &awssqs.SendMessageBatchOutput{}
 			mu.Lock()
 			defer mu.Unlock()
 			for _, e := range in.Entries {
 				sentTo[url] = append(sentTo[url], aws.ToString(e.MessageBody))
-				out.Successful = append(out.Successful, sqstypes.SendMessageBatchResultEntry{Id: e.Id})
+				out.Successful = append(
+					out.Successful,
+					sqstypes.SendMessageBatchResultEntry{Id: e.Id},
+				)
 			}
 			return out, nil
 		})
@@ -238,7 +314,18 @@ func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 	results := sink.Send(context.Background(), recs)
 
 	u := apperr.CodeUnavailable
-	assert.Equal(t, []apperr.ErrorCode{"", apperr.CodeInvalidInput, u, "", "", apperr.CodeInvalidInput}, codesOf(results))
+	assert.Equal(
+		t,
+		[]apperr.ErrorCode{
+			"",
+			apperr.CodeInvalidInput,
+			u,
+			"",
+			"",
+			apperr.CodeInvalidInput,
+		},
+		codesOf(results),
+	)
 	assert.Equal(t, map[string][]string{
 		"u-standard": {`{"n":0}`, `{"n":3}`},
 		"u-default":  {`{"n":4}`},
@@ -254,14 +341,15 @@ func TestSQSSink_RoutesByKeyAndIsolatesFailingQueue(t *testing.T) {
 //
 // Why this test is important:
 //   - An archive keyed wrongly cannot be found or partitioned, a missing
-//     Content-MD5 is rejected by Object Lock buckets, and a record that asks for
+//     integrity checksum is rejected by Object Lock buckets, and a record that asks for
 //     SSE-KMS must never be written with the bucket default
 //
 // What it tests:
 //   - template "audit/{tenant}/{yyyy}/{mm}/{dd}/{id}.json" keys a record created
 //     2026-10-09 23:30 at UTC-1 as audit/org-1/2026/10/10/<id>.json (UTC date)
 //   - each PutObject targets bucket "archive" with the payload as body and
-//     Content-MD5 = base64(md5(payload))
+//     ChecksumAlgorithm SHA256 with ChecksumSHA256 = base64(sha256(payload)),
+//     and no Content-MD5 (Object Lock accepts either; MD5 is not used)
 //   - a record with Attributes["kms_key_id"] gets SSE aws:kms with that key; one
 //     without gets no SSE fields
 //   - an AccessDenied client fault is FORBIDDEN for its record only
@@ -270,7 +358,9 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockOutboxS3API(ctrl)
 	recs := sinkRecords(3)
-	recs[1].Attributes = map[string]string{"kms_key_id": "arn:aws:kms:us-east-1:000000000000:key/k-1"}
+	recs[1].Attributes = map[string]string{
+		"kms_key_id": "arn:aws:kms:us-east-1:000000000000:key/k-1",
+	}
 	type put struct {
 		in   *awss3.PutObjectInput
 		body string
@@ -278,19 +368,30 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	var puts []put
 
 	api.EXPECT().PutObject(gomock.Any(), gomock.Any()).Times(3).
-		DoAndReturn(func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awss3.PutObjectInput,
+			_ ...func(*awss3.Options),
+		) (*awss3.PutObjectOutput, error) {
 			body, err := io.ReadAll(in.Body)
 			require.NoError(t, err)
 			puts = append(puts, put{in: in, body: string(body)})
 			if len(puts) == 3 {
-				return nil, &smithy.GenericAPIError{Code: "AccessDenied", Fault: smithy.FaultClient}
+				return nil, &smithy.GenericAPIError{
+					Code:  "AccessDenied",
+					Fault: smithy.FaultClient,
+				}
 			}
 			return &awss3.PutObjectOutput{}, nil
 		})
 
 	cfg := outbox.DefaultConfig()
 	cfg.Kind = outbox.KindS3
-	cfg.S3 = outboxs3.Config{API: api, Bucket: "archive", KeyTemplate: "audit/{tenant}/{yyyy}/{mm}/{dd}/{id}.json"}
+	cfg.S3 = outboxs3.Config{
+		API:         api,
+		Bucket:      "archive",
+		KeyTemplate: "audit/{tenant}/{yyyy}/{mm}/{dd}/{id}.json",
+	}
 	sink, err := outbox.NewFromConfig(cfg, clientdecorators.Deps{})
 	require.NoError(t, err)
 
@@ -299,16 +400,30 @@ func TestS3Sink_KeysByTemplateAndAppliesKMS(t *testing.T) {
 	assert.Equal(t, []apperr.ErrorCode{"", "", apperr.CodeForbidden}, codesOf(results))
 	require.Len(t, puts, 3)
 	for i, p := range puts {
-		sum := md5.Sum(recs[i].Payload) //nolint:gosec // the S3 integrity header is MD5 by definition
+		sum := sha256.Sum256(recs[i].Payload)
 		assert.Equal(t, "archive", aws.ToString(p.in.Bucket))
-		assert.Equal(t, "audit/org-1/2026/10/10/"+recs[i].ID.String()+".json", aws.ToString(p.in.Key))
+		assert.Equal(
+			t,
+			"audit/org-1/2026/10/10/"+recs[i].ID.String()+".json",
+			aws.ToString(p.in.Key),
+		)
 		assert.Equal(t, string(recs[i].Payload), p.body)
-		assert.Equal(t, base64.StdEncoding.EncodeToString(sum[:]), aws.ToString(p.in.ContentMD5))
+		assert.Equal(
+			t,
+			base64.StdEncoding.EncodeToString(sum[:]),
+			aws.ToString(p.in.ChecksumSHA256),
+		)
+		assert.Equal(t, s3types.ChecksumAlgorithmSha256, p.in.ChecksumAlgorithm)
+		assert.Nil(t, p.in.ContentMD5)
 	}
 	assert.Equal(t, s3types.ServerSideEncryption(""), puts[0].in.ServerSideEncryption)
 	assert.Nil(t, puts[0].in.SSEKMSKeyId)
 	assert.Equal(t, s3types.ServerSideEncryptionAwsKms, puts[1].in.ServerSideEncryption)
-	assert.Equal(t, "arn:aws:kms:us-east-1:000000000000:key/k-1", aws.ToString(puts[1].in.SSEKMSKeyId))
+	assert.Equal(
+		t,
+		"arn:aws:kms:us-east-1:000000000000:key/k-1",
+		aws.ToString(puts[1].in.SSEKMSKeyId),
+	)
 }
 
 // TestOutboxSinkDecorators_RetryOnlyTransientWithFullBody tests the sink's client stack.
@@ -337,17 +452,31 @@ func TestOutboxSinkDecorators_RetryOnlyTransientWithFullBody(t *testing.T) {
 
 	gomock.InOrder(
 		api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+			DoAndReturn(func(
+				_ context.Context,
+				in *awss3.PutObjectInput,
+				_ ...func(*awss3.Options),
+			) (*awss3.PutObjectOutput, error) {
 				read(in)
-				return nil, &smithy.GenericAPIError{Code: "InternalError", Fault: smithy.FaultServer}
+				return nil, &smithy.GenericAPIError{
+					Code:  "InternalError",
+					Fault: smithy.FaultServer,
+				}
 			}),
 		api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+			DoAndReturn(func(
+				_ context.Context,
+				in *awss3.PutObjectInput,
+				_ ...func(*awss3.Options),
+			) (*awss3.PutObjectOutput, error) {
 				read(in)
 				return &awss3.PutObjectOutput{}, nil
 			}),
 		api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
-			Return(nil, &smithy.GenericAPIError{Code: "InvalidArgument", Fault: smithy.FaultClient}).Times(1),
+			Return(
+				nil, &smithy.GenericAPIError{Code: "InvalidArgument", Fault: smithy.FaultClient},
+			).
+			Times(1),
 	)
 
 	cfg := outbox.DefaultConfig()
@@ -385,19 +514,32 @@ func TestSQSSink_FIFOQueueCarriesGroupAndDedupIDs(t *testing.T) {
 	recs[0].Attributes = map[string]string{types.OutboxRouteAttribute: "ordered"}
 	recs[1].Attributes = map[string]string{types.OutboxRouteAttribute: "ordered"}
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).Times(2).
-		DoAndReturn(func(_ context.Context, in *awssqs.GetQueueUrlInput, _ ...func(*awssqs.Options)) (*awssqs.GetQueueUrlOutput, error) {
-			return &awssqs.GetQueueUrlOutput{QueueUrl: aws.String("u-" + aws.ToString(in.QueueName))}, nil
+		DoAndReturn(func(
+			_ context.Context,
+			in *awssqs.GetQueueUrlInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.GetQueueUrlOutput, error) {
+			return &awssqs.GetQueueUrlOutput{
+				QueueUrl: aws.String("u-" + aws.ToString(in.QueueName)),
+			}, nil
 		})
 	sent := map[string][]sqstypes.SendMessageBatchRequestEntry{}
 	var mu sync.Mutex
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).Times(2).
-		DoAndReturn(func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			out := &awssqs.SendMessageBatchOutput{}
 			mu.Lock()
 			defer mu.Unlock()
 			sent[aws.ToString(in.QueueUrl)] = in.Entries
 			for _, e := range in.Entries {
-				out.Successful = append(out.Successful, sqstypes.SendMessageBatchResultEntry{Id: e.Id})
+				out.Successful = append(
+					out.Successful,
+					sqstypes.SendMessageBatchResultEntry{Id: e.Id},
+				)
 			}
 			return out, nil
 		})
@@ -438,12 +580,18 @@ func TestS3Sink_KeyTemplateSubstitutesRecordKey(t *testing.T) {
 	recs[0].Key = "doc-7"
 	var key string
 	api.EXPECT().PutObject(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+		DoAndReturn(func(
+			_ context.Context,
+			in *awss3.PutObjectInput,
+			_ ...func(*awss3.Options),
+		) (*awss3.PutObjectOutput, error) {
 			key = aws.ToString(in.Key)
 			return &awss3.PutObjectOutput{}, nil
 		})
 
-	sink, err := outboxs3.New(outboxs3.Config{API: api, Bucket: "archive", KeyTemplate: "{tenant}/{key}/{id}"})
+	sink, err := outboxs3.New(
+		outboxs3.Config{API: api, Bucket: "archive", KeyTemplate: "{tenant}/{key}/{id}"},
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, []error{nil}, sink.Send(context.Background(), recs))

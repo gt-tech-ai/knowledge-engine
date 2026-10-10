@@ -2,18 +2,17 @@ package unit_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
-
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@ func TestToConnectError_AllCodes(t *testing.T) {
 			wantCode: connect.CodeInternal,
 		},
 		{
-			appErr:   fmt.Errorf("%s", "random error"),
+			appErr:   apperr.Sentinel("random error"),
 			name:     "Unknown code (default)",
 			wantCode: connect.CodeInternal,
 		},
@@ -189,7 +188,7 @@ func TestToConnectError_ClientSafeMessages(t *testing.T) {
 		{appErr: apperr.Forbidden(sensitiveMsg), name: "Forbidden"},
 		{appErr: apperr.Upstream(sensitiveMsg), name: "Upstream"},
 		{appErr: apperr.Internal(sensitiveMsg), name: "Internal"},
-		{appErr: fmt.Errorf("%s", sensitiveMsg), name: "Unknown"},
+		{appErr: apperr.Sentinel(sensitiveMsg), name: "Unknown"},
 	}
 
 	for _, tt := range tests {
@@ -206,73 +205,82 @@ func TestToConnectError_ClientSafeMessages(t *testing.T) {
 // FromRPCError — Connect and gRPC → AppError
 // ---------------------------------------------------------------------------
 
-// fromRPCCases is the shared code table for Connect and gRPC FromRPCError tests.
-var fromRPCCases = []struct {
-	name     string
+// fromRPCCase is one row of the Connect/gRPC FromRPCError code table.
+type fromRPCCase struct {
+	// name labels the subtest.
+	name string
+	// wantCode is the domain code FromRPCError must return.
 	wantCode apperr.ErrorCode
-	connect  connect.Code
-	grpc     codes.Code
-}{
-	{
-		name:     "NotFound",
-		connect:  connect.CodeNotFound,
-		grpc:     codes.NotFound,
-		wantCode: apperr.CodeNotFound,
-	},
-	{
-		name:     "InvalidArgument",
-		connect:  connect.CodeInvalidArgument,
-		grpc:     codes.InvalidArgument,
-		wantCode: apperr.CodeInvalidInput,
-	},
-	{
-		name:     "AlreadyExists",
-		connect:  connect.CodeAlreadyExists,
-		grpc:     codes.AlreadyExists,
-		wantCode: apperr.CodeConflict,
-	},
-	{
-		name:     "Unauthenticated",
-		connect:  connect.CodeUnauthenticated,
-		grpc:     codes.Unauthenticated,
-		wantCode: apperr.CodeUnauthorized,
-	},
-	{
-		name:     "PermissionDenied",
-		connect:  connect.CodePermissionDenied,
-		grpc:     codes.PermissionDenied,
-		wantCode: apperr.CodeForbidden,
-	},
-	{
-		name:     "Unavailable",
-		connect:  connect.CodeUnavailable,
-		grpc:     codes.Unavailable,
-		wantCode: apperr.CodeUpstream,
-	},
-	{
-		name:     "DeadlineExceeded",
-		connect:  connect.CodeDeadlineExceeded,
-		grpc:     codes.DeadlineExceeded,
-		wantCode: apperr.CodeTimeout,
-	},
-	{
-		name:     "Canceled",
-		connect:  connect.CodeCanceled,
-		grpc:     codes.Canceled,
-		wantCode: apperr.CodeCanceled,
-	},
-	{
-		name:     "Internal",
-		connect:  connect.CodeInternal,
-		grpc:     codes.Internal,
-		wantCode: apperr.CodeInternal,
-	},
-	{
-		name:     "Unimplemented",
-		connect:  connect.CodeUnimplemented,
-		grpc:     codes.Unimplemented,
-		wantCode: apperr.CodeUnknown,
-	},
+	// connect is the Connect wire code under test.
+	connect connect.Code
+	// grpc is the matching gRPC status code under test.
+	grpc codes.Code
+}
+
+// fromRPCCases returns the shared code table for Connect and gRPC FromRPCError tests.
+func fromRPCCases() []fromRPCCase {
+	return []fromRPCCase{
+		{
+			name:     "NotFound",
+			connect:  connect.CodeNotFound,
+			grpc:     codes.NotFound,
+			wantCode: apperr.CodeNotFound,
+		},
+		{
+			name:     "InvalidArgument",
+			connect:  connect.CodeInvalidArgument,
+			grpc:     codes.InvalidArgument,
+			wantCode: apperr.CodeInvalidInput,
+		},
+		{
+			name:     "AlreadyExists",
+			connect:  connect.CodeAlreadyExists,
+			grpc:     codes.AlreadyExists,
+			wantCode: apperr.CodeConflict,
+		},
+		{
+			name:     "Unauthenticated",
+			connect:  connect.CodeUnauthenticated,
+			grpc:     codes.Unauthenticated,
+			wantCode: apperr.CodeUnauthorized,
+		},
+		{
+			name:     "PermissionDenied",
+			connect:  connect.CodePermissionDenied,
+			grpc:     codes.PermissionDenied,
+			wantCode: apperr.CodeForbidden,
+		},
+		{
+			name:     "Unavailable",
+			connect:  connect.CodeUnavailable,
+			grpc:     codes.Unavailable,
+			wantCode: apperr.CodeUpstream,
+		},
+		{
+			name:     "DeadlineExceeded",
+			connect:  connect.CodeDeadlineExceeded,
+			grpc:     codes.DeadlineExceeded,
+			wantCode: apperr.CodeTimeout,
+		},
+		{
+			name:     "Canceled",
+			connect:  connect.CodeCanceled,
+			grpc:     codes.Canceled,
+			wantCode: apperr.CodeCanceled,
+		},
+		{
+			name:     "Internal",
+			connect:  connect.CodeInternal,
+			grpc:     codes.Internal,
+			wantCode: apperr.CodeInternal,
+		},
+		{
+			name:     "Unimplemented",
+			connect:  connect.CodeUnimplemented,
+			grpc:     codes.Unimplemented,
+			wantCode: apperr.CodeUnknown,
+		},
+	}
 }
 
 // TestFromRPCError_ConnectCodes tests that Connect wire codes map to the
@@ -288,10 +296,10 @@ var fromRPCCases = []struct {
 func TestFromRPCError_ConnectCodes(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range fromRPCCases {
+	for _, tt := range fromRPCCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			wire := connect.NewError(tt.connect, fmt.Errorf("peer: %s", tt.name))
+			wire := connect.NewError(tt.connect, apperr.Sentinel("peer: "+tt.name))
 			got := rpc.FromRPCError(wire)
 			assert.True(
 				t,
@@ -319,7 +327,7 @@ func TestFromRPCError_ConnectCodes(t *testing.T) {
 func TestFromRPCError_GRPCStatusCodes(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range fromRPCCases {
+	for _, tt := range fromRPCCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			wire := status.Error(tt.grpc, "peer: "+tt.name)
@@ -346,16 +354,16 @@ func TestFromRPCError_GRPCStatusCodes(t *testing.T) {
 // What it tests:
 //   - nil → nil
 //   - existing AppError returned unchanged
-//   - plain fmt.Errorf → CodeUnknown
+//   - a plain uncoded error → CodeUnknown
 func TestFromRPCError_Passthrough(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, rpc.FromRPCError(nil))
+	require.NoError(t, rpc.FromRPCError(nil))
 
 	existing := apperr.NotFound("already domain")
 	assert.Same(t, existing, rpc.FromRPCError(existing))
 
-	plain := fmt.Errorf("not an rpc error")
+	plain := apperr.Sentinel("not an rpc error")
 	got := rpc.FromRPCError(plain)
 	assert.True(t, apperr.Is(got, apperr.CodeUnknown))
 	assert.ErrorIs(t, got, plain)

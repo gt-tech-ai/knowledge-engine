@@ -2,8 +2,8 @@ package logger
 
 import "github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 
-// Config is the superset configuration for all logger kinds.
-// Kind-incompatible fields are silently ignored (e.g., Format and RedactPII are ignored when Kind=KindStdlib).
+// Config is the superset configuration for all logger kinds. Kind-incompatible fields are
+// silently ignored (e.g., Format and RedactPII are ignored when Kind=KindStdlib).
 type Config struct {
 	// Level sets the minimum log severity (debug, info, warn, error).
 	// Applies to all logger kinds.
@@ -25,7 +25,8 @@ type Config struct {
 	AddSource bool
 }
 
-// DefaultConfig returns the default logger configuration with KindZap and sensible defaults.
+// DefaultConfig returns the default logger configuration with KindZap and sensible
+// defaults.
 func DefaultConfig() Config {
 	return Config{
 		Kind:      KindZap,

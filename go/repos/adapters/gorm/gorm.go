@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
@@ -61,8 +61,8 @@ type Client struct {
 // at graph-build time.
 func NewFromConfig(cfg Config) (*Client, error) {
 	if cfg.Kind != KindPostgres {
-		return nil, coreerrors.New(
-			coreerrors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown gorm kind: %v", cfg.Kind),
 		)
 	}
@@ -100,7 +100,7 @@ func (c *Client) Start(ctx context.Context) error {
 		if db != nil {
 			_ = closePool(db)
 		}
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "open gorm postgres")
+		return apperr.Wrap(err, apperr.CodeInternal, "open gorm postgres")
 	}
 	if err := ping(ctx, db); err != nil {
 		_ = closePool(db)
@@ -119,7 +119,7 @@ func (c *Client) Stop(_ context.Context) error {
 // does not touch the database); it fails until Start has run.
 func (c *Client) Liveness(_ context.Context) error {
 	if c.db == nil {
-		return coreerrors.Internal("gorm client not started")
+		return apperr.Internal("gorm client not started")
 	}
 	return nil
 }
@@ -129,7 +129,7 @@ func (c *Client) Liveness(_ context.Context) error {
 // CodeUnavailable.
 func (c *Client) Readiness(ctx context.Context) error {
 	if c.db == nil {
-		return coreerrors.Internal("gorm client not started")
+		return apperr.Internal("gorm client not started")
 	}
 	return ping(ctx, c.db)
 }
@@ -139,12 +139,12 @@ func (c *Client) Readiness(ctx context.Context) error {
 func ping(ctx context.Context, db *gorm.DB) error {
 	sqlDB, err := db.DB()
 	if err != nil {
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "gorm sql.DB")
+		return apperr.Wrap(err, apperr.CodeInternal, "gorm sql.DB")
 	}
 	if err := sqlDB.PingContext(ctx); err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"gorm postgres ping failed",
 		)
 	}
@@ -155,10 +155,10 @@ func ping(ctx context.Context, db *gorm.DB) error {
 func closePool(db *gorm.DB) error {
 	sqlDB, err := db.DB()
 	if err != nil {
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "gorm sql.DB")
+		return apperr.Wrap(err, apperr.CodeInternal, "gorm sql.DB")
 	}
 	if err := sqlDB.Close(); err != nil {
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "close gorm postgres pool")
+		return apperr.Wrap(err, apperr.CodeInternal, "close gorm postgres pool")
 	}
 	return nil
 }

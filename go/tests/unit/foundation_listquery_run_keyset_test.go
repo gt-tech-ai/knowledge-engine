@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 )
 
-// keysetStubRunner is a keyset-capable in-test double of the small ListRunner interface (the legal
-// unit double — the real Ent runner is covered by the store sqlmock + integration suites). List
-// returns a fixed page; Count is unused here.
+// keysetStubRunner is a keyset-capable in-test double of the small ListRunner interface
+// (the legal unit double — the real Ent runner is covered by the store sqlmock +
+// integration suites). List returns a fixed page; Count is unused here.
 type keysetStubRunner struct{ rows []int }
 
 func (r keysetStubRunner) List(
@@ -30,11 +30,15 @@ func (r keysetStubRunner) Count(context.Context, []types.Filter, int) (int, erro
 	return len(r.rows), nil
 }
 
-// keysetStubTime is a fixed instant the stub reports for the created_at keyset column (a test never
-// needs a live clock — a constant keeps the minted cursor deterministic).
-var keysetStubTime = time.Unix(1_700_000_000, 0).UTC()
+// keysetStubTime returns a fixed instant the stub reports for the created_at keyset
+// column (a test never needs a live clock — a constant keeps the minted cursor
+// deterministic).
+func keysetStubTime() time.Time {
+	return time.Unix(1_700_000_000, 0).UTC()
+}
 
-// keysetReader builds a keyset-wired Reader over the stub with the given sort (empty = default order).
+// keysetReader builds a keyset-wired Reader over the stub with the given sort (empty =
+// default order).
 func keysetReader(rows []int, sort []types.OrderField) listquery.Reader[int, int] {
 	return listquery.Reader[int, int]{
 		Runner:     keysetStubRunner{rows: rows},
@@ -48,7 +52,7 @@ func keysetReader(rows []int, sort []types.OrderField) listquery.Reader[int, int
 			RowValue: func(row int, col string) (any, bool) {
 				switch col {
 				case "created_at":
-					return keysetStubTime, true
+					return keysetStubTime(), true
 				case "id":
 					return strconv.Itoa(row), true
 				case "name":
@@ -63,18 +67,19 @@ func keysetReader(rows []int, sort []types.OrderField) listquery.Reader[int, int
 	}
 }
 
-// TestRun_Keyset_OnlyDefaultOrdering tests the curated-set guard: keyset (infinite scroll)
-// is served ONLY on the default ordering, because only that ordering has a covering composite index.
+// TestRun_Keyset_OnlyDefaultOrdering tests the curated-set guard: keyset (infinite
+// scroll) is served ONLY on the default ordering, because only that ordering has a
+// covering composite index.
 //
 // Why this test is important:
-//   - A keyset seek on a custom sort has no covering index → a latent full-scan + filesort on a big
-//     table. The guard is what keeps an un-indexed keyset off the wire; without it, sorting a list and
-//     scrolling would silently degrade to O(n) per page.
+//   - A keyset seek on a custom sort has no covering index → a latent full-scan +
+//     filesort on a big table. The guard is what keeps an un-indexed keyset off the wire;
+//     without it, sorting a list and scrolling would silently degrade to O(n) per page.
 //
 // What it tests:
-//   - A keyset cursor presented with a custom sort → CodeInvalidInput; an offset page on a custom sort
-//     hands back an OFFSET next-token (page navigation), while the default-ordered offset page bridges
-//     to a KEYSET next-token (infinite scroll).
+//   - A keyset cursor presented with a custom sort → CodeInvalidInput; an offset page on
+//     a custom sort hands back an OFFSET next-token (page navigation), while the
+//     default-ordered offset page bridges to a KEYSET next-token (infinite scroll).
 func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 	t.Parallel()
 	customSort := []types.OrderField{{Field: "name", Desc: false}}
@@ -94,7 +99,7 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 			keysetReader([]int{1, 2, 3}, customSort),
 		)
 		require.Error(t, err)
-		assert.True(t, coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		assert.True(t, apperr.Is(err, apperr.CodeInvalidInput),
 			"keyset on a custom sort → CodeInvalidInput, got %v", err)
 	})
 
@@ -132,9 +137,10 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 		assert.Equal(t, "2", decoded.Keyset.ID, "cursor carries the last row's id")
 	})
 
-	// The fingerprint-mismatch reject path: a live keyset cursor is bound to the (sort ⊕ filter) it
-	// was minted under. If the query's filter changes while the client holds the cursor, seeking with
-	// the old boundary would silently dup/skip rows — so Run must REJECT the cursor, not honor it.
+	// The fingerprint-mismatch reject path: a live keyset cursor is bound to the (sort ⊕
+	// filter) it was minted under. If the query's filter changes while the client holds
+	// the cursor, seeking with the old boundary would silently dup/skip rows — so Run
+	// must REJECT the cursor, not honor it.
 	t.Run("keyset cursor rejected when the filter changed under it", func(t *testing.T) {
 		t.Parallel()
 		// Mint a valid default-order keyset cursor with NO filter.
@@ -146,8 +152,9 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, first.NextCursor)
 
-		// Re-run the SAME default ordering but with a filter present — the recomputed fingerprint
-		// (sort ⊕ filter) no longer matches the cursor's, so the seek is rejected.
+		// Re-run the SAME default ordering but with a filter present — the recomputed
+		// fingerprint (sort ⊕ filter) no longer matches the cursor's, so the seek is
+		// rejected.
 		reader := keysetReader([]int{1, 2, 3}, nil)
 		reader.Filter = types.FilterClause{
 			Field:    "name",
@@ -162,7 +169,7 @@ func TestRun_Keyset_OnlyDefaultOrdering(t *testing.T) {
 		require.Error(t, err)
 		assert.True(
 			t,
-			coreerrors.Is(err, coreerrors.CodeInvalidInput),
+			apperr.Is(err, apperr.CodeInvalidInput),
 			"a cursor whose sort⊕filter fingerprint no longer matches → CodeInvalidInput, got %v",
 			err,
 		)

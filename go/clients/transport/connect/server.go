@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -37,13 +37,16 @@ type ServerConfig struct {
 	// WriteTimeout is the maximum duration before timing out writes of the response.
 	WriteTimeout time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 
-	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive connection.
+	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive
+	// connection.
 	IdleTimeout time.Duration `yaml:"idle_timeout" mapstructure:"idle_timeout"`
 
-	// MaxHeaderBytes controls the maximum number of bytes the server reads parsing request headers.
+	// MaxHeaderBytes controls the maximum number of bytes the server reads parsing
+	// request headers.
 	MaxHeaderBytes int `yaml:"max_header_bytes" mapstructure:"max_header_bytes"`
 
-	// ShutdownTimeout is the maximum duration to wait for in-flight requests during graceful shutdown.
+	// ShutdownTimeout is the maximum duration to wait for in-flight requests during
+	// graceful shutdown.
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" mapstructure:"shutdown_timeout"`
 }
 
@@ -115,7 +118,7 @@ func (s *Server) RegisterFunc(pattern string, handler http.HandlerFunc) {
 // serve lifetime — call Stop (or Shutdown) to drain the server; the caller blocks on
 // its own shutdown signal. This satisfies the interfaces.Lifecycle "return when
 // ready" contract so a lifecycle.Manager can coordinate it.
-func (s *Server) Start(_ context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	// h2c (HTTP/2 Cleartext) via net/http's native Protocols; the
 	// golang.org/x/net/http2/h2c handler wrapper is deprecated.
 	protocols := new(http.Protocols)
@@ -144,12 +147,12 @@ func (s *Server) Start(_ context.Context) error {
 	// ready only once we are actually listening. Then serve in the background so Start
 	// returns once the server is listening (the interfaces.Lifecycle "return when ready"
 	// contract, so a lifecycle.Manager can start it in sequence without hanging).
-	ln, err := net.Listen("tcp", addr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return coreerrors.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
-			fmt.Sprintf("connect server listen on %s", addr),
+			apperr.CodeInternal,
+			"connect server listen on "+addr,
 		)
 	}
 	s.httpServer.Store(srv)
@@ -172,7 +175,14 @@ func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
 	defer cancel()
 	s.logger.Info("Connect server shutting down")
-	return srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.ContextCode(err, apperr.CodeInternal),
+			"shut down connect server",
+		)
+	}
+	return nil
 }
 
 // Mux returns the underlying ServeMux for direct handler registration.

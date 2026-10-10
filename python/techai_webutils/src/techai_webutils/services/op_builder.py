@@ -44,12 +44,12 @@ class OpBase:
 
     @property
     def name(self) -> str:
-        """Return the service name."""
+        """The service name."""
         return self._name
 
     @property
     def log(self) -> Logger | None:
-        """Return the structured logger (may be None)."""
+        """The structured logger (may be None)."""
         return self._log
 
 
@@ -63,7 +63,7 @@ class _DecoratedOpService[A, R]:
 
     @property
     def name(self) -> str:
-        """Return the service name."""
+        """The service name."""
         return self._name
 
     async def run(self, args: A) -> R:
@@ -146,7 +146,9 @@ def _with_timeout[A, R](name: str, seconds: float, run: RunFn[A, R]) -> RunFn[A,
     return wrapped
 
 
-def _with_metrics[A, R](name: str, metrics: MetricsProvider, run: RunFn[A, R]) -> RunFn[A, R]:
+def _with_metrics[A, R](
+    name: str, metrics: MetricsProvider, run: RunFn[A, R]
+) -> RunFn[A, R]:
     """Wrap ``run`` to record RED metrics: an operation counter by result + a duration histogram."""
     counter = metrics.counter(
         "service_operations_total",
@@ -175,7 +177,9 @@ def _with_metrics[A, R](name: str, metrics: MetricsProvider, run: RunFn[A, R]) -
     return wrapped
 
 
-def _with_tracing[A, R](name: str, tracer: TracerProvider, run: RunFn[A, R]) -> RunFn[A, R]:
+def _with_tracing[A, R](
+    name: str, tracer: TracerProvider, run: RunFn[A, R]
+) -> RunFn[A, R]:
     """Wrap ``run`` in a span named ``service.<name>.run``, recording failures on the span."""
 
     async def wrapped(args: A) -> R:
@@ -203,7 +207,9 @@ def _with_logging[A, R](name: str, logger: Logger, run: RunFn[A, R]) -> RunFn[A,
     return wrapped
 
 
-def _with_recovery[A, R](name: str, logger: Logger | None, run: RunFn[A, R]) -> RunFn[A, R]:
+def _with_recovery[A, R](
+    name: str, logger: Logger | None, run: RunFn[A, R]
+) -> RunFn[A, R]:
     """Wrap ``run`` (always outermost) so unexpected exceptions surface as ``InternalError``."""
 
     async def wrapped(args: A) -> R:

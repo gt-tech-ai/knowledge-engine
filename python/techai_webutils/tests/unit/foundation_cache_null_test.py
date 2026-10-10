@@ -9,8 +9,9 @@ Run with: pytest tests/python/test_foundation/test_cache_null.py -v
 
 from __future__ import annotations
 
-from techai_webutils.clients.cache.null import NullCache
 import pytest
+
+from techai_webutils.clients.cache.null import NullCache
 
 
 class TestNullCache:

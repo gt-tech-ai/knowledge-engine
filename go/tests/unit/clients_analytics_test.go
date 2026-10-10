@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/stub"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
@@ -12,9 +16,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestNewFromConfig_DefaultsToStub tests that the default analytics store is the
@@ -47,8 +48,14 @@ func TestNewFromConfig_DefaultsToStub(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, store.Start(ctx))
-	require.NoError(t, store.Write(ctx, []types.Fact{{Cube: "genai_calls", OrgID: "o", TS: time.Now()}}))
-	stream, err := store.Aggregate(ctx, types.AggregateQuery{Cube: "genai_calls", OrgID: "o"})
+	require.NoError(
+		t,
+		store.Write(ctx, []types.Fact{{Cube: "genai_calls", OrgID: "o", TS: time.Now()}}),
+	)
+	stream, err := store.Aggregate(
+		ctx,
+		types.AggregateQuery{Cube: "genai_calls", OrgID: "o"},
+	)
 	require.NoError(t, err)
 	rows, more, err := stream.Next(ctx)
 	require.NoError(t, err)
@@ -82,13 +89,20 @@ func TestNewFromConfig_CassandraKindDialsNestedConfigAtStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	session := mocks.NewMockSession(ctrl)
 	var got []cassandra.Config
-	store, err := analytics.New(analytics.KindCassandra,
-		analytics.WithCassandra(cassandra.KindKeyspaces, cassandra.WithKeyspacesRegion("us-east-1"), cassandra.WithKeyspace("analytics")),
+	store, err := analytics.New(
+		analytics.KindCassandra,
+		analytics.WithCassandra(
+			cassandra.KindKeyspaces,
+			cassandra.WithKeyspacesRegion("us-east-1"),
+			cassandra.WithKeyspace("analytics"),
+		),
 		analytics.WithCube("genai_calls", types.GrainHour, types.GrainDay),
-		analytics.WithSessionFactory(func(c *cassandra.Config) (cassandra.Session, error) {
-			got = append(got, *c)
-			return session, nil
-		}),
+		analytics.WithSessionFactory(
+			func(c *cassandra.Config) (cassandra.Session, error) {
+				got = append(got, *c)
+				return session, nil
+			},
+		),
 	)
 	require.NoError(t, err)
 	assert.Empty(t, got, "no dial at construction")

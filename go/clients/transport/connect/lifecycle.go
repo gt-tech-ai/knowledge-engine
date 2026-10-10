@@ -3,7 +3,7 @@ package connect
 import (
 	"context"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -22,7 +22,14 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 	s.logger.Info("Connect server shutting down")
-	return srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.ContextCode(err, apperr.CodeInternal),
+			"shut down connect server",
+		)
+	}
+	return nil
 }
 
 // Liveness reports the server process is up — a lightweight self-check that does
@@ -33,7 +40,7 @@ func (s *Server) Liveness(_ context.Context) error { return nil }
 // listener); until then it is not ready to serve traffic.
 func (s *Server) Readiness(_ context.Context) error {
 	if s.httpServer.Load() == nil {
-		return coreerrors.Internal("connect server not started")
+		return apperr.Internal("connect server not started")
 	}
 	return nil
 }

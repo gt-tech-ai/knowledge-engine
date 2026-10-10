@@ -4,7 +4,7 @@ import (
 	"context"
 	"os/exec"
 
-	corerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 )
 
@@ -19,7 +19,8 @@ func HasPathsChanged(
 	to string,
 	paths ...string,
 ) (bool, error) {
-	args := []string{"diff", "--quiet", from, to, "--"}
+	args := make([]string, 0, 5+len(paths))
+	args = append(args, "diff", "--quiet", from, to, "--")
 	args = append(args, paths...)
 
 	result := r.RunBuffered(ctx, root, "git", args...)
@@ -27,7 +28,7 @@ func HasPathsChanged(
 		// git diff --quiet exits 1 when there are differences; that's the
 		// normal "changed" signal, not a real error.
 		var exitErr *exec.ExitError
-		if corerrors.As(result.Err, &exitErr) {
+		if apperr.As(result.Err, &exitErr) {
 			return true, nil
 		}
 		return false, result.Err

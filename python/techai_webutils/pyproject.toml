@@ -1,6 +1,6 @@
 [project]
 name = "techai-webutils"
-version = "0.3.2"
+version = "0.3.3"
 #          ^^^^^
 # Wheel names will be generated according to this value. Do not manually modify this value; instead
 # update it according to committed changes by running this command from the root of the repository:
@@ -99,8 +99,8 @@ dev = [
     # consumers pull it via the `ray` extra, not this group. Pinned EXACTLY to the same version as the
     # `ray` extra so the ray:// driver matches the cluster (see the extra above).
     "ray==2.56.1",
-    "ruff>=0.15.13",
-    "basedpyright>=1.31",
+    "ruff==0.16.9",
+    "basedpyright==1.40.1",
     # asyncpg in dev so basedpyright resolves `import asyncpg` in the postgres lock backend and the
     # real-Postgres integration test can run; production consumers pull it via the `postgres` extra.
     "asyncpg>=0.30.0",
@@ -116,6 +116,8 @@ dev = [
     "ty>=0.0.38",
     # hypothesis drives the property tests (e.g. the token-ledger Decimal cost arithmetic).
     "hypothesis>=6.168.5",
+    "asyncpg-stubs==0.31.3",
+    "types-aiobotocore-lite[s3,sesv2,sqs]==3.9.0",
 ]
 
 [tool.pytest.ini_options]
@@ -177,46 +179,62 @@ omit = [
 ]
 
 [tool.ruff]
-line-length = 110
+line-length = 90
+
+# preview = true enables ruff's preview rules for BOTH `ruff check` and
+# `ruff format` (it is a top-level key, not scoped to [lint]).
+preview = true
 
 [tool.ruff.lint]
-exclude = ["tests/**"]
-
 select = ["ALL"]
 
 ignore = [
-    "ANN002", # Missing type annotation for `*args`
-    "ANN003", # Missing type annotation for `**kwargs`
-    "BLE001", # Do not catch blind exception: `Exception`
-    "COM812", # Trailing comma missing
-    "CPY001", # flake8-copyright: repo does not use file copyright headers
-    "D105", # Missing docstring in magic method
-    "D107", # Missing docstring in `__init__` method
-    "D202", # No blank lines allowed after function docstring
-    "D203", # 1 blank line before class docstring (conflicts with D211; ruff keeps D211)
-    "D213", # Multi-line summary on second line (conflicts with D212; ruff keeps D212)
-    "E501", # Line too long
-    "FIX002", # Line contains TODO, consider resolving the issue
-    "I001", # Import block is un-sorted or un-formatted
-    "N802", # Function name `xxx` should be lowercase
-    "N999", # Invalid module name
-    "RSE102", # Unnecessary parentheses on raise exception
-    "S101", # Use of assert detected
-    "TC006", # Add quotes to type expression in `typing.cast()`
-    "TD002", # Missing author in TODO
-    "TD003", # Missing issue link for this TODO
-    "TRY002", # Create your own exception
-    "TRY300", # Consider moving this statement to an `else` block
-    "UP032", # Use f-string instead of `format` call
+    "missing-type-args", # Missing type annotation for `*args`
+    "missing-type-kwargs", # Missing type annotation for `**kwargs`
+    "blind-except", # Do not catch blind exception: `Exception`
+    "missing-trailing-comma", # Trailing comma missing
+    "missing-copyright-notice", # flake8-copyright: repo does not use file copyright headers
+    "undocumented-magic-method", # Missing docstring in magic method
+    "undocumented-public-init", # Missing docstring in `__init__` method
+    "blank-line-after-function", # No blank lines allowed after function docstring
+    "incorrect-blank-line-before-class", # 1 blank line before class docstring (conflicts with D211; ruff keeps D211)
+    "multi-line-summary-second-line", # Multi-line summary on second line (conflicts with D212; ruff keeps D212)
+    "DOC", # pydoclint family (preview): listed as "Consider", not adopted
+    "line-too-long", # Line too long
+    "line-contains-todo", # Line contains TODO, consider resolving the issue
+    "FURB", # refurb family (preview): listed as "Consider", not adopted
+    "invalid-function-name", # Function name `xxx` should be lowercase
+    "invalid-module-name", # Invalid module name
+    "pytest-fixture-autouse", # flake8-pytest-style (preview, no assigned rule code so it cannot be suppressed per-line via `# noqa`): autouse is a deliberate cross-cutting test pattern here — per-test env isolation and the integration-suite Docker gate — so this opinionated preview rule is deferred like DOC/FURB.
+    "unnecessary-paren-on-raise-exception", # Unnecessary parentheses on raise exception
+    "noqa-comments", # noqa-comments (preview): opinionated/stylistic rule preferring `# ruff: ignore[...]` over `# noqa`; ruff itself sanctions disabling it. We keep the universal, tool-agnostic `# noqa: <CODE>` form.
+    "runtime-cast-value", # Add quotes to type expression in `typing.cast()`
+    "missing-todo-author", # Missing author in TODO
+    "missing-todo-link", # Missing issue link for this TODO
+    "raise-vanilla-class", # Create your own exception
+    "try-consider-else", # Consider moving this statement to an `else` block
+    "f-string", # Use f-string instead of `format` call
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["techai_webutils"]
 
 [tool.ruff.lint.per-file-ignores]
 # The bedrock clients mirror the AWS bedrock-runtime / bedrock-agent-runtime / bedrock-agent APIs, whose
 # keyword params are camelCase (knowledgeBaseId, modelId, retrievalQuery, dataSourceId, …) — N803 does
 # not apply to a wire mirror.
-"src/techai_webutils/clients/llm/bedrock/*.py" = ["N803"]
-"src/techai_webutils/clients/retrieval/bedrock/*.py" = ["N803"]
-"src/techai_webutils/clients/kb_ingestion/bedrock/*.py" = ["N803"]
+"src/techai_webutils/clients/llm/bedrock/*.py" = ["invalid-argument-name"]
+"src/techai_webutils/clients/retrieval/bedrock/*.py" = ["invalid-argument-name"]
+"src/techai_webutils/clients/kb_ingestion/bedrock/*.py" = ["invalid-argument-name"]
+# Each entry is a rule wrong-by-design for the whole test tree.
+"**/tests/**" = [
+    "S", # flake8-bandit: bandit is the dedicated security gate and excludes tests; fixtures use fake credentials and intentionally exercise flagged patterns (assert, e2e subprocess, bind-all in local config)
+    "magic-value-comparison", # magic-value comparisons are expected in test assertions
+    "missing-type-function-argument", # test fixtures/params need no redundant annotations (types still resolve under basedpyright)
+    "no-self-use", # pytest groups tests as methods on a class; `self` is required by the collector even when unused
+    "implicit-namespace-package", # test trees are flat implicit-namespace packages (no __init__.py), collected by pytest
+    "import-outside-top-level", # tests import the concrete implementation under test locally to keep each case's deps explicit
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
@@ -226,11 +244,26 @@ max-args = 10
 max-branches = 20
 max-returns = 20
 
+# Strict type-checking over src and tests. include is an allowlist, so tests are analyzed
+# only because they are listed here.
 [tool.pyright]
 pythonVersion = "3.12"
-typeCheckingMode = "standard"
-include = ["src/techai_webutils"]
-exclude = ["tests"]
+typeCheckingMode = "strict"
+include = ["src/techai_webutils", "tests"]
+
+# Mock-noise relaxation for the test tree: pytest fixtures and unittest.mock doubles are
+# intentionally untyped, so the reportUnknown* family and the mock attribute-access probes
+# (.assert_called_once / .await_args_list, which resolve on an autospec'd MethodType, not on
+# the Mock) are pure noise there. src/ stays fully strict, and every other strict diagnostic
+# (argument types, optional access, private usage) is still enforced in tests.
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownVariableType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
+reportAttributeAccessIssue = "none"
 
 [tool.uv.build-backend]
 module-name = "techai_webutils"

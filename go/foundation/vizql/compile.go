@@ -58,8 +58,11 @@ func Compile(spec types.VizSpec, cube CubeSchema) (Plan, error) {
 	if spec.Cube != cube.Name {
 		return Plan{}, invalid("spec cube " + spec.Cube + " does not match " + cube.Name)
 	}
-	if spec.Grain != "" && len(cube.Grains) > 0 && !slices.Contains(cube.Grains, spec.Grain) {
-		return Plan{}, invalid("cube " + cube.Name + " is not rolled up at grain " + string(spec.Grain))
+	if spec.Grain != "" && len(cube.Grains) > 0 &&
+		!slices.Contains(cube.Grains, spec.Grain) {
+		return Plan{}, invalid(
+			"cube " + cube.Name + " is not rolled up at grain " + string(spec.Grain),
+		)
 	}
 	rows, cols := Normalize(spec.Rows), Normalize(spec.Columns)
 	query, err := aggregateQuery(spec, rows, cols)
@@ -71,7 +74,11 @@ func Compile(spec types.VizSpec, cube CubeSchema) (Plan, error) {
 		for _, c := range cols {
 			key := PaneKey{Row: tupleKey(r), Column: tupleKey(c)}
 			plan.Panes = append(plan.Panes, key)
-			plan.Marks[key] = markFor(spec.Mark, kindOf(r, cube.Fields), kindOf(c, cube.Fields))
+			plan.Marks[key] = markFor(
+				spec.Mark,
+				kindOf(r, cube.Fields),
+				kindOf(c, cube.Fields),
+			)
 		}
 	}
 	return plan, nil
@@ -79,9 +86,16 @@ func Compile(spec types.VizSpec, cube CubeSchema) (Plan, error) {
 
 // aggregateQuery derives the group-by and measure lists of the spec's one query
 // and checks that every sort key is one of them.
-func aggregateQuery(spec types.VizSpec, rows, cols []Tuple) (types.AggregateQuery, error) {
+func aggregateQuery(
+	spec types.VizSpec,
+	rows, cols []Tuple,
+) (types.AggregateQuery, error) {
 	q := types.AggregateQuery{
-		Cube: spec.Cube, Filter: spec.Filter, TimeRange: spec.TimeRange, Grain: spec.Grain, Sort: spec.Sort,
+		Cube:      spec.Cube,
+		Filter:    spec.Filter,
+		TimeRange: spec.TimeRange,
+		Grain:     spec.Grain,
+		Sort:      spec.Sort,
 	}
 	seenMeasure := map[string]bool{}
 	add := func(ref types.FieldRef) error {
@@ -114,7 +128,9 @@ func aggregateQuery(spec types.VizSpec, rows, cols []Tuple) (types.AggregateQuer
 	}
 	for _, o := range spec.Sort {
 		if !slices.Contains(q.GroupBy, o.Field) && !seenMeasure[o.Field] {
-			return types.AggregateQuery{}, invalid("sort key " + o.Field + " is neither grouped by nor computed")
+			return types.AggregateQuery{}, invalid(
+				"sort key " + o.Field + " is neither grouped by nor computed",
+			)
 		}
 	}
 	return q, nil

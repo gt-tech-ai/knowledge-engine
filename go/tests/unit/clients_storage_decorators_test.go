@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	storagedecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/storage/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -51,7 +51,7 @@ func TestStorageDecorator_RetryClassification(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	base := mocks.NewMockStorageClient(ctrl)
 	base.EXPECT().Upload(gomock.Any(), "b", "k", gomock.Any(), "").
-		Return(errors.New("boom")).Times(1)
+		Return(apperr.Sentinel("boom")).Times(1)
 	up := storagedecorators.NewBuilder(base, "docs").
 		WithRetrier(fastStorageRetrier(t)).Build()
 	require.Error(t, up.Upload(ctx, "b", "k", strings.NewReader("x"), ""))
@@ -59,7 +59,7 @@ func TestStorageDecorator_RetryClassification(t *testing.T) {
 	// Delete is retryable: fails once, retried, then succeeds.
 	base2 := mocks.NewMockStorageClient(ctrl)
 	gomock.InOrder(
-		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(errors.New("boom")),
+		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(apperr.Sentinel("boom")),
 		base2.EXPECT().Delete(gomock.Any(), "b", "k").Return(nil),
 	)
 	del := storagedecorators.NewBuilder(base2, "docs").
@@ -106,32 +106,12 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	base := mocks.NewMockStorageClient(ctrl)
 
-	// A generated ReadCloser mock that models an S3 GetObject body tied to the call
-	// context: each Read surfaces the context error once cancelled, streams the
-	// payload otherwise, then EOFs. This is what lets the test detect a decorator
-	// that wrongly cancels the timeout context on return (the read below happens
-	// AFTER Download returned, so a cancelled context would surface here).
-	streamData := []byte("streamed payload")
-	var streamCtx context.Context
-	var pos int
-	body := mocks.NewMockReadCloser(ctrl)
-	body.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
-		if err := streamCtx.Err(); err != nil {
-			return 0, err
-		}
-		if pos >= len(streamData) {
-			return 0, io.EOF
-		}
-		n := copy(p, streamData[pos:])
-		pos += n
-		return n, nil
-	}).AnyTimes()
-	body.EXPECT().Close().Return(nil)
-
+	// The body is bound to the context the decorator passes to Download, so a
+	// decorator that wrongly cancels the timeout context on return surfaces here (the
+	// read below happens AFTER Download returned).
 	base.EXPECT().Download(gomock.Any(), "b", "k").DoAndReturn(
 		func(ctx context.Context, _, _ string) (io.ReadCloser, error) {
-			streamCtx = ctx
-			return body, nil
+			return ctxBoundBody(ctx, ctrl, []byte("streamed payload")), nil
 		},
 	)
 
@@ -148,6 +128,31 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 	require.NoError(t, rc.Close())
 }
 
+// ctxBoundBody returns a generated ReadCloser mock that models an S3 GetObject body
+// tied to the call context: each Read surfaces the context error once ctx is
+// cancelled, streams data otherwise, then EOFs. Close succeeds once.
+func ctxBoundBody(
+	ctx context.Context,
+	ctrl *gomock.Controller,
+	data []byte,
+) io.ReadCloser {
+	var pos int
+	body := mocks.NewMockReadCloser(ctrl)
+	body.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
+		if err := ctx.Err(); err != nil {
+			return 0, apperr.Wrap(err, apperr.CodeCanceled, "stream read")
+		}
+		if pos >= len(data) {
+			return 0, io.EOF
+		}
+		n := copy(p, data[pos:])
+		pos += n
+		return n, nil
+	}).AnyTimes()
+	body.EXPECT().Close().Return(nil)
+	return body
+}
+
 // TestStorageDecorator_LogsAndCountsOnError verifies failed operations are logged
 // and the metrics path is exercised.
 //
@@ -157,7 +162,8 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 //     failure at Debug (suppressed in staging/prod); only the outermost seam logs Error.
 //
 // What it tests:
-//   - A base error triggers a Debug failure log (and the metrics path runs via NopMetrics)
+//   - A base error triggers a Debug failure log (and the metrics path runs via
+//     NopMetrics)
 func TestStorageDecorator_LogsAndCountsOnError(t *testing.T) {
 	t.Parallel()
 
@@ -165,12 +171,20 @@ func TestStorageDecorator_LogsAndCountsOnError(t *testing.T) {
 	base := mocks.NewMockStorageClient(ctrl)
 	base.EXPECT().
 		Upload(gomock.Any(), "b", "k", gomock.Any(), gomock.Any()).
-		Return(errors.New("boom"))
+		Return(apperr.Sentinel("boom"))
 
 	logger := mocks.NewMockLogger(ctrl)
 	logger.EXPECT().WithContext(gomock.Any()).Return(logger).AnyTimes()
 	logger.EXPECT().
-		Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Debug(
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+			gomock.Any(),
+		).
 		MinTimes(1)
 
 	client := storagedecorators.NewBuilder(base, "docs").

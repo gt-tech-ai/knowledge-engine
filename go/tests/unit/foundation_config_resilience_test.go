@@ -3,6 +3,9 @@ package unit_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/adaptivethrottle"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
@@ -10,8 +13,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/hedge"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/ratelimiter/token"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestResilienceDefaults_MatchPrimitives tests that each schema/resilience
@@ -34,7 +35,7 @@ func TestResilienceDefaults_MatchPrimitives(t *testing.T) {
 	assert.Equal(t, pr.MaxRetries, r.MaxRetries)
 	assert.Equal(t, pr.InitialInterval, r.InitialInterval)
 	assert.Equal(t, pr.MaxInterval, r.MaxInterval)
-	assert.Equal(t, pr.Multiplier, r.Multiplier)
+	assert.InDelta(t, pr.Multiplier, r.Multiplier, 0)
 	assert.Equal(t, pr.MaxElapsedTime, r.MaxElapsedTime)
 
 	b := resilience.DefaultBreakerConfig()
@@ -43,7 +44,7 @@ func TestResilienceDefaults_MatchPrimitives(t *testing.T) {
 	assert.Equal(t, pb.Interval, b.Interval)
 	assert.Equal(t, pb.Timeout, b.Timeout)
 	assert.Equal(t, pb.ConsecutiveFailures, b.ConsecutiveFailures)
-	assert.Equal(t, pb.FailureRatio, b.FailureRatio)
+	assert.InDelta(t, pb.FailureRatio, b.FailureRatio, 0)
 	assert.Equal(t, pb.MinRequests, b.MinRequests)
 
 	bh := resilience.DefaultBulkheadConfig()
@@ -54,11 +55,11 @@ func TestResilienceDefaults_MatchPrimitives(t *testing.T) {
 	assert.Equal(t, pbh.MinConcurrent, bh.MinConcurrent)
 	assert.Equal(t, pbh.InitialConcurrent, bh.InitialConcurrent)
 	assert.Equal(t, pbh.RTTThreshold, bh.RTTThreshold)
-	assert.Equal(t, pbh.BackoffRatio, bh.BackoffRatio)
+	assert.InDelta(t, pbh.BackoffRatio, bh.BackoffRatio, 0)
 
 	rl := resilience.DefaultRateLimitConfig()
 	prl := token.DefaultConfig()
-	assert.Equal(t, prl.Rate, rl.Rate)
+	assert.InDelta(t, prl.Rate, rl.Rate, 0)
 	assert.Equal(t, prl.Burst, rl.Burst)
 
 	h := resilience.DefaultHedgeConfig()
@@ -69,16 +70,16 @@ func TestResilienceDefaults_MatchPrimitives(t *testing.T) {
 
 	at := resilience.DefaultAdaptiveThrottleConfig()
 	pat := adaptivethrottle.DefaultConfig()
-	assert.Equal(
+	assert.InDelta(
 		t,
 		pat.K,
-		at.K,
+		at.K, 0,
 		"schema adaptive_throttle K default must mirror the primitive",
 	)
-	assert.Equal(
+	assert.InDelta(
 		t,
 		pat.Decay,
-		at.Decay,
+		at.Decay, 0,
 		"schema adaptive_throttle Decay default must mirror the primitive",
 	)
 	assert.Equal(t, "disabled", at.Kind,
@@ -104,11 +105,11 @@ func TestResilienceValidate_RejectsBadValues(t *testing.T) {
 
 	bad := resilience.DefaultRetryConfig()
 	bad.InitialInterval = -1
-	assert.Error(t, bad.Validate(), "negative initial_interval must be rejected")
+	require.Error(t, bad.Validate(), "negative initial_interval must be rejected")
 
 	badMul := resilience.DefaultRetryConfig()
 	badMul.Multiplier = 0
-	assert.Error(t, badMul.Validate(), "multiplier < 1 must be rejected")
+	require.Error(t, badMul.Validate(), "multiplier < 1 must be rejected")
 
 	badRatio := resilience.DefaultBreakerConfig()
 	badRatio.FailureRatio = 2

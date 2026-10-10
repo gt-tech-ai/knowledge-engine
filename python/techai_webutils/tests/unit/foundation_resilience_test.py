@@ -27,11 +27,25 @@ services are mocked; tests use controlled failure functions.
 Run with: pytest tests/python/test_foundation/test_resilience.py
 """
 
+import asyncio
+from typing import NoReturn
+
+import pytest
+
 from techai_webutils.core.errors.errors import AppTimeoutError, UnavailableError
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 from techai_webutils.foundation.resilience.retry import retry_transient
 from techai_webutils.foundation.resilience.timeout import with_timeout
-import pytest
+
+
+def _raise_unavailable() -> NoReturn:
+    """Raise the transient error a failing protected call raises."""
+    msg = "fail"
+    raise UnavailableError(msg)
 
 
 class TestRetry:
@@ -56,7 +70,8 @@ class TestRetry:
         def flaky() -> str:
             attempts.append(1)
             if len(attempts) < 3:
-                raise UnavailableError("down")
+                msg = "down"
+                raise UnavailableError(msg)
             return "ok"
 
         result = flaky()
@@ -82,7 +97,8 @@ class TestRetry:
         @retry_transient(max_attempts=3, base_delay=0.01)
         def always_missing() -> str:
             attempts.append(1)
-            raise NotFoundError("gone")
+            msg = "gone"
+            raise NotFoundError(msg)
 
         with pytest.raises(NotFoundError):
             always_missing()
@@ -102,7 +118,8 @@ class TestRetry:
 
         @retry_transient(max_attempts=3, base_delay=0.01)
         def always_fails() -> str:
-            raise UnavailableError("permanently down")
+            msg = "permanently down"
+            raise UnavailableError(msg)
 
         with pytest.raises(UnavailableError):
             always_fails()
@@ -126,14 +143,12 @@ class TestCircuitBreaker:
         cb = CircuitBreaker(failure_threshold=3, recovery_timeout=0.1)
 
         for _ in range(3):
-            with pytest.raises(UnavailableError):
-                with cb:
-                    raise UnavailableError("fail")
+            with pytest.raises(UnavailableError), cb:
+                _raise_unavailable()
 
         # Now the circuit is open
-        with pytest.raises(CircuitOpenError):
-            with cb:
-                pass  # Should not execute
+        with pytest.raises(CircuitOpenError), cb:
+            pass  # Should not execute
 
     def test_allows_calls_when_closed(self) -> None:
         """Test that CircuitBreaker allows calls through when in closed state.
@@ -169,9 +184,8 @@ class TestCircuitBreaker:
 
         # Two failures
         for _ in range(2):
-            with pytest.raises(UnavailableError):
-                with cb:
-                    raise UnavailableError("fail")
+            with pytest.raises(UnavailableError), cb:
+                _raise_unavailable()
 
         # One success resets
         with cb:
@@ -180,6 +194,36 @@ class TestCircuitBreaker:
         # Should still be able to call (not open)
         with cb:
             pass
+
+    def test_implements_the_core_interface(self) -> None:
+        """Test that CircuitBreaker is the core ``CircuitBreakerInterface`` and runs ``execute``.
+
+        **Why this test is important:**
+          - The client, cache and repository decorators accept a ``CircuitBreakerInterface``;
+            the shipped breaker must satisfy that contract to be injected into them
+          - ``execute`` is the interface's call path, so it must gate exactly like the
+            context-manager form
+
+        **What it tests:**
+          - a ``CircuitBreaker`` is an instance of ``CircuitBreakerInterface``
+          - ``execute`` returns the function's result while closed
+          - once the threshold is reached, ``execute`` raises ``CircuitOpenError`` without
+            calling the function
+        """
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+        calls: list[int] = []
+
+        def _work() -> str:
+            calls.append(1)
+            return "ok"
+
+        assert isinstance(cb, CircuitBreakerInterface)
+        assert cb.execute(_work) == "ok"
+        with pytest.raises(UnavailableError):
+            cb.execute(_raise_unavailable)
+        with pytest.raises(CircuitOpenError):
+            cb.execute(_work)
+        assert calls == [1]
 
 
 class TestTimeout:
@@ -199,6 +243,7 @@ class TestTimeout:
         """
 
         async def fast() -> str:
+            await asyncio.sleep(0)
             return "done"
 
         result = await with_timeout(fast(), seconds=1.0)

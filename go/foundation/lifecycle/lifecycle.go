@@ -7,7 +7,7 @@ package lifecycle
 import (
 	"context"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -57,7 +57,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			for j := i - 1; j >= 0; j-- {
 				_ = m.entries[j].client.Stop(ctx)
 			}
-			return coreerrors.Wrap(err, coreerrors.CodeInternal, "start "+e.name)
+			return apperr.Wrap(err, apperr.CodeInternal, "start "+e.name)
 		}
 	}
 	return nil
@@ -69,9 +69,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 	var firstErr error
 	for i := len(m.entries) - 1; i >= 0; i-- {
 		if err := m.entries[i].client.Stop(ctx); err != nil && firstErr == nil {
-			firstErr = coreerrors.Wrap(
+			firstErr = apperr.Wrap(
 				err,
-				coreerrors.CodeInternal,
+				apperr.CodeInternal,
 				"stop "+m.entries[i].name,
 			)
 		}

@@ -7,6 +7,7 @@ stub-first property (ARCHITECTURE.md#stub-first-backends) that makes the all-stu
 from __future__ import annotations
 
 import pytest
+
 from techai_webutils.clients.vector.builder import (
     VectorStoreConfig,
     VectorStoreKind,
@@ -16,7 +17,9 @@ from techai_webutils.clients.vector.stub import StubVectorStore
 from techai_webutils.core.interfaces.vector_store import VectorEntry
 
 
-def _entry(entry_id: str, doc_id: str, content: str, embedding: list[float]) -> VectorEntry:
+def _entry(
+    entry_id: str, doc_id: str, content: str, embedding: list[float]
+) -> VectorEntry:
     """Build a minimal ``VectorEntry`` for the stub-store tests."""
     return VectorEntry(
         id=entry_id,
@@ -52,13 +55,17 @@ async def test_vector_stub_upsert_search_roundtrip() -> None:
     results = await store.search("c", [1.0, 0.0, 0.0], top_k=1)
     assert [r.chunk_id for r in results] == ["1"], "the nearest vector ranks first"
     assert results[0].content == "hello"
-    assert results[0].score == pytest.approx(1.0), "an aligned query is a perfect cosine match"
+    assert results[0].score == pytest.approx(1.0), (
+        "an aligned query is a perfect cosine match"
+    )
 
     assert await store.count_by_document("c", "d1") == 1
 
     await store.delete_by_document("c", "d1")
     remaining = await store.search("c", [1.0, 0.0, 0.0], top_k=10)
-    assert [r.chunk_id for r in remaining] == ["2"], "the deleted document no longer appears"
+    assert [r.chunk_id for r in remaining] == ["2"], (
+        "the deleted document no longer appears"
+    )
 
 
 def test_new_vector_store_from_config_selects_stub() -> None:
@@ -72,7 +79,9 @@ def test_new_vector_store_from_config_selects_stub() -> None:
         - ``new_vector_store_from_config`` with ``kind=STUB`` returns a ``StubVectorStore`` of the
           configured dimension.
     """
-    store = new_vector_store_from_config(VectorStoreConfig(kind=VectorStoreKind.STUB, dimension=3))
+    store = new_vector_store_from_config(
+        VectorStoreConfig(kind=VectorStoreKind.STUB, dimension=3)
+    )
     assert isinstance(store, StubVectorStore)
     assert store.dimension == 3
 
@@ -112,11 +121,47 @@ async def test_stub_delete_by_id_filtered_search_and_zero_vector() -> None:
     )
 
     filtered = await store.search("c", [1.0, 1.0, 0.0], top_k=10, filters={"lang": "en"})
-    assert [r.chunk_id for r in filtered] == ["1"], "only the matching-metadata entry is returned"
+    assert [r.chunk_id for r in filtered] == ["1"], (
+        "only the matching-metadata entry is returned"
+    )
 
     zero = await store.search("c", [0.0, 0.0, 0.0], top_k=10)
-    assert all(r.score == 0.0 for r in zero), "a zero-norm query scores 0, not a crash"
+    assert all(r.score == pytest.approx(0.0) for r in zero), (
+        "a zero-norm query scores 0, not a crash"
+    )
 
     await store.delete("c", ["1"])
     remaining = await store.search("c", [1.0, 0.0, 0.0], top_k=10)
     assert [r.chunk_id for r in remaining] == ["2"], "the deleted id is gone"
+
+
+@pytest.mark.asyncio
+async def test_stub_stored_metadata_reports_present_ids() -> None:
+    """The stub answers the stored-metadata probe from its map, so a redrive can resume.
+
+    Why this test is important:
+        - The incremental indexer skips sub-batches whose ids are already stored with the same
+          metadata; a stub that always reported "nothing stored" would hide that resume path
+          from every no-infra test.
+
+    What it tests:
+        - ``stored_metadata`` returns the upserted metadata for each present id, omits absent ids
+          and unknown collections, and ``existing_ids`` reports the same present subset.
+    """
+    store = StubVectorStore(dimension=3)
+    await store.upsert(
+        "c",
+        [
+            VectorEntry(
+                id="1",
+                document_id="d1",
+                content="a",
+                embedding=[1.0, 0.0, 0.0],
+                metadata={"lang": "en"},
+            )
+        ],
+    )
+
+    assert await store.stored_metadata("c", ["1", "2"]) == {"1": {"lang": "en"}}
+    assert await store.existing_ids("c", ["1", "2"]) == {"1"}
+    assert await store.stored_metadata("missing", ["1"]) == {}

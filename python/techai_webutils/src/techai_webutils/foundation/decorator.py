@@ -272,7 +272,9 @@ class AsyncTimeoutDecoratorBase[In, Out](_UnwrapMixin):
     async def execute(self, input_data: In) -> Out:
         """Execute the inner async with a timeout, raising AppTimeoutError on expiry."""
         try:
-            return await asyncio.wait_for(self._inner.execute(input_data), timeout=self._timeout)
+            return await asyncio.wait_for(
+                self._inner.execute(input_data), timeout=self._timeout
+            )
         except TimeoutError as e:
             msg = f"{self._noun} timed out after {self._timeout}s"
             raise AppTimeoutError(msg) from e

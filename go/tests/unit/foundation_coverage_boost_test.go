@@ -5,14 +5,14 @@
 //   - Config: viper.DefaultConfig, viper.Loader.Viper(), secrets overlay
 //   - Logger: zap redactingHandler WithAttrs/WithGroup, redactAttr for non-string attrs
 //   - Metrics: noop counter/histogram/gauge multi-label operations
-//   - Middleware: CORS with specific origins, GetRequestID without context, compression streaming
+//   - Middleware: CORS with specific origins, GetRequestID without context, compression
+//     streaming
 //   - Resilience: RetryWithResult success/failure, budget.Remaining without budget
 package unit_test
 
 import (
 	"compress/gzip"
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +24,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	viperloader "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/viper"
 	zaplogger "github.com/gt-tech-ai/knowledge-engine/go/foundation/logger/zap"
@@ -34,10 +39,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/oteltracer"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // ---------------------------------------------------------------------------
@@ -175,7 +176,7 @@ func TestZapLogger_WithAttrs_Redaction(t *testing.T) {
 	child := slogger.With("email", "user@example.com")
 	require.NotNil(t, child, "expected non-nil child logger")
 
-	child.Info("test message with pre-attached PII attr")
+	child.InfoContext(t.Context(), "test message with pre-attached PII attr")
 }
 
 // TestZapLogger_WithGroup tests that the zap PII-redacting handler's WithGroup
@@ -198,7 +199,7 @@ func TestZapLogger_WithGroup(t *testing.T) {
 	grouped := slogger.WithGroup("request")
 	require.NotNil(t, grouped, "expected non-nil grouped logger")
 
-	grouped.Info("grouped message", "method", "GET", "path", "/api")
+	grouped.InfoContext(t.Context(), "grouped message", "method", "GET", "path", "/api")
 }
 
 // TestZapLogger_RedactAttr_NonString tests that redactAttr passes through
@@ -216,7 +217,16 @@ func TestZapLogger_RedactAttr_NonString(t *testing.T) {
 	cfg := zaplogger.Config{Level: "debug", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Info("non-string attr", "count", 42, "ratio", 3.14, "ok", true)
+	slogger.InfoContext(
+		t.Context(),
+		"non-string attr",
+		"count",
+		42,
+		"ratio",
+		3.14,
+		"ok",
+		true,
+	)
 }
 
 // TestZapLogger_RedactAttr_SensitiveValues tests that PII patterns in string
@@ -236,7 +246,7 @@ func TestZapLogger_RedactAttr_SensitiveValues(t *testing.T) {
 	cfg := zaplogger.Config{Level: "debug", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Info(
+	slogger.InfoContext(t.Context(),
 		"user lookup",
 		"email", "admin@corp.com",
 		"phone", "555-123-4567",
@@ -253,7 +263,8 @@ func TestZapLogger_RedactAttr_SensitiveValues(t *testing.T) {
 //     handler must process each independently without cross-contamination
 //
 // What it tests:
-//   - With() accepts string, email-containing string, and integer attributes without panic
+//   - With() accepts string, email-containing string, and integer attributes without
+//     panic
 //   - The child logger can emit log messages
 func TestZapLogger_WithAttrs_MultipleAttrs(t *testing.T) {
 	t.Parallel()
@@ -266,7 +277,7 @@ func TestZapLogger_WithAttrs_MultipleAttrs(t *testing.T) {
 		"email", "test@test.com",
 		"count", 5,
 	)
-	child.Info("multi-attr test")
+	child.InfoContext(t.Context(), "multi-attr test")
 }
 
 // TestZapLogger_WithGroupThenAttrs tests that chaining WithGroup followed by
@@ -286,7 +297,7 @@ func TestZapLogger_WithGroupThenAttrs(t *testing.T) {
 	slogger := zaplogger.NewSlog(cfg)
 
 	child := slogger.WithGroup("http").With("method", "POST")
-	child.Info("grouped with attrs")
+	child.InfoContext(t.Context(), "grouped with attrs")
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +392,7 @@ func TestNoopMetrics_HandlerReturns404(t *testing.T) {
 	m := noop.New()
 	handler := m.Handler()
 
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -417,12 +428,12 @@ func TestCORS_SpecificOrigin_Allowed(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -458,12 +469,12 @@ func TestCORS_SpecificOrigin_Disallowed(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://evil.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -498,12 +509,12 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -542,12 +553,17 @@ func TestCORS_Preflight_SpecificOrigin(t *testing.T) {
 	handler := middleware.CORS(
 		&cfg,
 	)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			handlerCalled = true
 		}),
 	)
 
-	req := httptest.NewRequest("OPTIONS", "/api/data", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		"OPTIONS",
+		"/api/data",
+		http.NoBody,
+	)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -625,7 +641,7 @@ func TestCompression_MultipleWrites(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -667,7 +683,7 @@ func TestCompression_ExactThreshold(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -739,7 +755,7 @@ func TestRetryWithResult_SucceedsAfterRetries(t *testing.T) {
 	var attempts atomic.Int32
 	result, err := exponential.RetryWithResult(ctx, r, func() (int, error) {
 		if attempts.Add(1) < 3 {
-			return 0, errors.New("transient")
+			return 0, apperr.Sentinel("transient")
 		}
 		return 42, nil
 	})
@@ -771,7 +787,7 @@ func TestRetryWithResult_AllFailures(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	persistentErr := errors.New("always fails")
+	persistentErr := apperr.Sentinel("always fails")
 	result, err := exponential.RetryWithResult(ctx, r, func() (string, error) {
 		return "", persistentErr
 	})
@@ -806,7 +822,7 @@ func TestRetryWithResult_BudgetExhausted(t *testing.T) {
 	var attempts atomic.Int32
 	_, err := exponential.RetryWithResult(ctx, r, func() (int, error) {
 		attempts.Add(1)
-		return 0, errors.New("transient")
+		return 0, apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error when budget exhausted")
 	assert.ErrorIs(t, err, budget.ErrRetryBudgetExhausted)
@@ -838,7 +854,7 @@ func TestRetry_Retry_BudgetExhausted(t *testing.T) {
 	var attempts atomic.Int32
 	err := r.Retry(ctx, func() error {
 		attempts.Add(1)
-		return errors.New("transient")
+		return apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error when budget exhausted")
 	assert.ErrorIs(t, err, budget.ErrRetryBudgetExhausted)
@@ -875,7 +891,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 
 	err := r.Retry(ctx, func() error {
 		attempts.Add(1)
-		return errors.New("transient")
+		return apperr.Sentinel("transient")
 	})
 	require.Error(t, err, "expected error from cancelled context")
 }
@@ -1037,8 +1053,8 @@ func TestZapLogger_RedactingHandler_Enabled(t *testing.T) {
 	cfg := zaplogger.Config{Level: "warn", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Debug("this should be filtered out")
-	slogger.Warn("this should pass through")
+	slogger.DebugContext(t.Context(), "this should be filtered out")
+	slogger.WarnContext(t.Context(), "this should pass through")
 }
 
 // TestZapLogger_RedactingHandler_Handle_WithCorrelation tests that the
@@ -1114,7 +1130,8 @@ func TestOTelTracer_NewAndShutdown(t *testing.T) {
 //     and an unsupported type to an empty string.
 //   - RecordError adds one "exception" event; SetStatus maps Error (with its
 //     description), OK and Unset to the OTel codes.
-//   - WithSpanKind maps Server, Client, Producer, Consumer and Internal to the OTel kinds.
+//   - WithSpanKind maps Server, Client, Producer, Consumer and Internal to the OTel
+//     kinds.
 func TestOTelTracer_SpanConversions(t *testing.T) {
 	t.Parallel()
 
@@ -1129,7 +1146,9 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
 
 	// readOnly starts a span and returns it with OTel's read-only view of it.
-	readOnly := func(opts ...interfaces.SpanOption) (interfaces.Span, sdktrace.ReadOnlySpan) {
+	readOnly := func(opts ...interfaces.SpanOption) (
+		interfaces.Span, sdktrace.ReadOnlySpan,
+	) {
 		spanCtx, span := tr.Start(ctx, "test-operation", opts...)
 		ro, ok := oteltrace.SpanFromContext(spanCtx).(sdktrace.ReadOnlySpan)
 		require.True(t, ok, "a sampled span must be readable")
@@ -1143,7 +1162,7 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	span.SetAttribute("score", 3.14)
 	span.SetAttribute("active", true)
 	span.SetAttribute("complex", struct{}{})
-	span.RecordError(errors.New("test error"))
+	span.RecordError(apperr.Sentinel("test error"))
 	span.SetStatus(interfaces.SpanStatusError, "failed")
 	assert.ElementsMatch(t, []attribute.KeyValue{
 		attribute.String("user.id", "abc-123"),
@@ -1155,7 +1174,11 @@ func TestOTelTracer_SpanConversions(t *testing.T) {
 	}, ro.Attributes())
 	require.Len(t, ro.Events(), 1)
 	assert.Equal(t, "exception", ro.Events()[0].Name)
-	assert.Equal(t, sdktrace.Status{Code: codes.Error, Description: "failed"}, ro.Status())
+	assert.Equal(
+		t,
+		sdktrace.Status{Code: codes.Error, Description: "failed"},
+		ro.Status(),
+	)
 
 	span, ro = readOnly()
 	span.SetStatus(interfaces.SpanStatusOK, "")
@@ -1196,7 +1219,11 @@ func TestOTelTracer_EndUnsampledSpan(t *testing.T) {
 	t.Cleanup(func() { _ = tr.Shutdown(ctx) })
 
 	spanCtx, span := tr.Start(ctx, "unsampled")
-	assert.False(t, oteltrace.SpanFromContext(spanCtx).IsRecording(), "SampleRate 0 must not record")
+	assert.False(
+		t,
+		oteltrace.SpanFromContext(spanCtx).IsRecording(),
+		"SampleRate 0 must not record",
+	)
 	assert.NotPanics(t, span.End)
 }
 

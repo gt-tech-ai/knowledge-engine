@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
+import pytest
+
 from techai_webutils.clients.cache.builder import (
     CacheConfig,
     CacheKind,
@@ -21,7 +23,6 @@ from techai_webutils.clients.cache.builder import (
 from techai_webutils.clients.cache.local import LocalCache
 from techai_webutils.clients.cache.null import NullCache
 from techai_webutils.clients.cache.redis import RedisCache
-import pytest
 
 
 class TestCacheBuilder:

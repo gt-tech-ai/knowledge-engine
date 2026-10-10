@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
@@ -167,7 +167,7 @@ func TestRunJobGroup_PreservesNonZeroDuration(t *testing.T) {
 //     comes back with a positive Duration.
 func TestRunJobGroup_StampsDurationOnErrorResult(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	job := sleepingJob(ctrl, 3*time.Millisecond, nil, errors.New("boom"))
+	job := sleepingJob(ctrl, 3*time.Millisecond, nil, apperr.Sentinel("boom"))
 	results, err := engine.RunJobGroup(
 		context.Background(),
 		engineNopRunner(t),

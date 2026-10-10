@@ -22,10 +22,14 @@ if TYPE_CHECKING:
 class DocumentParser(Protocol):
     """Parses raw document bytes or a file path into a ``ParsedDocument`` (never raises for a bad doc)."""
 
-    async def parse(self, content: bytes, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse(
+        self, content: bytes, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse ``content`` given the declared type + filename (errors carried in the result)."""
         ...
 
-    async def parse_path(self, path: str, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse_path(
+        self, path: str, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse a document from a file ``path`` (bounded memory — the large-document lane)."""
         ...

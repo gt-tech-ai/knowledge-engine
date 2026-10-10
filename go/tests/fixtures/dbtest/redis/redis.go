@@ -13,7 +13,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 const (
@@ -69,9 +69,9 @@ func NewTestRedis(ctx context.Context) (*TestRedis, error) {
 		// A failed start (e.g. a readiness timeout) can still leave a container behind;
 		// TerminateContainer is nil-safe.
 		_ = testcontainers.TerminateContainer(container)
-		return nil, coreerr.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerr.CodeInternal,
+			apperr.CodeInternal,
 			"failed to start Redis container",
 		)
 	}
@@ -79,9 +79,9 @@ func NewTestRedis(ctx context.Context) (*TestRedis, error) {
 	host, err := container.Host(ctx)
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerr.CodeInternal,
+			apperr.CodeInternal,
 			"failed to get container host",
 		)
 	}
@@ -89,7 +89,7 @@ func NewTestRedis(ctx context.Context) (*TestRedis, error) {
 	port, err := container.MappedPort(ctx, redisPort)
 	if err != nil {
 		container.Terminate(ctx) //nolint:errcheck // best-effort cleanup on setup failure
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "failed to get mapped port")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "failed to get mapped port")
 	}
 
 	return &TestRedis{

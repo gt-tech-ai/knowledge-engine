@@ -38,7 +38,12 @@ func TestMiddleware_LargeBodyPassthrough(t *testing.T) {
 	handler := jsonapi.Middleware(inner, docRoutes())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/v1/documents",
+		http.NoBody,
+	)
 	req.Header.Set("Accept", "application/json")
 	handler.ServeHTTP(rec, req)
 
@@ -46,20 +51,21 @@ func TestMiddleware_LargeBodyPassthrough(t *testing.T) {
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Equal(t, len(big), len(body), "oversized body is streamed through unchanged")
+	assert.Len(t, body, len(big), "oversized body is streamed through unchanged")
 }
 
-// TestMiddleware_ReclassifiesVanguardBindingError tests that a Vanguard request-binding 500 (numeric
-// google.rpc.Code UNKNOWN = 2) is corrected to a 400, while a genuine handler 500 (Internal = 13) is
-// left alone.
+// TestMiddleware_ReclassifiesVanguardBindingError tests that a Vanguard request-binding
+// 500 (numeric google.rpc.Code UNKNOWN = 2) is corrected to a 400, while a genuine
+// handler 500 (Internal = 13) is left alone.
 //
 // Why this test is important:
-//   - Vanguard classifies a malformed REST request it can't BIND (an unknown query/path field, an
-//     unparseable value) as code Unknown → HTTP 500, and writes the code as a NUMBER (2), not the string
-//     "unknown". A request the server couldn't bind is the CLIENT's fault, so it must be 400 — a 5xx
-//     there pollutes error rates + misleads callers. Real application 500s (apperr → Internal = 13) must
-//     stay 500 so genuine failures aren't masked. Asserting the numeric shape guards the exact body
-//     format the live Vanguard transcoder emits (a string "unknown" would silently never match).
+//   - Vanguard classifies a malformed REST request it can't BIND (an unknown query/path
+//     field, an unparseable value) as code Unknown → HTTP 500, and writes the code as a
+//     NUMBER (2), not the string "unknown". A request the server couldn't bind is the
+//     CLIENT's fault, so it must be 400 — a 5xx there pollutes error rates + misleads
+//     callers. Real application 500s (apperr → Internal = 13) must stay 500 so genuine
+//     failures aren't masked. Asserting the numeric shape guards the exact body format
+//     the live Vanguard transcoder emits (a string "unknown" would silently never match).
 //
 // What it tests:
 //   - inner 500 + {"code":2} → the middleware responds 400.
@@ -84,7 +90,12 @@ func TestMiddleware_ReclassifiesVanguardBindingError(t *testing.T) {
 			handler := jsonapi.Middleware(inner, docRoutes())
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", nil)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/v1/documents",
+				http.NoBody,
+			)
 			handler.ServeHTTP(rec, req)
 
 			assert.Equal(t, tc.want, rec.Result().StatusCode)
@@ -113,7 +124,12 @@ func TestMiddleware_UnparseableBodyPassthrough(t *testing.T) {
 	handler := jsonapi.Middleware(inner, docRoutes())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/v1/documents",
+		http.NoBody,
+	)
 	req.Header.Set("Accept", "application/json")
 	handler.ServeHTTP(rec, req)
 

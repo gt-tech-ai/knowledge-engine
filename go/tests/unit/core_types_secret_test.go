@@ -47,7 +47,8 @@ func TestSecret_MasksEverywhereAndRevealsExplicitly(t *testing.T) {
 	assert.Contains(t, string(blob), "***", "MarshalJSON did not render the mask")
 }
 
-// TestSecret_ZeroValue tests that a zero Secret reports empty and reveals the empty string.
+// TestSecret_ZeroValue tests that a zero Secret reports empty and reveals the empty
+// string.
 //
 // Why this test is important:
 //   - Get returns a coded error for a missing credential, so a zero Secret must be
@@ -60,7 +61,7 @@ func TestSecret_ZeroValue(t *testing.T) {
 	t.Parallel()
 	assert.True(t, types.Secret{}.IsZero(), "zero Secret must be zero")
 	assert.True(t, types.NewSecret("").IsZero(), `NewSecret("") must be zero`)
-	assert.Equal(t, "", types.NewSecret("").Reveal())
+	assert.Empty(t, types.NewSecret("").Reveal())
 }
 
 // TestRef_String tests that a credential Ref renders its Env/Class/Field identifiers

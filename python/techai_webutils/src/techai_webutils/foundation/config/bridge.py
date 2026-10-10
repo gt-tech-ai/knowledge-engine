@@ -41,8 +41,9 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from techai_webutils.core.errors import AppFileNotFoundError, AppValueError
 from techai_webutils.foundation.config.loader import load_config
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ def _flatten_config(config: dict[str, Any], prefix: str = "") -> list[tuple[str,
     for key, value in config.items():
         env_key = f"{prefix}_{key.upper()}" if prefix else key.upper()
         if isinstance(value, dict):
-            items.extend(_flatten_config(value, env_key))
+            items.extend(_flatten_config(cast("dict[str, Any]", value), env_key))
         elif isinstance(value, bool):
             # bool is an int subclass — handle before the int/float/str branch so it
             # stringifies as "True"/"False" (Pydantic parses either casing).
@@ -159,7 +160,11 @@ def initialize_config(
 
     """
     global _initialized_with  # noqa: PLW0603
-    requested = (str(Path(config_dir).resolve()), _normalize_prefix(env_prefix), tuple(env_selectors))
+    requested = (
+        str(Path(config_dir).resolve()),
+        _normalize_prefix(env_prefix),
+        tuple(env_selectors),
+    )
     # Idempotency + thread-safety: a fast-path read, then a double-check under the lock, so concurrent
     # initialize_config() calls (multi-module imports, off-thread wiring) load the YAML exactly once.
     # (Only reads _initialized here; the write happens in _load_and_apply_config under the lock.)
@@ -185,11 +190,15 @@ def _require_same_arguments(requested: tuple[str, str, tuple[str, ...]]) -> None
         if old != new
     ]
     msg = f"initialize_config was already called with different arguments: {', '.join(conflicts)}"
-    raise ValueError(msg)
+    raise AppValueError(msg)
 
 
 def _load_and_apply_config(
-    config_dir: str | Path, env_prefix: str, env_selectors: tuple[str, ...], *, strict: bool
+    config_dir: str | Path,
+    env_prefix: str,
+    env_selectors: tuple[str, ...],
+    *,
+    strict: bool,
 ) -> None:
     """Load the merged YAML + export ``<env_prefix>_*`` env defaults, then set the initialized sentinel.
 
@@ -205,7 +214,7 @@ def _load_and_apply_config(
     if not config_path.exists():
         if strict:
             msg = f"Config directory not found: {config_path}"
-            raise FileNotFoundError(msg)
+            raise AppFileNotFoundError(msg)
         logger.warning(
             "Config directory not found: %s. Proceeding with environment variables only.",
             config_path,
@@ -217,7 +226,7 @@ def _load_and_apply_config(
     if not config_file.exists():
         if strict:
             msg = f"Config file not found: {config_file}"
-            raise FileNotFoundError(msg)
+            raise AppFileNotFoundError(msg)
         logger.warning(
             "Config file not found: %s. Proceeding with environment variables only.",
             config_file,
@@ -253,7 +262,13 @@ def _log_overlay(config_path: Path, environment: str, selector: str | None) -> N
     overlay = config_path / f"{environment}.yaml"
     found = overlay.exists()
     source = selector or "default"
-    logger.info("Config overlay: environment=%s (from %s), %s found=%s", environment, source, overlay, found)
+    logger.info(
+        "Config overlay: environment=%s (from %s), %s found=%s",
+        environment,
+        source,
+        overlay,
+        found,
+    )
     if selector is not None and not found:
         logger.warning(
             "Config overlay %s selected by %s=%s does not exist; loading base.yaml without an overlay.",

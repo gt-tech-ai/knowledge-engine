@@ -9,7 +9,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // API is the subset of the AWS SQS client used by the publisher and subscriber.
@@ -17,7 +17,8 @@ import (
 // or a black-box test with a generated mock — can supply its own client and
 // exercise the messaging logic without a network or a container.
 //
-// SDK seam — mocks the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a core port.
+// SDK seam — mocks the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose
+// with a core port.
 type API interface {
 	// GetQueueUrl resolves an existing queue's URL by name.
 	GetQueueUrl(
@@ -92,7 +93,7 @@ func newSQSClient(ctx context.Context, cfg Config) (*awssqs.Client, error) {
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeInternal, "load aws config for sqs")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "load aws config for sqs")
 	}
 
 	return awssqs.NewFromConfig(awsCfg, func(o *awssqs.Options) {
@@ -103,14 +104,15 @@ func newSQSClient(ctx context.Context, cfg Config) (*awssqs.Client, error) {
 }
 
 // resolveAPI returns the injected Config.API when set, otherwise builds the real
-// aws-sdk-go-v2 SQS client from cfg. It is the single seam through which both the
+// aws-sdk-go-v2 SQS client from cfg, loading the AWS config under ctx. It is the
+// single seam through which both the
 // publisher and subscriber obtain their SQS client (real in production, a mock in
 // black-box tests).
-func resolveAPI(cfg Config) (API, error) {
+func resolveAPI(ctx context.Context, cfg Config) (API, error) {
 	if cfg.API != nil {
 		return cfg.API, nil
 	}
-	return newSQSClient(context.Background(), cfg)
+	return newSQSClient(ctx, cfg)
 }
 
 // ensureQueue resolves the URL for queueName, creating the queue only if it does
@@ -128,8 +130,8 @@ func ensureQueue(ctx context.Context, api API, queueName string) (string, error)
 	}
 
 	var notExist *sqstypes.QueueDoesNotExist
-	if !coreerr.As(err, &notExist) {
-		return "", coreerr.Wrap(err, coreerr.CodeUnavailable, "sqs get queue url")
+	if !apperr.As(err, &notExist) {
+		return "", apperr.Wrap(err, apperr.CodeUnavailable, "sqs get queue url")
 	}
 
 	created, cerr := api.CreateQueue(
@@ -137,7 +139,7 @@ func ensureQueue(ctx context.Context, api API, queueName string) (string, error)
 		&awssqs.CreateQueueInput{QueueName: aws.String(queueName)},
 	)
 	if cerr != nil {
-		return "", coreerr.Wrap(cerr, coreerr.CodeUnavailable, "sqs create queue")
+		return "", apperr.Wrap(cerr, apperr.CodeUnavailable, "sqs create queue")
 	}
 	return aws.ToString(created.QueueUrl), nil
 }

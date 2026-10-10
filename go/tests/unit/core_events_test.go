@@ -1,6 +1,6 @@
 // Package unit_test holds the black-box unit tests; this file verifies the go/core/events
-// package: a consumer's event types parse through a Registry, and malformed or unregistered
-// payloads and misregistrations are rejected. No network I/O occurs.
+// package: a consumer's event types parse through a Registry, and malformed or
+// unregistered payloads and misregistrations are rejected. No network I/O occurs.
 package unit_test
 
 import (
@@ -9,13 +9,15 @@ import (
 	"sync"
 	"testing"
 
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/events"
 )
 
-// widgetCreated is a consumer-owned event type, standing in for an application's own catalog.
+// widgetCreated is a consumer-owned event type, standing in for an application's own
+// catalog.
 type widgetCreated struct {
 	events.EventMetadata
 
@@ -25,8 +27,8 @@ type widgetCreated struct {
 func (e *widgetCreated) Type() events.EventType         { return "widget.created" }
 func (e *widgetCreated) Metadata() events.EventMetadata { return e.EventMetadata }
 
-// widgetValue implements Event with value receivers, so a factory can return it by value — a
-// type Parse could never decode into.
+// widgetValue implements Event with value receivers, so a factory can return it by value
+// — a type Parse could never decode into.
 type widgetValue struct {
 	events.EventMetadata
 }
@@ -34,16 +36,21 @@ type widgetValue struct {
 func (widgetValue) Type() events.EventType           { return "widget.value" }
 func (e widgetValue) Metadata() events.EventMetadata { return e.EventMetadata }
 
-// newWidgetRegistry returns a registry with the consumer's widget.created event registered.
-func newWidgetRegistry(t testing.TB) *events.Registry {
-	t.Helper()
+// newWidgetRegistry returns a registry with the consumer's widget.created event
+// registered.
+func newWidgetRegistry(tb testing.TB) *events.Registry {
+	tb.Helper()
 	reg := events.NewRegistry()
-	require.NoError(t, reg.Register("widget.created", func() events.Event { return &widgetCreated{} }))
+	require.NoError(
+		tb,
+		reg.Register("widget.created", func() events.Event { return &widgetCreated{} }),
+	)
 	return reg
 }
 
-// TestRegistryParsesConsumerEvents tests that a consumer parses its own event types through
-// a registry instead of a closed catalog, and that misuse fails with CodeInvalidInput.
+// TestRegistryParsesConsumerEvents tests that a consumer parses its own event types
+// through a registry instead of a closed catalog, and that misuse fails with
+// CodeInvalidInput.
 //
 // Why this test is important:
 //   - A library must not own an application's event catalog; the consumer registers its
@@ -53,16 +60,18 @@ func newWidgetRegistry(t testing.TB) *events.Registry {
 //
 // What it tests:
 //   - A registered type parses into the consumer's concrete event with metadata and body.
-//   - An unregistered type, a missing event_type, a malformed payload and a body that does
-//     not decode into the event are each rejected with CodeInvalidInput.
-//   - A duplicate registration, a nil factory, an empty event type and a factory that does
-//     not return a non-nil pointer are each rejected with CodeInvalidInput.
+//   - An unregistered type, a missing event_type, a malformed payload and a body that
+//     does not decode into the event are each rejected with CodeInvalidInput.
+//   - A duplicate registration, a nil factory, an empty event type and a factory that
+//     does not return a non-nil pointer are each rejected with CodeInvalidInput.
 func TestRegistryParsesConsumerEvents(t *testing.T) {
 	t.Parallel()
 	reg := newWidgetRegistry(t)
 
 	evt, err := reg.Parse(
-		[]byte(`{"event_id":"e1","event_type":"widget.created","tenant_id":"t1","widget_id":"w1"}`),
+		[]byte(
+			`{"event_id":"e1","event_type":"widget.created","tenant_id":"t1","widget_id":"w1"}`,
+		),
 	)
 	require.NoError(t, err)
 	got, ok := evt.(*widgetCreated)
@@ -104,8 +113,8 @@ func TestRegistryParsesConsumerEvents(t *testing.T) {
 	}
 }
 
-// TestRegistry_ZeroValueAndConcurrentUse tests that a Registry needs no constructor and is
-// safe for concurrent use, as its doc promises.
+// TestRegistry_ZeroValueAndConcurrentUse tests that a Registry needs no constructor and
+// is safe for concurrent use, as its doc promises.
 //
 // Why this test is important:
 //   - A `var reg events.Registry` at a composition root must not panic on its first
@@ -119,7 +128,10 @@ func TestRegistryParsesConsumerEvents(t *testing.T) {
 func TestRegistry_ZeroValueAndConcurrentUse(t *testing.T) {
 	t.Parallel()
 	var reg events.Registry
-	require.NoError(t, reg.Register("widget.created", func() events.Event { return &widgetCreated{} }))
+	require.NoError(
+		t,
+		reg.Register("widget.created", func() events.Event { return &widgetCreated{} }),
+	)
 
 	const workers = 16
 	var wg sync.WaitGroup
@@ -137,7 +149,7 @@ func TestRegistry_ZeroValueAndConcurrentUse(t *testing.T) {
 	wg.Wait()
 	close(errs)
 	for err := range errs {
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 	for i := range workers {
 		_, err := reg.Parse(fmt.Appendf(nil, `{"event_type":"widget.v%d"}`, i))
@@ -145,15 +157,18 @@ func TestRegistry_ZeroValueAndConcurrentUse(t *testing.T) {
 	}
 }
 
-// FuzzRegistryRoundTrip fuzzes the marshal → Registry.Parse round trip of a registered event.
+// FuzzRegistryRoundTrip fuzzes the marshal → Registry.Parse round trip of a registered
+// event.
 //
 // Why this test is important:
 //   - Events cross process boundaries as JSON; a registry that loses or alters a field on
-//     the way back (escaping, unicode, NUL bytes) silently corrupts what consumers act on.
+//     the way back (escaping, unicode, NUL bytes) silently corrupts what consumers act
+//     on.
 //
 // What it tests:
-//   - For arbitrary event id, tenant id and body strings, a marshaled widget.created event
-//     parses back equal to its JSON-decoded form (JSON replaces invalid UTF-8 with U+FFFD).
+//   - For arbitrary event id, tenant id and body strings, a marshaled widget.created
+//     event parses back equal to its JSON-decoded form (JSON replaces invalid UTF-8 with
+//     U+FFFD).
 func FuzzRegistryRoundTrip(f *testing.F) {
 	f.Add("e1", "t1", "w1")
 	f.Add("", "", "")

@@ -14,11 +14,11 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // ErrRetryBudgetExhausted is returned when the retry budget is exhausted.
-var ErrRetryBudgetExhausted = errors.Sentinel("retry budget exhausted")
+var ErrRetryBudgetExhausted = apperr.Sentinel("retry budget exhausted")
 
 // budgetKey is the unexported context key under which a *Budget is stored, kept
 // private so only this package can attach or retrieve the budget.

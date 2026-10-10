@@ -3,7 +3,6 @@ package unit_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,7 +18,8 @@ import (
 // Adapt
 // ---------------------------------------------------------------------------
 
-// TestAdapt_Success tests that Adapt runs the parse→handle→write pipeline and serializes the typed response.
+// TestAdapt_Success tests that Adapt runs the parse→handle→write pipeline and serializes
+// the typed response.
 //
 // Why this test is important:
 //   - Adapt is the generic bridge every REST endpoint is built on; if it failed
@@ -33,7 +33,9 @@ func TestAdapt_Success(t *testing.T) {
 	t.Parallel()
 
 	type Req struct{ ID string }
-	type Resp struct{ Name string }
+	type Resp struct {
+		Name string `json:"name"`
+	}
 
 	bc := &rest.BaseController{}
 	handler := rest.Adapt(
@@ -48,7 +50,12 @@ func TestAdapt_Success(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -60,7 +67,8 @@ func TestAdapt_Success(t *testing.T) {
 	assert.Equal(t, "user-", body.Name) // PathValue returns "" without mux routing
 }
 
-// TestAdapt_ParseError tests that a parse failure short-circuits before the handler and maps to the error status.
+// TestAdapt_ParseError tests that a parse failure short-circuits before the handler and
+// maps to the error status.
 //
 // Why this test is important:
 //   - Request parsing is the input-validation boundary; if Adapt called the
@@ -74,7 +82,9 @@ func TestAdapt_ParseError(t *testing.T) {
 	t.Parallel()
 
 	type Req struct{ ID string }
-	type Resp struct{ Name string }
+	type Resp struct {
+		Name string `json:"name"`
+	}
 
 	handlerCalled := false
 	bc := &rest.BaseController{}
@@ -91,7 +101,12 @@ func TestAdapt_ParseError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -99,7 +114,8 @@ func TestAdapt_ParseError(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-// TestAdapt_HandlerError tests that an error returned by the business handler is mapped to the right HTTP status.
+// TestAdapt_HandlerError tests that an error returned by the business handler is mapped
+// to the right HTTP status.
 //
 // Why this test is important:
 //   - Domain errors must flow through the same error-to-HTTP mapping as parse
@@ -113,7 +129,9 @@ func TestAdapt_HandlerError(t *testing.T) {
 	t.Parallel()
 
 	type Req struct{ ID string }
-	type Resp struct{ Name string }
+	type Resp struct {
+		Name string `json:"name"`
+	}
 
 	bc := &rest.BaseController{}
 	handler := rest.Adapt(
@@ -128,7 +146,12 @@ func TestAdapt_HandlerError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -139,7 +162,8 @@ func TestAdapt_HandlerError(t *testing.T) {
 // AdaptNoContent
 // ---------------------------------------------------------------------------
 
-// TestAdaptNoContent_Success tests that AdaptNoContent discards the handler result and replies 204 with no body.
+// TestAdaptNoContent_Success tests that AdaptNoContent discards the handler result and
+// replies 204 with no body.
 //
 // Why this test is important:
 //   - Mutation endpoints (deletes, fire-and-forget updates) advertise a 204
@@ -166,7 +190,12 @@ func TestAdaptNoContent_Success(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/123", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -174,7 +203,8 @@ func TestAdaptNoContent_Success(t *testing.T) {
 	assert.Empty(t, rec.Body.Bytes())
 }
 
-// TestAdaptNoContent_ParseError tests that a parse failure on a no-content route still maps to an error status.
+// TestAdaptNoContent_ParseError tests that a parse failure on a no-content route still
+// maps to an error status.
 //
 // Why this test is important:
 //   - The 204 path must not swallow input-validation failures; an invalid
@@ -202,14 +232,20 @@ func TestAdaptNoContent_ParseError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-// TestAdaptNoContent_HandlerError tests that a handler error on a no-content route is mapped to a failure status.
+// TestAdaptNoContent_HandlerError tests that a handler error on a no-content route is
+// mapped to a failure status.
 //
 // Why this test is important:
 //   - Even when success returns no body, a handler failure must override the 204
@@ -228,7 +264,7 @@ func TestAdaptNoContent_HandlerError(t *testing.T) {
 	handler := rest.AdaptNoContent(
 		bc,
 		func(_ context.Context, _ Req) (Resp, error) {
-			return Resp{}, fmt.Errorf("database error")
+			return Resp{}, apperr.Sentinel("database error")
 		},
 		func(_ *http.Request) (Req, error) {
 			return Req{ID: "123"}, nil
@@ -236,7 +272,12 @@ func TestAdaptNoContent_HandlerError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/123", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 

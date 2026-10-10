@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -52,22 +52,26 @@ func New(locs map[types.Ref]Location, runner interfaces.CommandRunner) interface
 func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("no file location mapped for credential %s", ref),
 		)
 	}
 	data, err := os.ReadFile(loc.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return types.Secret{}, errors.NotFound(
+			return types.Secret{}, apperr.NotFound(
 				fmt.Sprintf("credential file %q does not exist for %s", loc.Path, ref),
 			)
 		}
-		return types.Secret{}, errors.Wrap(err, errors.CodeInternal, "reading credential file")
+		return types.Secret{}, apperr.Wrap(
+			err,
+			apperr.CodeInternal,
+			"reading credential file",
+		)
 	}
 	value, found := lookup(data, loc.Key)
 	if !found || value == "" {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("key %q not found in credential file for %s", loc.Key, ref),
 		)
 	}
@@ -81,31 +85,43 @@ func (s source) Get(_ context.Context, ref types.Ref) (types.Secret, error) {
 func (s source) Put(ctx context.Context, ref types.Ref, value types.Secret) error {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return errors.NotFound(fmt.Sprintf("no file location mapped for credential %s", ref))
+		return apperr.NotFound(
+			fmt.Sprintf("no file location mapped for credential %s", ref),
+		)
 	}
 	// Ensure the parent directory exists (0700 — a secrets dir), so a first write to a
 	// not-yet-created git-ignored store (e.g. .secrets/) succeeds; the check-ignore below
 	// also runs with this directory as its working dir.
 	if err := os.MkdirAll(filepath.Dir(loc.Path), 0o700); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "creating credential directory")
+		return apperr.Wrap(err, apperr.CodeInternal, "creating credential directory")
 	}
 	// `git check-ignore -q <path>` exits 0 when the path IS ignored; the CommandRunner
 	// returns a non-nil error for any non-zero exit (not-ignored, or git unavailable),
 	// so we fail SAFE — refuse the write unless git positively confirms the path ignored.
-	if err := s.runner.Run(ctx, filepath.Dir(loc.Path), "git", "check-ignore", "-q", loc.Path); err != nil {
-		return errors.New(
-			errors.CodeInvalidInput,
-			fmt.Sprintf("refusing to write credential to non-git-ignored path %q", loc.Path),
+	if err := s.runner.Run(
+		ctx,
+		filepath.Dir(loc.Path),
+		"git",
+		"check-ignore",
+		"-q",
+		loc.Path,
+	); err != nil {
+		return apperr.New(
+			apperr.CodeInvalidInput,
+			fmt.Sprintf(
+				"refusing to write credential to non-git-ignored path %q",
+				loc.Path,
+			),
 		)
 	}
 
 	data, err := os.ReadFile(loc.Path)
 	if err != nil && !os.IsNotExist(err) {
-		return errors.Wrap(err, errors.CodeInternal, "reading credential file for update")
+		return apperr.Wrap(err, apperr.CodeInternal, "reading credential file for update")
 	}
 	updated := upsert(data, loc.Key, value.Reveal())
 	if err := os.WriteFile(loc.Path, updated, credentialFilePerm); err != nil {
-		return errors.Wrap(err, errors.CodeInternal, "writing credential file")
+		return apperr.Wrap(err, apperr.CodeInternal, "writing credential file")
 	}
 	return nil
 }
@@ -156,9 +172,10 @@ func upsert(data []byte, key, value string) []byte {
 // splitKV parses a single dotenv line into its key and value. It reports ok=false for a
 // blank line or a comment (leading '#'), or a line without '='. A leading `export ` is
 // tolerated (`export KEY=value`) so a git-ignored dotenv file maintained for BOTH shell
-// `source` and this backend parses identically — the key is matched without the prefix, and a
-// matching pair of surrounding single/double quotes on the value (shell quoting, e.g.
-// `KEY="value"`) is stripped so the value is the credential itself, not the quoted literal.
+// `source` and this backend parses identically — the key is matched without the prefix,
+// and a matching pair of surrounding single/double quotes on the value (shell quoting,
+// e.g. `KEY="value"`) is stripped so the value is the credential itself, not the quoted
+// literal.
 func splitKV(line string) (key, value string, ok bool) {
 	trimmed := strings.TrimSpace(line)
 	trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "export "))
@@ -169,7 +186,11 @@ func splitKV(line string) (key, value string, ok bool) {
 	if eq < 0 {
 		return "", "", false
 	}
-	return strings.TrimSpace(trimmed[:eq]), unquote(strings.TrimSpace(trimmed[eq+1:])), true
+	return strings.TrimSpace(
+			trimmed[:eq],
+		), unquote(
+			strings.TrimSpace(trimmed[eq+1:]),
+		), true
 }
 
 // unquote strips one matching pair of surrounding single or double quotes from a dotenv

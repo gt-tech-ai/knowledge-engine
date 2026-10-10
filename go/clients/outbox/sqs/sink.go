@@ -13,7 +13,7 @@ import (
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -25,7 +25,8 @@ const fifoSuffix = ".fifo"
 
 // API is the part of the AWS SQS client the sink uses; *awssqs.Client satisfies it.
 //
-// SDK seam — the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a core port.
+// SDK seam — the AWS SQS SDK client (aws-sdk-go-v2/service/sqs), cannot compose with a
+// core port.
 type API interface {
 	// GetQueueUrl resolves an existing queue's URL by name.
 	GetQueueUrl(
@@ -77,17 +78,25 @@ type Sink struct {
 // to an empty queue name is CodeInvalidInput.
 func New(cfg Config) (*Sink, error) {
 	if cfg.API == nil || (cfg.Queue == "" && len(cfg.Routes) == 0) {
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "outbox sqs sink: api and a queue or routes are required")
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"outbox sqs sink: api and a queue or routes are required",
+		)
 	}
 	routes := make(map[string]string, len(cfg.Routes))
 	for route, queue := range cfg.Routes {
 		if route == "" || queue == "" {
-			return nil, coreerr.New(coreerr.CodeInvalidInput,
+			return nil, apperr.New(apperr.CodeInvalidInput,
 				"outbox sqs sink: route "+route+" needs a non-empty name and queue")
 		}
 		routes[route] = queue
 	}
-	return &Sink{api: cfg.API, queue: cfg.Queue, routes: routes, urls: map[string]string{}}, nil
+	return &Sink{
+		api:    cfg.API,
+		queue:  cfg.Queue,
+		routes: routes,
+		urls:   map[string]string{},
+	}, nil
 }
 
 // Send groups recs by destination queue and delivers each group independently
@@ -124,12 +133,21 @@ func (s *Sink) route(rec *types.OutboxRecord) (string, error) {
 	if queue, ok := s.routes[route]; ok {
 		return queue, nil
 	}
-	return "", coreerr.New(coreerr.CodeInvalidInput, "outbox sqs sink: no queue for route "+strconv.Quote(route))
+	return "", apperr.New(
+		apperr.CodeInvalidInput,
+		"outbox sqs sink: no queue for route "+strconv.Quote(route),
+	)
 }
 
 // sendQueue delivers the records at idx to queue, writing results[idx[...]].
 // Each call writes a disjoint set of result slots, so groups run concurrently.
-func (s *Sink) sendQueue(ctx context.Context, queue string, recs []types.OutboxRecord, idx []int, results []error) {
+func (s *Sink) sendQueue(
+	ctx context.Context,
+	queue string,
+	recs []types.OutboxRecord,
+	idx []int,
+	results []error,
+) {
 	url, err := s.queueURL(ctx, queue)
 	if err != nil {
 		for _, i := range idx {
@@ -153,7 +171,13 @@ func (s *Sink) sendQueue(ctx context.Context, queue string, recs []types.OutboxR
 
 // sendBatch sends one batch and writes each entry's outcome into results; fifo
 // adds each entry's message group and deduplication ids.
-func (s *Sink) sendBatch(ctx context.Context, url string, fifo bool, recs []types.OutboxRecord, results []error) {
+func (s *Sink) sendBatch(
+	ctx context.Context,
+	url string,
+	fifo bool,
+	recs []types.OutboxRecord,
+	results []error,
+) {
 	entries := make([]sqstypes.SendMessageBatchRequestEntry, len(recs))
 	for i := range recs {
 		rec := &recs[i]
@@ -171,12 +195,25 @@ func (s *Sink) sendBatch(ctx context.Context, url string, fifo bool, recs []type
 			entries[i].MessageDeduplicationId = aws.String(rec.ID.String())
 		}
 	}
-	out, err := s.api.SendMessageBatch(ctx, &awssqs.SendMessageBatchInput{QueueUrl: aws.String(url), Entries: entries})
+	out, err := s.api.SendMessageBatch(
+		ctx,
+		&awssqs.SendMessageBatchInput{QueueUrl: aws.String(url), Entries: entries},
+	)
 	if err != nil {
-		fill(results, coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: send batch"))
+		fill(
+			results,
+			apperr.Wrap(
+				err,
+				apperr.CodeOr(err, apperr.CodeUnavailable),
+				"outbox sqs sink: send batch",
+			),
+		)
 		return
 	}
-	fill(results, coreerr.New(coreerr.CodeInternal, "outbox sqs sink: no result for entry"))
+	fill(
+		results,
+		apperr.New(apperr.CodeInternal, "outbox sqs sink: no result for entry"),
+	)
 	for _, ok := range out.Successful {
 		if i, valid := entryIndex(ok.Id, len(recs)); valid {
 			results[i] = nil
@@ -187,12 +224,18 @@ func (s *Sink) sendBatch(ctx context.Context, url string, fifo bool, recs []type
 		if !valid {
 			continue
 		}
-		code := coreerr.CodeUnavailable
+		code := apperr.CodeUnavailable
 		if failed.SenderFault {
-			code = coreerr.CodeInvalidInput
+			code = apperr.CodeInvalidInput
 		}
-		results[i] = coreerr.New(code,
-			"outbox sqs sink: "+aws.ToString(failed.Code)+": "+aws.ToString(failed.Message))
+		results[i] = apperr.New(
+			code,
+			"outbox sqs sink: "+aws.ToString(
+				failed.Code,
+			)+": "+aws.ToString(
+				failed.Message,
+			),
+		)
 	}
 }
 
@@ -205,9 +248,16 @@ func (s *Sink) queueURL(ctx context.Context, queue string) (string, error) {
 	if ok {
 		return url, nil
 	}
-	out, err := s.api.GetQueueUrl(ctx, &awssqs.GetQueueUrlInput{QueueName: aws.String(queue)})
+	out, err := s.api.GetQueueUrl(
+		ctx,
+		&awssqs.GetQueueUrlInput{QueueName: aws.String(queue)},
+	)
 	if err != nil {
-		return "", coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox sqs sink: resolve queue "+queue)
+		return "", apperr.Wrap(
+			err,
+			apperr.CodeOr(err, apperr.CodeUnavailable),
+			"outbox sqs sink: resolve queue "+queue,
+		)
 	}
 	url = aws.ToString(out.QueueUrl)
 	s.mu.Lock()
@@ -234,7 +284,10 @@ func groupID(rec *types.OutboxRecord) string {
 
 // stringAttr is a String message attribute.
 func stringAttr(v string) sqstypes.MessageAttributeValue {
-	return sqstypes.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(v)}
+	return sqstypes.MessageAttributeValue{
+		DataType:    aws.String("String"),
+		StringValue: aws.String(v),
+	}
 }
 
 // fill sets every result to err.

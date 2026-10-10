@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	cachedecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/cache/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"go.uber.org/mock/gomock"
 )
 
 // ---------------------------------------------------------------------------

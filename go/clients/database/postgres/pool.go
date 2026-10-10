@@ -10,7 +10,7 @@ import (
 	"database/sql"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -51,9 +51,9 @@ func Ping(ctx context.Context, db *sql.DB) error {
 	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
 	if err := db.PingContext(pingCtx); err != nil {
-		return coreerr.Wrap(
+		return apperr.Wrap(
 			err,
-			coreerr.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"database ping failed (check DSN and connectivity)",
 		)
 	}

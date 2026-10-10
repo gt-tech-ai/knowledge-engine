@@ -21,7 +21,10 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from techai_webutils.core.interfaces.embedding import EmbeddingProvider
-    from techai_webutils.core.interfaces.vector_store import VectorSearchResult, VectorStore
+    from techai_webutils.core.interfaces.vector_store import (
+        VectorSearchResult,
+        VectorStore,
+    )
 
 logger = get_logger(__name__)
 

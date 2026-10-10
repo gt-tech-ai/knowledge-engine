@@ -4,7 +4,8 @@ import (
 	"math"
 
 	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -33,14 +34,21 @@ type Partial struct {
 // CodeInvalidInput.
 func NewPartial(value float64) (Partial, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return Partial{}, errors.New(errors.CodeInvalidInput, "vizql: observation must be finite")
+		return Partial{}, apperr.New(
+			apperr.CodeInvalidInput,
+			"vizql: observation must be finite",
+		)
 	}
 	sketch, err := ddsketch.NewDefaultDDSketch(SketchRelativeAccuracy)
 	if err != nil {
-		return Partial{}, errors.Wrap(err, errors.CodeInternal, "vizql: create sketch")
+		return Partial{}, apperr.Wrap(err, apperr.CodeInternal, "vizql: create sketch")
 	}
 	if err := sketch.Add(value); err != nil {
-		return Partial{}, errors.Wrap(err, errors.CodeInvalidInput, "vizql: add observation")
+		return Partial{}, apperr.Wrap(
+			err,
+			apperr.CodeInvalidInput,
+			"vizql: add observation",
+		)
 	}
 	return Partial{Sketch: sketch, Sum: value, Count: 1, Min: value, Max: value}, nil
 }
@@ -78,7 +86,10 @@ func mergeSketch(dst, src *ddsketch.DDSketch) {
 		return
 	}
 	src.ForEach(func(value, count float64) bool {
-		_ = dst.AddWithCount(value, count) // value came from a valid sketch bin; Add cannot reject it
+		_ = dst.AddWithCount(
+			value,
+			count,
+		) // value came from a valid sketch bin; Add cannot reject it
 		return false
 	})
 }
@@ -93,7 +104,22 @@ func Finalize(p Partial, agg types.Aggregate) float64 {
 		return p.Sum
 	case types.AggCount:
 		return p.Count
+	case types.AggNone, types.AggCountDistinct:
+		return math.NaN()
+	case types.AggAvg,
+		types.AggMin,
+		types.AggMax,
+		types.AggP50,
+		types.AggP95,
+		types.AggP99:
+		return finalizeValue(p, agg)
+	default:
+		return math.NaN()
 	}
+}
+
+// finalizeValue finalizes a value-dependent aggregate, NaN for an empty summary.
+func finalizeValue(p Partial, agg types.Aggregate) float64 {
 	if p.Count == 0 {
 		return math.NaN()
 	}
@@ -110,6 +136,8 @@ func Finalize(p Partial, agg types.Aggregate) float64 {
 		return quantile(p.Sketch, 0.95)
 	case types.AggP99:
 		return quantile(p.Sketch, 0.99)
+	case types.AggNone, types.AggSum, types.AggCount, types.AggCountDistinct:
+		return math.NaN()
 	default:
 		return math.NaN()
 	}

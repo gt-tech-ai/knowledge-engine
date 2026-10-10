@@ -28,7 +28,8 @@ type PublisherDeps struct {
 	// Metrics records per-publish counts, errors, and latency; nil disables metrics.
 	Metrics interfaces.Metrics
 
-	// Retrier is reused as the stack's Retry layer (never a second retry); nil disables retry.
+	// Retrier is reused as the stack's Retry layer (never a second retry); nil disables
+	// retry.
 	Retrier interfaces.Retrier
 
 	// Bulkhead bounds concurrent publishes; nil disables it.
@@ -81,9 +82,11 @@ type stackPublisher struct {
 // Compile-time assertion that stackPublisher satisfies MessagePublisher.
 var _ interfaces.MessagePublisher = (*stackPublisher)(nil)
 
-// publishRetryable enables the stack's Retry layer: an SQS SendMessage is safe to
-// retry under at-least-once delivery.
-var publishRetryable = clientstack.RunOpts{Retryable: true}
+// publishRetryable returns the flags that enable the stack's Retry layer: an SQS
+// SendMessage is safe to retry under at-least-once delivery.
+func publishRetryable() clientstack.RunOpts {
+	return clientstack.RunOpts{Retryable: true}
+}
 
 // Publish sends payload to topic through the resilience stack.
 func (p *stackPublisher) Publish(
@@ -91,7 +94,7 @@ func (p *stackPublisher) Publish(
 	topic string,
 	payload []byte,
 ) error {
-	_, err := clientstack.Run(ctx, p.stack, topic, publishRetryable,
+	_, err := clientstack.Run(ctx, p.stack, topic, publishRetryable(),
 		func(c context.Context) (struct{}, error) {
 			return struct{}{}, p.core.Publish(c, topic, payload)
 		})
@@ -104,7 +107,7 @@ func (p *stackPublisher) PublishBatch(
 	topic string,
 	payloads [][]byte,
 ) error {
-	_, err := clientstack.Run(ctx, p.stack, topic, publishRetryable,
+	_, err := clientstack.Run(ctx, p.stack, topic, publishRetryable(),
 		func(c context.Context) (struct{}, error) {
 			return struct{}{}, p.core.PublishBatch(c, topic, payloads)
 		})

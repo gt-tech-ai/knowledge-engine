@@ -1,12 +1,13 @@
 // Package s3 is the S3 OutboxSink: it writes each record as one object, keyed by
-// a template, with a Content-MD5 integrity header (required by Object Lock
-// buckets) and SSE-KMS when the record names a key.
+// a template, with a SHA-256 integrity checksum (Object Lock buckets require an
+// integrity checksum and accept it in place of Content-MD5) and SSE-KMS when
+// the record names a key.
 package s3
 
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // S3's Content-MD5 integrity header is MD5 by definition, not a security use
+	"crypto/sha256"
 	"encoding/base64"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -26,10 +27,15 @@ const KMSKeyAttribute = "kms_key_id"
 
 // API is the part of the AWS S3 client the sink uses; *awss3.Client satisfies it.
 //
-// SDK seam — the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core port.
+// SDK seam — the AWS S3 SDK client (aws-sdk-go-v2/service/s3), cannot compose with a core
+// port.
 type API interface {
 	// PutObject writes one object.
-	PutObject(ctx context.Context, in *awss3.PutObjectInput, optFns ...func(*awss3.Options)) (*awss3.PutObjectOutput, error)
+	PutObject(
+		ctx context.Context,
+		in *awss3.PutObjectInput,
+		optFns ...func(*awss3.Options),
+	) (*awss3.PutObjectOutput, error)
 }
 
 // Config configures the S3 sink.
@@ -64,9 +70,15 @@ func New(cfg Config) (*Sink, error) {
 	}
 	switch {
 	case cfg.API == nil || cfg.Bucket == "":
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "outbox s3 sink: api and bucket are required")
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"outbox s3 sink: api and bucket are required",
+		)
 	case !strings.Contains(tmpl, "{id}"):
-		return nil, coreerr.New(coreerr.CodeInvalidInput, "outbox s3 sink: key template must contain {id}")
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"outbox s3 sink: key template must contain {id}",
+		)
 	}
 	return &Sink{api: cfg.API, bucket: cfg.Bucket, template: tmpl}, nil
 }
@@ -77,7 +89,11 @@ func (s *Sink) Send(ctx context.Context, recs []types.OutboxRecord) []error {
 	for i := range recs {
 		rec := &recs[i]
 		if _, err := s.api.PutObject(ctx, s.input(rec)); err != nil {
-			results[i] = coreerr.Wrap(err, coreerr.CodeOr(err, coreerr.CodeUnavailable), "outbox s3 sink: put "+rec.ID.String())
+			results[i] = apperr.Wrap(
+				err,
+				apperr.CodeOr(err, apperr.CodeUnavailable),
+				"outbox s3 sink: put "+rec.ID.String(),
+			)
 		}
 	}
 	return results
@@ -85,12 +101,13 @@ func (s *Sink) Send(ctx context.Context, recs []types.OutboxRecord) []error {
 
 // input builds the PutObject request for rec.
 func (s *Sink) input(rec *types.OutboxRecord) *awss3.PutObjectInput {
-	sum := md5.Sum(rec.Payload) //nolint:gosec // integrity header, see the import
+	sum := sha256.Sum256(rec.Payload)
 	in := &awss3.PutObjectInput{
-		Bucket:     aws.String(s.bucket),
-		Key:        aws.String(s.key(rec)),
-		Body:       bytes.NewReader(rec.Payload),
-		ContentMD5: aws.String(base64.StdEncoding.EncodeToString(sum[:])),
+		Bucket:            aws.String(s.bucket),
+		Key:               aws.String(s.key(rec)),
+		Body:              bytes.NewReader(rec.Payload),
+		ChecksumAlgorithm: s3types.ChecksumAlgorithmSha256,
+		ChecksumSHA256:    aws.String(base64.StdEncoding.EncodeToString(sum[:])),
 	}
 	if kms := rec.Attributes[KMSKeyAttribute]; kms != "" {
 		in.ServerSideEncryption = s3types.ServerSideEncryptionAwsKms

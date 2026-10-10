@@ -11,7 +11,11 @@ from techai_webutils.clients.retrieval.builder import (
     RetrievalKind,
     new_retrieval_engine_from_config,
 )
-from techai_webutils.clients.retrieval.filtering import FilteringRetrievalEngine, MetadataEquals, MinScore
+from techai_webutils.clients.retrieval.filtering import (
+    FilteringRetrievalEngine,
+    MetadataEquals,
+    MinScore,
+)
 from techai_webutils.clients.retrieval.vector import VectorRetrievalEngine
 from techai_webutils.core.interfaces.embedding import EmbeddingProvider, EmbeddingResult
 from techai_webutils.core.interfaces.vector_store import VectorSearchResult, VectorStore
@@ -36,7 +40,7 @@ def _store(hits: list[VectorSearchResult], dimension: int = 3) -> VectorStore:
 
 
 def _hit() -> VectorSearchResult:
-    """A search hit carrying a scope key, a document name and a page."""
+    """Return a search hit carrying a scope key, a document name and a page."""
     return VectorSearchResult(
         document_id="doc-1",
         chunk_id="doc-1:0",
@@ -51,6 +55,8 @@ def _hit() -> VectorSearchResult:
 
 
 class TestVectorRetrievalEngine:
+    """Tests for the vector retrieval engine."""
+
     @pytest.mark.asyncio
     async def test_retrieve_pushes_down_only_the_named_filters(self) -> None:
         """retrieve() embeds the query, then searches with only the filters named in filter_keys.
@@ -64,9 +70,13 @@ class TestVectorRetrievalEngine:
             request carrying tenant + max_level with filter_keys=("tenant",).
         """
         embedder, store = _embedder(), _store([_hit()])
-        engine = VectorRetrievalEngine(embedder, store, collection="documents", filter_keys=("tenant",))
+        engine = VectorRetrievalEngine(
+            embedder, store, collection="documents", filter_keys=("tenant",)
+        )
 
-        await engine.retrieve("annual revenue", top_k=5, filters={"tenant": "t1", "max_level": "high"})
+        await engine.retrieve(
+            "annual revenue", top_k=5, filters={"tenant": "t1", "max_level": "high"}
+        )
 
         embedder.embed.assert_awaited_once_with("annual revenue")
         store.search.assert_awaited_once()
@@ -87,7 +97,8 @@ class TestVectorRetrievalEngine:
         """
         embedder, store = _embedder(), _store([_hit()])
         engine = FilteringRetrievalEngine(
-            VectorRetrievalEngine(embedder, store, "documents"), [MinScore(0.5), MetadataEquals("tenant")]
+            VectorRetrievalEngine(embedder, store, "documents"),
+            [MinScore(0.5), MetadataEquals("tenant")],
         )
 
         results = await engine.retrieve("q", top_k=5, filters={"tenant": "t1"})
@@ -116,7 +127,9 @@ class TestVectorRetrievalEngine:
         embedder, store = _embedder(), _store([_hit()])
         engine = VectorRetrievalEngine(embedder, store, collection="documents")
 
-        with patch("techai_webutils.clients.retrieval.vector.engine.logger") as mock_logger:
+        with patch(
+            "techai_webutils.clients.retrieval.vector.engine.logger"
+        ) as mock_logger:
             await engine.retrieve("q", index_id="documents")
             await engine.retrieve("q")
             mock_logger.warning.assert_not_called()
@@ -132,10 +145,14 @@ class TestVectorRetrievalEngine:
     def test_dimension_mismatch_fails_loudly(self) -> None:
         """A drifted embedder/store dimension raises at construction (single source of truth)."""
         with pytest.raises(ValueError, match="dimension"):
-            VectorRetrievalEngine(_embedder(dimension=768), _store([], dimension=3), "documents")
+            VectorRetrievalEngine(
+                _embedder(dimension=768), _store([], dimension=3), "documents"
+            )
 
 
 class TestQdrantFactoryBranch:
+    """Tests for the Qdrant factory branch."""
+
     @pytest.mark.asyncio
     async def test_from_config_qdrant_pushes_the_store_filter_keys_down(self) -> None:
         """The qdrant factory branch builds a filtered vector engine that pushes store_filter_keys down.
@@ -168,7 +185,9 @@ class TestQdrantFactoryBranch:
                 config, policies=[MetadataEquals("tenant")], store_filter_keys=("tenant",)
             )
 
-        results = await engine.retrieve("q", filters={"tenant": "t1", "max_level": "high"})
+        results = await engine.retrieve(
+            "q", filters={"tenant": "t1", "max_level": "high"}
+        )
 
         assert isinstance(engine, FilteringRetrievalEngine)
         assert build.call_args.kwargs["collection"] == "documents"

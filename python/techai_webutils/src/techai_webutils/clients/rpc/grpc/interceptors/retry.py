@@ -7,16 +7,16 @@ from typing import TYPE_CHECKING
 
 import grpc
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-_TRANSIENT_CODES = frozenset(
-    {
-        grpc.StatusCode.UNAVAILABLE,
-        grpc.StatusCode.DEADLINE_EXCEEDED,
-        grpc.StatusCode.ABORTED,
-    }
-)
+_TRANSIENT_CODES = frozenset({
+    grpc.StatusCode.UNAVAILABLE,
+    grpc.StatusCode.DEADLINE_EXCEEDED,
+    grpc.StatusCode.ABORTED,
+})
 """gRPC status codes treated as transient and eligible for retry with backoff."""
 
 
@@ -32,13 +32,13 @@ class RetryInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: ignore[mi
         """
         if max_attempts < 1:
             msg = f"max_attempts must be >= 1, got {max_attempts}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         self._max_attempts = max_attempts
         self._base_delay = base_delay
 
     async def intercept_unary_unary(  # type: ignore[override]
         self,
-        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall]],
+        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall[object, object]]],
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:

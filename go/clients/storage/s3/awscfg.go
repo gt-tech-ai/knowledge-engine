@@ -11,9 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
+
+// kindMinIO is the infra.S3Config Kind of the MinIO (local/dev) backend, which uses
+// path-style addressing, an explicit endpoint and static credentials.
+const kindMinIO = "minio"
 
 // s3OptionsApplier returns the s3.Options mutator encoding the dev/stage backend
 // differences: MinIO needs path-style addressing and an explicit endpoint, while
@@ -21,7 +25,7 @@ import (
 func s3OptionsApplier(cfg infra.S3Config) func(*s3.Options) {
 	return func(o *s3.Options) {
 		o.UsePathStyle = cfg.ForcePathStyle
-		if cfg.Kind == "minio" && cfg.Endpoint != "" {
+		if cfg.Kind == kindMinIO && cfg.Endpoint != "" {
 			o.BaseEndpoint = aws.String(cfg.Endpoint)
 		}
 	}
@@ -37,7 +41,7 @@ func s3OptionsApplier(cfg infra.S3Config) func(*s3.Options) {
 // InvalidAccessKeyId and bypasses IRSA — the staging orphaned-file-cleanup /
 // presign / download breakage this guards against.
 func UseStaticCredentials(cfg infra.S3Config) bool {
-	return cfg.Kind == "minio" && cfg.AccessKeyID != ""
+	return cfg.Kind == kindMinIO && cfg.AccessKeyID != ""
 }
 
 // NewAWSClient builds an aws-sdk-go-v2 S3 client for the given config. Static
@@ -64,16 +68,16 @@ func NewAWSClient(ctx context.Context, cfg infra.S3Config) (*s3.Client, error) {
 	}
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, coreerrors.Wrap(err, coreerrors.CodeInternal, "loading aws config")
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "loading aws config")
 	}
 	return s3.NewFromConfig(awsCfg, s3OptionsApplier(cfg)), nil
 }
 
-// NewAWSClientWithCredentials builds an S3 client that signs with an EXPLICIT credentials provider
-// and region, instead of NewAWSClient's app-level MinIO-static / AWS-IRSA selection. It is the
-// connector-scoped path: a connector presents its OWN credentials (STS-assumed role or a
-// static access key) to reach an external bucket. Path-style/endpoint handling (MinIO vs AWS) still
-// comes from cfg via s3OptionsApplier.
+// NewAWSClientWithCredentials builds an S3 client that signs with an EXPLICIT credentials
+// provider and region, instead of NewAWSClient's app-level MinIO-static / AWS-IRSA
+// selection. It is the connector-scoped path: a connector presents its OWN credentials
+// (STS-assumed role or a static access key) to reach an external bucket.
+// Path-style/endpoint handling (MinIO vs AWS) still comes from cfg via s3OptionsApplier.
 func NewAWSClientWithCredentials(
 	ctx context.Context,
 	cfg infra.S3Config,
@@ -88,9 +92,9 @@ func NewAWSClientWithCredentials(
 		awsconfig.WithCredentialsProvider(creds),
 	)
 	if err != nil {
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"loading aws config with credentials",
 		)
 	}

@@ -7,8 +7,8 @@ Why these tests are important:
   - Field defaults must match config.yaml to work in all environments
 """
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 
 def test_database_settings_defaults() -> None:
@@ -107,7 +107,7 @@ def test_database_settings_frozen() -> None:
 
     # Act & Assert
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        settings.database_host = "mutated"  # type: ignore
+        settings.database_host = "mutated"
 
 
 def test_redis_settings_defaults() -> None:
@@ -259,9 +259,9 @@ def test_base_app_settings_has_correct_model_config() -> None:
     from techai_webutils.foundation.config.settings import BaseAppSettings
 
     # Assert
-    assert BaseAppSettings.model_config["env_prefix"] == ""
-    assert BaseAppSettings.model_config["frozen"] is True
-    assert BaseAppSettings.model_config["extra"] == "ignore"
+    assert not BaseAppSettings.model_config.get("env_prefix")
+    assert BaseAppSettings.model_config.get("frozen") is True
+    assert BaseAppSettings.model_config.get("extra") == "ignore"
 
 
 def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -280,7 +280,9 @@ def test_settings_subclass_owns_its_env_prefix(monkeypatch: pytest.MonkeyPatch) 
     from techai_webutils.foundation.config.settings import DatabaseSettings
 
     class MyAppSettings(DatabaseSettings):
-        model_config = SettingsConfigDict(env_prefix="MYAPP_", frozen=True, extra="ignore")
+        model_config = SettingsConfigDict(
+            env_prefix="MYAPP_", frozen=True, extra="ignore"
+        )
 
     monkeypatch.setenv("MYAPP_DATABASE_HOST", "db.example")
     monkeypatch.setenv("DATABASE_HOST", "wrong")

@@ -1,10 +1,9 @@
 package infra
 
 import (
-	"fmt"
 	"strings"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
 )
 
@@ -19,14 +18,23 @@ type LoggingConfig struct {
 	// Format controls the output encoding ("json" or "text").
 	Format string `mapstructure:"format"`
 
-	// RedactPII enables automatic redaction of personally identifiable information in log output.
+	// RedactPII enables automatic redaction of personally identifiable information in log
+	// output.
 	RedactPII bool `mapstructure:"redact_pii"`
 }
+
+// The logger kinds LoggingConfig.Kind accepts (case-insensitive).
+const (
+	// loggerKindZap selects the zap logger, the default.
+	loggerKindZap = "zap"
+	// loggerKindStdlib selects the log/slog-backed logger.
+	loggerKindStdlib = "stdlib"
+)
 
 // DefaultLoggingConfig returns a LoggingConfig with defaults.
 func DefaultLoggingConfig() LoggingConfig {
 	return LoggingConfig{
-		Kind:      "zap",
+		Kind:      loggerKindZap,
 		Level:     "info",
 		Format:    "json",
 		RedactPII: true,
@@ -36,10 +44,10 @@ func DefaultLoggingConfig() LoggingConfig {
 // Validate returns an error if the configuration is invalid.
 func (c LoggingConfig) Validate() error {
 	kind := strings.ToLower(c.Kind)
-	if kind != "zap" && kind != "stdlib" {
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
-			fmt.Sprintf("unknown logger kind: %s", c.Kind),
+	if kind != loggerKindZap && kind != loggerKindStdlib {
+		return apperr.New(
+			apperr.CodeInvalidInput,
+			"unknown logger kind: "+c.Kind,
 		)
 	}
 	return nil
@@ -48,14 +56,14 @@ func (c LoggingConfig) Validate() error {
 // GetKind converts the config kind string to a logger.Kind.
 func (c *LoggingConfig) GetKind() (logger.Kind, error) {
 	switch strings.ToLower(c.Kind) {
-	case "zap":
+	case loggerKindZap:
 		return logger.KindZap, nil
-	case "stdlib":
+	case loggerKindStdlib:
 		return logger.KindStdlib, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
-			fmt.Sprintf("unknown logger kind: %s", c.Kind),
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
+			"unknown logger kind: "+c.Kind,
 		)
 	}
 }

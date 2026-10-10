@@ -25,7 +25,7 @@ import resource
 import time
 import traceback
 from queue import Empty
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from techai_webutils.clients.parsing.isolated.detect import detect_format
 from techai_webutils.clients.parsing.isolated.markitdown_parser import MarkItDownParser
@@ -34,6 +34,7 @@ from techai_webutils.core.domain import ParsedDocument
 if TYPE_CHECKING:
     from collections.abc import Callable
     from multiprocessing.process import BaseProcess
+    from multiprocessing.queues import Queue
 
 # _DEFAULT_MEMORY_BYTES is the per-parse address-space cap (512 MiB, sized under the 1Gi pod
 # limit so several parses can run concurrently without tripping the container OOM-killer).
@@ -96,14 +97,15 @@ def _worker[T](
     fn: Callable[..., T],
     args: tuple[object, ...],
     memory_bytes: int,
-    result_queue: mp.Queue,  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]],
 ) -> None:
     """Subprocess entry: apply the memory cap, run fn, and return its result or error."""
     if memory_bytes > 0:
         _apply_memory_limit(memory_bytes)
     try:
         result_queue.put(("ok", fn(*args)))
-    except Exception as exc:  # return the failure to the parent instead of crashing silently
+    # Return the failure to the parent instead of crashing silently.
+    except Exception as exc:
         # Carry the full traceback (not just repr) so an IsolationError in the parent is
         # diagnosable — the child's stack is otherwise invisible (mirrors fan_out's detail).
         result_queue.put(("err", f"{exc!r}\n{traceback.format_exc()}"))
@@ -130,7 +132,7 @@ def run_isolated[T](
     if the child dies without producing a result or the task itself raised.
     """
     ctx = _MP_CONTEXT
-    result_queue: mp.Queue = ctx.Queue()  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]] = ctx.Queue()
     proc = ctx.Process(target=_worker, args=(fn, args, memory_bytes, result_queue))
     proc.start()
 
@@ -148,12 +150,12 @@ def run_isolated[T](
     status, payload = result
     if status == "err":
         raise IsolationError(str(payload))
-    return payload  # type: ignore[no-any-return]
+    return cast("T", payload)
 
 
 def _await_result(
     proc: BaseProcess,
-    result_queue: mp.Queue,  # type: ignore[type-arg]
+    result_queue: Queue[tuple[str, object]],
     timeout_seconds: float,
 ) -> tuple[str, object]:
     """Poll for the worker's ``(status, payload)`` result, killing it on overrun.
@@ -203,7 +205,9 @@ class IsolatedParser:
         self._memory_bytes = memory_bytes
         self._timeout_seconds = timeout_seconds
 
-    async def parse(self, content: bytes, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse(
+        self, content: bytes, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse in a subprocess; a timeout or worker death becomes a failed ParsedDocument."""
         loop = asyncio.get_running_loop()
         call = functools.partial(
@@ -220,10 +224,14 @@ class IsolatedParser:
         except TimeoutError:
             return self._failed(content, declared, filename, "parse_timeout")
         except IsolationError as exc:
-            return self._failed(content, declared, filename, f"parse_isolation_failed: {exc}")
+            return self._failed(
+                content, declared, filename, f"parse_isolation_failed: {exc}"
+            )
 
     @staticmethod
-    def _failed(content: bytes, declared: str, filename: str, error: str) -> ParsedDocument:
+    def _failed(
+        content: bytes, declared: str, filename: str, error: str
+    ) -> ParsedDocument:
         """Build a failed ParsedDocument tagged with the detected format + error reason."""
         return ParsedDocument(
             markdown_content="",
@@ -231,7 +239,9 @@ class IsolatedParser:
             error=error,
         )
 
-    async def parse_path(self, path: str, *, declared: str = "", filename: str = "") -> ParsedDocument:
+    async def parse_path(
+        self, path: str, *, declared: str = "", filename: str = ""
+    ) -> ParsedDocument:
         """Parse a document from a file ``path`` in a subprocess (bounded memory — large-doc lane).
 
         The path (not the bytes) is pickled to the child, so a multi-GB document never crosses the

@@ -16,6 +16,8 @@ from techai_webutils.core.interfaces.execution import (
 
 
 class TestBatchResult:
+    """Tests for the batch result."""
+
     def test_aggregates_mixed_statuses(self) -> None:
         """Test that BatchResult reports counts over a mixed result set.
 
@@ -74,6 +76,8 @@ class TestBatchResult:
 
 
 class TestJobMeta:
+    """Tests for the job meta."""
+
     def test_carries_name_and_group(self) -> None:
         """Test that JobMeta carries a job's display name and group.
 
@@ -87,7 +91,7 @@ class TestJobMeta:
         m = JobMeta(name="dispatch", group="notification")
         assert m.name == "dispatch"
         assert m.group == "notification"
-        assert JobMeta(name="x").group == ""
+        assert not JobMeta(name="x").group
 
 
 class _StubJob:
@@ -106,6 +110,8 @@ class _StubJob:
 
 
 class TestJobProtocols:
+    """Tests for the job protocols."""
+
     def test_stub_satisfies_named_and_anyjob(self) -> None:
         """Test that a concrete job satisfies the Named and AnyJob protocols structurally.
 
@@ -139,6 +145,8 @@ class TestJobProtocols:
 
 
 class TestNopObserver:
+    """Tests for the no-op observer."""
+
     def test_satisfies_protocol_and_is_noop(self) -> None:
         """Test that NopObserver conforms to the unified ExecutionObserver and every callback no-ops.
 

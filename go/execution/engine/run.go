@@ -5,9 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
-	"golang.org/x/sync/errgroup"
 )
 
 // RunJobGroup executes jobs concurrently and collects all StepResults. Each

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from qdrant_client import AsyncQdrantClient
@@ -24,7 +24,7 @@ def _mock_client(
     exists: bool = True,
     retrieved: list[object] | None = None,
 ) -> AsyncQdrantClient:
-    """A mock AsyncQdrantClient: collection_exists/create/upsert/delete + query_points→.points + retrieve."""
+    """Return a mock AsyncQdrantClient: collection_exists/create/upsert/delete + query_points→.points + retrieve."""
     client = MagicMock(spec=AsyncQdrantClient)
     client.collection_exists = AsyncMock(return_value=exists)
     client.create_collection = AsyncMock()
@@ -41,20 +41,27 @@ def _mock_client(
 
 
 def _retrieved_point(entry_id: str, **metadata: str) -> object:
-    """A retrieved point whose ``id`` is the deterministic Qdrant point id of ``entry_id``.
+    """Return a retrieved point whose ``id`` is the deterministic Qdrant point id of ``entry_id``.
 
     Its payload carries the store's own keys plus ``metadata``, as ``QdrantVectorStore.upsert`` writes it.
     """
     point = MagicMock()
     point.id = str(uuid.uuid5(uuid.NAMESPACE_URL, entry_id))
-    point.payload = {"entry_id": entry_id, "document_id": "d1", "content": "text", **metadata}
+    point.payload = {
+        "entry_id": entry_id,
+        "document_id": "d1",
+        "content": "text",
+        **metadata,
+    }
     return point
 
 
 class TestQdrantVectorStore:
+    """Tests for the Qdrant vector store."""
+
     @pytest.mark.asyncio
     async def test_upsert_creates_missing_collection_and_writes_payload(self) -> None:
-        """upsert ensures the collection (cosine+dim) then upserts points carrying the metadata payload.
+        """Upsert ensures the collection (cosine+dim) then upserts points carrying the metadata payload.
 
         Why this test is important:
           - The whole retrieval path depends on the payload (tenant/document_name/…) being written;
@@ -105,13 +112,17 @@ class TestQdrantVectorStore:
         """
         client = _mock_client(exists=False)
         store = QdrantVectorStore(client, dimension=3)
-        entry = VectorEntry(id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={})
+        entry = VectorEntry(
+            id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={}
+        )
         await asyncio.gather(*(store.upsert("docs", [entry]) for _ in range(10)))
 
         client.create_collection.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_concurrent_create_across_processes_tolerates_already_exists(self) -> None:
+    async def test_concurrent_create_across_processes_tolerates_already_exists(
+        self,
+    ) -> None:
         """A cross-process create race (409 "already exists") is swallowed when the collection now exists.
 
         Why this test is important:
@@ -126,9 +137,13 @@ class TestQdrantVectorStore:
         client = _mock_client()
         # Missing on the pre-create guard, present on the post-failure re-check (a rival won the race).
         client.collection_exists = AsyncMock(side_effect=[False, True])
-        client.create_collection = AsyncMock(side_effect=RuntimeError("409 (Conflict): already exists!"))
+        client.create_collection = AsyncMock(
+            side_effect=RuntimeError("409 (Conflict): already exists!")
+        )
         store = QdrantVectorStore(client, dimension=3)
-        entry = VectorEntry(id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={})
+        entry = VectorEntry(
+            id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={}
+        )
 
         await store.upsert("docs", [entry])  # must not raise
 
@@ -147,17 +162,23 @@ class TestQdrantVectorStore:
             propagates out of upsert.
         """
         client = _mock_client()
-        client.collection_exists = AsyncMock(return_value=False)  # absent before AND after the failed create
-        client.create_collection = AsyncMock(side_effect=RuntimeError("connection refused"))
+        client.collection_exists = AsyncMock(
+            return_value=False
+        )  # absent before AND after the failed create
+        client.create_collection = AsyncMock(
+            side_effect=RuntimeError("connection refused")
+        )
         store = QdrantVectorStore(client, dimension=3)
-        entry = VectorEntry(id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={})
+        entry = VectorEntry(
+            id="p", document_id="d", content="c", embedding=[0.1, 0.2, 0.3], metadata={}
+        )
 
         with pytest.raises(RuntimeError, match="connection refused"):
             await store.upsert("docs", [entry])
 
     @pytest.mark.asyncio
     async def test_search_filters_by_scope_and_maps_payload(self) -> None:
-        """search applies a payload scope filter and maps each hit's payload into VectorSearchResult.metadata.
+        """Search applies a payload scope filter and maps each hit's payload into VectorSearchResult.metadata.
 
         Why this test is important:
           - Without the pushed-down scope filter, queries mix scopes (e.g. tenants) before the policy
@@ -169,7 +190,9 @@ class TestQdrantVectorStore:
             payload metadata (tenant, document_name) with the promoted keys excluded.
         """
         hit = MagicMock()
-        hit.id = str(uuid.uuid5(uuid.NAMESPACE_URL, "d1:3"))  # the opaque Qdrant point id (a UUID)
+        hit.id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, "d1:3")
+        )  # the opaque Qdrant point id (a UUID)
         hit.score = 0.91
         hit.payload = {
             "entry_id": "d1:3",  # the original semantic chunk id
@@ -182,7 +205,9 @@ class TestQdrantVectorStore:
         client = _mock_client([hit])
         store = QdrantVectorStore(client, dimension=3)
 
-        results = await store.search("docs", [0.1, 0.2, 0.3], top_k=5, filters={"tenant": "t1"})
+        results = await store.search(
+            "docs", [0.1, 0.2, 0.3], top_k=5, filters={"tenant": "t1"}
+        )
 
         client.query_points.assert_awaited_once()
         assert client.query_points.call_args.kwargs["query_filter"] is not None
@@ -247,7 +272,9 @@ class TestQdrantVectorStore:
           - With points for d1:0 and d1:2 present (d1:1 absent), existing_ids(["d1:0","d1:1","d1:2"])
             returns exactly {"d1:0","d1:2"}, and retrieve is called with the three deterministic point ids.
         """
-        client = _mock_client(retrieved=[_retrieved_point("d1:0"), _retrieved_point("d1:2")])
+        client = _mock_client(
+            retrieved=[_retrieved_point("d1:0"), _retrieved_point("d1:2")]
+        )
         store = QdrantVectorStore(client, dimension=3)
 
         present = await store.existing_ids("docs", ["d1:0", "d1:1", "d1:2"])
@@ -272,7 +299,9 @@ class TestQdrantVectorStore:
             exactly {"d1:0": {"tenant": "t1", "chunk_index": "0"}}, fetched with the payload and without
             vectors; a missing collection returns {} without a retrieve.
         """
-        client = _mock_client(retrieved=[_retrieved_point("d1:0", tenant="t1", chunk_index="0")])
+        client = _mock_client(
+            retrieved=[_retrieved_point("d1:0", tenant="t1", chunk_index="0")]
+        )
         store = QdrantVectorStore(client, dimension=3)
 
         stored = await store.stored_metadata("docs", ["d1:0", "d1:1"])
@@ -282,7 +311,12 @@ class TestQdrantVectorStore:
         assert client.retrieve.call_args.kwargs["with_vectors"] is False
 
         missing = _mock_client(exists=False)
-        assert await QdrantVectorStore(missing, dimension=3).stored_metadata("docs", ["d1:0"]) == {}
+        assert (
+            await QdrantVectorStore(missing, dimension=3).stored_metadata(
+                "docs", ["d1:0"]
+            )
+            == {}
+        )
         missing.retrieve.assert_not_awaited()
 
     def test_dimension_exposed(self) -> None:
@@ -291,11 +325,16 @@ class TestQdrantVectorStore:
 
 
 class TestVectorStoreFactory:
+    """Tests for the vector store factory."""
+
     def test_from_config_builds_qdrant(self) -> None:
         """new_vector_store_from_config(kind=qdrant) builds a QdrantVectorStore."""
         store = new_vector_store_from_config(
             VectorStoreConfig(
-                kind=VectorStoreKind.QDRANT, url="http://qdrant:6333", collection="docs", dimension=768
+                kind=VectorStoreKind.QDRANT,
+                url="http://qdrant:6333",
+                collection="docs",
+                dimension=768,
             ),
         )
         assert isinstance(store, QdrantVectorStore)

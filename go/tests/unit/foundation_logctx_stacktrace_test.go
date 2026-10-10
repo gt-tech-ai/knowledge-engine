@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	stderrors "errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -99,7 +98,7 @@ func TestStacktraceHandler_PrefersOriginStack(t *testing.T) {
 	h := logctx.NewStacktraceHandler(ch, slog.LevelError)
 
 	err := apperr.Wrap(
-		stderrors.New("query failed"),
+		apperr.Sentinel("query failed"),
 		apperr.CodeInternal,
 		"origin query failed",
 	)

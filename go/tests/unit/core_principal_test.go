@@ -9,12 +9,14 @@ import (
 	coreprincipal "github.com/gt-tech-ai/knowledge-engine/go/core/principal"
 )
 
-// TestPrincipal_CarriesTheConsumerPrincipalPerType tests the request-principal context carrier.
+// TestPrincipal_CarriesTheConsumerPrincipalPerType tests the request-principal context
+// carrier.
 //
 // Why this test is important:
-//   - Every tier reads the caller through this carrier (the transport interceptor stores it,
-//     services and repositories read it), so it must live in core; a principal of one type
-//     leaking into a read of another type would authorize a caller under the wrong model.
+//   - Every tier reads the caller through this carrier (the transport interceptor stores
+//     it, services and repositories read it), so it must live in core; a principal of one
+//     type leaking into a read of another type would authorize a caller under the wrong
+//     model.
 //
 // What it tests:
 //   - A stored principal reads back; principals of different types coexist without seeing

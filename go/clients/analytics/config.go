@@ -50,7 +50,10 @@ func DefaultConfig() Config {
 }
 
 // WithCassandra sets the nested session kind and applies session options.
-func WithCassandra(kind cassandra.Kind, opts ...options.Option[cassandra.Config]) options.Option[Config] {
+func WithCassandra(
+	kind cassandra.Kind,
+	opts ...options.Option[cassandra.Config],
+) options.Option[Config] {
 	return func(c *Config) {
 		c.Cassandra.Kind = kind
 		options.ApplyOptions(&c.Cassandra, opts...)

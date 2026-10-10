@@ -14,9 +14,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/transport"
 )
 
-// defaultBuckets are the default histogram bucket boundaries for handler
+// defaultBuckets returns the default histogram bucket boundaries for handler
 // execution durations (in seconds).
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // HandlerBuilder constructs a decorated handler using the fluent API pattern.
 // Each With* method enables a decorator; Build applies them inside-out:
@@ -164,7 +166,7 @@ func wrapMetrics[Req, Resp any](
 	duration := m.Histogram(
 		"controller_handle_duration_seconds",
 		"Controller handler duration",
-		defaultBuckets,
+		defaultBuckets(),
 		"handler",
 	)
 

@@ -1,10 +1,13 @@
 """Tests for StorageObject dataclass and StorageClient ABC."""
 
-from techai_webutils.core.interfaces.storage import StorageClient, StorageObject
 import pytest
+
+from techai_webutils.core.interfaces.storage import StorageClient, StorageObject
 
 
 class TestStorageObject:
+    """Tests for the storage object."""
+
     def test_construction(self) -> None:
         """Test that StorageObject preserves the metadata returned from object listings.
 
@@ -32,6 +35,8 @@ class TestStorageObject:
 
 
 class TestStorageClient:
+    """Tests for the storage client."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that the StorageClient ABC cannot be instantiated without its methods.
 

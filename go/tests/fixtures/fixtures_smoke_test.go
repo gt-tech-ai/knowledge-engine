@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
 
@@ -65,7 +66,7 @@ func TestFactories_ExerciseEveryDouble(t *testing.T) {
 		got.Name != "mock" {
 		t.Fatalf("StubService.Get: %+v, want Name=mock", got)
 	}
-	boom := errors.New("boom")
+	boom := apperr.Sentinel("boom")
 	if _, err := fixtures.StubService(boom, false).Get(ctx, "1"); !errors.Is(err, boom) {
 		t.Fatalf("StubService(err).Get: %v, want boom", err)
 	}

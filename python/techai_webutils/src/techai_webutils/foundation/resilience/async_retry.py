@@ -73,7 +73,9 @@ def retry_transient_async(
         """Attach the tenacity async retry policy to *func*, preserving its metadata."""
         retry_cond = retry_if_exception(_is_transient)
         stop_cond = stop_after_attempt(max_attempts)
-        backoff = wait_exponential_jitter(initial=base_delay, max=max_delay, jitter=base_delay)
+        backoff = wait_exponential_jitter(
+            initial=base_delay, max=max_delay, jitter=base_delay
+        )
 
         def wait_pol(state: RetryCallState) -> float:
             """Wait the backoff, or the server's pushback when longer (capped at ``max_delay``)."""
@@ -86,7 +88,9 @@ def retry_transient_async(
         # tenacity stub types ``sleep`` as a sync callable, but an async sleep is valid for a coroutine
         # function (AsyncRetrying awaits it) — hence the boundary ignore on that one branch.
         retrying = (
-            retry(retry=retry_cond, stop=stop_cond, wait=wait_pol, reraise=True, sleep=sleep)  # ty: ignore[invalid-argument-type]  # pyright: ignore[reportArgumentType]
+            retry(
+                retry=retry_cond, stop=stop_cond, wait=wait_pol, reraise=True, sleep=sleep
+            )  # ty: ignore[invalid-argument-type]  # pyright: ignore[reportArgumentType]
             if sleep is not None
             else retry(retry=retry_cond, stop=stop_cond, wait=wait_pol, reraise=True)
         )

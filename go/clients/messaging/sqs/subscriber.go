@@ -45,8 +45,9 @@ const (
 // disabled by a momentary outage. Close cancels all subscriptions and waits for
 // in-flight handlers to drain.
 type Subscriber struct {
-	// NoOp supplies the no-op Start/Stop: the long-poll receive loop is owned per-Subscribe
-	// call (cancelled via cancels), so the Subscriber itself opens/closes no shared resource.
+	// NoOp supplies the no-op Start/Stop: the long-poll receive loop is owned
+	// per-Subscribe call (cancelled via cancels), so the Subscriber itself opens/closes
+	// no shared resource.
 	lifecycle.NoOp
 
 	// api is the SQS API used for receive/delete (the real SDK client or a test double).
@@ -69,7 +70,7 @@ type Subscriber struct {
 // otherwise builds the real AWS SDK client from cfg. Config.BaseBackoff overrides
 // the initial receive-retry wait (0 uses the package default).
 func NewSubscriber(cfg Config) (*Subscriber, error) {
-	api, err := resolveAPI(cfg)
+	api, err := resolveAPI(context.Background(), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +99,6 @@ func (s *Subscriber) Subscribe(
 	// (queue resolution, receive, ack) stays intrinsic to consume.
 	handler = s.obs.Wrap(handler)
 
-	//nolint:gosec // cancel is stored in s.cancels and invoked by Close (drains the loop).
 	loopCtx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
 	s.cancels = append(s.cancels, cancel)

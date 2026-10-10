@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // contentTypeJSONAPI is the JSON:API media type set on all transformed
@@ -29,8 +31,6 @@ const maxBodySize = 1 << 20 // 1 MiB
 // absent, or type-mismatched envelope); other roles pass their body through.
 // The response is then transformed by the route's Role — never by guessing
 // method/path/data-presence.
-//
-//nolint:gocyclo // linear flow with distinct per-role early returns
 func Middleware(
 	inner http.Handler,
 	cfg Config,
@@ -181,13 +181,19 @@ func transformByRole(
 		}
 		return result, http.StatusCreated, true
 
-	default: // RoleGetOne, RoleUpdate — require the declared single resource key.
-		if !hasKey(parsed, rc.SingleKey) {
-			writeMissingResourceError(w, rc.SingleKey)
-			return nil, 0, false
-		}
-		return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
+	// The single-resource roles are listed so the exhaustive linter sees every declared
+	// Role handled; they and an undeclared role share the single-resource read below.
+	case RoleGetOne, RoleUpdate, RoleDelete:
+	default:
 	}
+
+	// Single-resource read: require the declared single resource key. (DELETE is
+	// answered with 204 before the transform; it reaches here only if that changes.)
+	if !hasKey(parsed, rc.SingleKey) {
+		writeMissingResourceError(w, rc.SingleKey)
+		return nil, 0, false
+	}
+	return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
 }
 
 // hasKey reports whether a non-empty key is present in the parsed response body.
@@ -243,14 +249,16 @@ func unwrapAndValidate(body []byte, resourceType string) (unwrapped []byte, msg 
 	return out, ""
 }
 
-// reclassifyBindingError corrects the HTTP status of a Vanguard transcoding error. When Vanguard
-// cannot BIND a REST request to its target message — an unknown query/path field, an unparseable
-// value — it classifies the failure as the Connect code Unknown, which maps to HTTP 500. But a request
-// the server could not bind is the CLIENT's fault, so it must be 400. Application handler errors never
-// use Unknown (they carry apperr codes → Internal (13) / NotFound (5) / InvalidArgument (3) → already
-// 400 / …), so a 500 whose numeric error code is exactly Unknown is unambiguously a Vanguard
-// request-binding failure; every other status/code passes through unchanged. Vanguard writes the code
-// as a NUMBER (the google.rpc.Code enum, which connect.Code mirrors), not the string "unknown".
+// reclassifyBindingError corrects the HTTP status of a Vanguard transcoding error. When
+// Vanguard cannot BIND a REST request to its target message — an unknown query/path
+// field, an unparseable value — it classifies the failure as the Connect code Unknown,
+// which maps to HTTP 500. But a request the server could not bind is the CLIENT's fault,
+// so it must be 400. Application handler errors never use Unknown (they carry apperr
+// codes → Internal (13) / NotFound (5) / InvalidArgument (3) → already 400 / …), so a 500
+// whose numeric error code is exactly Unknown is unambiguously a Vanguard request-binding
+// failure; every other status/code passes through unchanged. Vanguard writes the code as
+// a NUMBER (the google.rpc.Code enum, which connect.Code mirrors), not the string
+// "unknown".
 func reclassifyBindingError(status int, body []byte) int {
 	if status != http.StatusInternalServerError {
 		return status
@@ -268,8 +276,8 @@ func reclassifyBindingError(status int, body []byte) int {
 // request envelope, in the same shape TransformError produces.
 func writeRequestError(w http.ResponseWriter, message string) {
 	body, err := json.Marshal(map[string]any{
-		"code":    "invalid_argument",
-		"message": message,
+		memberCode: "invalid_argument",
+		"message":  message,
 	})
 	if err != nil {
 		body = nil
@@ -286,8 +294,8 @@ func writeRequestError(w http.ResponseWriter, message string) {
 // which is config data rather than caller input.
 func writeMissingResourceError(w http.ResponseWriter, singleKey string) {
 	body, err := json.Marshal(map[string]any{
-		"code":    "internal",
-		"message": "response carried no " + singleKey + " resource",
+		memberCode: "internal",
+		"message":  "response carried no " + singleKey + " resource",
 	})
 	if err != nil {
 		body = nil
@@ -324,7 +332,10 @@ func (c *captureWriter) Header() http.Header { return c.w.Header() }
 func (c *captureWriter) WriteHeader(code int) { c.status = code }
 
 // Write buffers the response body instead of sending it immediately.
-func (c *captureWriter) Write(b []byte) (int, error) { return c.body.Write(b) }
+func (c *captureWriter) Write(b []byte) (int, error) {
+	n, err := c.body.Write(b)
+	return n, apperr.Wrap(err, apperr.CodeInternal, "buffer response body")
+}
 
 // Flush is a no-op that prevents the inner handler from flushing the buffered
 // response before the middleware has transformed it.

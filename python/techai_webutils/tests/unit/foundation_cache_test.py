@@ -28,8 +28,9 @@ Run with: pytest tests/python/test_foundation/test_cache.py
 
 from unittest.mock import AsyncMock
 
-from techai_webutils.clients.cache.redis import FailureMode, RedisCache
 import pytest
+
+from techai_webutils.clients.cache.redis import FailureMode, RedisCache
 
 
 class TestRedisCache:
@@ -72,7 +73,9 @@ class TestRedisCache:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_bypass_mode_returns_none_on_connection_error(self, mock_redis: AsyncMock) -> None:
+    async def test_bypass_mode_returns_none_on_connection_error(
+        self, mock_redis: AsyncMock
+    ) -> None:
         """Test that bypass mode returns None on connection errors.
 
         **Why this test is important:**
@@ -90,7 +93,9 @@ class TestRedisCache:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_error_mode_propagates_connection_error(self, mock_redis: AsyncMock) -> None:
+    async def test_error_mode_propagates_connection_error(
+        self, mock_redis: AsyncMock
+    ) -> None:
         """Test that error mode propagates connection errors to the caller.
 
         **Why this test is important:**

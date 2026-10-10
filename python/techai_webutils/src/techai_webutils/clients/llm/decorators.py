@@ -22,7 +22,12 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from types import TracebackType
 
-    from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMResponse, StreamUsage
+    from techai_webutils.core.interfaces.llm import (
+        LLMConfig,
+        LLMMessage,
+        LLMResponse,
+        StreamUsage,
+    )
 
 # Fallback activations, labelled by why the primary failed (throttle = 429, error = 5xx). Registered
 # on import (only the bedrock factory path imports this module), so it appears on /metrics in stage/prod.
@@ -37,7 +42,11 @@ _FALLBACK_ACTIVATIONS = Counter(
 # status or these codes. Names are matched loosely so a duck-typed test exception works without botocore.
 _THROTTLE_CODES = frozenset({"ThrottlingException", "TooManyRequestsException"})
 """Bedrock error codes treated as throttling (fall back to the secondary model)."""
-_SERVER_CODES = frozenset({"InternalServerException", "ServiceUnavailableException", "ModelTimeoutException"})
+_SERVER_CODES = frozenset({
+    "InternalServerException",
+    "ServiceUnavailableException",
+    "ModelTimeoutException",
+})
 """Bedrock error codes treated as server errors (fall back to the secondary model)."""
 _HTTP_TOO_MANY_REQUESTS = 429
 """HTTP status classifying a response as throttled (429 Too Many Requests)."""
@@ -121,7 +130,9 @@ class FallbackLlmProvider(LLMProvider):
         """Exit both wrapped providers (fallback, then primary), propagating any suppression decision."""
         return await self._stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         """Complete on the primary; on a throttle/5xx, retry on the fallback (else re-raise / 503)."""
         try:
             return await self._primary.complete(messages, config)
@@ -135,7 +146,9 @@ class FallbackLlmProvider(LLMProvider):
             except Exception as fallback_exc:
                 raise UnavailableError(_UNAVAILABLE_MSG) from fallback_exc
 
-    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str]:
         """Stream from the primary; if it fails before any token, retry the fallback (else re-raise / 503)."""
         return text_only(await self.stream_with_usage(messages, config))
 

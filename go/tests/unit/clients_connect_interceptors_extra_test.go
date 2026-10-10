@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	stderrors "errors"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/transport/connect/interceptors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
 
@@ -45,8 +45,8 @@ func TestLoggingInterceptor_StatusCodeMapping(t *testing.T) {
 		{connect.CodeUnavailable, false},
 		{connect.CodeDeadlineExceeded, false},
 		{connect.CodeInternal, false},
-		// 499 client-closed-request: the caller cancelled/disconnected — a client outcome, logged at
-		// Warn so it does not fire an Error-level alert.
+		// 499 client-closed-request: the caller cancelled/disconnected — a client
+		// outcome, logged at Warn so it does not fire an Error-level alert.
 		{connect.CodeCanceled, true},
 	}
 	for _, tc := range cases {
@@ -55,7 +55,7 @@ func TestLoggingInterceptor_StatusCodeMapping(t *testing.T) {
 			spy := fixtures.NewSpyLogger()
 			handler := interceptors.NewLoggingInterceptor(spy).WrapUnary(
 				func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
-					return nil, connect.NewError(tc.code, stderrors.New("boom"))
+					return nil, connect.NewError(tc.code, apperr.Sentinel("boom"))
 				},
 			)
 			_, err := handler(context.Background(), newTestRequest())
@@ -85,7 +85,7 @@ func TestAuthInterceptor_StreamingClientIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	wrapped := interceptors.NewAuthInterceptor(false, testHeaders).WrapStreamingClient(
+	wrapped := interceptors.NewAuthInterceptor(false, testHeaders()).WrapStreamingClient(
 		func(context.Context, connect.Spec) connect.StreamingClientConn {
 			called = true
 			return nil
@@ -110,12 +110,21 @@ func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	failing := func(context.Context, *interceptors.AuthClaims) (string, error) {
-		return "", connect.NewError(connect.CodePermissionDenied, stderrors.New("not a member"))
+		return "", connect.NewError(
+			connect.CodePermissionDenied,
+			apperr.Sentinel("not a member"),
+		)
 	}
-	claims := &interceptors.AuthClaims{Sub: "sub-1", TenantID: "tenant-1"} // non-synthetic
+	claims := &interceptors.AuthClaims{
+		Sub:      "sub-1",
+		TenantID: "tenant-1",
+	} // non-synthetic
 
 	called := false
-	handler := interceptors.NewPrincipalInterceptor[string](failing, nil).WrapStreamingHandler(
+	handler := interceptors.NewPrincipalInterceptor[string](
+		failing,
+		nil,
+	).WrapStreamingHandler(
 		func(context.Context, connect.StreamingHandlerConn) error {
 			called = true
 			return nil
@@ -141,7 +150,7 @@ func TestPrincipalInterceptor_StreamingFailsClosed(t *testing.T) {
 func TestConnectTracingInterceptors_RecordErrorOnFailure(t *testing.T) {
 	t.Parallel()
 	tracer := fixtures.NopTracer()
-	boom := connect.NewError(connect.CodeInternal, stderrors.New("handler fault"))
+	boom := connect.NewError(connect.CodeInternal, apperr.Sentinel("handler fault"))
 	failing := func(_ context.Context, _ connect.AnyRequest) (connect.AnyResponse, error) {
 		return nil, boom
 	}

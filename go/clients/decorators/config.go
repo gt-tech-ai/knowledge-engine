@@ -3,12 +3,13 @@ package decorators
 import (
 	"time"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // Config tunes the client resilience stack for one client tier. It is the minimal
@@ -76,9 +77,9 @@ func StackFromConfig(name string, cfg Config, deps Deps) (*Stack, error) {
 
 	bh, err := bulkhead.NewFromConfig(cfg.Bulkhead)
 	if err != nil {
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"client stack: bulkhead",
 		)
 	}
@@ -88,9 +89,9 @@ func StackFromConfig(name string, cfg Config, deps Deps) (*Stack, error) {
 	}
 	cb, err := circuitbreaker.NewFromConfig(cbCfg)
 	if err != nil {
-		return nil, coreerrors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			coreerrors.CodeInternal,
+			apperr.CodeInternal,
 			"client stack: circuit breaker",
 		)
 	}
@@ -105,9 +106,9 @@ func StackFromConfig(name string, cfg Config, deps Deps) (*Stack, error) {
 	if cfg.RetryEnabled {
 		r, err := retry.NewFromConfig(cfg.Retry)
 		if err != nil {
-			return nil, coreerrors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerrors.CodeInternal,
+				apperr.CodeInternal,
 				"client stack: retry",
 			)
 		}

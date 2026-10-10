@@ -40,9 +40,9 @@ func newStreamConn(t *testing.T) *mocks.MockStreamingHandlerConn {
 //
 // Why this test is important:
 //   - Previously, the recovery interceptor was unary-only, so a panic in a stream handler
-//     (e.g. a streamed answer) unwound past the interceptor and crashed the serving goroutine,
-//     taking down every connection on it. This pins that the streaming path is now
-//     panic-safe, exactly like the unary path.
+//     (e.g. a streamed answer) unwound past the interceptor and crashed the serving
+//     goroutine, taking down every connection on it. This pins that the streaming path is
+//     now panic-safe, exactly like the unary path.
 //
 // What it tests:
 //   - WrapStreamingHandler wrapping a panicking StreamingHandlerFunc returns a non-nil
@@ -84,7 +84,9 @@ func TestMetricsInterceptor_Streaming_RecordsCounterAndDuration(t *testing.T) {
 		Counter("connect_rpc_requests_total", gomock.Any(), "service", "method", "code").
 		Return(counter)
 	m.EXPECT().
-		Histogram("connect_rpc_duration_seconds", gomock.Any(), gomock.Any(), "service", "method").
+		Histogram(
+			"connect_rpc_duration_seconds", gomock.Any(), gomock.Any(), "service", "method",
+		).
 		Return(hist)
 	counter.EXPECT().Inc("test.v1.StreamService", "Stream", "ok")
 	hist.EXPECT().Observe(gomock.Any(), "test.v1.StreamService", "Stream")

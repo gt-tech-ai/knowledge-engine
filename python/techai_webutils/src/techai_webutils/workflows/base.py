@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from techai_webutils.core.interfaces.workflow import AsyncWorkflow, Workflow
 
@@ -56,6 +56,15 @@ class BaseWorkflow[In, Out](Workflow[In, Out]):
 
         # Delegate to async implementation
         self._async = BaseAsyncWorkflow(async_fn)
+
+    @property
+    def async_workflow(self) -> BaseAsyncWorkflow[In, Out]:
+        """The async implementation this sync workflow delegates to.
+
+        The async decorator chain reuses it directly, so a sync base workflow never nests
+        event loops.
+        """
+        return self._async
 
     def execute(self, input_data: In) -> Out:
         """Orchestrate by delegating to async workflow via _run_sync()."""

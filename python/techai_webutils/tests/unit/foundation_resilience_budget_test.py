@@ -1,6 +1,9 @@
 """Tests for RetryBudget."""
 
-from techai_webutils.foundation.resilience.budget import RetryBudget, RetryBudgetExhaustedError
+from techai_webutils.foundation.resilience.budget import (
+    RetryBudget,
+    RetryBudgetExhaustedError,
+)
 
 
 class TestRetryBudget:

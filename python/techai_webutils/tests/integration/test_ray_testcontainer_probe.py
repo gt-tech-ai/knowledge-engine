@@ -1,5 +1,6 @@
-"""De-risk probe: prove a Ray computation runs over a Ray TESTCONTAINER via the Ray JOBS API —
-reliably, with no ``ray://`` client hang across the macOS/Docker boundary.
+"""De-risk probe: a Ray computation runs over a Ray testcontainer via the Ray Jobs API.
+
+It runs reliably, with no ``ray://`` client hang across the macOS/Docker boundary.
 
 Ray deprecated the ``ray://`` client in favor of Ray Jobs; ``ray.init(address="ray://…")`` from a
 macOS host hangs indefinitely (see the plan's ## Deviations). This probe validates the chosen
@@ -39,8 +40,9 @@ _TERMINAL_STATUSES = {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.STOPPED}
 
 
 def _ray_image_present() -> bool:
-    """True if Docker is reachable AND the Ray image is already pulled — skip otherwise (never hang on
-    a cold pull or a missing daemon).
+    """Return True if Docker is reachable AND the Ray image is already pulled.
+
+    Skip otherwise: never hang on a cold pull or a missing daemon.
     """
     try:
         from testcontainers.core.docker_client import DockerClient
@@ -64,14 +66,18 @@ def submit_ray_job(
     runtime_env: Mapping[str, object] | None = None,
     timeout_s: int = 120,
 ) -> str:
-    """Submit a Ray job, retrying the transient ``No available agent`` 500 while the head's job agent
-    starts (it lags the dashboard API by a few seconds). Bounded — never an unbounded hang.
+    """Submit a Ray job, retrying the transient ``No available agent`` 500.
+
+    The head's job agent starts a few seconds after the dashboard API. Bounded — never an
+    unbounded hang.
     """
     deadline = time.monotonic() + timeout_s
     last_exc: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            return client.submit_job(entrypoint=entrypoint, runtime_env=dict(runtime_env or {}))
+            return client.submit_job(
+                entrypoint=entrypoint, runtime_env=dict(runtime_env or {})
+            )
         except RuntimeError as exc:
             if "No available agent" in str(exc):
                 last_exc = exc
@@ -82,7 +88,9 @@ def submit_ray_job(
     raise RuntimeError(msg) from last_exc
 
 
-def await_terminal(client: JobSubmissionClient, job_id: str, timeout_s: int = 180) -> JobStatus:
+def await_terminal(
+    client: JobSubmissionClient, job_id: str, timeout_s: int = 180
+) -> JobStatus:
     """Poll a submitted job to a terminal status, bounded — never an unbounded hang."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -129,7 +137,9 @@ def ray_jobs_client() -> Iterator[JobSubmissionClient]:
 
 
 @pytest.mark.integration
-def test_ray_job_submit_and_poll_over_a_testcontainer(ray_jobs_client: JobSubmissionClient) -> None:
+def test_ray_job_submit_and_poll_over_a_testcontainer(
+    ray_jobs_client: JobSubmissionClient,
+) -> None:
     """Prove a Ray job submitted to a testcontainer runs to SUCCEEDED via the Jobs API (no ray:// hang).
 
     Why this test is important:
@@ -141,9 +151,7 @@ def test_ray_job_submit_and_poll_over_a_testcontainer(ray_jobs_client: JobSubmis
       - A trivial job (``ray.init()`` on the cluster head + a remote task) reaches
         ``JobStatus.SUCCEEDED`` within the bounded poll window.
     """
-    entrypoint = (
-        "python -c 'import ray; ray.init(); print(\"ray job ok\", ray.get(ray.remote(lambda: 42).remote()))'"
-    )
+    entrypoint = "python -c 'import ray; ray.init(); print(\"ray job ok\", ray.get(ray.remote(lambda: 42).remote()))'"
     job_id = submit_ray_job(ray_jobs_client, entrypoint)
 
     status = await_terminal(ray_jobs_client, job_id)

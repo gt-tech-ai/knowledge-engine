@@ -14,7 +14,9 @@ from tempfile import TemporaryDirectory
 import pytest
 
 
-def test_initialize_config_sets_env_vars_from_yaml(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_config_sets_env_vars_from_yaml(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that initialize_config() loads YAML and exports MYAPP_* env vars.
 
     **Why this test is important:**
@@ -60,7 +62,9 @@ redis:
         reset_config()
 
 
-def test_initialize_config_merges_environment_overlay(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_config_merges_environment_overlay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that initialize_config() merges the {env}.yaml overlay and flattens every key.
 
     **Why this test is important:**
@@ -147,7 +151,7 @@ database:
 
 
 def test_initialize_config_missing_directory_graceful_fallback(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that initialize_config() degrades to a warning when the config dir is missing.
 
@@ -288,9 +292,7 @@ def test_apply_yaml_defaults_stringifies_bool(monkeypatch: pytest.MonkeyPatch) -
     assert os.environ["MYAPP_FLAG"] == "True"
 
 
-def test_initialize_config_missing_base_yaml_is_graceful(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_initialize_config_missing_base_yaml_is_graceful() -> None:
     """A config dir without base.yaml initializes cleanly (env-vars-only deployments).
 
     **Why this test is important:**
@@ -304,11 +306,15 @@ def test_initialize_config_missing_base_yaml_is_graceful(
 
     reset_config()
     with TemporaryDirectory() as empty:
-        initialize_config(empty, env_prefix="MYAPP")  # no base.yaml present — must not raise
+        initialize_config(
+            empty, env_prefix="MYAPP"
+        )  # no base.yaml present — must not raise
     reset_config()
 
 
-def test_initialize_config_uses_consumer_prefix_and_env_selector(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_initialize_config_uses_consumer_prefix_and_env_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """initialize_config exports under the consumer's prefix and picks the overlay from its env vars.
 
     **Why this test is important:**
@@ -349,8 +355,9 @@ def _write_widget_config(tmpdir: str, overlays: dict[str, str] | None = None) ->
 def test_initialize_config_prefix_round_trips_into_a_prefixed_settings_class(
     monkeypatch: pytest.MonkeyPatch, prefix: str
 ) -> None:
-    """The YAML reaches a settings class whose env_prefix is ``MYAPP_``, whether or not the bridge prefix
-    carries the trailing underscore.
+    """The YAML reaches a settings class whose env_prefix is ``MYAPP_``.
+
+    It does so whether or not the bridge prefix carries the trailing underscore.
 
     Why this test is important:
       - A consumer naturally passes its settings' ``env_prefix`` ("MYAPP_") to initialize_config. Joining
@@ -367,12 +374,16 @@ def test_initialize_config_prefix_round_trips_into_a_prefixed_settings_class(
     from techai_webutils.foundation.config.settings import DatabaseSettings
 
     class _AppSettings(DatabaseSettings):
-        model_config = SettingsConfigDict(env_prefix="MYAPP_", frozen=True, extra="ignore")
+        model_config = SettingsConfigDict(
+            env_prefix="MYAPP_", frozen=True, extra="ignore"
+        )
 
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     with TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / "base.yaml").write_text("database:\n  host: yaml-db\n  port: 6543\n")
+        (Path(tmpdir) / "base.yaml").write_text(
+            "database:\n  host: yaml-db\n  port: 6543\n"
+        )
 
         initialize_config(tmpdir, env_prefix=prefix)
 
@@ -402,7 +413,9 @@ def test_initialize_config_rejects_a_second_call_with_different_arguments() -> N
         initialize_config(tmpdir, env_prefix="MYAPP")
 
         initialize_config(tmpdir, env_prefix="MYAPP")  # same arguments: no-op
-        initialize_config(tmpdir, env_prefix="MYAPP_")  # same prefix, other spelling: no-op
+        initialize_config(
+            tmpdir, env_prefix="MYAPP_"
+        )  # same prefix, other spelling: no-op
         with pytest.raises(ValueError, match="env_prefix"):
             initialize_config(tmpdir, env_prefix="OTHER")
         with pytest.raises(ValueError, match="config_dir"):
@@ -430,7 +443,10 @@ def test_initialize_config_defaults_export_unprefixed_names_from_the_app_env_ove
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("ENVIRONMENT", "prod")
     with TemporaryDirectory() as tmpdir:
-        _write_widget_config(tmpdir, {"staging": "kebridge:\n  size: 7\n", "prod": "kebridge:\n  size: 9\n"})
+        _write_widget_config(
+            tmpdir,
+            {"staging": "kebridge:\n  size: 7\n", "prod": "kebridge:\n  size: 9\n"},
+        )
         try:
             initialize_config(tmpdir)
 
@@ -466,7 +482,9 @@ def test_initialize_config_falls_back_to_environment_then_dev(
     else:
         monkeypatch.setenv("ENVIRONMENT", environment)
     with TemporaryDirectory() as tmpdir:
-        _write_widget_config(tmpdir, {"prod": "kebridge:\n  size: 9\n", "dev": "kebridge:\n  size: 5\n"})
+        _write_widget_config(
+            tmpdir, {"prod": "kebridge:\n  size: 9\n", "dev": "kebridge:\n  size: 5\n"}
+        )
         try:
             initialize_config(tmpdir, env_prefix="MYAPP")
 
@@ -504,7 +522,8 @@ def test_initialize_config_logs_the_selected_overlay_and_warns_when_it_is_missin
 
             warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
             assert any(
-                "production.yaml" in r.getMessage() and "ENVIRONMENT" in r.getMessage() for r in warnings
+                "production.yaml" in r.getMessage() and "ENVIRONMENT" in r.getMessage()
+                for r in warnings
             )
             assert os.environ.get("MYAPP_KEBRIDGE_SIZE") == "3"
         finally:
@@ -512,7 +531,9 @@ def test_initialize_config_logs_the_selected_overlay_and_warns_when_it_is_missin
                 os.environ.pop(key, None)
 
 
-def test_initialize_config_strict_raises_on_malformed_yaml_instead_of_continuing() -> None:
+def test_initialize_config_strict_raises_on_malformed_yaml_instead_of_continuing() -> (
+    None
+):
     """strict=True turns an unreadable config into a startup error; the default still degrades to a warning.
 
     Why this test is important:

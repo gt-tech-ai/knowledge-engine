@@ -1,5 +1,7 @@
 """Tests for resilience interface ABCs."""
 
+import pytest
+
 from techai_webutils.core.interfaces.bulkhead import Bulkhead
 from techai_webutils.core.interfaces.byte_cache import ByteCache
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
@@ -8,10 +10,11 @@ from techai_webutils.core.interfaces.crud_service import CrudService, ServiceHoo
 from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.core.interfaces.retrier import Retrier
 from techai_webutils.core.interfaces.store import Store
-import pytest
 
 
 class TestResilienceABCs:
+    """Tests for the resilience ABCs."""
+
     def test_cannot_instantiate_circuit_breaker(self) -> None:
         """Test that CircuitBreakerInterface cannot be instantiated without its methods.
 
@@ -77,6 +80,8 @@ class TestResilienceABCs:
 
 
 class TestOtherABCs:
+    """Tests for the remaining interface ABCs."""
+
     def test_cannot_instantiate_byte_cache(self) -> None:
         """Test that the ByteCache ABC cannot be instantiated without get/set/delete.
 

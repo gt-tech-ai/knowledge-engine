@@ -6,13 +6,16 @@ Useful when caching is disabled or in testing scenarios.
 
 from __future__ import annotations
 
+from typing import override
+
 from techai_webutils.core.interfaces.cache import Cache
 
 
 class NullCache(Cache):
     """No-op cache that never stores anything."""
 
-    async def get(self, key: str) -> bytes | None:  # noqa: ARG002
+    @override
+    async def get(self, key: str) -> bytes | None:
         """Return None (cache miss) for every key."""
         return None
 
@@ -22,6 +25,7 @@ class NullCache(Cache):
     async def delete(self, key: str) -> None:
         """No-op."""
 
-    async def exists(self, key: str) -> bool:  # noqa: ARG002
+    @override
+    async def exists(self, key: str) -> bool:
         """Return False (key never exists) for every key."""
         return False

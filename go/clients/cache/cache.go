@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cache/redis"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
@@ -88,8 +88,8 @@ func NewFromConfig(cfg *Config) (interfaces.ByteCache, error) {
 		return redis.New(&redisCfg), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown cache kind: %v", cfg.Kind),
 		)
 	}

@@ -6,18 +6,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/validator"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
 
-// nameRequired is the shared business rule used by the validation-decorator tests: an entity's
-// Name must be non-empty, and a violation is a coded invalid-input error (ARCHITECTURE.md#error-codes).
+// nameRequired is the shared business rule used by the validation-decorator tests: an
+// entity's Name must be non-empty, and a violation is a coded invalid-input error
+// (ARCHITECTURE.md#error-codes).
 func nameRequired(e *fixtures.TestEntity) error {
 	if e.Name == "" {
-		return coreerrors.New(coreerrors.CodeInvalidInput, "name is required")
+		return apperr.New(apperr.CodeInvalidInput, "name is required")
 	}
 	return nil
 }
@@ -51,7 +52,7 @@ func TestServiceDecorator_WithValidation_RejectsInvalidAndShortCircuits(t *testi
 	require.Error(t, err)
 	require.True(
 		t,
-		coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"rejection must carry CodeInvalidInput",
 	)
 
@@ -65,17 +66,17 @@ func TestServiceDecorator_WithValidation_RejectsInvalidAndShortCircuits(t *testi
 }
 
 // TestServiceDecorator_WithValidation_ValidatesUpdateAndPassesReadsThrough tests that the
-// validation decorator also guards Update while letting entity-less operations (Get, List,
-// Delete) pass straight through unvalidated.
+// validation decorator also guards Update while letting entity-less operations (Get,
+// List, Delete) pass straight through unvalidated.
 //
 // Why this test is important:
-//   - Update carries an entity and must be validated exactly like Create; conversely, reads and
-//     deletes carry no entity, so forcing them through validation would be wrong (and could reject
-//     a legitimate read). Both behaviors must hold.
+//   - Update carries an entity and must be validated exactly like Create; conversely,
+//     reads and deletes carry no entity, so forcing them through validation would be
+//     wrong (and could reject a legitimate read). Both behaviors must hold.
 //
 // What it tests:
-//   - An invalid Update short-circuits with the rule's coded error and a valid Update succeeds;
-//     Get, List, and Delete all pass through without invoking the rule.
+//   - An invalid Update short-circuits with the rule's coded error and a valid Update
+//     succeeds; Get, List, and Delete all pass through without invoking the rule.
 func TestServiceDecorator_WithValidation_ValidatesUpdateAndPassesReadsThrough(
 	t *testing.T,
 ) {
@@ -86,11 +87,12 @@ func TestServiceDecorator_WithValidation_ValidatesUpdateAndPassesReadsThrough(
 	).WithValidation(validator.New(nameRequired).Validate).Build()
 	ctx := context.Background()
 
-	// Update is validated: invalid short-circuits, valid passes through to the inner service.
+	// Update is validated: invalid short-circuits, valid passes through to the inner
+	// service.
 	_, err := svc.Update(ctx, "1", &fixtures.TestEntity{ID: "1", Name: ""})
 	require.True(
 		t,
-		coreerrors.Is(err, coreerrors.CodeInvalidInput),
+		apperr.Is(err, apperr.CodeInvalidInput),
 		"invalid Update is rejected",
 	)
 	out, err := svc.Update(ctx, "1", &fixtures.TestEntity{ID: "1", Name: "ok"})

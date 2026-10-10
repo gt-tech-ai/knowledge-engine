@@ -5,7 +5,8 @@ import (
 	"net"
 
 	"github.com/gocql/gocql"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // BatchKind selects how a batch is applied.
@@ -85,7 +86,10 @@ type gocqlSession struct {
 
 // Query prepares stmt.
 func (s *gocqlSession) Query(stmt string, values ...any) Query {
-	return &gocqlQuery{query: s.session.Query(stmt, values...), speculative: s.speculative}
+	return &gocqlQuery{
+		query:       s.session.Query(stmt, values...),
+		speculative: s.speculative,
+	}
 }
 
 // Batch starts a batch of the given kind.
@@ -101,7 +105,10 @@ func (s *gocqlSession) Batch(kind BatchKind) Batch {
 func (s *gocqlSession) ExecuteBatch(b Batch) error {
 	gb, ok := b.(*gocqlBatch)
 	if !ok {
-		return coreerr.New(coreerr.CodeInvalidInput, "cassandra: batch was not built by this session")
+		return apperr.New(
+			apperr.CodeInvalidInput,
+			"cassandra: batch was not built by this session",
+		)
 	}
 	return codeError(s.session.ExecuteBatch(gb.batch), "cassandra: execute batch")
 }
@@ -194,32 +201,38 @@ func codeError(err error, msg string) error {
 	var reqErr gocql.RequestError
 	var netErr net.Error
 	switch {
-	case coreerr.StdIs(err, context.DeadlineExceeded), coreerr.StdIs(err, gocql.ErrTimeoutNoResponse):
-		return coreerr.Wrap(err, coreerr.CodeTimeout, msg)
-	case coreerr.StdIs(err, context.Canceled):
-		return coreerr.Wrap(err, coreerr.CodeCanceled, msg)
-	case coreerr.StdIs(err, gocql.ErrNoConnections), coreerr.StdIs(err, gocql.ErrConnectionClosed),
-		coreerr.StdIs(err, gocql.ErrSessionClosed), coreerr.As(err, &netErr):
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, msg)
-	case coreerr.As(err, &reqErr):
-		return coreerr.Wrap(err, requestErrorCode(reqErr.Code()), msg)
+	case apperr.StdIs(err, context.DeadlineExceeded),
+		apperr.StdIs(err, gocql.ErrTimeoutNoResponse):
+		return apperr.Wrap(err, apperr.CodeTimeout, msg)
+	case apperr.StdIs(err, context.Canceled):
+		return apperr.Wrap(err, apperr.CodeCanceled, msg)
+	case apperr.StdIs(err, gocql.ErrNoConnections),
+		apperr.StdIs(err, gocql.ErrConnectionClosed),
+		apperr.StdIs(err, gocql.ErrSessionClosed),
+		apperr.As(err, &netErr):
+		return apperr.Wrap(err, apperr.CodeUnavailable, msg)
+	case apperr.As(err, &reqErr):
+		return apperr.Wrap(err, requestErrorCode(reqErr.Code()), msg)
 	default:
-		return coreerr.Wrap(err, coreerr.CodeInternal, msg)
+		return apperr.Wrap(err, apperr.CodeInternal, msg)
 	}
 }
 
 // requestErrorCode maps a Cassandra protocol error code to an ErrorCode.
-func requestErrorCode(code int) coreerr.ErrorCode {
+func requestErrorCode(code int) apperr.ErrorCode {
 	switch code {
 	case gocql.ErrCodeUnavailable, gocql.ErrCodeOverloaded, gocql.ErrCodeBootstrapping:
-		return coreerr.CodeUnavailable
+		return apperr.CodeUnavailable
 	case gocql.ErrCodeWriteTimeout, gocql.ErrCodeReadTimeout:
-		return coreerr.CodeTimeout
-	case gocql.ErrCodeSyntax, gocql.ErrCodeInvalid, gocql.ErrCodeUnprepared, gocql.ErrCodeConfig:
-		return coreerr.CodeInvalidInput
+		return apperr.CodeTimeout
+	case gocql.ErrCodeSyntax,
+		gocql.ErrCodeInvalid,
+		gocql.ErrCodeUnprepared,
+		gocql.ErrCodeConfig:
+		return apperr.CodeInvalidInput
 	case gocql.ErrCodeCredentials, gocql.ErrCodeUnauthorized:
-		return coreerr.CodeForbidden
+		return apperr.CodeForbidden
 	default:
-		return coreerr.CodeInternal
+		return apperr.CodeInternal
 	}
 }

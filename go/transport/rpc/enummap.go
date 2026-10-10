@@ -3,7 +3,7 @@ package rpc
 import (
 	"fmt"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // EnumMapper bidirectionally maps a proto enum P to a domain enum D from a single
@@ -89,7 +89,7 @@ func (m EnumMapper[P, D]) ToDomainOrError(p P) (D, error) {
 	if d, ok := m.ToDomainOK(p); ok {
 		return d, nil
 	}
-	return m.domainZero, errors.InvalidInput(fmt.Sprintf("unknown %s: %v", m.label, p))
+	return m.domainZero, apperr.InvalidInput(fmt.Sprintf("unknown %s: %v", m.label, p))
 }
 
 // ToProtoValue returns the mapped proto value, or protoZero for a domain value

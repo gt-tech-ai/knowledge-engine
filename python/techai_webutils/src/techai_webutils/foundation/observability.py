@@ -64,4 +64,6 @@ def setup_observability(
         endpoint = endpoint.split("://", 1)[1].rstrip("/")
     # configure_tracer installs the global tracer provider; spans created by the
     # HTTP/gRPC middleware are exported to the OTLP collector and correlated into logs.
-    _ = configure_tracer(service_name, otlp_endpoint=endpoint, insecure=True, sample_rate=trace_sample_rate)
+    _ = configure_tracer(
+        service_name, otlp_endpoint=endpoint, insecure=True, sample_rate=trace_sample_rate
+    )

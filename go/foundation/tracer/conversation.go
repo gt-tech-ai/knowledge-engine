@@ -34,9 +34,6 @@ const (
 // no PII-shaped characters (an e-mail or free text never reaches a span).
 var conversationIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
-// traceContext renders and parses W3C traceparent values.
-var traceContext = propagation.TraceContext{}
-
 // Conversation identifies the conversation turn a request belongs to.
 type Conversation struct {
 	// ID is the opaque conversation id (^[A-Za-z0-9_-]{1,64}$).
@@ -50,7 +47,10 @@ type Conversation struct {
 // ParseTraceparent returns the span context a W3C traceparent encodes, and
 // false when the value is malformed.
 func ParseTraceparent(s string) (trace.SpanContext, bool) {
-	ctx := traceContext.Extract(context.Background(), propagation.MapCarrier{"traceparent": s})
+	ctx := propagation.TraceContext{}.Extract(
+		context.Background(),
+		propagation.MapCarrier{"traceparent": s},
+	)
 	sc := trace.SpanContextFromContext(ctx)
 	return sc, sc.IsValid()
 }
@@ -69,7 +69,10 @@ func InjectConversation(ctx context.Context, c Conversation) context.Context {
 	}
 	if c.Prev.IsValid() {
 		carrier := propagation.MapCarrier{}
-		traceContext.Inject(trace.ContextWithRemoteSpanContext(context.Background(), c.Prev), carrier)
+		propagation.TraceContext{}.Inject(
+			trace.ContextWithRemoteSpanContext(context.Background(), c.Prev),
+			carrier,
+		)
 		values[BaggagePrevTraceparent] = carrier.Get("traceparent")
 	}
 	bag := baggage.FromContext(ctx)

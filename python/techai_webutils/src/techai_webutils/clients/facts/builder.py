@@ -68,9 +68,14 @@ def new_fact_publisher_from_config(
         return StubFactPublisher()
     if config.kind == FactPublisherKind.MESSAGING:
         if publisher is None:
-            raise AppError(ErrorCode.INVALID_INPUT, "messaging fact publisher requires a MessagePublisher")
+            raise AppError(
+                ErrorCode.INVALID_INPUT,
+                "messaging fact publisher requires a MessagePublisher",
+            )
         if not config.queue:
-            raise AppError(ErrorCode.INVALID_INPUT, "messaging fact publisher requires a queue")
+            raise AppError(
+                ErrorCode.INVALID_INPUT, "messaging fact publisher requires a queue"
+            )
         from techai_webutils.clients.facts.messaging import MessagingFactPublisher  # noqa: PLC0415
 
         return MessagingFactPublisher(
@@ -81,4 +86,6 @@ def new_fact_publisher_from_config(
             drain_timeout_s=config.drain_timeout_s,
             metrics=metrics,
         )
-    raise AppError(ErrorCode.INVALID_INPUT, f"unknown fact publisher kind: {config.kind!r}")
+    raise AppError(
+        ErrorCode.INVALID_INPUT, f"unknown fact publisher kind: {config.kind!r}"
+    )

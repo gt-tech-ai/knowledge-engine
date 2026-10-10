@@ -10,8 +10,8 @@ import (
 // compile-time assertion that *timeoutDecorator satisfies the seam.
 var _ interfaces.ReplayBuffer = (*timeoutDecorator)(nil)
 
-// timeoutDecorator enforces a per-operation deadline by bounding the context, so a wedged Redis
-// cannot stall the caller — critical on the write pump's hot Append path. It is the
+// timeoutDecorator enforces a per-operation deadline by bounding the context, so a wedged
+// Redis cannot stall the caller — critical on the write pump's hot Append path. It is the
 // innermost decorator, nesting closest to the backend.
 type timeoutDecorator struct {
 	// inner is the next buffer in the decorator chain.

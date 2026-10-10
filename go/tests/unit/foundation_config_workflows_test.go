@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	workflowscfg "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/workflows"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -52,7 +52,9 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "2s"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).DoAndReturn(setTimeout(2 * time.Second))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			DoAndReturn(setTimeout(2 * time.Second))
 
 		cfg, err := workflowscfg.Load(loader)
 
@@ -64,24 +66,28 @@ func TestLoadWorkflowConfig_DefaultsWhenAbsentAndRejectsInvalid(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "-1s"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).DoAndReturn(setTimeout(-time.Second))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			DoAndReturn(setTimeout(-time.Second))
 
 		_, err := workflowscfg.Load(loader)
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 	})
 
 	t.Run("unmarshal failure", func(t *testing.T) {
 		t.Parallel()
 		loader := mocks.NewMockConfigLoader(gomock.NewController(t))
 		loader.EXPECT().Get("workflows").Return(map[string]any{"timeout": "soon"})
-		loader.EXPECT().UnmarshalKey("workflows", gomock.Any()).Return(coreerr.Sentinel("bad duration"))
+		loader.EXPECT().
+			UnmarshalKey("workflows", gomock.Any()).
+			Return(apperr.Sentinel("bad duration"))
 
 		_, err := workflowscfg.Load(loader)
 
 		require.Error(t, err)
-		assert.Equal(t, coreerr.CodeInvalidInput, coreerr.Code(err))
+		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 		assert.Contains(t, err.Error(), "load workflows config")
 	})
 }

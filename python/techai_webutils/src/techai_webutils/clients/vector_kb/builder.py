@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.knowledge_base import KnowledgeBase
 
@@ -44,8 +46,8 @@ class KnowledgeBaseConfig:
 def new_knowledge_base_from_config(config: KnowledgeBaseConfig) -> KnowledgeBase:
     """Build the ``KnowledgeBase`` selected by ``config.kind`` (heavy backends imported lazily)."""
     if config.kind is KnowledgeBaseKind.VECTOR:
-        from techai_webutils.clients.vector_kb.vector import VectorKnowledgeBase  # noqa: PLC0415
         from techai_webutils.clients.vector.composition import build_embedder_and_store  # noqa: PLC0415
+        from techai_webutils.clients.vector_kb.vector import VectorKnowledgeBase  # noqa: PLC0415
 
         embedder, store = build_embedder_and_store(
             embedding_host=config.embedding_host,
@@ -56,4 +58,4 @@ def new_knowledge_base_from_config(config: KnowledgeBaseConfig) -> KnowledgeBase
         )
         return VectorKnowledgeBase(embedder, store, config.collection)
     msg = f"unknown knowledge base kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

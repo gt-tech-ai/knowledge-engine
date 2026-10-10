@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Self
 import uuid
+from typing import TYPE_CHECKING, Self
 
-import aiobotocore.session  # type: ignore[import-untyped]
+import aiobotocore.session
+
+from techai_webutils.core.errors import AppRuntimeError
 from techai_webutils.core.interfaces.messaging import MessagePublisher
 
 if TYPE_CHECKING:
     from types import TracebackType
+
+    from aiobotocore.session import AioSession
+    from types_aiobotocore_sqs import SQSClient
+    from types_aiobotocore_sqs.type_defs import SendMessageBatchRequestEntryTypeDef
 
     from techai_webutils.clients.messaging.config import SQSConfig
 
@@ -27,13 +33,13 @@ class SQSPublisher(MessagePublisher):
     def __init__(self, config: SQSConfig) -> None:
         """Store the SQS connection config; the client is created on context entry."""
         self._config = config
-        self._client: object | None = None
-        self._session: object | None = None
+        self._client: SQSClient | None = None
+        self._session: AioSession | None = None
 
     async def __aenter__(self) -> Self:
         """Open the underlying aiobotocore SQS client and return self."""
         self._session = aiobotocore.session.get_session()
-        self._client = await self._session.create_client(  # type: ignore[union-attr]
+        self._client = await self._session.create_client(
             "sqs",
             **self._config.client_kwargs(),
         ).__aenter__()
@@ -47,14 +53,14 @@ class SQSPublisher(MessagePublisher):
     ) -> None:
         """Close the underlying aiobotocore SQS client on context exit."""
         if self._client is not None:
-            await self._client.__aexit__(exc_type, exc_val, exc_tb)  # type: ignore[union-attr]
+            await self._client.__aexit__(exc_type, exc_val, exc_tb)
 
     async def publish(self, topic: str, payload: bytes) -> None:
         """Send a message to the configured SQS queue."""
         if self._client is None:
             msg = "SQSPublisher not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        await self._client.send_message(  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        await self._client.send_message(
             QueueUrl=self._config.queue_url,
             MessageBody=payload.decode("utf-8"),
             MessageAttributes={
@@ -66,8 +72,8 @@ class SQSPublisher(MessagePublisher):
         """Send multiple messages to the configured SQS queue."""
         if self._client is None:
             msg = "SQSPublisher not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        entries = [
+            raise AppRuntimeError(msg)
+        entries: list[SendMessageBatchRequestEntryTypeDef] = [
             {
                 "Id": str(uuid.uuid4()),
                 "MessageBody": p.decode("utf-8"),
@@ -82,7 +88,7 @@ class SQSPublisher(MessagePublisher):
         # costs one round-trip, not ceil(N/10).
         await asyncio.gather(
             *(
-                self._client.send_message_batch(  # type: ignore[union-attr]
+                self._client.send_message_batch(
                     QueueUrl=self._config.queue_url,
                     Entries=entries[i : i + 10],
                 )

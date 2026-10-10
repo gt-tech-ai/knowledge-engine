@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -92,9 +92,13 @@ func (m *metricsJob) Execute(
 	case results.HasFailures():
 		outcome = "failed"
 	}
-	m.metrics.Counter("execution_job_runs_total", "Job runs by name and outcome", "job", "outcome").
+	m.metrics.Counter(
+		"execution_job_runs_total", "Job runs by name and outcome", "job", "outcome",
+	).
 		Add(1, meta.Name, outcome)
-	m.metrics.Histogram("execution_job_duration_seconds", "Job duration in seconds", nil, "job").
+	m.metrics.Histogram(
+		"execution_job_duration_seconds", "Job duration in seconds", nil, "job",
+	).
 		Observe(elapsed.Seconds(), meta.Name)
 	return results, err
 }
@@ -157,8 +161,8 @@ func (r *recoveryJob) Execute(
 				r.logger.WithContext(ctx).
 					Error("job panic recovered", "name", meta.Name, "panic", rec)
 			}
-			err = coreerr.New(
-				coreerr.CodeInternal,
+			err = apperr.New(
+				apperr.CodeInternal,
 				fmt.Sprintf("job %q panicked: %v", meta.Name, rec),
 			)
 			results = types.StepResults{{

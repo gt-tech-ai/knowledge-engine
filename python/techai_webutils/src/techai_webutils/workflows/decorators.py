@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from techai_webutils.core.interfaces.workflow import AsyncWorkflow, Workflow
 from techai_webutils.foundation.decorator import (
@@ -27,16 +27,15 @@ from techai_webutils.foundation.decorator import (
     AsyncTracingDecoratorBase,
     LoggingDecoratorBase,
     MetricsDecoratorBase,
-    RecoveryDecoratorBase,
-    TimeoutDecoratorBase,
 )
 from techai_webutils.workflows.base import BaseWorkflow
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
-    from techai_webutils.core.interfaces.logger import Logger
-    from techai_webutils.core.interfaces.tracer import TracerProvider
     from collections.abc import Coroutine
+
+    from techai_webutils.core.interfaces.logger import Logger
+    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
+    from techai_webutils.core.interfaces.tracer import TracerProvider
 
 
 def _run_sync[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -86,7 +85,7 @@ class _AsyncWorkflowWrapper[In, Out](AsyncWorkflow[In, Out]):
         # If the sync workflow is actually BaseWorkflow (async-first design),
         # use its internal async implementation directly
         if isinstance(sync_workflow, BaseWorkflow):
-            self._async_workflow = sync_workflow._async  # noqa: SLF001
+            self._async_workflow = sync_workflow.async_workflow
             self._sync_workflow = None
         else:
             # For other sync workflows, we need to wrap them
@@ -101,7 +100,9 @@ class _AsyncWorkflowWrapper[In, Out](AsyncWorkflow[In, Out]):
         if self._sync_workflow is not None:
             # Run sync code in thread pool to avoid blocking event loop
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._sync_workflow.execute, input_data)
+            return await loop.run_in_executor(
+                None, self._sync_workflow.execute, input_data
+            )
         # This should never happen - one of the workflows must be set
         msg = "Internal error: both async and sync workflows are None"
         raise RuntimeError(msg)
@@ -128,18 +129,6 @@ class MetricsWorkflowDecorator[In, Out](MetricsDecoratorBase[In, Out], Workflow[
     ) -> None:
         """Wrap inner with duration histogram and optional execution/error counters."""
         super().__init__(inner, name, histogram, executions, errors)
-
-
-class _TimeoutWorkflowDecorator[In, Out](TimeoutDecoratorBase[In, Out], Workflow[In, Out]):
-    """Workflow decorator that enforces a timeout on synchronous execution."""
-
-    def __init__(self, inner: Workflow[In, Out], timeout: float) -> None:
-        """Wrap inner with a "workflow"-labelled timeout."""
-        super().__init__(inner, timeout, noun="workflow")
-
-
-class _RecoveryWorkflowDecorator[In, Out](RecoveryDecoratorBase[In, Out], Workflow[In, Out]):
-    """Workflow decorator that normalizes unexpected exceptions to InternalError."""
 
 
 class WorkflowBuilder[In, Out]:
@@ -217,15 +206,21 @@ class WorkflowBuilder[In, Out]:
 # ---------------------------------------------------------------------------
 
 
-class LoggingAsyncWorkflowDecorator[In, Out](AsyncLoggingDecoratorBase[In, Out], AsyncWorkflow[In, Out]):
+class LoggingAsyncWorkflowDecorator[In, Out](
+    AsyncLoggingDecoratorBase[In, Out], AsyncWorkflow[In, Out]
+):
     """Async workflow decorator that logs execution start, duration, and errors."""
 
     def __init__(self, inner: AsyncWorkflow[In, Out], name: str, logger: Logger) -> None:
         """Wrap inner with "async_workflow"-labelled logging."""
-        super().__init__(inner, name, logger, msg_prefix="async_workflow", field_key="workflow")
+        super().__init__(
+            inner, name, logger, msg_prefix="async_workflow", field_key="workflow"
+        )
 
 
-class MetricsAsyncWorkflowDecorator[In, Out](AsyncMetricsDecoratorBase[In, Out], AsyncWorkflow[In, Out]):
+class MetricsAsyncWorkflowDecorator[In, Out](
+    AsyncMetricsDecoratorBase[In, Out], AsyncWorkflow[In, Out]
+):
     """Async workflow decorator that records execution count, error count, and duration."""
 
     def __init__(
@@ -240,7 +235,9 @@ class MetricsAsyncWorkflowDecorator[In, Out](AsyncMetricsDecoratorBase[In, Out],
         super().__init__(inner, name, histogram, executions, errors)
 
 
-class _TimeoutAsyncWorkflowDecorator[In, Out](AsyncTimeoutDecoratorBase[In, Out], AsyncWorkflow[In, Out]):
+class _TimeoutAsyncWorkflowDecorator[In, Out](
+    AsyncTimeoutDecoratorBase[In, Out], AsyncWorkflow[In, Out]
+):
     """Async workflow decorator that enforces a timeout."""
 
     def __init__(self, inner: AsyncWorkflow[In, Out], timeout: float) -> None:
@@ -248,20 +245,28 @@ class _TimeoutAsyncWorkflowDecorator[In, Out](AsyncTimeoutDecoratorBase[In, Out]
         super().__init__(inner, timeout, noun="async workflow")
 
 
-class _RecoveryAsyncWorkflowDecorator[In, Out](AsyncRecoveryDecoratorBase[In, Out], AsyncWorkflow[In, Out]):
+class _RecoveryAsyncWorkflowDecorator[In, Out](
+    AsyncRecoveryDecoratorBase[In, Out], AsyncWorkflow[In, Out]
+):
     """Async workflow decorator that normalizes unexpected exceptions."""
 
 
-class _TracingAsyncWorkflowDecorator[In, Out](AsyncTracingDecoratorBase[In, Out], AsyncWorkflow[In, Out]):
+class _TracingAsyncWorkflowDecorator[In, Out](
+    AsyncTracingDecoratorBase[In, Out], AsyncWorkflow[In, Out]
+):
     """Async workflow decorator that runs execution inside a span.
 
     The workflow span parents the per-step pipeline spans, so one trace shows the whole call stack
     (RPC span → workflow span → pipeline-step spans → leaf client spans) with no gap.
     """
 
-    def __init__(self, inner: AsyncWorkflow[In, Out], name: str, tracer: TracerProvider) -> None:
+    def __init__(
+        self, inner: AsyncWorkflow[In, Out], name: str, tracer: TracerProvider
+    ) -> None:
         """Wrap inner with a "workflow"-labelled tracing span."""
-        super().__init__(inner, name, tracer, span_prefix="workflow", field_key="workflow")
+        super().__init__(
+            inner, name, tracer, span_prefix="workflow", field_key="workflow"
+        )
 
 
 class AsyncWorkflowBuilder[In, Out]:

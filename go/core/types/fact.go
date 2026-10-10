@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // FactSchemaVersion is the analytics-fact wire version; a consumer rejects a
@@ -27,7 +27,8 @@ type Fact struct {
 	Cube string
 	// OrgID is the organization the fact is partitioned under.
 	OrgID string
-	// IdempotencyKey is unique per observation; a redelivery overwrites, never double-counts.
+	// IdempotencyKey is unique per observation; a redelivery overwrites, never
+	// double-counts.
 	IdempotencyKey string
 	// Schema is the wire version (FactSchemaVersion).
 	Schema int
@@ -73,7 +74,7 @@ func (f Fact) MarshalJSON() ([]byte, error) {
 		"ts":              f.TS.UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "fact: encode")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "fact: encode")
 	}
 	return out, nil
 }
@@ -83,14 +84,17 @@ func (f Fact) MarshalJSON() ([]byte, error) {
 func (f *Fact) UnmarshalJSON(b []byte) error {
 	var w factWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "fact: decode")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "fact: decode")
 	}
 	if w.Schema != FactSchemaVersion {
-		return errors.New(errors.CodeInvalidInput, "fact: unknown schema version "+strconv.Itoa(w.Schema))
+		return apperr.New(
+			apperr.CodeInvalidInput,
+			"fact: unknown schema version "+strconv.Itoa(w.Schema),
+		)
 	}
 	ts, err := time.Parse(time.RFC3339Nano, w.TS)
 	if err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "fact: invalid ts")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "fact: invalid ts")
 	}
 	*f = Fact{
 		TS:             ts,

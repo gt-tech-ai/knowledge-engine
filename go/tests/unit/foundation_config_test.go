@@ -337,10 +337,12 @@ app:
 // Why this test is important:
 //   - Services depend on interfaces.ConfigLoader, not the concrete Viper implementation
 //   - The mock must implement every method so tests can inject controlled config values
-//   - If the mock diverges from the interface contract, service unit tests will fail to compile
+//   - If the mock diverges from the interface contract, service unit tests will fail to
+//     compile
 //
 // What it tests:
-//   - MockConfigLoader assigned to interfaces.ConfigLoader variable compiles (interface satisfaction)
+//   - MockConfigLoader assigned to interfaces.ConfigLoader variable compiles (interface
+//     satisfaction)
 //   - GetString, GetInt, GetBool, Get methods delegate to mock expectations correctly
 func TestConfig_MockAsConsumerDependency(t *testing.T) {
 	t.Parallel()
@@ -360,7 +362,8 @@ func TestConfig_MockAsConsumerDependency(t *testing.T) {
 	assert.Equal(t, "test-service", cfg.Get("app.name"))
 }
 
-// TestConfig_UnmarshalKey tests that UnmarshalKey decodes a specific config section into a struct.
+// TestConfig_UnmarshalKey tests that UnmarshalKey decodes a specific config section into
+// a struct.
 //
 // Why this test is important:
 //   - Services use UnmarshalKey to extract per-component config sections
@@ -435,7 +438,12 @@ messaging:
 
 	var sqsCfg infra.SQSConfig
 	require.NoError(t, cfg.UnmarshalKey("messaging.sqs", &sqsCfg), "UnmarshalKey")
-	assert.Equal(t, "eu-west-1", sqsCfg.Region, "MYAPP_MESSAGING_SQS_REGION must bind the absent key")
+	assert.Equal(
+		t,
+		"eu-west-1",
+		sqsCfg.Region,
+		"MYAPP_MESSAGING_SQS_REGION must bind the absent key",
+	)
 	assert.Equal(t, "https://sqs.eu-west-1.amazonaws.example", sqsCfg.Endpoint,
 		"SQS_ENDPOINT must override the YAML")
 }
@@ -445,7 +453,8 @@ messaging:
 //
 // Why this test is important:
 //   - ServerConfig uses time.Duration for read/write timeouts
-//   - Without StringToTimeDurationHookFunc, "30s" would fail to parse or produce zero value
+//   - Without StringToTimeDurationHookFunc, "30s" would fail to parse or produce zero
+//     value
 //   - Silent zero-value timeouts would cause immediate connection failures
 //
 // What it tests:
@@ -611,7 +620,12 @@ func TestConfigBuilder_WithOptions(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		"a.key": {"A_KEY"}, "b.key": {"B_KEY"}, "shared": {"NEW"},
 	}, cfg.Viper.ExtraEnv, "WithExtraEnv calls must merge")
-	assert.Equal(t, []string{"OLD"}, first["shared"], "the caller's map must not be modified")
+	assert.Equal(
+		t,
+		[]string{"OLD"},
+		first["shared"],
+		"the caller's map must not be modified",
+	)
 }
 
 // TestConfig_EnvOverlayMergeError tests that the loader returns an error when
@@ -764,12 +778,22 @@ func TestConfig_DefaultEnvSelectors(t *testing.T) {
 
 	t.Setenv("ENVIRONMENT", "")
 	t.Setenv("MYAPP_ENV", "staging")
-	assert.Equal(t, "base", tier(), "a variable outside the default selectors must not select an overlay")
+	assert.Equal(
+		t,
+		"base",
+		tier(),
+		"a variable outside the default selectors must not select an overlay",
+	)
 
 	cfg, err := config.New(config.KindViper, config.WithBaseDir(dir),
 		config.WithEnvSelectors("MYAPP_ENV", "APP_ENV"))
 	require.NoError(t, err, "New")
-	assert.Equal(t, "staging", cfg.GetString("tier"), "WithEnvSelectors must pick the consumer's selector")
+	assert.Equal(
+		t,
+		"staging",
+		cfg.GetString("tier"),
+		"WithEnvSelectors must pick the consumer's selector",
+	)
 }
 
 // TestConfig_OverlayDeepMergesQueuesMap tests that an env overlay overriding a
@@ -822,20 +846,21 @@ messaging:
 	)
 }
 
-// consumerRoot is a consumer-owned config root, standing in for an application's own schema.
+// consumerRoot is a consumer-owned config root, standing in for an application's own
+// schema.
 type consumerRoot struct {
 	Widget struct {
 		Size int `mapstructure:"size" envalias:"WIDGET_SIZE"`
 	} `mapstructure:"widget"`
 }
 
-// TestConfig_ConsumerSchemaAndExtraEnv tests that a consumer can bring its own config root
-// and its own extra env bindings.
+// TestConfig_ConsumerSchemaAndExtraEnv tests that a consumer can bring its own config
+// root and its own extra env bindings.
 //
 // Why this test is important:
 //   - A library loader must not force its own sections or env names on a consumer: the
-//     consumer's struct decides which env aliases exist, and keys outside any struct still
-//     need an env override.
+//     consumer's struct decides which env aliases exist, and keys outside any struct
+//     still need an env override.
 //
 // What it tests:
 //   - With WithSchema, the consumer's envalias (WIDGET_SIZE) binds and unmarshals.

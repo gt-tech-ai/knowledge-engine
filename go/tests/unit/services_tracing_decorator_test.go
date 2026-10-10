@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/service/decorators"
@@ -16,7 +16,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-var errTracingBoom = errors.New("tracing boom")
+var errTracingBoom = apperr.Sentinel("tracing boom")
 
 // errServiceMock returns a Service mock whose every CRUD operation fails with
 // errTracingBoom, driving the tracing decorator's error-recording branch

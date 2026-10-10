@@ -15,18 +15,19 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// SecretsManagerAPI is the subset of the aws-sdk-go-v2 Secrets Manager client used by
-// the source. It is an exported, injectable seam so unit tests drive it with a generated
-// mock without network access, mirroring the S3 client's S3API seam. *secretsmanager.Client
+// SecretsManagerAPI is the subset of the aws-sdk-go-v2 Secrets Manager client used by the
+// source. It is an exported, injectable seam so unit tests drive it with a generated mock
+// without network access, mirroring the S3 client's S3API seam. *secretsmanager.Client
 // satisfies it. The name is distinct (not a bare API) so its generated mock does not
 // collide with the SQS client's API seam in the shared mocks package.
 //
-// SDK seam — mocks the AWS Secrets Manager SDK client (aws-sdk-go-v2/service/secretsmanager), cannot compose with a core port.
+// SDK seam — mocks the AWS Secrets Manager SDK client
+// (aws-sdk-go-v2/service/secretsmanager), cannot compose with a core port.
 type SecretsManagerAPI interface {
 	// GetSecretValue retrieves a secret's value (the SecretString JSON blob).
 	GetSecretValue(
@@ -70,7 +71,11 @@ func NewClient(
 ) (interfaces.Source, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "loading aws config for secrets manager")
+		return nil, apperr.Wrap(
+			err,
+			apperr.CodeInternal,
+			"loading aws config for secrets manager",
+		)
 	}
 	return New(secretsmanager.NewFromConfig(awsCfg), locs), nil
 }
@@ -82,7 +87,7 @@ func NewClient(
 func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 	loc, ok := s.locs[ref]
 	if !ok {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("no secrets-manager location mapped for credential %s", ref),
 		)
 	}
@@ -90,21 +95,34 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 		SecretId: aws.String(loc.SecretID),
 	})
 	if err != nil {
-		return types.Secret{}, errors.Wrap(err, errors.CodeUpstream, "fetching secret from secrets manager")
+		return types.Secret{}, apperr.Wrap(
+			err,
+			apperr.CodeUpstream,
+			"fetching secret from secrets manager",
+		)
 	}
 	if out.SecretString == nil {
-		return types.Secret{}, errors.NotFound(
+		return types.Secret{}, apperr.NotFound(
 			fmt.Sprintf("secret %q has no string value for %s", loc.SecretID, ref),
 		)
 	}
 	var fields map[string]string
 	if err := json.Unmarshal([]byte(*out.SecretString), &fields); err != nil {
-		return types.Secret{}, errors.Wrap(err, errors.CodeInternal, "decoding secrets manager json")
+		return types.Secret{}, apperr.Wrap(
+			err,
+			apperr.CodeInternal,
+			"decoding secrets manager json",
+		)
 	}
 	value, found := fields[loc.Field]
 	if !found || value == "" {
-		return types.Secret{}, errors.NotFound(
-			fmt.Sprintf("field %q not found in secret %q for %s", loc.Field, loc.SecretID, ref),
+		return types.Secret{}, apperr.NotFound(
+			fmt.Sprintf(
+				"field %q not found in secret %q for %s",
+				loc.Field,
+				loc.SecretID,
+				ref,
+			),
 		)
 	}
 	return types.NewSecret(value), nil
@@ -113,8 +131,11 @@ func (s source) Get(ctx context.Context, ref types.Ref) (types.Secret, error) {
 // Put is unsupported: Secrets Manager secrets are written out-of-band by IaC. It returns
 // a coded error so a caller routing a write to this backend fails loudly.
 func (s source) Put(_ context.Context, ref types.Ref, _ types.Secret) error {
-	return errors.New(
-		errors.CodeInvalidInput,
-		fmt.Sprintf("aws-sm credential source is read-only (IaC writes secrets): cannot write %s", ref),
+	return apperr.New(
+		apperr.CodeInvalidInput,
+		fmt.Sprintf(
+			"aws-sm credential source is read-only (IaC writes secrets): cannot write %s",
+			ref,
+		),
 	)
 }

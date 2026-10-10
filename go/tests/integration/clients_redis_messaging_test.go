@@ -20,7 +20,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging"
 	msgredis "github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/redis"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	coreiface "github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	testsuite "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite"
@@ -50,23 +50,22 @@ func (s *RedisMessagingSuite) newClient() *goredis.Client {
 	return c
 }
 
-// waitSubscribed blocks until Redis reports channel has at least n subscribers, so a
+// waitSubscribed blocks until Redis reports channel has a subscriber, so a
 // publish lands only after the SUBSCRIBE is registered (Pub/Sub drops a message with
 // no live subscriber). Condition-based, not a fixed sleep.
 func (s *RedisMessagingSuite) waitSubscribed(
 	probe *goredis.Client,
 	channel string,
-	n int64,
 ) {
-	require.Eventually(s.T(), func() bool {
+	s.Require().Eventually(func() bool {
 		res, err := probe.PubSubNumSub(context.Background(), channel).Result()
-		return err == nil && res[channel] >= n
+		return err == nil && res[channel] >= 1
 	}, 5*time.Second, 10*time.Millisecond, "subscription for %q not active", channel)
 }
 
 // waitUnsubscribed blocks until Redis reports channel has 0 subscribers.
 func (s *RedisMessagingSuite) waitUnsubscribed(probe *goredis.Client, channel string) {
-	require.Eventually(s.T(), func() bool {
+	s.Require().Eventually(func() bool {
 		res, err := probe.PubSubNumSub(context.Background(), channel).Result()
 		return err == nil && res[channel] == 0
 	}, 5*time.Second, 10*time.Millisecond, "subscription for %q still active", channel)
@@ -74,7 +73,7 @@ func (s *RedisMessagingSuite) waitUnsubscribed(probe *goredis.Client, channel st
 
 // waitPatterns blocks until Redis reports at least n active pattern subscriptions.
 func (s *RedisMessagingSuite) waitPatterns(probe *goredis.Client, n int64) {
-	require.Eventually(s.T(), func() bool {
+	s.Require().Eventually(func() bool {
 		got, err := probe.PubSubNumPat(context.Background()).Result()
 		return err == nil && got >= n
 	}, 5*time.Second, 10*time.Millisecond, "pattern subscription not active")
@@ -124,7 +123,7 @@ func (s *RedisMessagingSuite) TestPublisher_PublishesToChannel() {
 	ctx := context.Background()
 	got := make(chan string, 8)
 	s.Require().NoError(sub.Subscribe(ctx, "events", chanHandler(got)))
-	s.waitSubscribed(probe, "events", 1)
+	s.waitSubscribed(probe, "events")
 
 	// An empty batch is a no-op (short-circuit before any pipeline round-trip).
 	s.Require().NoError(pub.PublishBatch(ctx, "events", nil))
@@ -169,7 +168,7 @@ func (s *RedisMessagingSuite) TestPublisher_Error_Unavailable() {
 
 	err = pub.Publish(context.Background(), "events", []byte("x"))
 	s.Require().Error(err)
-	s.Equal(coreerr.CodeUnavailable, coreerr.Code(err))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(err))
 }
 
 // TestSubscriber_DynamicSubscribeUnsubscribe tests runtime add/remove of channels on
@@ -195,14 +194,14 @@ func (s *RedisMessagingSuite) TestSubscriber_DynamicSubscribeUnsubscribe() {
 	chB := make(chan string, 4)
 
 	s.Require().NoError(sub.Subscribe(ctx, "chan.A", chanHandler(chA)))
-	s.waitSubscribed(probe, "chan.A", 1)
+	s.waitSubscribed(probe, "chan.A")
 	s.Require().NoError(probe.Publish(ctx, "chan.A", "a1").Err())
 	s.Equal("a1", recvChan(s.T(), chA, "chan.A live"))
 
 	s.Require().NoError(sub.Unsubscribe(ctx, "chan.A"))
 	s.waitUnsubscribed(probe, "chan.A")
 	s.Require().NoError(sub.Subscribe(ctx, "chan.B", chanHandler(chB)))
-	s.waitSubscribed(probe, "chan.B", 1)
+	s.waitSubscribed(probe, "chan.B")
 
 	s.Require().NoError(probe.Publish(ctx, "chan.A", "a2").Err())
 	s.Require().NoError(probe.Publish(ctx, "chan.B", "b1").Err())
@@ -239,7 +238,7 @@ func (s *RedisMessagingSuite) TestSubscriber_PatternSubscribeReceivesMatching() 
 	s.Equal("goal", recvChan(s.T(), chP, "pattern match"))
 
 	s.Require().NoError(sub.PUnsubscribe(ctx, "news.*"))
-	require.Eventually(s.T(), func() bool {
+	s.Require().Eventually(func() bool {
 		got, err := probe.PubSubNumPat(ctx).Result()
 		return err == nil && got == 0
 	}, 5*time.Second, 10*time.Millisecond, "pattern still active")
@@ -249,6 +248,47 @@ func (s *RedisMessagingSuite) TestSubscriber_PatternSubscribeReceivesMatching() 
 		s.Failf("unexpected delivery", "after PUnsubscribe: %q", m)
 	default:
 	}
+}
+
+// TestSubscriber_FirstCallerCancel_KeepsDelivering tests that cancelling the context
+// of the Subscribe call that started the dispatch loop does not stop delivery.
+//
+// Why this test is important:
+//   - The dispatch loop is shared by every subscription and outlives the call that
+//     started it; tying it to that call's cancellation would silently stop delivery
+//     to every channel once the first request finished.
+//
+// What it tests:
+//   - After the first Subscribe's ctx is cancelled, a message on that channel and on
+//     a later-subscribed channel both arrive, and the handler's ctx is not done.
+func (s *RedisMessagingSuite) TestSubscriber_FirstCallerCancel_KeepsDelivering() {
+	probe := s.newClient()
+	sub, err := msgredis.NewSubscriber(msgredis.Config{Client: s.newClient()})
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { _ = sub.Close() })
+
+	firstCtx, cancel := context.WithCancel(context.Background())
+	got := make(chan string, 4)
+	alive := make(chan bool, 4)
+	handler := func(hctx context.Context, msg *coreiface.Message) error {
+		alive <- hctx.Err() == nil
+		got <- string(msg.Payload)
+		return nil
+	}
+	s.Require().NoError(sub.Subscribe(firstCtx, "first", handler))
+	s.waitSubscribed(probe, "first")
+	cancel()
+
+	ctx := context.Background()
+	s.Require().NoError(sub.Subscribe(ctx, "second", handler))
+	s.waitSubscribed(probe, "second")
+
+	s.Require().NoError(probe.Publish(ctx, "first", "f1").Err())
+	s.Equal("f1", recvChan(s.T(), got, "first channel after cancel"))
+	s.True(recvChan(s.T(), alive, "handler ctx state"), "handler ctx is live")
+	s.Require().NoError(probe.Publish(ctx, "second", "s1").Err())
+	s.Equal("s1", recvChan(s.T(), got, "second channel after cancel"))
+	s.True(recvChan(s.T(), alive, "handler ctx state"), "handler ctx is live")
 }
 
 // TestSubscriber_HandlerError_LoggedNotRequeued tests that a handler error is logged
@@ -272,10 +312,10 @@ func (s *RedisMessagingSuite) TestSubscriber_HandlerError_LoggedNotRequeued() {
 	received := make(chan string, 8)
 	failing := func(_ context.Context, msg *coreiface.Message) error {
 		received <- string(msg.Payload)
-		return coreerr.New(coreerr.CodeInternal, "boom")
+		return apperr.New(apperr.CodeInternal, "boom")
 	}
 	s.Require().NoError(sub.Subscribe(ctx, "err.chan", failing))
-	s.waitSubscribed(probe, "err.chan", 1)
+	s.waitSubscribed(probe, "err.chan")
 
 	s.Require().NoError(probe.Publish(ctx, "err.chan", "m1").Err())
 	s.Equal("m1", recvChan(s.T(), received, "first delivery"))
@@ -338,7 +378,7 @@ func (s *RedisMessagingSuite) TestNewFromConfig_ReusesSharedClient() {
 	ctx := context.Background()
 	got := make(chan string, 4)
 	s.Require().NoError(sub.Subscribe(ctx, "rt.chan", chanHandler(got)))
-	s.waitSubscribed(s.newClient(), "rt.chan", 1)
+	s.waitSubscribed(s.newClient(), "rt.chan")
 	s.Require().NoError(pub.Publish(ctx, "rt.chan", []byte("via-shared-client")))
 	s.Equal("via-shared-client", recvChan(s.T(), got, "roundtrip via shared client"))
 }
@@ -373,7 +413,7 @@ func (s *RedisMessagingSuite) TestNewPublisher_KindRedis() {
 	ctx := context.Background()
 	got := make(chan string, 4)
 	s.Require().NoError(sub.Subscribe(ctx, "kr.chan", chanHandler(got)))
-	s.waitSubscribed(s.newClient(), "kr.chan", 1)
+	s.waitSubscribed(s.newClient(), "kr.chan")
 	s.Require().NoError(pub.Publish(ctx, "kr.chan", []byte("kind-redis")))
 	s.Equal("kind-redis", recvChan(s.T(), got, "KindRedis roundtrip"))
 }

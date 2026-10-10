@@ -25,8 +25,9 @@ import "context"
 //
 // Middlewares are composed by Chain, applied outermost-first.
 //
-// interface-composition exemption — decoration mechanism primitive: a WrapOp cross-cutting wrapper contract,
-// not an id-CRUD data-access surface, so it embeds no foundation generic.
+// interface-composition exemption — decoration mechanism primitive: a WrapOp
+// cross-cutting wrapper contract, not an id-CRUD data-access surface, so it embeds no
+// foundation generic.
 type OpMiddleware interface {
 	// WrapOp runs next under this middleware's concern for the named operation.
 	WrapOp(ctx context.Context, op string, next func(context.Context) error) error
@@ -34,7 +35,11 @@ type OpMiddleware interface {
 
 // MiddlewareFunc adapts a plain function to OpMiddleware, so a concern that needs no
 // state can be written as a function literal.
-type MiddlewareFunc func(ctx context.Context, op string, next func(context.Context) error) error
+type MiddlewareFunc func(
+	ctx context.Context,
+	op string,
+	next func(context.Context) error,
+) error
 
 // WrapOp calls the underlying function.
 func (f MiddlewareFunc) WrapOp(

@@ -6,8 +6,9 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
 // FanOut runs fn for each item in items with bounded concurrency.

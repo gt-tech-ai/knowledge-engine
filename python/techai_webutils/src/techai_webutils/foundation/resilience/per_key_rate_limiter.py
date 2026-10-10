@@ -65,6 +65,10 @@ class InMemoryRateLimiter:
 
     def _evict_expired(self, now: float) -> None:
         """Drop keys whose window fully elapsed (under the lock); bounds size to keys active in a window."""
-        expired = [k for k, (window_start, _) in self._counts.items() if now - window_start >= self._window]
+        expired = [
+            k
+            for k, (window_start, _) in self._counts.items()
+            if now - window_start >= self._window
+        ]
         for k in expired:
             del self._counts[k]

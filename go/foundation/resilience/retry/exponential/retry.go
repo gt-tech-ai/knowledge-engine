@@ -7,7 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	apperrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/budget"
 )
@@ -52,17 +52,26 @@ func defaultIsRetryable(err error) bool {
 	// policy via IsRetryable, a client cancellation must not count as a breaker
 	// failure and trip it against a healthy dependency. DeadlineExceeded stays
 	// retryable: a dependency that timed out is a legitimate transient signal.
-	if apperrors.StdIs(err, context.Canceled) {
+	if apperr.StdIs(err, context.Canceled) {
 		return false
 	}
-	switch apperrors.Code(err) {
-	case apperrors.CodeConflict,
-		apperrors.CodeInvalidInput,
-		apperrors.CodeNotFound,
-		apperrors.CodeForbidden,
-		apperrors.CodeUnauthorized,
-		apperrors.CodeResourceExhausted:
+	switch apperr.Code(err) {
+	case apperr.CodeConflict,
+		apperr.CodeInvalidInput,
+		apperr.CodeNotFound,
+		apperr.CodeForbidden,
+		apperr.CodeUnauthorized,
+		apperr.CodeResourceExhausted:
 		return false
+	case apperr.CodeUnknown,
+		apperr.CodeInternal,
+		apperr.CodeTimeout,
+		apperr.CodeCanceled,
+		apperr.CodeUnavailable,
+		apperr.CodeIngestion,
+		apperr.CodeQualityFailed,
+		apperr.CodeUpstream:
+		return true
 	default:
 		return true
 	}

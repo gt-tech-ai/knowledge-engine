@@ -35,6 +35,7 @@ from techai_webutils.clients.transport.grpc.server import ServerConfig, create_s
 
 async def _in_loop(factory: Callable[[], object]) -> object:
     """Call a ``grpc.aio``-constructing factory inside a running event loop."""
+    await asyncio.sleep(0)
     return factory()
 
 

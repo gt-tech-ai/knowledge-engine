@@ -1,7 +1,8 @@
-// Package memory provides an in-process ReplayBuffer backend for single-pod deployments (dev /
-// replica=1), where a reconnect lands on the same pod so cross-pod sharing is unnecessary. It
-// satisfies the same core/interfaces.ReplayBuffer contract as the Redis backend, so selecting it is
-// a config change (replay backend = memory), never a logic edit.
+// Package memory provides an in-process ReplayBuffer backend for single-pod deployments
+// (dev / replica=1), where a reconnect lands on the same pod so cross-pod sharing is
+// unnecessary. It satisfies the same core/interfaces.ReplayBuffer contract as the Redis
+// backend, so selecting it is a config change (replay backend = memory), never a logic
+// edit.
 package memory
 
 import (
@@ -12,8 +13,8 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// Buffer is an in-process ReplayBuffer: a mutex-guarded map of key → an ordered, bounded, TTL'd
-// list of retained messages.
+// Buffer is an in-process ReplayBuffer: a mutex-guarded map of key → an ordered, bounded,
+// TTL'd list of retained messages.
 type Buffer struct {
 	// keys maps each buffer key to its retained tail.
 	keys map[string]*keyBuffer
@@ -35,7 +36,8 @@ type keyBuffer struct {
 	msgs []interfaces.BufferedMessage
 }
 
-// New returns an in-process ReplayBuffer bounded to maxSize entries per key with the given TTL.
+// New returns an in-process ReplayBuffer bounded to maxSize entries per key with the
+// given TTL.
 func New(maxSize int, ttl time.Duration) *Buffer {
 	return &Buffer{
 		keys:    make(map[string]*keyBuffer),
@@ -47,8 +49,8 @@ func New(maxSize int, ttl time.Duration) *Buffer {
 // compile-time assertion that *Buffer satisfies the seam.
 var _ interfaces.ReplayBuffer = (*Buffer)(nil)
 
-// live returns key's buffer if it exists and has not expired, else nil (lazily deleting an expired
-// one). Callers hold b.mu.
+// live returns key's buffer if it exists and has not expired, else nil (lazily deleting
+// an expired one). Callers hold b.mu.
 func (b *Buffer) live(key string) *keyBuffer {
 	kb, ok := b.keys[key]
 	if !ok {
@@ -61,7 +63,8 @@ func (b *Buffer) live(key string) *keyBuffer {
 	return kb
 }
 
-// Append records payload under key, evicting the oldest past maxSize and refreshing the TTL.
+// Append records payload under key, evicting the oldest past maxSize and refreshing the
+// TTL.
 func (b *Buffer) Append(_ context.Context, key, msgID string, payload []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -82,8 +85,8 @@ func (b *Buffer) Append(_ context.Context, key, msgID string, payload []byte) er
 	return nil
 }
 
-// ReplayAfter returns the retained tail strictly after afterMsgID; see the interface doc for the
-// complete-flag semantics.
+// ReplayAfter returns the retained tail strictly after afterMsgID; see the interface doc
+// for the complete-flag semantics.
 func (b *Buffer) ReplayAfter(
 	_ context.Context,
 	key, afterMsgID string,
@@ -95,13 +98,13 @@ func (b *Buffer) ReplayAfter(
 	if kb == nil {
 		return nil, false, nil // absent or expired → gap
 	}
-	// A client that received nothing (unreachable in practice — it always got the ConnectionInfo
-	// ack) full-refreshes rather than risk a front gap from eviction.
+	// A client that received nothing (unreachable in practice — it always got the
+	// ConnectionInfo ack) full-refreshes rather than risk a front gap from eviction.
 	if afterMsgID == "" {
 		return nil, false, nil
 	}
-	// afterMsgID == the pruned low-water mark: the client acked exactly up to it, so the whole
-	// retained tail is a gapless replay.
+	// afterMsgID == the pruned low-water mark: the client acked exactly up to it, so the
+	// whole retained tail is a gapless replay.
 	if afterMsgID == kb.lowWater {
 		return clone(kb.msgs), true, nil
 	}

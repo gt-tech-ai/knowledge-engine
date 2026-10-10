@@ -8,8 +8,7 @@ SQLAlchemy) rather than the business-logic boundary.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TypeVar, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from techai_webutils.core.domain_types.types import Page, PageRequest

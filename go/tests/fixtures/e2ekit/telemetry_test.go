@@ -1,11 +1,11 @@
-// Package e2ekit_test verifies the gen-free telemetry assertions an endpoint E2E suite shares across
-// a CLI harness and services' //go:build e2e tests. They mock the small HTTP boundary
-// so the Tempo/Prometheus/Loki query construction + response parsing are tested without live backends.
+// Package e2ekit_test verifies the gen-free telemetry assertions an endpoint E2E suite
+// shares across a CLI harness and services' //go:build e2e tests. They mock the small
+// HTTP boundary so the Tempo/Prometheus/Loki query construction + response parsing are
+// tested without live backends.
 package e2ekit_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,8 +20,9 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/e2ekit"
 )
 
-// doerFunc adapts a function to e2ekit.HTTPDoer — a mock of the small consumer-side HTTP boundary
-// so the telemetry queries + response parsing are tested without live Tempo/Prometheus/Loki.
+// doerFunc adapts a function to e2ekit.HTTPDoer — a mock of the small consumer-side HTTP
+// boundary so the telemetry queries + response parsing are tested without live
+// Tempo/Prometheus/Loki.
 type doerFunc func(*http.Request) (*http.Response, error)
 
 func (f doerFunc) Do(r *http.Request) (*http.Response, error) { return f(r) }
@@ -39,11 +40,12 @@ func jsonResponse(status int, body string) *http.Response {
 // TestTraceIDFromHeader tests extraction of the trace id from a traceresponse header.
 //
 // Why this test is important:
-//   - The whole telemetry proof keys off the trace id the endpoint returns; a wrong parse correlates
-//     nothing. Malformed input must yield "" rather than a bogus id.
+//   - The whole telemetry proof keys off the trace id the endpoint returns; a wrong parse
+//     correlates nothing. Malformed input must yield "" rather than a bogus id.
 //
 // What it tests:
-//   - A valid W3C traceparent yields its 32-hex trace id; empty/garbage/short input yields "".
+//   - A valid W3C traceparent yields its 32-hex trace id; empty/garbage/short input
+//     yields "".
 func TestTraceIDFromHeader(t *testing.T) {
 	assert.Equal(
 		t,
@@ -57,18 +59,18 @@ func TestTraceIDFromHeader(t *testing.T) {
 	assert.Empty(t, e2ekit.TraceIDFromHeader("00-nothex-0123456789abcdef-01"))
 }
 
-// TestForceSampledTraceparent tests that the E2E force-sample header is a well-formed W3C traceparent
-// with the sampled flag set and round-trips through TraceIDFromHeader.
+// TestForceSampledTraceparent tests that the E2E force-sample header is a well-formed W3C
+// traceparent with the sampled flag set and round-trips through TraceIDFromHeader.
 //
 // Why this test is important:
-//   - The header is the lever that guarantees an endpoint-E2E request's trace is recorded by the
-//     server's ParentBased sampler and thus reaches Tempo. If the sampled flag were unset or the
-//     format malformed, the server would fall back to the ratio and the trace could be dropped.
-//     Random ids must not collide across concurrent runs.
+//   - The header is the lever that guarantees an endpoint-E2E request's trace is recorded
+//     by the server's ParentBased sampler and thus reaches Tempo. If the sampled flag
+//     were unset or the format malformed, the server would fall back to the ratio and the
+//     trace could be dropped. Random ids must not collide across concurrent runs.
 //
 // What it tests:
-//   - The value matches `00-<32hex>-<16hex>-01` (sampled flag 01); TraceIDFromHeader recovers the same
-//     trace id it returns; two calls produce distinct trace ids.
+//   - The value matches `00-<32hex>-<16hex>-01` (sampled flag 01); TraceIDFromHeader
+//     recovers the same trace id it returns; two calls produce distinct trace ids.
 func TestForceSampledTraceparent(t *testing.T) {
 	header, traceID, err := e2ekit.ForceSampledTraceparent()
 	require.NoError(t, err)
@@ -94,8 +96,8 @@ func TestForceSampledTraceparent(t *testing.T) {
 // TestTelemetryClient_TraceInTempo tests the Tempo trace lookup.
 //
 // Why this test is important:
-//   - Proving a request's spans landed in Tempo is the core "tracing round-trip" assertion; the
-//     query URL and batch-count parse must be exact.
+//   - Proving a request's spans landed in Tempo is the core "tracing round-trip"
+//     assertion; the query URL and batch-count parse must be exact.
 //
 // What it tests:
 //   - A 200 with N batches returns N, and the request targets /api/traces/{id}.
@@ -118,12 +120,12 @@ func TestTelemetryClient_TraceInTempo(t *testing.T) {
 	assert.Equal(t, "http://tempo:3200/api/traces/abc123", gotURL)
 }
 
-// TestTelemetryClient_TraceInTempo_NotFound tests that a not-yet-present trace is a zero result, not
-// an error (so the caller can poll).
+// TestTelemetryClient_TraceInTempo_NotFound tests that a not-yet-present trace is a zero
+// result, not an error (so the caller can poll).
 //
 // Why this test is important:
-//   - Spans reach Tempo a few seconds after the RPC; a 404 must be "not yet", not a failure, or every
-//     poll would abort on the first miss.
+//   - Spans reach Tempo a few seconds after the RPC; a 404 must be "not yet", not a
+//     failure, or every poll would abort on the first miss.
 //
 // What it tests:
 //   - A 404 returns (0, nil).
@@ -143,17 +145,19 @@ func TestTelemetryClient_TraceInTempo_NotFound(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-// TestTelemetryClient_TraceSpansService tests that a trace is recognized as spanning a given service.
+// TestTelemetryClient_TraceSpansService tests that a trace is recognized as spanning a
+// given service.
 //
 // Why this test is important:
-//   - A cross-service telemetry proof asserts the trace actually REACHED a service (e.g. a trace
-//     that crossed into a downstream `worker`), not merely that some spans exist. The check scans each
-//     Tempo batch's `service.name` resource attribute; matching the wrong key/value would pass a trace
-//     that never touched the service.
+//   - A cross-service telemetry proof asserts the trace actually REACHED a service (e.g.
+//     a trace that crossed into a downstream `worker`), not merely that some spans exist.
+//     The check scans each Tempo batch's `service.name` resource attribute; matching the
+//     wrong key/value would pass a trace that never touched the service.
 //
 // What it tests:
-//   - A trace whose batch resource carries service.name=worker returns true; a different service
-//     returns false; an absent trace (404) returns false without error (so callers can poll).
+//   - A trace whose batch resource carries service.name=worker returns true; a different
+//     service returns false; an absent trace (404) returns false without error (so
+//     callers can poll).
 func TestTelemetryClient_TraceSpansService(t *testing.T) {
 	body := `{"batches":[{"resource":{"attributes":[` +
 		`{"key":"service.name","value":{"stringValue":"worker"}}]}}]}`
@@ -196,7 +200,8 @@ func TestTelemetryClient_TraceSpansService(t *testing.T) {
 //     [<ts>, "<number>"] shape; parsing the wrong element silently passes on any value.
 //
 // What it tests:
-//   - A single-result instant vector returns the numeric sample; the query is URL-encoded onto /api/v1/query.
+//   - A single-result instant vector returns the numeric sample; the query is URL-encoded
+//     onto /api/v1/query.
 func TestTelemetryClient_MetricValue(t *testing.T) {
 	var gotURL string
 	doer := doerFunc(func(r *http.Request) (*http.Response, error) {
@@ -220,10 +225,12 @@ func TestTelemetryClient_MetricValue(t *testing.T) {
 	assert.Contains(t, gotURL, url.QueryEscape(`http_requests_total{code="200"}`))
 }
 
-// TestTelemetryClient_MetricValue_Empty tests that an empty vector is a zero result, not an error.
+// TestTelemetryClient_MetricValue_Empty tests that an empty vector is a zero result, not
+// an error.
 //
 // Why this test is important:
-//   - A just-emitted metric may not be scraped yet; an empty result must let the caller poll.
+//   - A just-emitted metric may not be scraped yet; an empty result must let the caller
+//     poll.
 //
 // What it tests:
 //   - An empty result array returns (0, nil).
@@ -246,11 +253,12 @@ func TestTelemetryClient_MetricValue_Empty(t *testing.T) {
 // TestTelemetryClient_LogHasTrace tests the Loki log lookup by trace id.
 //
 // Why this test is important:
-//   - Proving the structured log shipped with the trace id attached needs the LogQL to filter on the
-//     id (`|= "<id>"`) and the line count summed across streams.
+//   - Proving the structured log shipped with the trace id attached needs the LogQL to
+//     filter on the id (`|= "<id>"`) and the line count summed across streams.
 //
 // What it tests:
-//   - The query carries the trace-id filter, and the returned line count sums the stream values.
+//   - The query carries the trace-id filter, and the returned line count sums the stream
+//     values.
 func TestTelemetryClient_LogHasTrace(t *testing.T) {
 	var gotQuery string
 	doer := doerFunc(func(r *http.Request) (*http.Response, error) {
@@ -274,10 +282,12 @@ func TestTelemetryClient_LogHasTrace(t *testing.T) {
 	assert.Contains(t, gotQuery, "|=")
 }
 
-// TestTelemetryClient_QueryError tests that a non-2xx (non-404) backend response surfaces as an error.
+// TestTelemetryClient_QueryError tests that a non-2xx (non-404) backend response surfaces
+// as an error.
 //
 // Why this test is important:
-//   - A malformed query (Prometheus/Loki 400) must fail loudly, not be mistaken for "no data yet".
+//   - A malformed query (Prometheus/Loki 400) must fail loudly, not be mistaken for "no
+//     data yet".
 //
 // What it tests:
 //   - A 400 response returns a non-nil error.
@@ -296,31 +306,37 @@ func TestTelemetryClient_QueryError(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestPollHelpers tests the two poll loops a suite waits on: PollUntil (an async effect) and
-// PollTraceInTempo (a trace landing in Tempo).
+// TestPollHelpers tests the two poll loops a suite waits on: PollUntil (an async effect)
+// and PollTraceInTempo (a trace landing in Tempo).
 //
 // Why this test is important:
-//   - Every async E2E assertion waits through these loops; returning early on a miss, swallowing the
-//     last error at the deadline, or ignoring cancellation turns a real failure into a pass or a hang.
+//   - Every async E2E assertion waits through these loops; returning early on a miss,
+//     swallowing the last error at the deadline, or ignoring cancellation turns a real
+//     failure into a pass or a hang.
 //
 // What it tests:
 //   - PollUntil returns nil as soon as check reports true.
-//   - Past the deadline it returns CodeUnavailable: wrapping the last check error when there is one,
-//     otherwise naming what did not materialize.
+//   - Past the deadline it returns CodeUnavailable: wrapping the last check error when
+//     there is one, otherwise naming what did not materialize.
 //   - A cancelled ctx stops the wait with ctx.Err().
 //   - PollTraceInTempo returns nil once Tempo holds a batch for the trace.
 func TestPollHelpers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	errCheck := errors.New("backend not ready")
+	errCheck := apperr.Sentinel("backend not ready")
 
 	t.Run("PollUntil returns once check succeeds", func(t *testing.T) {
 		t.Parallel()
 		calls := 0
-		err := e2ekit.PollUntil(ctx, time.Minute, "effect", func(context.Context) (bool, error) {
-			calls++
-			return true, nil
-		})
+		err := e2ekit.PollUntil(
+			ctx,
+			time.Minute,
+			"effect",
+			func(context.Context) (bool, error) {
+				calls++
+				return true, nil
+			},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, 1, calls)
 	})
@@ -348,9 +364,14 @@ func TestPollHelpers(t *testing.T) {
 		t.Parallel()
 		cctx, cancel := context.WithCancel(ctx)
 		cancel()
-		err := e2ekit.PollUntil(cctx, time.Minute, "effect", func(context.Context) (bool, error) {
-			return false, nil
-		})
+		err := e2ekit.PollUntil(
+			cctx,
+			time.Minute,
+			"effect",
+			func(context.Context) (bool, error) {
+				return false, nil
+			},
+		)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 

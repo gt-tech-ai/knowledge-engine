@@ -1,8 +1,9 @@
 // Package memory provides an in-process messaging backend for no-infra builds and tests.
 //
-// A Broker holds one buffered channel per topic; a Publisher and Subscriber connect only when
-// handed the SAME broker instance (not package-global state), so two separate brokers are fully
-// isolated. Mirrors the Python messaging/memory backend. Selected by the messaging tier Kind.
+// A Broker holds one buffered channel per topic; a Publisher and Subscriber connect only
+// when handed the SAME broker instance (not package-global state), so two separate
+// brokers are fully isolated. Mirrors the Python messaging/memory backend. Selected by
+// the messaging tier Kind.
 package memory
 
 import (
@@ -11,8 +12,8 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// topicBuffer is the per-topic channel capacity — large enough that a burst of publishes does not
-// block the publisher before a subscriber drains them.
+// topicBuffer is the per-topic channel capacity — large enough that a burst of publishes
+// does not block the publisher before a subscriber drains them.
 const topicBuffer = 1024
 
 // Broker is an in-process message broker: a lazily-created buffered channel per topic.

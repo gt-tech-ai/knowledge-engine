@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/sqs"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -69,7 +69,11 @@ type receiveResult struct {
 // forever, so the subscriber's poll loop delivers the batches once and then idles.
 func scriptedReceive(
 	results []receiveResult,
-) func(context.Context, *awssqs.ReceiveMessageInput, ...func(*awssqs.Options)) (*awssqs.ReceiveMessageOutput, error) {
+) func(
+	context.Context,
+	*awssqs.ReceiveMessageInput,
+	...func(*awssqs.Options),
+) (*awssqs.ReceiveMessageOutput, error) {
 	var mu sync.Mutex
 	i := 0
 	return func(
@@ -95,7 +99,11 @@ func scriptedReceive(
 func scriptedGetQueueURL(
 	failFirst error,
 	url string,
-) func(context.Context, *awssqs.GetQueueUrlInput, ...func(*awssqs.Options)) (*awssqs.GetQueueUrlOutput, error) {
+) func(
+	context.Context,
+	*awssqs.GetQueueUrlInput,
+	...func(*awssqs.Options),
+) (*awssqs.GetQueueUrlOutput, error) {
 	var mu sync.Mutex
 	n := 0
 	return func(
@@ -127,7 +135,7 @@ func TestSubscriber_LogsAndRecoversFromQueueResolutionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		DoAndReturn(scriptedGetQueueURL(errors.New("resolve failed"), "http://q")).
+		DoAndReturn(scriptedGetQueueURL(apperr.Sentinel("resolve failed"), "http://q")).
 		AnyTimes()
 	batch := []sqstypes.Message{{
 		MessageId:     aws.String("m1"),
@@ -181,7 +189,7 @@ func TestSubscriber_LogsDeleteFailure(t *testing.T) {
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("delete failed")).AnyTimes()
+		Return(nil, apperr.Sentinel("delete failed")).AnyTimes()
 	spy := fixtures.NewSpyLogger()
 
 	sub, err := sqs.NewSubscriber(sqs.Config{
@@ -215,12 +223,37 @@ func TestPublisher_ReturnsErrorWhenQueueUnresolvable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("access denied"))
+		Return(nil, apperr.Sentinel("access denied"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
 
 	require.Error(t, pub.Publish(context.Background(), "q", []byte("x")))
+}
+
+// TestNewPublisherContext_UsesInjectedAPI tests that the context-aware constructor
+// honours the injected SQS seam exactly like NewPublisher.
+//
+// Why this test is important:
+//   - NewFromConfig builds its SQS core through NewPublisherContext; a constructor that
+//     ignored Config.API would dial real AWS from a unit-wired graph
+//
+// What it tests:
+//   - A publisher built with NewPublisherContext sends through the injected API
+func TestNewPublisherContext_UsesInjectedAPI(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	api := mocks.NewMockAPI(ctrl)
+	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
+		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
+	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).
+		Return(&awssqs.SendMessageOutput{}, nil)
+
+	pub, err := sqs.NewPublisherContext(t.Context(), sqs.Config{API: api})
+	require.NoError(t, err)
+
+	require.NoError(t, pub.Publish(t.Context(), "q", []byte("x")))
 }
 
 // TestPublisher_PublishBatch_StopsOnSendError tests that PublishBatch returns the
@@ -240,7 +273,7 @@ func TestPublisher_PublishBatch_StopsOnSendError(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("send boom"))
+		Return(nil, apperr.Sentinel("send boom"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
@@ -270,12 +303,16 @@ func TestSubscriber_StopsDuringBackoff(t *testing.T) {
 		AnyTimes()
 	received := make(chan struct{}, 1)
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ *awssqs.ReceiveMessageInput, _ ...func(*awssqs.Options)) (*awssqs.ReceiveMessageOutput, error) {
+		func(
+			_ context.Context,
+			_ *awssqs.ReceiveMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.ReceiveMessageOutput, error) {
 			select {
 			case received <- struct{}{}:
 			default:
 			}
-			return nil, errors.New("transient")
+			return nil, apperr.Sentinel("transient")
 		},
 	).
 		AnyTimes()
@@ -315,7 +352,11 @@ func TestPublisher_ResolvesExistingQueueAndCaches(t *testing.T) {
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String(url)}, nil).Times(1)
 	var sent []string
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageOutput, error) {
 			sent = append(sent, aws.ToString(in.QueueUrl))
 			return &awssqs.SendMessageOutput{}, nil
 		},
@@ -353,7 +394,11 @@ func TestPublisher_CreatesQueueWhenMissing(t *testing.T) {
 		Return(&awssqs.CreateQueueOutput{QueueUrl: aws.String(created)}, nil)
 	var sentURL string
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageOutput, error) {
 			sentURL = aws.ToString(in.QueueUrl)
 			return &awssqs.SendMessageOutput{}, nil
 		},
@@ -383,7 +428,7 @@ func TestPublisher_PropagatesSendError(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessage(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("sqs unavailable"))
+		Return(nil, apperr.Sentinel("sqs unavailable"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)
@@ -418,7 +463,11 @@ func TestSubscriber_DeliversAndAcks(t *testing.T) {
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	deleted := make(chan string, 1)
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.DeleteMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.DeleteMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.DeleteMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.DeleteMessageBatchOutput, error) {
 			deleted <- aws.ToString(in.Entries[0].ReceiptHandle)
 			return &awssqs.DeleteMessageBatchOutput{}, nil
 		},
@@ -474,7 +523,7 @@ func TestSubscriber_HandlerError_DoesNotDelete(t *testing.T) {
 	require.NoError(t, sub.Subscribe(context.Background(), "q",
 		func(_ context.Context, _ *interfaces.Message) error {
 			handled <- struct{}{}
-			return errors.New("transient failure")
+			return apperr.Sentinel("transient failure")
 		}))
 
 	recv(t, handled, "handler to be called")
@@ -506,7 +555,7 @@ func TestSubscriber_RetriesAfterReceiveError(t *testing.T) {
 	}}
 	api.EXPECT().ReceiveMessage(gomock.Any(), gomock.Any()).DoAndReturn(
 		scriptedReceive([]receiveResult{
-			{err: errors.New("transient receive error")},
+			{err: apperr.Sentinel("transient receive error")},
 			{batch: batch},
 		}),
 	).AnyTimes()
@@ -543,7 +592,11 @@ func TestPublisher_PublishBatch_SendsEachPayload(t *testing.T) {
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			require.Len(t, in.Entries, 2, "both payloads in one batch")
 			return &awssqs.SendMessageBatchOutput{}, nil
 		},
@@ -577,7 +630,11 @@ func TestPublisher_PublishBatch_ChunksInto10s(t *testing.T) {
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String("http://q")}, nil)
 	var sizes []int
 	api.EXPECT().SendMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.SendMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.SendMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.SendMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.SendMessageBatchOutput, error) {
 			sizes = append(sizes, len(in.Entries))
 			return &awssqs.SendMessageBatchOutput{}, nil
 		},
@@ -661,7 +718,11 @@ func TestSubscriber_FansOutBatchAndBatchDeletes(t *testing.T) {
 		DoAndReturn(scriptedReceive([]receiveResult{{batch: batch}})).AnyTimes()
 	deletedCount := make(chan int, 1)
 	api.EXPECT().DeleteMessageBatch(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *awssqs.DeleteMessageBatchInput, _ ...func(*awssqs.Options)) (*awssqs.DeleteMessageBatchOutput, error) {
+		func(
+			_ context.Context,
+			in *awssqs.DeleteMessageBatchInput,
+			_ ...func(*awssqs.Options),
+		) (*awssqs.DeleteMessageBatchOutput, error) {
 			select {
 			case deletedCount <- len(in.Entries):
 			default:
@@ -731,7 +792,7 @@ func TestPublisher_PublishBatch_QueueResolveError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	api := mocks.NewMockAPI(ctrl)
 	api.EXPECT().GetQueueUrl(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("access denied"))
+		Return(nil, apperr.Sentinel("access denied"))
 
 	pub, err := sqs.NewPublisher(sqs.Config{API: api})
 	require.NoError(t, err)

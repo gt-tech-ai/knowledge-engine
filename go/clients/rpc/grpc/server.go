@@ -15,10 +15,12 @@ type ServerConfig struct {
 	// MaxMessageSize is the maximum allowed size in bytes for sent and received messages.
 	MaxMessageSize int
 
-	// KeepaliveTime is the interval between server keepalive pings to detect dead connections.
+	// KeepaliveTime is the interval between server keepalive pings to detect dead
+	// connections.
 	KeepaliveTime time.Duration
 
-	// KeepaliveTimeout is the duration the server waits for a keepalive ping acknowledgement.
+	// KeepaliveTimeout is the duration the server waits for a keepalive ping
+	// acknowledgement.
 	KeepaliveTimeout time.Duration
 
 	// KeepaliveMinTime is the minimum interval the server allows between a client's
@@ -44,7 +46,8 @@ func DefaultServerConfig() ServerConfig {
 // NewServer creates a configured gRPC server.
 // Interceptors should be provided via options.
 func NewServer(cfg ServerConfig, opts ...grpc.ServerOption) *grpc.Server {
-	serverOpts := []grpc.ServerOption{
+	serverOpts := make([]grpc.ServerOption, 0, 4+len(opts))
+	serverOpts = append(serverOpts,
 		grpc.MaxRecvMsgSize(cfg.MaxMessageSize),
 		grpc.MaxSendMsgSize(cfg.MaxMessageSize),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -57,7 +60,7 @@ func NewServer(cfg ServerConfig, opts ...grpc.ServerOption) *grpc.Server {
 			MinTime:             cfg.KeepaliveMinTime,
 			PermitWithoutStream: true,
 		}),
-	}
+	)
 
 	serverOpts = append(serverOpts, opts...)
 
@@ -78,8 +81,8 @@ type healthServer struct {
 // Check reports the serving status of the gRPC health protocol. It always reports
 // SERVING; dependency readiness is not folded in.
 func (h *healthServer) Check(
-	ctx context.Context,
-	req *grpc_health_v1.HealthCheckRequest,
+	_ context.Context,
+	_ *grpc_health_v1.HealthCheckRequest,
 ) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{
 		Status: grpc_health_v1.HealthCheckResponse_SERVING,

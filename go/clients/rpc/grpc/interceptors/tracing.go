@@ -5,21 +5,22 @@ import (
 	"io"
 	"sync"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // grpcMetadataCarrier adapts gRPC metadata.MD to the OTel TextMapCarrier so the
 // global propagator can inject W3C trace context (traceparent) over gRPC metadata,
 // the gRPC analog of propagation.HeaderCarrier for HTTP/Connect.
 //
-// DRY note: this is the gRPC sibling of the Connect side's propagation.HeaderCarrier. If a third
-// transport ever needs W3C-over-headers propagation, promote the two into a shared carrier helper
-// rather than growing a third copy that can drift.
+// DRY note: this is the gRPC sibling of the Connect side's propagation.HeaderCarrier. If
+// a third transport ever needs W3C-over-headers propagation, promote the two into a
+// shared carrier helper rather than growing a third copy that can drift.
 type grpcMetadataCarrier struct {
 	// md is the wrapped gRPC metadata the trace context is read from / injected into.
 	md metadata.MD
@@ -53,9 +54,9 @@ func (c grpcMetadataCarrier) Keys() []string {
 func injectTraceContext(ctx context.Context) context.Context {
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if ok {
-		// Copy so we never mutate the caller's outgoing MD. This is a per-call allocation on the
-		// request hot path; revisit (e.g. a pooled carrier) if a high-QPS caller makes it show up
-		// in a profile.
+		// Copy so we never mutate the caller's outgoing MD. This is a per-call allocation
+		// on the request hot path; revisit (e.g. a pooled carrier) if a high-QPS caller
+		// makes it show up in a profile.
 		md = md.Copy()
 	} else {
 		md = metadata.MD{}
@@ -244,7 +245,7 @@ func (s *tracingClientStream) watch(ctx context.Context) {
 func (s *tracingClientStream) finish(err error) {
 	s.once.Do(func() {
 		defer close(s.done)
-		if coreerrors.StdIs(err, io.EOF) {
+		if apperr.StdIs(err, io.EOF) {
 			s.span.SetStatus(interfaces.SpanStatusOK, "")
 		} else {
 			s.span.RecordError(err)

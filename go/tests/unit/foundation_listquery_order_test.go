@@ -12,15 +12,17 @@ import (
 // TestParseList_SortGrammar tests the scalar `sort` wire-spec parser (Set.ParseList).
 //
 // Why this test is important:
-//   - ParseList is the SQL-safety boundary for sorting: it turns an untrusted comma-separated
-//     `field[:dir]` string into allow-listed OrderFields. A bug that let a non-allow-listed field
-//     through, or dropped the deterministic default, would either enable arbitrary-column ORDER BY
-//     or break stable pagination. It must never error (fail-safe to the default).
+//   - ParseList is the SQL-safety boundary for sorting: it turns an untrusted
+//     comma-separated `field[:dir]` string into allow-listed OrderFields. A bug that let
+//     a non-allow-listed field through, or dropped the deterministic default, would
+//     either enable arbitrary-column ORDER BY or break stable pagination. It must never
+//     error (fail-safe to the default).
 //
 // What it tests:
 //   - Empty / all-dropped specs yield an empty result (NO fixed fallback field) — the
-//     deterministic default order is CompileOrder's keyset tiebreaker, so a joined_at-keyed
-//     resource is never forced to ORDER BY a non-existent created_at column.
+//     deterministic default order is CompileOrder's keyset tiebreaker, so a
+//     joined_at-keyed resource is never forced to ORDER BY a non-existent created_at
+//     column.
 //   - `field:dir` parses (default asc), order is preserved, whitespace tolerated.
 //   - A non-allow-listed field is dropped (not defaulted per-token).
 func TestParseList_SortGrammar(t *testing.T) {
@@ -60,19 +62,21 @@ func TestParseList_SortGrammar(t *testing.T) {
 	}
 }
 
-// TestKeysetColumns tests the shared ordered-column sequence that both CompileOrder (ORDER BY)
-// and the keyset seek compiler (WHERE) build from.
+// TestKeysetColumns tests the shared ordered-column sequence that both CompileOrder
+// (ORDER BY) and the keyset seek compiler (WHERE) build from.
 //
 // Why this test is important:
-//   - This sequence is the SINGLE source of the total order; if the tiebreaker column or id were
-//     emitted with the wrong direction (they are DESC, not ASC) or the dedup dropped a level, the
-//     ORDER BY and the keyset seek predicate would disagree and every keyset walk would dup/skip.
-//     Pinning it here is what lets the seek compiler mirror the ORDER BY by construction.
+//   - This sequence is the SINGLE source of the total order; if the tiebreaker column or
+//     id were emitted with the wrong direction (they are DESC, not ASC) or the dedup
+//     dropped a level, the ORDER BY and the keyset seek predicate would disagree and
+//     every keyset walk would dup/skip. Pinning it here is what lets the seek compiler
+//     mirror the ORDER BY by construction.
 //
 // What it tests:
-//   - an empty sort yields `created_at DESC, id DESC`; a custom tiebreaker replaces created_at;
-//     caller sort fields precede the tiebreakers in their own directions; and a caller sort on the
-//     tiebreaker column or id is not re-appended (dedup keeps the caller's direction).
+//   - an empty sort yields `created_at DESC, id DESC`; a custom tiebreaker replaces
+//     created_at; caller sort fields precede the tiebreakers in their own directions; and
+//     a caller sort on the tiebreaker column or id is not re-appended (dedup keeps the
+//     caller's direction).
 func TestKeysetColumns(t *testing.T) {
 	t.Parallel()
 	identity := func(f string) string { return f }
@@ -142,12 +146,15 @@ func TestKeysetColumns(t *testing.T) {
 	}
 }
 
-// FuzzParseList asserts ParseList never panics and never returns a non-allow-listed field, over
-// arbitrary comma/colon-split input — the property that makes it a safe transport-edge parser.
+// FuzzParseList asserts ParseList never panics and never returns a non-allow-listed
+// field, over arbitrary comma/colon-split input — the property that makes it a safe
+// transport-edge parser.
 func FuzzParseList(f *testing.F) {
 	set := listquery.NewSet("created_at", "name", "status")
 	allowed := map[string]bool{"created_at": true, "name": true, "status": true}
-	for _, seed := range []string{"", "name", "a:desc,b", "created_at:desc,name", ",,,", "x:y:z", " : "} {
+	for _, seed := range []string{
+		"", "name", "a:desc,b", "created_at:desc,name", ",,,", "x:y:z", " : ",
+	} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, spec string) {

@@ -64,7 +64,9 @@ class InMemorySubscriber(MessageConsumer):
             except Exception:
                 # Best-effort stub: log and keep consuming past a bad message (the in-memory broker
                 # has no redelivery), mirroring the Go subscriber's ignore-the-error semantics.
-                logger.debug("in-memory subscriber dropped a failing message", exc_info=True)
+                logger.debug(
+                    "in-memory subscriber dropped a failing message", exc_info=True
+                )
 
     async def close(self) -> None:
         """Signal the receive loop to stop after the current message."""

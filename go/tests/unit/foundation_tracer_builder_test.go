@@ -2,16 +2,16 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestTracerBuilder_UnknownKindReturnsError tests that the tracer factory
@@ -99,7 +99,7 @@ func TestTracer_MockShutdownError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockTracer(ctrl)
 
-	shutdownErr := errors.New("export flush failed")
+	shutdownErr := apperr.Sentinel("export flush failed")
 	mock.EXPECT().Shutdown(gomock.Any()).Return(shutdownErr)
 
 	var tr interfaces.Tracer = mock
@@ -148,7 +148,7 @@ func TestTracerBuilder_NoopStartReturnsSpan(t *testing.T) {
 
 	// All Span methods must be safe to call on the noop span.
 	span.SetAttribute("key", "value")
-	span.RecordError(errors.New("test"))
+	span.RecordError(apperr.Sentinel("test"))
 	span.SetStatus(interfaces.SpanStatusOK, "ok")
 	span.End()
 }
@@ -224,6 +224,6 @@ func TestTracerBuilder_ConfigToOptions(t *testing.T) {
 	assert.Equal(t, original.ServiceName, rebuilt.ServiceName)
 	assert.Equal(t, original.Endpoint, rebuilt.Endpoint)
 	assert.Equal(t, original.Kind, rebuilt.Kind)
-	assert.Equal(t, original.SampleRate, rebuilt.SampleRate)
+	assert.InDelta(t, original.SampleRate, rebuilt.SampleRate, 0)
 	assert.Equal(t, original.Insecure, rebuilt.Insecure)
 }

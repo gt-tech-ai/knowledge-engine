@@ -24,7 +24,9 @@ class RayRuntime(Protocol):
     ``submit`` call is one Ray task, and ``RayExecutor`` bounds how many run at once via ``fan_out``.
     """
 
-    async def submit[T](self, fn: Callable[[T], Awaitable[StepResult]], item: T) -> StepResult:
+    async def submit[T](
+        self, fn: Callable[[T], Awaitable[StepResult]], item: T
+    ) -> StepResult:
         """Dispatch ``fn(item)`` to the Ray cluster and await its StepResult.
 
         ``fn`` and ``item`` are cloudpickled to the worker, so both must be picklable — a module-level

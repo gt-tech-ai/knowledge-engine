@@ -3,7 +3,7 @@ package river
 import (
 	"context"
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -27,7 +27,7 @@ func (c *Client) Stop(_ context.Context) error { return c.Close() }
 // Liveness reports whether the Runtime holds a connection pool.
 func (r *Runtime) Liveness(_ context.Context) error {
 	if r.pool == nil {
-		return coreerrors.Internal("river runtime not initialized")
+		return apperr.Internal("river runtime not initialized")
 	}
 	return nil
 }
@@ -35,7 +35,11 @@ func (r *Runtime) Liveness(_ context.Context) error {
 // Readiness verifies the Runtime's database pool is reachable (a Ping).
 func (r *Runtime) Readiness(ctx context.Context) error {
 	if r.pool == nil {
-		return coreerrors.Internal("river runtime not initialized")
+		return apperr.Internal("river runtime not initialized")
 	}
-	return r.pool.Ping(ctx)
+	return apperr.Wrap(
+		r.pool.Ping(ctx),
+		apperr.CodeUnavailable,
+		"river pool ping",
+	)
 }

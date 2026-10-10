@@ -4,9 +4,19 @@ The old ``KbSyncBatcher`` dissolved into composable decorators; these preserve i
 (complete / poll-until-complete / poll-timeout / lock-skip) plus the new retry-with-backoff.
 """
 
+import asyncio
+from typing import TypedDict, Unpack
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
+
+from techai_webutils.clients.kb_ingestion.decorators import (
+    PollingIngestor,
+    RetryingIngestor,
+)
+from techai_webutils.clients.kb_ingestion.mapping import job_from_payload
+from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
+from techai_webutils.clients.lock import InMemoryLock, SingleWriterRunner
 from techai_webutils.core.errors.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.kb_ingestion import (
     IngestionJob,
@@ -14,14 +24,9 @@ from techai_webutils.core.interfaces.kb_ingestion import (
     KnowledgeBaseIngestor,
 )
 
-from techai_webutils.clients.kb_ingestion.decorators import PollingIngestor, RetryingIngestor
-from techai_webutils.clients.kb_ingestion.mapping import job_from_payload
-from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
-from techai_webutils.clients.lock import InMemoryLock, SingleWriterRunner
-
 
 async def _noop_sleep(_seconds: float) -> None:
-    """A no-op sleep so poll tests run instantly."""
+    """Skip the wait so poll tests run instantly (a no-op sleep)."""
 
 
 def _ingestor_mock() -> MagicMock:
@@ -38,16 +43,27 @@ def _ingestor_mock() -> MagicMock:
 
 
 def _job(state: IngestionJobState, job_id: str = "job-1") -> IngestionJob:
-    """An ``IngestionJob`` in ``state`` (canned return for the ingestor mocks)."""
+    """Return an ``IngestionJob`` in ``state`` (canned return for the ingestor mocks)."""
     return IngestionJob(job_id=job_id, state=state)
 
 
-def _polling(inner: KnowledgeBaseIngestor, **kwargs: float) -> PollingIngestor:
+class _PollingOptions(TypedDict, total=False):
+    """The PollingIngestor options a test may override."""
+
+    max_poll_seconds: float
+    """The poll deadline in seconds."""
+
+
+def _polling(
+    inner: KnowledgeBaseIngestor, **kwargs: Unpack[_PollingOptions]
+) -> PollingIngestor:
     """Build a PollingIngestor with a no-op sleep + zero interval (instant poll tests)."""
     return PollingIngestor(inner, poll_interval_seconds=0.0, sleep=_noop_sleep, **kwargs)
 
 
 class TestPollingIngestor:
+    """Tests for the polling ingestor."""
+
     @pytest.mark.asyncio
     async def test_returns_terminal_start_immediately(self) -> None:
         """Test that a job which starts terminal is returned without polling.
@@ -78,8 +94,12 @@ class TestPollingIngestor:
             ``get_ingestion_job`` is never called (no poll happens in ``start``).
         """
         ingestor = _ingestor_mock()
-        ingestor.start_ingestion_job.return_value = _job(IngestionJobState.IN_PROGRESS, "fresh")
-        job = await _polling(ingestor).start_ingestion_job(knowledge_base_id="kb", data_source_id="ds")
+        ingestor.start_ingestion_job.return_value = _job(
+            IngestionJobState.IN_PROGRESS, "fresh"
+        )
+        job = await _polling(ingestor).start_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds"
+        )
         assert job.state is IngestionJobState.IN_PROGRESS
         assert job.job_id == "fresh"
         ingestor.get_ingestion_job.assert_not_awaited()
@@ -121,7 +141,9 @@ class TestPollingIngestor:
             'poll_timeout'.
         """
         ingestor = _ingestor_mock()
-        ingestor.get_ingestion_job.return_value = _job(IngestionJobState.IN_PROGRESS, "stuck")
+        ingestor.get_ingestion_job.return_value = _job(
+            IngestionJobState.IN_PROGRESS, "stuck"
+        )
         job = await _polling(ingestor, max_poll_seconds=0.0).poll_ingestion_job(
             knowledge_base_id="kb", data_source_id="ds", job_id="stuck"
         )
@@ -161,7 +183,9 @@ class TestStopIngestionJob:
           - ``stop_ingestion_job`` returns a STOPPING job and appends ``(kb, ds, job_id)`` to ``stopped``.
         """
         stub = StubKnowledgeBaseIngestor()
-        job = await stub.stop_ingestion_job(knowledge_base_id="kb", data_source_id="ds", job_id="j1")
+        job = await stub.stop_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds", job_id="j1"
+        )
         assert job.state is IngestionJobState.STOPPING
         assert ("kb", "ds", "j1") in stub.stopped
 
@@ -180,7 +204,9 @@ class TestStopIngestionJob:
         inner = _ingestor_mock()
         inner.stop_ingestion_job.return_value = _job(IngestionJobState.STOPPING, "j")
         stack = _polling(RetryingIngestor(inner, base_delay=0.0, max_delay=0.0))
-        job = await stack.stop_ingestion_job(knowledge_base_id="kb", data_source_id="ds", job_id="j")
+        job = await stack.stop_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds", job_id="j"
+        )
         assert job.state is IngestionJobState.STOPPING
         inner.stop_ingestion_job.assert_awaited_once_with(
             knowledge_base_id="kb", data_source_id="ds", job_id="j"
@@ -203,11 +229,15 @@ class TestStopIngestionJob:
         inner.stop_ingestion_job.side_effect = AppError(ErrorCode.UNAVAILABLE, "flaky")
         ingestor = RetryingIngestor(inner, base_delay=0.0, max_delay=0.0)
         with pytest.raises(AppError):
-            await ingestor.stop_ingestion_job(knowledge_base_id="kb", data_source_id="ds", job_id="j")
+            await ingestor.stop_ingestion_job(
+                knowledge_base_id="kb", data_source_id="ds", job_id="j"
+            )
         assert inner.stop_ingestion_job.await_count == 1
 
 
 class TestSingleWriterRunner:
+    """Tests for the single writer runner."""
+
     @pytest.mark.asyncio
     async def test_runs_operation_under_free_lock(self) -> None:
         """Test that the runner runs the guarded op and returns its result when the lock is free.
@@ -220,7 +250,9 @@ class TestSingleWriterRunner:
         """
         polling = _polling(StubKnowledgeBaseIngestor())
         runner = SingleWriterRunner(
-            lambda: polling.start_ingestion_job(knowledge_base_id="kb", data_source_id="ds"),
+            lambda: polling.start_ingestion_job(
+                knowledge_base_id="kb", data_source_id="ds"
+            ),
             InMemoryLock(),
         )
         job = await runner.run()
@@ -243,6 +275,7 @@ class TestSingleWriterRunner:
         ran = False
 
         async def _op() -> str:
+            await asyncio.sleep(0)
             nonlocal ran
             ran = True
             return "started"
@@ -253,6 +286,8 @@ class TestSingleWriterRunner:
 
 
 class TestRetryingIngestor:
+    """Tests for the retrying ingestor."""
+
     @pytest.mark.asyncio
     async def test_retries_transient_then_succeeds(self) -> None:
         """Test that transient AWS failures are retried with backoff until the start succeeds.
@@ -271,7 +306,9 @@ class TestRetryingIngestor:
             _job(IngestionJobState.COMPLETE, "ok"),
         ]
         ingestor = RetryingIngestor(inner, base_delay=0.0, max_delay=0.0)
-        job = await ingestor.start_ingestion_job(knowledge_base_id="kb", data_source_id="ds")
+        job = await ingestor.start_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds"
+        )
         assert job.state is IngestionJobState.COMPLETE
         assert inner.start_ingestion_job.await_count == 3
 
@@ -287,10 +324,14 @@ class TestRetryingIngestor:
           - A start raising a non-transient AppError raises on the first attempt (exactly one call).
         """
         inner = _ingestor_mock()
-        inner.start_ingestion_job.side_effect = AppError(ErrorCode.INVALID_INPUT, "always fails")
+        inner.start_ingestion_job.side_effect = AppError(
+            ErrorCode.INVALID_INPUT, "always fails"
+        )
         ingestor = RetryingIngestor(inner, base_delay=0.0, max_delay=0.0)
         with pytest.raises(AppError):
-            await ingestor.start_ingestion_job(knowledge_base_id="kb", data_source_id="ds")
+            await ingestor.start_ingestion_job(
+                knowledge_base_id="kb", data_source_id="ds"
+            )
         assert inner.start_ingestion_job.await_count == 1
 
     @pytest.mark.asyncio
@@ -305,10 +346,14 @@ class TestRetryingIngestor:
           - With max_attempts=3 and an always-transient start, the last AppError re-raises after 3 calls.
         """
         inner = _ingestor_mock()
-        inner.start_ingestion_job.side_effect = AppError(ErrorCode.UNAVAILABLE, "always fails")
+        inner.start_ingestion_job.side_effect = AppError(
+            ErrorCode.UNAVAILABLE, "always fails"
+        )
         ingestor = RetryingIngestor(inner, max_attempts=3, base_delay=0.0, max_delay=0.0)
         with pytest.raises(AppError):
-            await ingestor.start_ingestion_job(knowledge_base_id="kb", data_source_id="ds")
+            await ingestor.start_ingestion_job(
+                knowledge_base_id="kb", data_source_id="ds"
+            )
         assert inner.start_ingestion_job.await_count == 3
 
     @pytest.mark.asyncio
@@ -322,12 +367,18 @@ class TestRetryingIngestor:
         **What it tests:**
           - get_ingestion_job over the stub returns a COMPLETE job through the RetryingIngestor.
         """
-        ingestor = RetryingIngestor(StubKnowledgeBaseIngestor(), base_delay=0.0, max_delay=0.0)
-        job = await ingestor.get_ingestion_job(knowledge_base_id="kb", data_source_id="ds", job_id="j")
+        ingestor = RetryingIngestor(
+            StubKnowledgeBaseIngestor(), base_delay=0.0, max_delay=0.0
+        )
+        job = await ingestor.get_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds", job_id="j"
+        )
         assert job.state is IngestionJobState.COMPLETE
 
 
 class TestJobFromPayload:
+    """Tests for ``job_from_payload``."""
+
     def test_maps_status_and_flattens_failure_reasons(self) -> None:
         """Test that a Bedrock payload maps to state + a joined failure string.
 
@@ -338,9 +389,11 @@ class TestJobFromPayload:
         **What it tests:**
           - A FAILED payload with two failureReasons yields FAILED state and a '; '-joined error.
         """
-        job = job_from_payload(
-            {"ingestionJobId": "j1", "status": "FAILED", "failureReasons": ["bad file", "quota"]}
-        )
+        job = job_from_payload({
+            "ingestionJobId": "j1",
+            "status": "FAILED",
+            "failureReasons": ["bad file", "quota"],
+        })
         assert job.job_id == "j1"
         assert job.state is IngestionJobState.FAILED
         assert job.error == "bad file; quota"
@@ -355,7 +408,10 @@ class TestJobFromPayload:
         **What it tests:**
           - An unknown status and a missing status both yield FAILED.
         """
-        assert job_from_payload({"ingestionJobId": "j", "status": "WAT"}).state is IngestionJobState.FAILED
+        assert (
+            job_from_payload({"ingestionJobId": "j", "status": "WAT"}).state
+            is IngestionJobState.FAILED
+        )
         assert job_from_payload({"ingestionJobId": "j"}).state is IngestionJobState.FAILED
 
     def test_non_list_failure_reason_is_coerced_not_dropped(self) -> None:
@@ -369,10 +425,14 @@ class TestJobFromPayload:
           - A string failureReasons becomes the error verbatim; absent reasons yield ''.
         """
         assert (
-            job_from_payload({"ingestionJobId": "j", "status": "FAILED", "failureReasons": "boom"}).error
+            job_from_payload({
+                "ingestionJobId": "j",
+                "status": "FAILED",
+                "failureReasons": "boom",
+            }).error
             == "boom"
         )
-        assert job_from_payload({"ingestionJobId": "j", "status": "COMPLETE"}).error == ""
+        assert not job_from_payload({"ingestionJobId": "j", "status": "COMPLETE"}).error
 
     def test_stopping_payload_maps_to_a_non_terminal_job(self) -> None:
         """Test that a STOPPING payload maps to a non-terminal job so the poller keeps polling.

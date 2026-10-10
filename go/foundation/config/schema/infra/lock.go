@@ -24,12 +24,15 @@ type LockConfig struct {
 	RenewInterval time.Duration `mapstructure:"renew_interval"`
 }
 
+// lockKindLocal is the in-process lock backend kind, the default.
+const lockKindLocal = "local"
+
 // DefaultLockConfig returns the in-process backend with a 30s lease renewed every
 // 10s (renew_interval = ttl/3), matching the base config. Dev inherits this
 // (local); staging/prod override kind to redis.
 func DefaultLockConfig() LockConfig {
 	return LockConfig{
-		Kind:          "local",
+		Kind:          lockKindLocal,
 		TTL:           30 * time.Second,
 		RenewInterval: 10 * time.Second,
 	}
@@ -40,7 +43,7 @@ func DefaultLockConfig() LockConfig {
 // expiring between renew ticks).
 func (c LockConfig) Validate() error {
 	switch c.Kind {
-	case "local", "redis":
+	case lockKindLocal, "redis":
 	default:
 		return apperr.InvalidInput("lock.kind must be \"local\" or \"redis\"")
 	}

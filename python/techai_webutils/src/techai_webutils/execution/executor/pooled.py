@@ -62,7 +62,7 @@ imports (never loaded at runtime), matching the module's ray-free, import-light 
 """
 
 
-class _LazyWorker[T]:
+class LazyWorker[T]:
     """Build one ``PooledWorker[T]`` from a factory on first use and reuse it — safe under concurrency.
 
     The build is double-checked under an ``asyncio.Lock`` so concurrent first calls build the worker
@@ -122,21 +122,23 @@ class PooledExecutor[T]:
         raises), so no client or actor is leaked.
         """
         size = min(self._pool_size, len(items)) or 1
-        slots = [_LazyWorker(self._factory) for _ in range(size)]
+        slots = [LazyWorker(self._factory) for _ in range(size)]
         cursor = 0
 
         async def dispatch(item: T) -> StepResult:
             nonlocal cursor
             # Claim a slot round-robin. No await between the read and the increment, so on the
             # single-threaded event loop this is atomic — concurrent dispatches spread evenly. The
-            # slot's ``_LazyWorker`` builds its worker exactly once even under concurrent first hits.
+            # slot's ``LazyWorker`` builds its worker exactly once even under concurrent first hits.
             slot = cursor % size
             cursor += 1
             worker = await slots[slot].get()
             return await worker.process(item)
 
         try:
-            return await fan_out(items, concurrency, dispatch, self._observer, name=self._name)
+            return await fan_out(
+                items, concurrency, dispatch, self._observer, name=self._name
+            )
         finally:
             # Close every built worker independently: gather so one worker's aclose failure (e.g. a Ray
             # actor proxy whose actor already died) can't strand the rest — leaking their actor slots /
@@ -148,4 +150,6 @@ class PooledExecutor[T]:
             )
             for outcome in outcomes:
                 if isinstance(outcome, Exception):
-                    logger.warning("pooled worker aclose failed: %s", outcome, exc_info=outcome)
+                    logger.warning(
+                        "pooled worker aclose failed: %s", outcome, exc_info=outcome
+                    )

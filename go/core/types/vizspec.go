@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // AlgebraOp is a table-algebra operator combining shelf expressions.
@@ -76,8 +76,8 @@ const (
 	MarkPoint Mark = "point"
 )
 
-// FieldRef references one cube field on a shelf; Agg is set for a measure and
-// empty for a dimension. Wire form: {"field":"team"} or {"field":"tokens_in","agg":"sum"}.
+// FieldRef references one cube field on a shelf; Agg is set for a measure and empty for a
+// dimension. Wire form: {"field":"team"} or {"field":"tokens_in","agg":"sum"}.
 type FieldRef struct {
 	// Name is the cube field name.
 	Name string `json:"field"`
@@ -125,7 +125,7 @@ func (e *AlgebraExpr) MarshalJSON() ([]byte, error) {
 	}
 	out, err := json.Marshal(w)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "vizspec: encode shelf")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: encode shelf")
 	}
 	return out, nil
 }
@@ -135,7 +135,11 @@ func (e *AlgebraExpr) MarshalJSON() ([]byte, error) {
 func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	var w algebraWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid shelf expression")
+		return apperr.Wrap(
+			err,
+			apperr.CodeInvalidInput,
+			"vizspec: invalid shelf expression",
+		)
 	}
 	switch {
 	case w.Field != "" && w.Op == "" && len(w.Args) == 0:
@@ -143,7 +147,10 @@ func (e *AlgebraExpr) UnmarshalJSON(b []byte) error {
 	case w.Field == "" && w.Op != "":
 		*e = AlgebraExpr{Op: w.Op, Args: w.Args}
 	default:
-		return errors.New(errors.CodeInvalidInput, "vizspec: a shelf node is either a field or an operator")
+		return apperr.New(
+			apperr.CodeInvalidInput,
+			"vizspec: a shelf node is either a field or an operator",
+		)
 	}
 	return nil
 }
@@ -163,7 +170,8 @@ type Encodings struct {
 	Label *FieldRef `json:"label,omitempty"`
 }
 
-// Fields returns the encoded field references in channel order (color, size, shape, label).
+// Fields returns the encoded field references in channel order (color, size, shape,
+// label).
 func (e Encodings) Fields() []FieldRef {
 	var out []FieldRef
 	for _, ref := range []*FieldRef{e.Color, e.Size, e.Shape, e.Label} {
@@ -248,15 +256,22 @@ type vizSpecWire struct {
 // MarshalJSON renders the VizSpec wire form (the filter as its kept FilterJSON).
 func (s VizSpec) MarshalJSON() ([]byte, error) {
 	w := vizSpecWire{
-		TimeRange: s.TimeRange, Rows: s.Rows, Columns: s.Columns, Encodings: s.Encodings,
-		Cube: s.Cube, Grain: s.Grain, Mark: s.Mark, Filter: s.FilterJSON, Detail: s.Detail,
+		TimeRange: s.TimeRange,
+		Rows:      s.Rows,
+		Columns:   s.Columns,
+		Encodings: s.Encodings,
+		Cube:      s.Cube,
+		Grain:     s.Grain,
+		Mark:      s.Mark,
+		Filter:    s.FilterJSON,
+		Detail:    s.Detail,
 	}
 	for _, o := range s.Sort {
 		w.Sort = append(w.Sort, sortWire{Field: o.Field, Desc: o.Desc})
 	}
 	out, err := json.Marshal(w)
 	if err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "vizspec: encode")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: encode")
 	}
 	return out, nil
 }
@@ -266,11 +281,18 @@ func (s VizSpec) MarshalJSON() ([]byte, error) {
 func (s *VizSpec) UnmarshalJSON(b []byte) error {
 	var w vizSpecWire
 	if err := json.Unmarshal(b, &w); err != nil {
-		return errors.Wrap(err, errors.CodeInvalidInput, "vizspec: invalid JSON")
+		return apperr.Wrap(err, apperr.CodeInvalidInput, "vizspec: invalid JSON")
 	}
 	*s = VizSpec{
-		TimeRange: w.TimeRange, Rows: w.Rows, Columns: w.Columns, Encodings: w.Encodings,
-		Cube: w.Cube, Grain: w.Grain, Mark: w.Mark, FilterJSON: w.Filter, Detail: w.Detail,
+		TimeRange:  w.TimeRange,
+		Rows:       w.Rows,
+		Columns:    w.Columns,
+		Encodings:  w.Encodings,
+		Cube:       w.Cube,
+		Grain:      w.Grain,
+		Mark:       w.Mark,
+		FilterJSON: w.Filter,
+		Detail:     w.Detail,
 	}
 	for _, o := range w.Sort {
 		s.Sort = append(s.Sort, OrderField{Field: o.Field, Desc: o.Desc})

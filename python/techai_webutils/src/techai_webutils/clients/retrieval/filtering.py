@@ -20,6 +20,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.retrieval import PassagePolicy, RetrievalEngine
 from techai_webutils.foundation.lifecycle import DelegatingAsyncResource
 from techai_webutils.foundation.logger import get_logger
@@ -29,7 +30,13 @@ if TYPE_CHECKING:
 
     from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
-__all__ = ["FilteringRetrievalEngine", "MetadataEquals", "MinScore", "OrdinalCeiling", "PassagePolicy"]
+__all__ = [
+    "FilteringRetrievalEngine",
+    "MetadataEquals",
+    "MinScore",
+    "OrdinalCeiling",
+    "PassagePolicy",
+]
 
 logger = get_logger(__name__)
 
@@ -88,12 +95,16 @@ class OrdinalCeiling:
         """Reject an empty ladder, then index ``ranks`` once so ``admits`` is a dict lookup per passage."""
         if not self.ranks:
             msg = "OrdinalCeiling requires at least one label in ranks (an empty ladder admits everything)"
-            raise ValueError(msg)
-        object.__setattr__(self, "_order", {label: i for i, label in enumerate(self.ranks)})
+            raise AppValueError(msg)
+        object.__setattr__(
+            self, "_order", {label: i for i, label in enumerate(self.ranks)}
+        )
 
     def admits(self, passage: RetrievalResult, request: Mapping[str, str]) -> bool:
         """Return True iff the passage's label ranks at or below the caller's level."""
-        passage_rank = self._order.get(passage.metadata.get(self.key, ""), len(self.ranks))
+        passage_rank = self._order.get(
+            passage.metadata.get(self.key, ""), len(self.ranks)
+        )
         return passage_rank <= self._order.get(request.get(self.request_key, ""), 0)
 
 
@@ -118,12 +129,16 @@ class FilteringRetrievalEngine(DelegatingAsyncResource[RetrievalEngine], Retriev
         ``index_id`` is forwarded to the inner engine unchanged; the policies see the call's filters,
         whichever index was queried.
         """
-        results = await self._inner.retrieve(query, top_k=top_k, filters=filters, index_id=index_id)
+        results = await self._inner.retrieve(
+            query, top_k=top_k, filters=filters, index_id=index_id
+        )
         request = dict(filters or {})
         kept: list[RetrievalResult] = []
         dropped_by: Counter[str] = Counter()
         for result in results:
-            rejecting = next((p for p in self._policies if not p.admits(result, request)), None)
+            rejecting = next(
+                (p for p in self._policies if not p.admits(result, request)), None
+            )
             if rejecting is None:
                 kept.append(result)
             else:

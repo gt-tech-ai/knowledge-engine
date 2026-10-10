@@ -7,7 +7,7 @@ lives in ``foundation.resilience.circuit_breaker``.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Self, TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import types

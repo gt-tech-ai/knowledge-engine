@@ -2,12 +2,12 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/deadletter"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -37,7 +37,7 @@ func TestDeadLetterQueue_SwallowsBackendFailureAndRedrives(t *testing.T) {
 	failingBackend := mocks.NewMockDeadLetterBackend(ctrl)
 	failingBackend.EXPECT().
 		Send(gomock.Any(), gomock.Any()).
-		Return(errors.New("dlq unavailable"))
+		Return(apperr.Sentinel("dlq unavailable"))
 	failing := deadletter.New(failingBackend, fixtures.NewSpyLogger())
 	require.False(t, failing.Send(context.Background(), letter),
 		"a backend failure must return false so the caller redrives the source message")

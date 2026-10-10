@@ -38,7 +38,8 @@ func TestDatabaseConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "disable", cfg.SSLMode)
 }
 
-// TestDatabaseConfig_DSN tests that DSN() constructs a valid PostgreSQL connection string.
+// TestDatabaseConfig_DSN tests that DSN() constructs a valid PostgreSQL connection
+// string.
 //
 // Why this test is important:
 //   - DSN is used directly by database/sql to open connections
@@ -71,7 +72,8 @@ func TestDatabaseConfig_DSN(t *testing.T) {
 				Database: "prod_db",
 				SSLMode:  "require",
 			},
-			want: "postgres://prod_user:prod_pass@prod-db.example.com:5432/prod_db?sslmode=require",
+			want: "postgres://prod_user:prod_pass@prod-db.example.com:5432/prod_db" +
+				"?sslmode=require",
 		},
 	}
 
@@ -137,16 +139,27 @@ func TestDatabaseConfig_DSNEscapesCredentials(t *testing.T) {
 	}
 }
 
-// dsnHosts are the host spellings FuzzDatabaseConfig_DSNRoundTrip draws from: a DNS name, an
-// IPv4 address, and IPv6 addresses both bare and already bracketed (as some configs write them).
-var dsnHosts = []string{"db.example.com", "10.0.0.7", "::1", "[::1]", "2001:db8::5", "[2001:db8::5]"}
+// dsnHosts returns the host spellings FuzzDatabaseConfig_DSNRoundTrip draws from: a
+// DNS name, an IPv4 address, and IPv6 addresses both bare and already bracketed (as
+// some configs write them).
+func dsnHosts() []string {
+	return []string{
+		"db.example.com",
+		"10.0.0.7",
+		"::1",
+		"[::1]",
+		"2001:db8::5",
+		"[2001:db8::5]",
+	}
+}
 
 // FuzzDatabaseConfig_DSNRoundTrip fuzzes the DSN encode → driver-parse round trip.
 //
 // Why this test is important:
 //   - DSN() promises every component survives the URL encoding: an IPv6 host (bare or
-//     written "[::1]"), or a user, password or database name with reserved characters, that
-//     comes back altered makes the service connect to the wrong place or fail to connect.
+//     written "[::1]"), or a user, password or database name with reserved characters,
+//     that comes back altered makes the service connect to the wrong place or fail to
+//     connect.
 //
 // What it tests:
 //   - For arbitrary user, password and database strings (non-empty, NUL-free, as Postgres
@@ -165,7 +178,7 @@ func FuzzDatabaseConfig_DSNRoundTrip(f *testing.F) {
 		if strings.ContainsRune(user+password+database, 0) {
 			t.Skip("Postgres strings cannot contain NUL")
 		}
-		host := dsnHosts[int(hostIdx)%len(dsnHosts)]
+		host := dsnHosts()[int(hostIdx)%len(dsnHosts())]
 		cfg := infra.DatabaseConfig{
 			Host: host, Port: 5432, User: user, Password: password,
 			Database: database, SSLMode: "disable",
@@ -181,7 +194,8 @@ func FuzzDatabaseConfig_DSNRoundTrip(f *testing.F) {
 	})
 }
 
-// TestDatabaseConfig_Validate tests that Validate returns an error for invalid configurations.
+// TestDatabaseConfig_Validate tests that Validate returns an error for invalid
+// configurations.
 //
 // Why this test is important:
 //   - Services must fail fast at startup with clear errors, not runtime panics
@@ -421,7 +435,8 @@ func TestLoggingConfig_Defaults(t *testing.T) {
 	assert.True(t, cfg.RedactPII, "RedactPII must default to true")
 }
 
-// TestObservabilityConfig_Defaults tests that DefaultObservabilityConfig returns correct defaults.
+// TestObservabilityConfig_Defaults tests that DefaultObservabilityConfig returns correct
+// defaults.
 //
 // Why this test is important:
 //   - ObservabilityConfig enables tracing and metrics
@@ -439,7 +454,7 @@ func TestObservabilityConfig_Defaults(t *testing.T) {
 	cfg := infra.DefaultObservabilityConfig()
 	assert.True(t, cfg.Tracing.Enabled, "Tracing.Enabled must default to true")
 	assert.Equal(t, "localhost:4317", cfg.Tracing.Endpoint)
-	assert.Equal(t, 0.1, cfg.Tracing.SampleRate)
+	assert.InDelta(t, 0.1, cfg.Tracing.SampleRate, 0)
 	assert.True(t, cfg.Metrics.Enabled, "Metrics.Enabled must default to true")
 	assert.Equal(t, 9090, cfg.Metrics.Port)
 }
@@ -481,8 +496,10 @@ func TestAppConfig_DefaultAndValidate(t *testing.T) {
 // when stub mode is disabled.
 //
 // Why this test is important:
-//   - Misconfigured identity-provider settings cause every authenticated request to fail at runtime
-//   - Stub mode must bypass validation so local dev doesn't require a real identity provider
+//   - Misconfigured identity-provider settings cause every authenticated request to fail
+//     at runtime
+//   - Stub mode must bypass validation so local dev doesn't require a real identity
+//     provider
 //   - Missing issuer or audience errors are only surfaced at startup; late discovery
 //     (e.g., during a live request) is far harder to diagnose
 //

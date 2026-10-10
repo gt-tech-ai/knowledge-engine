@@ -69,7 +69,9 @@ class ResilientRayRuntime(RayRuntime):
         """Establish the Ray connection, retrying a transient cold-connect failure with backoff."""
         await self._retry(self._connect)()
 
-    async def submit[T](self, fn: Callable[[T], Awaitable[StepResult]], item: T) -> StepResult:
+    async def submit[T](
+        self, fn: Callable[[T], Awaitable[StepResult]], item: T
+    ) -> StepResult:
         """Ensure the connection (retried), then dispatch the item; the task itself is not retried here."""
         await self.warm_up()
         return await self._inner.submit(fn, item)
@@ -84,8 +86,12 @@ class ResilientRayRuntime(RayRuntime):
         """
         try:
             await self._inner.warm_up()
-        except Exception as exc:  # any cold-connect failure is transient — log + re-raise for retry
-            logger.warning("ray connect attempt failed; retrying with backoff", error=str(exc))
+        except (
+            Exception
+        ) as exc:  # any cold-connect failure is transient — log + re-raise for retry
+            logger.warning(
+                "ray connect attempt failed; retrying with backoff", error=str(exc)
+            )
             msg = f"ray cluster connect failed: {exc}"
             raise UnavailableError(msg) from exc
         if not self._connected:

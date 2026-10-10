@@ -8,13 +8,15 @@ call) independent of any product prompt.
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
 from techai_webutils.core.interfaces.retrieval import HistoryTurn
-
 from techai_webutils.pipelines.rewriter import LlmQueryRewriter, RewritePrompt
 
 
 class TestLlmQueryRewriter:
+    """Tests for the LLM query rewriter."""
+
     @pytest.mark.asyncio
     async def test_passthrough_on_first_turn(self) -> None:
         """Test that with no conversation context the query is returned unchanged (no LLM call).
@@ -27,9 +29,9 @@ class TestLlmQueryRewriter:
           - rewrite(query, context=None) returns [query] and never calls the LLM.
         """
         llm = create_autospec(LLMProvider, instance=True)
-        result = await LlmQueryRewriter(llm, create_autospec(RewritePrompt, instance=True)).rewrite(
-            "What is Q3 revenue?"
-        )
+        result = await LlmQueryRewriter(
+            llm, create_autospec(RewritePrompt, instance=True)
+        ).rewrite("What is Q3 revenue?")
         assert result == ["What is Q3 revenue?"]
         llm.complete.assert_not_awaited()
 
@@ -49,7 +51,11 @@ class TestLlmQueryRewriter:
         cfg = LLMConfig(temperature=0.1)
         llm = create_autospec(LLMProvider, instance=True)
         llm.complete.return_value = LLMResponse(
-            content="standalone", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+            content="standalone",
+            model="m",
+            input_tokens=1,
+            output_tokens=1,
+            finish_reason="stop",
         )
         prompt = create_autospec(RewritePrompt, instance=True)
         await LlmQueryRewriter(llm, prompt, cfg).rewrite(
@@ -76,7 +82,9 @@ class TestLlmQueryRewriter:
             output_tokens=1,
             finish_reason="stop",
         )
-        result = await LlmQueryRewriter(llm, create_autospec(RewritePrompt, instance=True)).rewrite(
+        result = await LlmQueryRewriter(
+            llm, create_autospec(RewritePrompt, instance=True)
+        ).rewrite(
             "What about Q4?",
             history=[HistoryTurn(role="user", content="Tell me about Q3 revenue")],
         )

@@ -115,7 +115,9 @@ type defaultDecoratedImpl[T any, P any, ID comparable] struct {
 // client stack (ARCHITECTURE.md#decorator-order); timeout and authorization sit inside
 // the trio.
 func (b *Builder[T, P, ID]) Build() interfaces.DecoratedService[T, P, ID] {
-	var svc interfaces.DecoratedService[T, P, ID] = &defaultDecoratedImpl[T, P, ID]{Service: b.base}
+	var svc interfaces.DecoratedService[T, P, ID] = &defaultDecoratedImpl[T, P, ID]{
+		Service: b.base,
+	}
 
 	if b.timeout > 0 {
 		svc = &timeoutDecorator[T, P, ID]{inner: svc, timeout: b.timeout}
@@ -134,7 +136,8 @@ func (b *Builder[T, P, ID]) Build() interfaces.DecoratedService[T, P, ID] {
 	if b.tracer != nil {
 		svc = &tracingDecorator[T, P, ID]{inner: svc, tracer: b.tracer, name: b.name}
 	}
-	// Validation is the outermost business decorator — it fails an invalid write fast, just inside recovery.
+	// Validation is the outermost business decorator — it fails an invalid write fast,
+	// just inside recovery.
 	if b.validate != nil {
 		svc = &validationDecorator[T, P, ID]{inner: svc, validate: b.validate}
 	}

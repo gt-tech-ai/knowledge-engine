@@ -1,6 +1,7 @@
 """Tests for the knowledge-base ingestion interface + IngestionJob."""
 
 import pytest
+
 from techai_webutils.core.interfaces.kb_ingestion import (
     IngestionJob,
     IngestionJobState,
@@ -9,6 +10,8 @@ from techai_webutils.core.interfaces.kb_ingestion import (
 
 
 class TestIngestionJob:
+    """Tests for the ingestion job."""
+
     def test_is_terminal_reflects_completion(self) -> None:
         """Test that is_terminal is True only for the terminal states (COMPLETE/FAILED/STOPPED).
 
@@ -21,15 +24,32 @@ class TestIngestionJob:
         **What it tests:**
           - COMPLETE, FAILED, and STOPPED are terminal; STARTING, IN_PROGRESS, and STOPPING are not.
         """
-        assert IngestionJob(job_id="j", state=IngestionJobState.COMPLETE).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.FAILED).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.STOPPED).is_terminal is True
-        assert IngestionJob(job_id="j", state=IngestionJobState.STARTING).is_terminal is False
-        assert IngestionJob(job_id="j", state=IngestionJobState.IN_PROGRESS).is_terminal is False
-        assert IngestionJob(job_id="j", state=IngestionJobState.STOPPING).is_terminal is False
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.COMPLETE).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.FAILED).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STOPPED).is_terminal is True
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STARTING).is_terminal
+            is False
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.IN_PROGRESS).is_terminal
+            is False
+        )
+        assert (
+            IngestionJob(job_id="j", state=IngestionJobState.STOPPING).is_terminal
+            is False
+        )
 
 
 class TestKnowledgeBaseIngestor:
+    """Tests for the knowledge base ingestor."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that the ingestor ABC cannot be instantiated without the job methods.
 

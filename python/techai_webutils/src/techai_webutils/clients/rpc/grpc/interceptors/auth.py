@@ -99,11 +99,14 @@ class AuthServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
         """Read claims from the metadata keys in ``headers``."""
         self._headers = headers
 
-    async def intercept_service(  # type: ignore[override]
+    async def intercept_service[TRequest, TResponse](
         self,
-        continuation: Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler | None]],
+        continuation: Callable[
+            [grpc.HandlerCallDetails],
+            Awaitable[grpc.RpcMethodHandler[TRequest, TResponse] | None],
+        ],
         handler_call_details: grpc.HandlerCallDetails,
-    ) -> grpc.RpcMethodHandler | None:
+    ) -> grpc.RpcMethodHandler[TRequest, TResponse] | None:
         """Extract auth headers and store as AuthClaims in contextvars."""
         # The gRPC Python API for server interceptors passes metadata via
         # handler_call_details.invocation_metadata

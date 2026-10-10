@@ -148,7 +148,9 @@ type defaultDecoratedImpl[T any, P any, ID comparable] struct {
 // inside-out: base -> caching -> retry -> circuitBreaker -> timeout ->
 // logging -> metrics -> tracing (tracing is outermost).
 func (b *Builder[T, P, ID]) Build() interfaces.DecoratedRepository[T, P, ID] {
-	var repo interfaces.DecoratedRepository[T, P, ID] = &defaultDecoratedImpl[T, P, ID]{Repository: b.base}
+	var repo interfaces.DecoratedRepository[T, P, ID] = &defaultDecoratedImpl[T, P, ID]{
+		Repository: b.base,
+	}
 
 	if b.cache != nil {
 		repo = &cachingDecorator[T, P, ID]{

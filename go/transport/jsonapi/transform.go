@@ -12,8 +12,8 @@ import (
 // TransformSingleResource converts a Vanguard single-resource response to
 // JSON:API format.
 //
-// Input:  {"user": {"id":"123", "email":"a@b.com", ...}}
-// Output: {"data": {"type":"users", "id":"123", "attributes":{...}}, "links":{"self":"..."}}
+// Input: {"user": {"id":"123", "email":"a@b.com", ...}} Output: {"data": {"type":"users",
+// "id":"123", "attributes":{...}}, "links":{"self":"..."}}
 func TransformSingleResource(
 	body map[string]any,
 	cfg ResourceConfig,
@@ -73,8 +73,9 @@ func TransformMeta(body map[string]any) map[string]any {
 
 // TransformCollection converts a Vanguard list response to JSON:API format.
 //
-// Input:  {"users": [...], "pagination": {"nextPageToken":"abc", "totalCount":45, "totalIsEstimate":true}}
-// Output: {"data": [...], "meta": {"totalCount":45, "totalIsEstimate":true}, "links":{"self":"...", "next":"..."}}
+// Input: {"users": [...], "pagination": {"nextPageToken":"abc", "totalCount":45,
+// "totalIsEstimate":true}} Output: {"data": [...], "meta": {"totalCount":45,
+// "totalIsEstimate":true}, "links":{"self":"...", "next":"..."}}
 func TransformCollection(
 	body map[string]any,
 	cfg ResourceConfig,
@@ -202,7 +203,7 @@ func TransformError(statusCode int, body []byte) []byte {
 	if len(body) > 0 {
 		var parsed map[string]any
 		if err := json.Unmarshal(body, &parsed); err == nil {
-			if c := normalizeErrorCode(parsed["code"]); c != "" {
+			if c := normalizeErrorCode(parsed[memberCode]); c != "" {
 				code = c
 			}
 			if m, ok := parsed["message"].(string); ok && m != "" {
@@ -213,8 +214,8 @@ func TransformError(statusCode int, body []byte) []byte {
 
 	statusStr := strconv.Itoa(statusCode)
 	member := map[string]any{
-		"code":   code,
-		"status": statusStr,
+		memberCode: code,
+		"status":   statusStr,
 	}
 	if detail != "" {
 		member["detail"] = detail
@@ -227,6 +228,10 @@ func TransformError(statusCode int, body []byte) []byte {
 	}
 	return out
 }
+
+// memberCode is the error-body member carrying the machine-readable error code,
+// both in a Connect error body and in a JSON:API error object.
+const memberCode = "code"
 
 // normalizeErrorCode maps the "code" member of an upstream error body to a JSON:API
 // machine-readable code string. Two producers reach this: Vanguard renders a

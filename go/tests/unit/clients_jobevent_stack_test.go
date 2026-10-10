@@ -2,21 +2,21 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	jobdec "github.com/gt-tech-ai/knowledge-engine/go/clients/jobs/decorators"
 	msgdec "github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/deadletter"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/dedup"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/leader"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"go.uber.org/mock/gomock"
 )
 
 // TestWrapHandler_DedupSkipsDuplicate tests that the EventHandler stack skips a message
@@ -24,7 +24,8 @@ import (
 //
 // Why this test is important:
 //   - Under at-least-once delivery the same message can arrive twice; the dedup layer is
-//     the guard, and re-running the handler would double-process (e.g. duplicate side effects).
+//     the guard, and re-running the handler would double-process (e.g. duplicate side
+//     effects).
 //
 // What it tests:
 //   - Two handler invocations for the same message id run the inner handler exactly once.
@@ -50,18 +51,19 @@ func TestWrapHandler_DedupSkipsDuplicate(t *testing.T) {
 // the resilience stack is routed to the dead-letter queue and acked.
 //
 // Why this test is important:
-//   - A poison message that neither dead-letters nor acks would loop forever; routing it to
-//     the DLQ and acking is how the consumer makes progress without losing the message.
+//   - A poison message that neither dead-letters nor acks would loop forever; routing it
+//     to the DLQ and acking is how the consumer makes progress without losing the
+//     message.
 //
 // What it tests:
-//   - An always-failing handler (no retrier → one attempt) yields a nil return (acked) and the
-//     dead-letter backend records the message.
+//   - An always-failing handler (no retrier → one attempt) yields a nil return (acked)
+//     and the dead-letter backend records the message.
 func TestWrapHandler_TerminalFailureDeadLettered(t *testing.T) {
 	t.Parallel()
 
 	stub := &deadletter.StubBackend{}
 	handler := msgdec.WrapHandler(
-		func(context.Context, *interfaces.Message) error { return errors.New("boom") },
+		func(context.Context, *interfaces.Message) error { return apperr.Sentinel("boom") },
 		msgdec.EventStackDeps{
 			DeadLetter: deadletter.New(stub, fixtures.NewSpyLogger()),
 			Name:       "test",
@@ -86,7 +88,8 @@ func TestWrapHandler_TerminalFailureDeadLettered(t *testing.T) {
 //     sweeps); leader election is the guard that makes it fire once.
 //
 // What it tests:
-//   - A non-leader instance skips the job (never runs it); the leader runs it exactly once.
+//   - A non-leader instance skips the job (never runs it); the leader runs it exactly
+//     once.
 func TestWrapJob_LeaderGating(t *testing.T) {
 	t.Parallel()
 

@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	stderrors "errors"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	jobdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/jobs/decorators"
 	storagedecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/storage/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/circuitbreaker"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
@@ -146,7 +146,7 @@ func TestJobDecorator_WrapJob_GateBranches(t *testing.T) {
 		leader := mocks.NewMockLeaderElector(gomock.NewController(t))
 		leader.EXPECT().
 			IsLeader(gomock.Any()).
-			Return(false, stderrors.New("election down"))
+			Return(false, apperr.Sentinel("election down"))
 		err := jobdecorators.WrapJob(
 			fn,
 			jobdecorators.JobStackDeps{Leader: leader, Name: "j"},

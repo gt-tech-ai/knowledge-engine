@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from unittest.mock import MagicMock
 
 import pytest
+
 from techai_webutils.workflows.base import BaseAsyncWorkflow, BaseWorkflow
 from techai_webutils.workflows.decorators import AsyncWorkflowBuilder, WorkflowBuilder
 
@@ -41,7 +43,7 @@ class TestBaseWorkflow:
           - ValueError raised by the callable is re-raised from execute
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "orchestration failed"
             raise ValueError(msg)
 
@@ -67,6 +69,7 @@ class TestBaseAsyncWorkflow:
         """
 
         async def orchestrate(x: str) -> str:
+            await asyncio.sleep(0)
             return x + "-processed"
 
         w = BaseAsyncWorkflow(orchestrate)
@@ -86,7 +89,8 @@ class TestBaseAsyncWorkflow:
           - ValueError raised by the async callable is re-raised from execute
         """
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async orchestration failed"
             raise ValueError(msg)
 
@@ -112,7 +116,11 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
         orchestrate = lambda x: x + "-done"  # noqa: E731
-        w = WorkflowBuilder(BaseWorkflow(orchestrate), "test-workflow").with_logging(logger).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(orchestrate), "test-workflow")
+            .with_logging(logger)
+            .build()
+        )
 
         result = w.execute("task")
         assert result == "task-done"
@@ -135,11 +143,15 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "workflow error"
             raise ValueError(msg)
 
-        w = WorkflowBuilder(BaseWorkflow(failing), "error-workflow").with_logging(logger).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(failing), "error-workflow")
+            .with_logging(logger)
+            .build()
+        )
 
         with pytest.raises(ValueError, match="workflow error"):
             w.execute("input")
@@ -167,7 +179,11 @@ class TestWorkflowBuilder:
         logger = MagicMock()
         orchestrate = lambda x: "composed-" + x  # noqa: E731
 
-        w = WorkflowBuilder(BaseWorkflow(orchestrate), "composed-workflow").with_logging(logger).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(orchestrate), "composed-workflow")
+            .with_logging(logger)
+            .build()
+        )
 
         result = w.execute("test")
         assert result == "composed-test"
@@ -209,7 +225,11 @@ class TestMetricsDecorator:
         histogram = MagicMock()
         orchestrate = lambda x: x + "-done"  # noqa: E731
 
-        w = WorkflowBuilder(BaseWorkflow(orchestrate), "metrics-workflow").with_metrics(histogram).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(orchestrate), "metrics-workflow")
+            .with_metrics(histogram)
+            .build()
+        )
 
         result = w.execute("task")
         assert result == "task-done"
@@ -231,11 +251,15 @@ class TestMetricsDecorator:
         """
         histogram = MagicMock()
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "metrics error"
             raise ValueError(msg)
 
-        w = WorkflowBuilder(BaseWorkflow(failing), "error-metrics").with_metrics(histogram).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(failing), "error-metrics")
+            .with_metrics(histogram)
+            .build()
+        )
 
         with pytest.raises(ValueError, match="metrics error"):
             w.execute("input")
@@ -292,7 +316,11 @@ class TestWorkflowTimeoutDecorator:
           - Workflow returns the orchestrated result when completing before the deadline
         """
         orchestrate = lambda x: x + "-done"  # noqa: E731
-        w = WorkflowBuilder(BaseWorkflow(orchestrate), "fast-workflow").with_timeout(5.0).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(orchestrate), "fast-workflow")
+            .with_timeout(5.0)
+            .build()
+        )
 
         result = w.execute("task")
         assert result == "task-done"
@@ -314,7 +342,11 @@ class TestWorkflowTimeoutDecorator:
             time.sleep(2.0)
             return x + "-done"
 
-        w = WorkflowBuilder(BaseWorkflow(slow), "slow-workflow").with_timeout(0.01).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(slow), "slow-workflow")
+            .with_timeout(0.01)
+            .build()
+        )
 
         with pytest.raises(AppTimeoutError):
             w.execute("task")
@@ -337,11 +369,15 @@ class TestWorkflowRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "unexpected boom"
             raise RuntimeError(msg)
 
-        w = WorkflowBuilder(BaseWorkflow(failing), "recover-workflow").with_recovery().build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(failing), "recover-workflow")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError) as exc_info:
             w.execute("input")
@@ -360,10 +396,15 @@ class TestWorkflowRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InvalidInputError
 
-        def failing(x: str) -> str:
-            raise InvalidInputError("bad input")
+        def failing(_x: str) -> str:
+            msg = "bad input"
+            raise InvalidInputError(msg)
 
-        w = WorkflowBuilder(BaseWorkflow(failing), "app-error-workflow").with_recovery().build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(failing), "app-error-workflow")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InvalidInputError):
             w.execute("input")
@@ -404,7 +445,11 @@ class TestSyncWorkflowInsideRunningLoop:
         """
         logger = MagicMock()
         orchestrate = lambda x: x + "-done"  # noqa: E731
-        w = WorkflowBuilder(BaseWorkflow(orchestrate), "loop-test").with_logging(logger).build()
+        w = (
+            WorkflowBuilder(BaseWorkflow(orchestrate), "loop-test")
+            .with_logging(logger)
+            .build()
+        )
 
         result = w.execute("task")
         assert result == "task-done"
@@ -421,7 +466,7 @@ class TestSyncWorkflowInsideRunningLoop:
           - ValueError raised by the callable propagates through _run_sync
         """
 
-        def failing(x: str) -> str:
+        def failing(_x: str) -> str:
             msg = "loop error"
             raise ValueError(msg)
 
@@ -453,7 +498,11 @@ class TestAsyncWorkflowResilienceDecorators:
             await asyncio.sleep(2.0)
             return x + "-done"
 
-        w = AsyncWorkflowBuilder(BaseAsyncWorkflow(slow), "async-slow").with_timeout(0.01).build()
+        w = (
+            AsyncWorkflowBuilder(BaseAsyncWorkflow(slow), "async-slow")
+            .with_timeout(0.01)
+            .build()
+        )
 
         with pytest.raises(AppTimeoutError):
             await w.execute("task")
@@ -473,11 +522,16 @@ class TestAsyncWorkflowResilienceDecorators:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        async def failing(x: str) -> str:
+        async def failing(_x: str) -> str:
+            await asyncio.sleep(0)
             msg = "async unexpected"
             raise RuntimeError(msg)
 
-        w = AsyncWorkflowBuilder(BaseAsyncWorkflow(failing), "async-recover").with_recovery().build()
+        w = (
+            AsyncWorkflowBuilder(BaseAsyncWorkflow(failing), "async-recover")
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError) as exc_info:
             await w.execute("input")
@@ -499,6 +553,7 @@ class TestAsyncWorkflowResilienceDecorators:
         """
 
         async def orchestrate(x: str) -> str:
+            await asyncio.sleep(0)
             return "full-" + x
 
         logger = MagicMock()

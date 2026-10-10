@@ -6,9 +6,9 @@ Wraps an awaitable with a timeout, raising TimeoutError if exceeded.
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 from techai_webutils.core.errors.errors import AppTimeoutError
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable

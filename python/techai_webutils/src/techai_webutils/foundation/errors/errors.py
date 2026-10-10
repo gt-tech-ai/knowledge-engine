@@ -9,8 +9,9 @@ Builds on top of python/techai_webutils/src/techai_webutils/core/errors to add:
 
 from __future__ import annotations
 
-from techai_webutils.core.errors.errors import AppError, ErrorCode, IngestionError
 from typing import Self
+
+from techai_webutils.core.errors.errors import AppError, ErrorCode, IngestionError
 
 
 def classify_error(err: BaseException) -> str:
@@ -31,26 +32,26 @@ def classify_error(err: BaseException) -> str:
     if not isinstance(err, AppError):
         return "unknown"
 
-    if err.code in (ErrorCode.TIMEOUT, ErrorCode.UNAVAILABLE):
+    if err.code in {ErrorCode.TIMEOUT, ErrorCode.UNAVAILABLE}:
         return "transient"
-    if err.code in (
+    if err.code in {
         ErrorCode.NOT_FOUND,
         ErrorCode.INVALID_INPUT,
         ErrorCode.UNAUTHORIZED,
         ErrorCode.FORBIDDEN,
         ErrorCode.CONFLICT,
-    ):
+    }:
         return "permanent"
     # Server-side failures: the base internal error, the two pipeline-failure codes, and an
     # upstream-dependency failure. UPSTREAM is intentionally NOT transient -- Go's classify.go
     # IsTransient omits it, so it is surfaced for investigation rather than retried, even though
     # it maps to gRPC UNAVAILABLE on the wire.
-    if err.code in (
+    if err.code in {
         ErrorCode.INTERNAL,
         ErrorCode.INGESTION_ERROR,
         ErrorCode.QUALITY_FAILED,
         ErrorCode.UPSTREAM,
-    ):
+    }:
         return "internal"
     # UNKNOWN, CANCELED and RESOURCE_EXHAUSTED are classified neither transient nor permanent in
     # Go, so they fall through to the catch-all category (a spent quota is not retried, and it is
@@ -106,6 +107,10 @@ class IngestionErrors(ExceptionGroup[IngestionError]):
 
         """
         return super().__new__(cls, message, errors)
+
+    def __init__(self, message: str, errors: list[IngestionError]) -> None:
+        """Initialize the group with the same arguments ``__new__`` received."""
+        super().__init__(message, errors)
 
     def derive(self, excs: list[BaseException]) -> IngestionErrors:  # type: ignore[override]
         """Derive a new ``IngestionErrors`` group from a subset of exceptions.

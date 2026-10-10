@@ -23,7 +23,9 @@ class TracerProvider(ABC):
 
     @abstractmethod
     @contextmanager
-    def span(self, name: str, **attributes: str | float | bool) -> Generator[TracerSpan, None, None]:
+    def span(
+        self, name: str, **attributes: str | float | bool
+    ) -> Generator[TracerSpan, None, None]:
         """Start a new span as a context manager.
 
         Usage::

@@ -3,7 +3,7 @@ package infra
 import (
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // ServerConfig holds HTTP server configuration.
@@ -26,7 +26,8 @@ type ServerConfig struct {
 	// WriteTimeout is the maximum duration to write a response.
 	WriteTimeout time.Duration `mapstructure:"write_timeout"`
 
-	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive connection.
+	// IdleTimeout is the maximum duration to wait for the next request on a keep-alive
+	// connection.
 	IdleTimeout time.Duration `mapstructure:"idle_timeout"`
 }
 
@@ -47,7 +48,7 @@ func DefaultServerConfig() ServerConfig {
 // Validate returns an error if the configuration is invalid.
 func (c ServerConfig) Validate() error {
 	if c.Port == 0 {
-		return coreerr.InvalidInput("server.port is required (got 0)")
+		return apperr.InvalidInput("server.port is required (got 0)")
 	}
 	return nil
 }

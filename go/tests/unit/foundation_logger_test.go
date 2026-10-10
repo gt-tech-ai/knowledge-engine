@@ -7,12 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// TestRedactPII_Email tests that email addresses are replaced with [REDACTED] in log output.
+// TestRedactPII_Email tests that email addresses are replaced with [REDACTED] in log
+// output.
 //
 // Why this test is important:
 //   - PII leaks in logs violate GDPR and SOC2 compliance requirements
@@ -122,7 +123,8 @@ func TestRedactPII_AuthToken(t *testing.T) {
 			// Fake 3-segment JWT — test fixture only, never a real credential. The
 			// trailing gitleaks:allow marks it as an intentional false positive so the
 			// secret scanner (generic-api-key, high-entropy) doesn't block the commit.
-			"GET /api/v1/ws?access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.SIGabc", //gitleaks:allow
+			"GET /api/v1/ws?access_token=" +
+				"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.SIGabc", //gitleaks:allow
 			"GET /api/v1/ws?[REDACTED]",
 		},
 	}
@@ -196,16 +198,18 @@ func TestCorrelationID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	assert.Equal(t, "", logger.CorrelationID(ctx))
+	assert.Empty(t, logger.CorrelationID(ctx))
 
 	ctx = logger.WithCorrelationID(ctx, "req-123")
 	assert.Equal(t, "req-123", logger.CorrelationID(ctx))
 }
 
-// TestNewLogger_CreatesValidLogger tests that logger construction with default config produces a usable logger.
+// TestNewLogger_CreatesValidLogger tests that logger construction with default config
+// produces a usable logger.
 //
 // Why this test is important:
-//   - Every service creates a logger at startup; a nil or panicking logger halts initialization
+//   - Every service creates a logger at startup; a nil or panicking logger halts
+//     initialization
 //   - Validates the default configuration produces a working slog.Logger
 //   - Ensures structured logging attributes (key/value pairs) do not panic
 //
@@ -251,11 +255,14 @@ func TestNewLogger_TextFormat(t *testing.T) {
 	l.Debug("debug message")
 }
 
-// TestTraceID_ExtractsFromContext tests that TraceID extracts the OTel trace ID from context.
+// TestTraceID_ExtractsFromContext tests that TraceID extracts the OTel trace ID from
+// context.
 //
 // Why this test is important:
-//   - Log-trace correlation requires trace_id in log entries to link logs to traces in Grafana
-//   - Without trace IDs, debugging distributed systems requires manual correlation of timestamps
+//   - Log-trace correlation requires trace_id in log entries to link logs to traces in
+//     Grafana
+//   - Without trace IDs, debugging distributed systems requires manual correlation of
+//     timestamps
 //   - OTel trace ID is the standard identifier for distributed traces
 //
 // What it tests:
@@ -266,7 +273,7 @@ func TestTraceID_ExtractsFromContext(t *testing.T) {
 
 	// Test case 1: Context without span returns empty string
 	ctx := context.Background()
-	assert.Equal(t, "", logger.TraceID(ctx), "expected empty trace ID for empty context")
+	assert.Empty(t, logger.TraceID(ctx), "expected empty trace ID for empty context")
 
 	// Test case 2: Context with valid span returns trace ID
 	traceID, _ := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
@@ -281,10 +288,12 @@ func TestTraceID_ExtractsFromContext(t *testing.T) {
 	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", logger.TraceID(ctx))
 }
 
-// TestSpanID_ExtractsFromContext tests that SpanID extracts the OTel span ID from context.
+// TestSpanID_ExtractsFromContext tests that SpanID extracts the OTel span ID from
+// context.
 //
 // Why this test is important:
-//   - Span IDs enable drill-down from a specific log entry to its exact span in the trace view
+//   - Span IDs enable drill-down from a specific log entry to its exact span in the trace
+//     view
 //   - Multiple spans within a trace need unique identifiers for log-to-span correlation
 //   - Grafana uses both trace_id and span_id for precise log-trace linking
 //
@@ -296,7 +305,7 @@ func TestSpanID_ExtractsFromContext(t *testing.T) {
 
 	// Test case 1: Context without span returns empty string
 	ctx := context.Background()
-	assert.Equal(t, "", logger.SpanID(ctx), "expected empty span ID for empty context")
+	assert.Empty(t, logger.SpanID(ctx), "expected empty span ID for empty context")
 
 	// Test case 2: Context with valid span returns span ID
 	traceID, _ := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
@@ -311,10 +320,12 @@ func TestSpanID_ExtractsFromContext(t *testing.T) {
 	assert.Equal(t, "00f067aa0ba902b7", logger.SpanID(ctx))
 }
 
-// TestWithContext_IncludesTraceFields tests that WithContext adds trace_id and span_id when available.
+// TestWithContext_IncludesTraceFields tests that WithContext adds trace_id and span_id
+// when available.
 //
 // Why this test is important:
-//   - WithContext must not early-return when correlation_id is empty but trace context is present
+//   - WithContext must not early-return when correlation_id is empty but trace context is
+//     present
 //   - All three fields (correlation_id, trace_id, span_id) must be checked independently
 //   - Log entries need trace context even when the gateway's correlation ID is absent
 //
@@ -345,12 +356,14 @@ func TestWithContext_IncludesTraceFields(t *testing.T) {
 		t,
 		l,
 		enrichedLogger,
-		"WithContext must return new logger with trace fields, not the same logger (early return)",
+		"WithContext must return new logger with trace fields, not the same logger (early "+
+			"return)",
 	)
 
-	// We can't easily inspect the internal slog fields in a unit test without capturing output,
-	// but we can verify that WithContext doesn't early-return when correlation_id is empty.
-	// The full integration test with log output inspection happens in spec-verify phase.
+	// We can't easily inspect the internal slog fields in a unit test without capturing
+	// output, but we can verify that WithContext doesn't early-return when correlation_id
+	// is empty. The full integration test with log output inspection happens in
+	// spec-verify phase.
 
 	// Test case 2: Empty context should return unchanged logger
 	emptyCtx := context.Background()

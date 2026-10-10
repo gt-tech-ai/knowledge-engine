@@ -7,13 +7,19 @@ runs only on the leader.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+
 from techai_webutils.clients.decorators.event_stack import EventStackDeps, wrap_handler
 from techai_webutils.clients.decorators.job_stack import JobStackDeps, wrap_job
 from techai_webutils.core.errors.errors import UnavailableError
 from techai_webutils.core.interfaces.messaging import Message
 from techai_webutils.foundation.resilience.dedup import MemoryDeduplicator
-from techai_webutils.foundation.resilience.dlq import DeadLetterQueue, StubDeadLetterBackend
+from techai_webutils.foundation.resilience.dlq import (
+    DeadLetterQueue,
+    StubDeadLetterBackend,
+)
 from techai_webutils.foundation.resilience.leader import AlwaysLeader
 
 
@@ -44,6 +50,7 @@ async def test_wrap_handler_dedup_skips_duplicate() -> None:
     calls = 0
 
     async def inner(_msg: Message) -> None:
+        await asyncio.sleep(0)
         nonlocal calls
         calls += 1
 
@@ -73,9 +80,11 @@ async def test_wrap_handler_retries_then_dead_letters() -> None:
     attempts = 0
 
     async def inner(_msg: Message) -> None:
+        await asyncio.sleep(0)
         nonlocal attempts
         attempts += 1
-        raise UnavailableError("downstream down")
+        msg = "downstream down"
+        raise UnavailableError(msg)
 
     handler = wrap_handler(
         inner,
@@ -104,10 +113,12 @@ async def test_wrap_job_leader_gating() -> None:
     leader_calls = 0
 
     async def follower_job() -> None:
+        await asyncio.sleep(0)
         nonlocal follower_calls
         follower_calls += 1
 
     async def leader_job() -> None:
+        await asyncio.sleep(0)
         nonlocal leader_calls
         leader_calls += 1
 
@@ -119,7 +130,9 @@ async def test_wrap_job_leader_gating() -> None:
 
 
 @pytest.mark.asyncio
-async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler() -> None:
+async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler() -> (
+    None
+):
     """With the circuit breaker open, the handler is not even called (no orphaned coroutine).
 
     Why this test is important:
@@ -134,12 +147,17 @@ async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler
     import gc
     import warnings
 
-    from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+    from techai_webutils.foundation.resilience.circuit_breaker import (
+        CircuitBreaker,
+        CircuitOpenError,
+    )
 
     calls = 0
 
     async def failing() -> None:
-        raise UnavailableError("downstream down")
+        await asyncio.sleep(0)
+        msg = "downstream down"
+        raise UnavailableError(msg)
 
     def inner(_msg: Message) -> object:
         nonlocal calls
@@ -148,7 +166,9 @@ async def test_wrap_handler_open_breaker_fails_fast_without_starting_the_handler
 
     handler = wrap_handler(
         inner,  # type: ignore[arg-type]
-        EventStackDeps(circuit_breaker=CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)),
+        EventStackDeps(
+            circuit_breaker=CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+        ),
     )
     with pytest.raises(UnavailableError):
         await handler(_message("m1"))  # opens the breaker

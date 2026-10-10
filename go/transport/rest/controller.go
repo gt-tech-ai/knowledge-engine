@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // BaseController provides common HTTP response methods.
@@ -29,9 +29,9 @@ type ErrorResponse struct {
 
 // MapErrorToHTTPStatus maps AppError to HTTP status codes.
 func MapErrorToHTTPStatus(err error) int {
-	var appErr *errors.AppError
-	if errors.As(err, &appErr) {
-		return errors.ToHTTPStatus(appErr.Code)
+	var appErr *apperr.AppError
+	if apperr.As(err, &appErr) {
+		return apperr.ToHTTPStatus(appErr.Code)
 	}
 	return http.StatusInternalServerError
 }
@@ -57,13 +57,19 @@ func (c *BaseController) WriteError(w http.ResponseWriter, err error) {
 		Error: "internal server error",
 	}
 
-	var appErr *errors.AppError
-	if errors.As(err, &appErr) {
+	var appErr *apperr.AppError
+	if apperr.As(err, &appErr) {
 		response.Code = string(appErr.Code)
 		// Only expose details for client-facing error codes
 		switch appErr.Code {
-		case errors.CodeInternal, errors.CodeUnknown:
+		case apperr.CodeInternal, apperr.CodeUnknown:
 			// Don't leak internal error details
+		case apperr.CodeNotFound, apperr.CodeUnauthorized, apperr.CodeForbidden,
+			apperr.CodeInvalidInput, apperr.CodeConflict, apperr.CodeTimeout,
+			apperr.CodeCanceled, apperr.CodeUnavailable, apperr.CodeIngestion,
+			apperr.CodeQualityFailed, apperr.CodeUpstream, apperr.CodeResourceExhausted:
+			response.Error = appErr.Message
+			response.Details = appErr.Message
 		default:
 			response.Error = appErr.Message
 			response.Details = appErr.Message

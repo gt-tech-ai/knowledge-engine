@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/execution/engine"
@@ -165,7 +165,7 @@ func (j *Job[T]) Execute(
 	if j.tool != nil && j.tool.Binary() != "" {
 		if err := runner.RequireTool(j.tool.Binary(), j.tool.InstallHint()); err != nil {
 			// Missing tool is a skip, not a fatal error - the job is optional.
-			return types.StepResults{ //nolint:nilerr // intentional: missing tool => skip, not error
+			return types.StepResults{ //nolint:nilerr // a missing tool is a skip, not an error
 				{Name: j.name, Status: types.StatusSkip, Error: err.Error()},
 			}, nil
 		}
@@ -260,7 +260,11 @@ func retryDo(
 		if attempt > 0 && delay > 0 {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return apperr.Wrap(
+					ctx.Err(),
+					apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+					"retry wait canceled",
+				)
 			case <-time.After(delay):
 			}
 		}
@@ -269,9 +273,9 @@ func retryDo(
 			return nil
 		}
 	}
-	return coreerr.Wrap(
+	return apperr.Wrap(
 		last,
-		coreerr.CodeInternal,
+		apperr.CodeInternal,
 		fmt.Sprintf("failed after %d attempt(s)", maxRetries+1),
 	)
 }

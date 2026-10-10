@@ -1,11 +1,10 @@
-// Package decorator provides one generic implementation of the cross-cutting
-// decorator stack (timeout, circuit breaker, metrics, tracing, logging, recovery) shared by every
-// tier whose unit of work has the shape Execute(ctx, In) (Out, error) — pipelines
-// and workflows today. Each tier keeps its own fluent builder (and therefore its
-// own wrap order (ARCHITECTURE.md#decorator-order) and its tier-specific labels/recovery
-// behavior); this
-// package holds the decorator implementations those builders compose, so a
-// decorator fix is made once instead of once per tier.
+// Package decorator provides one generic implementation of the cross-cutting decorator
+// stack (timeout, circuit breaker, metrics, tracing, logging, recovery) shared by every
+// tier whose unit of work has the shape Execute(ctx, In) (Out, error) — pipelines and
+// workflows today. Each tier keeps its own fluent builder (and therefore its own wrap
+// order (ARCHITECTURE.md#decorator-order) and its tier-specific labels/recovery
+// behavior); this package holds the decorator implementations those builders compose, so
+// a decorator fix is made once instead of once per tier.
 //
 // The constructors take a caller-supplied inner Executor and return a decorated
 // Executor — the builder chooses the order, this package does not hardcode one.
@@ -19,7 +18,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -27,8 +26,9 @@ import (
 // and interfaces.Workflow have the identical method set, so one decorator set
 // serves both tiers (and any future Execute(ctx, In) (Out, error) tier).
 //
-// interface-composition exemption — decoration mechanism primitive: the generic Execute(ctx, In) (Out, error) shape
-// the decorators wrap, not an id-CRUD data-access surface, so it embeds no foundation generic.
+// interface-composition exemption — decoration mechanism primitive: the generic
+// Execute(ctx, In) (Out, error) shape the decorators wrap, not an id-CRUD data-access
+// surface, so it embeds no foundation generic.
 type Executor[In any, Out any] interface {
 	// Execute runs the wrapped unit of work for input, returning its result or an error.
 	Execute(ctx context.Context, input In) (Out, error)
@@ -38,16 +38,20 @@ type Executor[In any, Out any] interface {
 // underlying handler through the decorator stack (the Unwrap seam). Every decorator
 // constructed here implements it.
 //
-// interface-composition exemption — decoration mechanism primitive: a single Unwrap() → Executor introspection port,
-// not an id-CRUD data-access surface, so it embeds no foundation generic.
+// interface-composition exemption — decoration mechanism primitive: a single Unwrap() →
+// Executor introspection port, not an id-CRUD data-access surface, so it embeds no
+// foundation generic.
 type Unwrapper[In any, Out any] interface {
 	// Unwrap returns the inner Executor this decorator wraps.
 	Unwrap() Executor[In, Out]
 }
 
-// DefaultBuckets are the default histogram bucket boundaries (in seconds) for
-// execution-duration metrics.
-var DefaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+// DefaultBuckets returns the default histogram bucket boundaries (in seconds) for
+// execution-duration metrics. Each call returns a fresh slice, so a caller may
+// modify it without affecting other callers.
+func DefaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // Timeout returns inner wrapped with a per-execution context deadline. A slow
 // execution is cancelled via context when the deadline elapses.
@@ -111,11 +115,12 @@ func Logging[In, Out any](
 	return &logging[In, Out]{inner: inner, logger: logger, tier: tier, name: name}
 }
 
-// Recovery returns inner wrapped with panic recovery (always outermost in the
-// tier builders' order, ARCHITECTURE.md#decorator-order). A recovered panic is logged as tier+" panic recovered" and the
-// returned error is produced by onPanic, so each tier keeps its own recovery-error
-// contract (a coded error, a plain wrap, …). A nil onPanic falls back to a generic
-// wrapped error, so the recovery path never itself panics on a missing contract.
+// Recovery returns inner wrapped with panic recovery (always outermost in the tier
+// builders' order, ARCHITECTURE.md#decorator-order). A recovered panic is logged as
+// tier+" panic recovered" and the returned error is produced by onPanic, so each tier
+// keeps its own recovery-error contract (a coded error, a plain wrap, …). A nil onPanic
+// falls back to a generic wrapped error, so the recovery path never itself panics on a
+// missing contract.
 func Recovery[In, Out any](
 	inner Executor[In, Out],
 	logger interfaces.Logger,
@@ -292,8 +297,8 @@ func (d *recovery[In, Out]) Execute(
 			if d.onPanic != nil {
 				err = d.onPanic(d.name, r)
 			} else {
-				err = coreerr.New(
-					coreerr.CodeInternal,
+				err = apperr.New(
+					apperr.CodeInternal,
 					fmt.Sprintf("%s panic recovered: %v", d.tier, r),
 				)
 			}
@@ -308,7 +313,11 @@ func (d *recovery[In, Out]) Unwrap() Executor[In, Out] { return d.inner }
 // CircuitBreaker returns inner run through cb. When cb rejects the call without
 // running inner (an open breaker), Execute returns onOpen(err) so the tier can
 // code the rejection; an error from inner itself passes through unchanged.
-func CircuitBreaker[In, Out any](inner Executor[In, Out], cb interfaces.CircuitBreaker, onOpen func(error) error) Executor[In, Out] {
+func CircuitBreaker[In, Out any](
+	inner Executor[In, Out],
+	cb interfaces.CircuitBreaker,
+	onOpen func(error) error,
+) Executor[In, Out] {
 	return &breaker[In, Out]{inner: inner, cb: cb, onOpen: onOpen}
 }
 

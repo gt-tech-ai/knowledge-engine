@@ -4,13 +4,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead/channel"
@@ -161,7 +161,7 @@ func TestRetry_OptionFunctions(t *testing.T) {
 	assert.Equal(t, 10, cfg.MaxRetries)
 	assert.Equal(t, 500*time.Millisecond, cfg.InitialInterval)
 	assert.Equal(t, 30*time.Second, cfg.MaxInterval)
-	assert.Equal(t, 3.0, cfg.Multiplier)
+	assert.InDelta(t, 3.0, cfg.Multiplier, 0)
 	assert.Equal(t, 2*time.Minute, cfg.MaxElapsedTime)
 }
 
@@ -225,7 +225,7 @@ func TestExponential_DefaultConfig(t *testing.T) {
 
 	cfg := exponential.DefaultConfig()
 	assert.Equal(t, 3, cfg.MaxRetries)
-	assert.Equal(t, 2.0, cfg.Multiplier)
+	assert.InDelta(t, 2.0, cfg.Multiplier, 0)
 }
 
 // TestExponential_RetryWithResult tests that the generic RetryWithResult
@@ -264,7 +264,7 @@ func TestExponential_RetryWithResult(t *testing.T) {
 	result, err = exponential.RetryWithResult(ctx, r, func() (string, error) {
 		attempt++
 		if attempt < 2 {
-			return "", errors.New("transient")
+			return "", apperr.Sentinel("transient")
 		}
 		return "recovered", nil
 	})
@@ -295,7 +295,7 @@ func TestRateLimiter_OptionFunctions(t *testing.T) {
 	ratelimiter.WithRate(50.0)(&cfg)
 	ratelimiter.WithBurst(5)(&cfg)
 
-	assert.Equal(t, 50.0, cfg.Rate)
+	assert.InDelta(t, 50.0, cfg.Rate, 0)
 	assert.Equal(t, 5, cfg.Burst)
 }
 
@@ -317,7 +317,7 @@ func TestRateLimiter_ToOptions(t *testing.T) {
 	for _, opt := range opts {
 		opt(&dst)
 	}
-	assert.Equal(t, 42.0, dst.Rate)
+	assert.InDelta(t, 42.0, dst.Rate, 0)
 }
 
 // TestRateLimiter_KindString tests that Kind.String() returns readable labels
@@ -471,7 +471,8 @@ func TestChannel_TryExecuteSuccess(t *testing.T) {
 //   - Proper cancellation propagation is essential for graceful shutdown
 //
 // What it tests:
-//   - Execute with a cancelled context returns a non-nil error when no slots are available
+//   - Execute with a cancelled context returns a non-nil error when no slots are
+//     available
 func TestChannel_ExecuteCancelledContext(t *testing.T) {
 	t.Parallel()
 
@@ -530,7 +531,7 @@ func TestTracer_OptionFunctions(t *testing.T) {
 
 	assert.Equal(t, "custom-service", cfg.ServiceName)
 	assert.Equal(t, "otel.example.com:4317", cfg.Endpoint)
-	assert.Equal(t, 0.5, cfg.SampleRate)
+	assert.InDelta(t, 0.5, cfg.SampleRate, 0)
 	assert.False(t, cfg.Insecure, "Insecure should be false")
 }
 

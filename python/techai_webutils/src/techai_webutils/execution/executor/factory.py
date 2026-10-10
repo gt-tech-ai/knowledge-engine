@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.execution.executor.asyncio_executor import AsyncioExecutor
 from techai_webutils.execution.executor.ray_executor import RayExecutor
 
@@ -64,7 +65,7 @@ def executor_from_config(
         kind = ExecutorKind(config.kind)
     except ValueError as exc:
         msg = f"unknown executor kind: {config.kind!r}"
-        raise ValueError(msg) from exc
+        raise AppValueError(msg) from exc
     if kind is ExecutorKind.ASYNCIO:
         return AsyncioExecutor(observer, name=config.name)
     # kind is ExecutorKind.RAY — build the resilience-decorated Ray runtime (lazy ray import).

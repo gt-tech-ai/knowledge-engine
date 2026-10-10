@@ -17,6 +17,8 @@ def _ooxml(kind_dir: str) -> bytes:
 
 
 class TestDetectFormat:
+    """Tests for ``detect_format``."""
+
     def test_pdf_magic_wins_over_wrong_extension(self) -> None:
         """Test that PDF magic bytes override a mismatched .txt extension.
 
@@ -27,7 +29,9 @@ class TestDetectFormat:
         **What it tests:**
           - Content starting with %PDF- named ``notes.txt`` detects as PDF.
         """
-        assert detect_format("", "notes.txt", b"%PDF-1.7\n1 0 obj\n") is DocumentFormat.PDF
+        assert (
+            detect_format("", "notes.txt", b"%PDF-1.7\n1 0 obj\n") is DocumentFormat.PDF
+        )
 
     def test_ooxml_zip_disambiguated_by_content(self) -> None:
         """Test that a ZIP (PK) container is disambiguated into DOCX/PPTX/XLSX by its parts.

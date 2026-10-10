@@ -104,5 +104,5 @@ func (s *SQSElasticMQSuite) TestPublish_RoundTrip() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(out.Messages, 1, "published message must be receivable")
-	s.Equal(body, aws.ToString(out.Messages[0].Body))
+	s.JSONEq(body, aws.ToString(out.Messages[0].Body))
 }

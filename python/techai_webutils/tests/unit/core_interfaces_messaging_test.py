@@ -1,10 +1,17 @@
 """Tests for Message dataclass and MessagePublisher/MessageConsumer ABCs."""
 
-from techai_webutils.core.interfaces.messaging import Message, MessageConsumer, MessagePublisher
 import pytest
+
+from techai_webutils.core.interfaces.messaging import (
+    Message,
+    MessageConsumer,
+    MessagePublisher,
+)
 
 
 class TestMessage:
+    """Tests for the message."""
+
     def test_construction(self) -> None:
         """Test that Message preserves its identity/topic/payload and defaults the rest.
 
@@ -36,12 +43,16 @@ class TestMessage:
         **What it tests:**
           - An explicit metadata mapping and timestamp are stored and returned unchanged
         """
-        msg = Message(id="m2", topic="t", payload=b"", metadata={"key": "val"}, timestamp=123)
+        msg = Message(
+            id="m2", topic="t", payload=b"", metadata={"key": "val"}, timestamp=123
+        )
         assert msg.metadata == {"key": "val"}
         assert msg.timestamp == 123
 
 
 class TestMessagePublisher:
+    """Tests for the message publisher."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that MessagePublisher cannot be instantiated without publish methods.
 
@@ -60,6 +71,8 @@ class TestMessagePublisher:
 
 
 class TestMessageConsumer:
+    """Tests for the message consumer."""
+
     def test_cannot_instantiate_abc(self) -> None:
         """Test that MessageConsumer cannot be instantiated without subscribe/close.
 

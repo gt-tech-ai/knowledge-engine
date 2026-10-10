@@ -24,7 +24,9 @@ def _unique_key(request: pytest.FixtureRequest, label: str) -> str:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_set_then_get_returns_value(redis_cache: RedisCache, request: pytest.FixtureRequest) -> None:
+async def test_set_then_get_returns_value(
+    redis_cache: RedisCache, request: pytest.FixtureRequest
+) -> None:
     """Test that a value written with set is returned by get.
 
     **Why this test is important:**
@@ -43,7 +45,9 @@ async def test_set_then_get_returns_value(redis_cache: RedisCache, request: pyte
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_get_unknown_key_returns_none(redis_cache: RedisCache, request: pytest.FixtureRequest) -> None:
+async def test_get_unknown_key_returns_none(
+    redis_cache: RedisCache, request: pytest.FixtureRequest
+) -> None:
     """Test that get on a never-written key returns None (cache miss).
 
     **Why this test is important:**
@@ -58,7 +62,9 @@ async def test_get_unknown_key_returns_none(redis_cache: RedisCache, request: py
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_delete_removes_key(redis_cache: RedisCache, request: pytest.FixtureRequest) -> None:
+async def test_delete_removes_key(
+    redis_cache: RedisCache, request: pytest.FixtureRequest
+) -> None:
     """Test that delete removes a key so a subsequent get misses.
 
     **Why this test is important:**
@@ -79,7 +85,9 @@ async def test_delete_removes_key(redis_cache: RedisCache, request: pytest.Fixtu
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_exists_reflects_presence(redis_cache: RedisCache, request: pytest.FixtureRequest) -> None:
+async def test_exists_reflects_presence(
+    redis_cache: RedisCache, request: pytest.FixtureRequest
+) -> None:
     """Test that exists reports True only while the key is present.
 
     **Why this test is important:**
@@ -101,7 +109,9 @@ async def test_exists_reflects_presence(redis_cache: RedisCache, request: pytest
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ttl_expiry_removes_key(redis_cache: RedisCache, request: pytest.FixtureRequest) -> None:
+async def test_ttl_expiry_removes_key(
+    redis_cache: RedisCache, request: pytest.FixtureRequest
+) -> None:
     """Test that a key written with a short TTL is gone after the TTL elapses.
 
     **Why this test is important:**

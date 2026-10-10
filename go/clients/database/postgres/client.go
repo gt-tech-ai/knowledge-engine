@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx database/sql driver registration
 
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
@@ -39,7 +39,7 @@ func New(cfg *infra.DatabaseConfig) *Client {
 func (c *Client) Start(ctx context.Context) error {
 	db, err := sql.Open("pgx", c.cfg.DSN())
 	if err != nil {
-		return coreerrors.Wrap(err, coreerrors.CodeInternal, "open database")
+		return apperr.Wrap(err, apperr.CodeInternal, "open database")
 	}
 	db.SetMaxOpenConns(c.cfg.MaxConnections)
 	db.SetMaxIdleConns(c.cfg.MaxIdleConnections)
@@ -56,7 +56,11 @@ func (c *Client) Start(ctx context.Context) error {
 // Stop closes the pool and its connections.
 func (c *Client) Stop(_ context.Context) error {
 	if c.db != nil {
-		return c.db.Close()
+		return apperr.Wrap(
+			c.db.Close(),
+			apperr.CodeInternal,
+			"close postgres pool",
+		)
 	}
 	return nil
 }
@@ -64,7 +68,7 @@ func (c *Client) Stop(_ context.Context) error {
 // Liveness reports whether the pool client has been started.
 func (c *Client) Liveness(_ context.Context) error {
 	if c.db == nil {
-		return coreerrors.Internal("database pool not started")
+		return apperr.Internal("database pool not started")
 	}
 	return nil
 }
@@ -72,7 +76,7 @@ func (c *Client) Liveness(_ context.Context) error {
 // Readiness verifies the pool can reach the database (a bounded Ping).
 func (c *Client) Readiness(ctx context.Context) error {
 	if c.db == nil {
-		return coreerrors.Internal("database pool not started")
+		return apperr.Internal("database pool not started")
 	}
 	return Ping(ctx, c.db)
 }

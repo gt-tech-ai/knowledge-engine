@@ -22,7 +22,7 @@ class ID(str):
 
     def is_empty(self) -> bool:
         """Return True if the ID is empty."""
-        return self == ""
+        return not self
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ class Option[T]:
 
     @property
     def valid(self) -> bool:
-        """Return True if the Option contains a value."""
+        """Whether the Option contains a value."""
         return self._valid
 
 
@@ -132,5 +132,5 @@ class Timestamps:
 
     @property
     def is_deleted(self) -> bool:
-        """Return True if the entity has been soft-deleted."""
+        """Whether the entity has been soft-deleted."""
         return self.deleted_at is not None

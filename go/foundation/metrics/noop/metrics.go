@@ -34,7 +34,8 @@ func (m *Metrics) Counter(
 	return &counter{}
 }
 
-// Histogram returns a no-op histogram; the name, help, bucket, and label arguments are ignored.
+// Histogram returns a no-op histogram; the name, help, bucket, and label arguments are
+// ignored.
 func (m *Metrics) Histogram(_, _ string, _ []float64, _ ...string) interfaces.Histogram {
 	return &histogram{}
 }

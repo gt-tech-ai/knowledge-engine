@@ -27,8 +27,8 @@ import (
 // RedisLockSuite holds a real Redis container and a cache client whose
 // underlying go-redis connection backs the lock under test.
 type RedisLockSuite struct {
-	testsuite.RedisIntegrationSuite
 	cache *rediscache.Cache
+	testsuite.RedisIntegrationSuite
 }
 
 // TestRedisLockSuite runs all Redis DistributedLock integration tests.
@@ -77,20 +77,20 @@ func (s *RedisLockSuite) key(label string) string {
 //     returns acquired=false; after the winner releases, a new Acquire wins.
 func (s *RedisLockSuite) TestAcquire_SingleWinner() {
 	ctx := context.Background()
-	lock := s.newLock(30 * time.Second)
+	lk := s.newLock(30 * time.Second)
 	k := s.key("winner")
 
-	tok, ok, err := lock.Acquire(ctx, k)
+	tok, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok, "first Acquire should win")
 	s.Require().NotEmpty(tok)
 
-	_, ok2, err := lock.Acquire(ctx, k)
+	_, ok2, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.False(ok2, "second Acquire on a held key must lose")
 
-	s.Require().NoError(lock.Release(ctx, k, tok))
-	_, ok3, err := lock.Acquire(ctx, k)
+	s.Require().NoError(lk.Release(ctx, k, tok))
+	_, ok3, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.True(ok3, "after Release the key is free again")
 }
@@ -106,7 +106,7 @@ func (s *RedisLockSuite) TestAcquire_SingleWinner() {
 //   - With N concurrent Acquire calls on one key, the acquired=true count is 1.
 func (s *RedisLockSuite) TestAcquire_ConcurrentSingleWinner() {
 	ctx := context.Background()
-	lock := s.newLock(30 * time.Second)
+	lk := s.newLock(30 * time.Second)
 	k := s.key("hot")
 
 	const n = 32
@@ -118,7 +118,7 @@ func (s *RedisLockSuite) TestAcquire_ConcurrentSingleWinner() {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, ok, err := lock.Acquire(ctx, k); err == nil && ok {
+			if _, ok, err := lk.Acquire(ctx, k); err == nil && ok {
 				wins.Add(1)
 			}
 		}()
@@ -142,16 +142,16 @@ func (s *RedisLockSuite) TestAcquire_ConcurrentSingleWinner() {
 //     succeeds once the lease expires.
 func (s *RedisLockSuite) TestAcquire_TTLExpiryFreesCrashedHolder() {
 	ctx := context.Background()
-	lock := s.newLock(150 * time.Millisecond)
+	lk := s.newLock(150 * time.Millisecond)
 	k := s.key("crashed")
 
-	_, ok, err := lock.Acquire(ctx, k)
+	_, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok, "crashed holder acquires first")
 	// Intentionally never release: simulate a crash.
 
 	s.Require().Eventually(func() bool {
-		_, ok, err := lock.Acquire(ctx, k)
+		_, ok, err := lk.Acquire(ctx, k)
 		return err == nil && ok
 	}, 2*time.Second, 20*time.Millisecond, "lease should expire and free the key")
 }
@@ -167,20 +167,20 @@ func (s *RedisLockSuite) TestAcquire_TTLExpiryFreesCrashedHolder() {
 //   - Release with a foreign token leaves the key held; the holder's token frees it.
 func (s *RedisLockSuite) TestRelease_TokenFencedOnLiveKey() {
 	ctx := context.Background()
-	lock := s.newLock(30 * time.Second)
+	lk := s.newLock(30 * time.Second)
 	k := s.key("fenced")
 
-	tok, ok, err := lock.Acquire(ctx, k)
+	tok, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
-	s.Require().NoError(lock.Release(ctx, k, "someone-elses-token"))
-	_, ok2, err := lock.Acquire(ctx, k)
+	s.Require().NoError(lk.Release(ctx, k, "someone-elses-token"))
+	_, ok2, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.False(ok2, "foreign-token Release must not free a live lock")
 
-	s.Require().NoError(lock.Release(ctx, k, tok))
-	_, ok3, err := lock.Acquire(ctx, k)
+	s.Require().NoError(lk.Release(ctx, k, tok))
+	_, ok3, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.True(ok3, "holder-token Release frees the lock")
 }
@@ -199,17 +199,17 @@ func (s *RedisLockSuite) TestRelease_TokenFencedOnLiveKey() {
 //     its old token leaves B's lock intact (a third Acquire still loses).
 func (s *RedisLockSuite) TestRelease_StaleTokenAfterExpiry_ABA() {
 	ctx := context.Background()
-	lock := s.newLock(150 * time.Millisecond)
+	lk := s.newLock(150 * time.Millisecond)
 	k := s.key("aba")
 
-	tokA, ok, err := lock.Acquire(ctx, k)
+	tokA, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok, "holder A acquires")
 
 	// Wait for A's lease to expire, then B acquires a fresh token on the same key.
 	var tokB string
 	s.Require().Eventually(func() bool {
-		t, ok, err := lock.Acquire(ctx, k)
+		t, ok, err := lk.Acquire(ctx, k)
 		if err == nil && ok {
 			tokB = t
 			return true
@@ -219,12 +219,12 @@ func (s *RedisLockSuite) TestRelease_StaleTokenAfterExpiry_ABA() {
 	s.Require().NotEqual(tokA, tokB)
 
 	// A's stale Release must not free B's live lock.
-	s.Require().NoError(lock.Release(ctx, k, tokA))
-	_, ok3, err := lock.Acquire(ctx, k)
+	s.Require().NoError(lk.Release(ctx, k, tokA))
+	_, ok3, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.False(ok3, "A's stale Release must not delete B's live lock")
 
-	held, err := lock.Renew(ctx, k, tokB)
+	held, err := lk.Renew(ctx, k, tokB)
 	s.Require().NoError(err)
 	s.True(held, "B should still hold the lock after A's stale Release")
 }
@@ -242,10 +242,10 @@ func (s *RedisLockSuite) TestRelease_StaleTokenAfterExpiry_ABA() {
 func (s *RedisLockSuite) TestRenew_AfterExpiryReportsLost() {
 	ctx := context.Background()
 	ttl := 120 * time.Millisecond
-	lock := s.newLock(ttl)
+	lk := s.newLock(ttl)
 	k := s.key("renew-lost")
 
-	tok, ok, err := lock.Acquire(ctx, k)
+	tok, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -255,7 +255,7 @@ func (s *RedisLockSuite) TestRenew_AfterExpiryReportsLost() {
 	// then Renew exactly once.
 	time.Sleep(ttl + 130*time.Millisecond)
 
-	held, err := lock.Renew(ctx, k, tok)
+	held, err := lk.Renew(ctx, k, tok)
 	s.Require().NoError(err)
 	s.False(held, "Renew must report the lease lost after expiry")
 }
@@ -274,22 +274,22 @@ func (s *RedisLockSuite) TestRenew_AfterExpiryReportsLost() {
 func (s *RedisLockSuite) TestRenew_KeepsHoldAlive() {
 	ctx := context.Background()
 	ttl := 300 * time.Millisecond
-	lock := s.newLock(ttl)
+	lk := s.newLock(ttl)
 	k := s.key("renew-alive")
 
-	tok, ok, err := lock.Acquire(ctx, k)
+	tok, ok, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
 	// Renew before expiry, twice, spanning more than the base TTL in total.
 	for range 2 {
 		time.Sleep(ttl * 2 / 3)
-		held, err := lock.Renew(ctx, k, tok)
+		held, err := lk.Renew(ctx, k, tok)
 		s.Require().NoError(err)
 		s.Require().True(held, "Renew before expiry keeps the lease")
 	}
 
-	_, contender, err := lock.Acquire(ctx, k)
+	_, contender, err := lk.Acquire(ctx, k)
 	s.Require().NoError(err)
 	s.False(contender, "the renewed key is still held past its base TTL")
 }

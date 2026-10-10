@@ -23,7 +23,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/memory"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/redis"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/messaging/sqs"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
@@ -75,38 +75,50 @@ func ParseKind(s string) (Kind, error) {
 	case "redis":
 		return KindRedis, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %q", s),
 		)
 	}
 }
 
-// NewFromConfig builds a MessagePublisher selected by the tier kind — the SQS backend (KindSQS,
-// configured from cfg), the in-process stub (KindMemory, ignoring cfg), or Redis Pub/Sub (KindRedis,
-// whose shared go-redis client is injected via the WithRedisClient option — NOT from cfg; the
-// SQSConfig arg is inert for Redis) — wrapping the thin core in the messaging decorators. It is the
-// app-wiring entrypoint, sitting at the tier root above the backends exactly like cache/storage
-// NewFromConfig; additional options (logger, metrics, retrier, redis client) may be layered on. The
-// context is accepted for factory-signature symmetry with the other clients; publisher construction
-// itself is synchronous.
+// NewFromConfig builds a MessagePublisher selected by the tier kind — the SQS backend
+// (KindSQS, configured from cfg), the in-process stub (KindMemory, ignoring cfg), or
+// Redis Pub/Sub (KindRedis, whose shared go-redis client is injected via the
+// WithRedisClient option — NOT from cfg; the SQSConfig arg is inert for Redis) — wrapping
+// the thin core in the messaging decorators. It is the app-wiring entrypoint, sitting at
+// the tier root above the backends exactly like cache/storage NewFromConfig; additional
+// options (logger, metrics, retrier, redis client) may be layered on. The context
+// bounds the SQS backend's AWS config load; the other backends do no I/O at
+// construction.
 func NewFromConfig(
-	_ context.Context,
+	ctx context.Context,
 	kind Kind,
 	cfg infra.SQSConfig,
 	opts ...options.Option[Config],
 ) (interfaces.MessagePublisher, error) {
-	base := []options.Option[Config]{
+	base := make([]options.Option[Config], 0, 3+len(opts))
+	base = append(base,
 		WithAWSRegion(cfg.Region),
 		WithEndpoint(cfg.Endpoint),
 		WithStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey),
-	}
-	return NewPublisher(kind, append(base, opts...)...)
+	)
+	return newPublisher(ctx, kind, append(base, opts...)...)
 }
 
 // NewPublisher creates a message publisher of the specified kind with optional
 // functional options. Returns an error if the kind is unknown.
 func NewPublisher(
+	kind Kind,
+	opts ...options.Option[Config],
+) (interfaces.MessagePublisher, error) {
+	return newPublisher(context.Background(), kind, opts...)
+}
+
+// newPublisher builds the publisher for kind, constructing the SQS backend's AWS
+// client under ctx.
+func newPublisher(
+	ctx context.Context,
 	kind Kind,
 	opts ...options.Option[Config],
 ) (interfaces.MessagePublisher, error) {
@@ -116,7 +128,7 @@ func NewPublisher(
 
 	switch cfg.Kind {
 	case KindSQS:
-		core, err := sqs.NewPublisher(cfg.SQS)
+		core, err := sqs.NewPublisherContext(ctx, cfg.SQS)
 		if err != nil {
 			return nil, err
 		}
@@ -129,8 +141,9 @@ func NewPublisher(
 		}), nil
 
 	case KindMemory:
-		// The in-process publisher ignores the SQS settings; a subscriber built from the same
-		// broker receives its messages (the roundtrip path is exercised via direct construction).
+		// The in-process publisher ignores the SQS settings; a subscriber built from the
+		// same broker receives its messages (the roundtrip path is exercised via direct
+		// construction).
 		return memory.NewPublisher(memory.NewBroker()), nil
 
 	case KindRedis:
@@ -147,8 +160,8 @@ func NewPublisher(
 		}), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}
@@ -175,8 +188,8 @@ func NewSubscriber(
 		return redis.NewSubscriber(cfg.Redis)
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}
@@ -193,9 +206,15 @@ func NewAdapter(kind Kind, opts ...options.Option[Config]) (*sqs.Adapter, error)
 	case KindSQS:
 		return sqs.NewAdapter(cfg.SQS), nil
 
+	case KindMemory, KindRedis:
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			fmt.Sprintf("messaging kind %v has no adapter (only sqs does)", cfg.Kind),
+		)
+
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown messaging kind: %v", cfg.Kind),
 		)
 	}

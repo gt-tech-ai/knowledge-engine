@@ -2,10 +2,11 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.errors.errors import NotFoundError
 from techai_webutils.core.interfaces.store import Store
-import pytest
 from techai_webutils.repos.repository import BaseRepository
 
 
@@ -26,7 +27,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.get.return_value = "entity-1"
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         result = await repo.get("1")
         assert result == "entity-1"
@@ -46,7 +47,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.get.side_effect = NotFoundError("not found: missing")
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         with pytest.raises(NotFoundError):
             await repo.get("missing")
@@ -65,7 +66,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.create.return_value = "new-entity"
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         result = await repo.create("new-entity")
         assert result == "new-entity"
@@ -84,8 +85,10 @@ class TestBaseRepository:
           - Total count and item count from the store's Page pass through unchanged
         """
         store = MagicMock(spec=Store)
-        store.list.return_value = Page(items=["a", "b"], total=2, page_size=10, page_number=1)
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        store.list.return_value = Page(
+            items=["a", "b"], total=2, page_size=10, page_number=1
+        )
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         page = await repo.list({}, PageRequest(page_size=10, page_number=1))
         assert page.total == 2
@@ -106,7 +109,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.update.return_value = "new"
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         result = await repo.update("1", "new")
         assert result == "new"
@@ -126,7 +129,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.exists.return_value = False
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         await repo.delete("1")
         assert await repo.exists("1") is False
@@ -147,7 +150,7 @@ class TestBaseRepository:
         """
         store = MagicMock(spec=Store)
         store.exists.side_effect = lambda entity_id: entity_id == "1"
-        repo: BaseRepository[str, dict, str] = BaseRepository(store)
+        repo: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
 
         assert await repo.exists("1") is True
         assert await repo.exists("2") is False

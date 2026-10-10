@@ -20,7 +20,7 @@ import (
 
 	analyticscassandra "github.com/gt-tech-ai/knowledge-engine/go/clients/analytics/cassandra"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
@@ -37,8 +37,8 @@ const itCube = "genai_calls"
 
 // AnalyticsCassandraSuite holds a real Cassandra with the cube's tables.
 type AnalyticsCassandraSuite struct {
-	testsuite.CassandraIntegrationSuite
 	session cassandra.Session
+	testsuite.CassandraIntegrationSuite
 }
 
 // TestAnalyticsCassandraSuite runs the Cassandra analytics store integration tests.
@@ -57,8 +57,11 @@ func TestAnalyticsCassandraSuite(t *testing.T) {
 func (s *AnalyticsCassandraSuite) SetupSuite() {
 	s.CassandraIntegrationSuite.SetupSuite()
 	ctx := context.Background()
-	s.Require().NoError(s.Cassandra.Exec(ctx,
-		"CREATE KEYSPACE IF NOT EXISTS "+itKeyspace+" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"))
+	s.Require().NoError(s.Cassandra.Exec(
+		ctx,
+		"CREATE KEYSPACE IF NOT EXISTS "+itKeyspace+" WITH replication = {'class': "+
+			"'SimpleStrategy', 'replication_factor': 1}",
+	))
 	for _, g := range []types.Grain{types.GrainHour, types.GrainDay} {
 		ddl, err := analyticscassandra.SchemaCQL(itKeyspace, itCube, g)
 		s.Require().NoError(err)
@@ -83,11 +86,18 @@ func (s *AnalyticsCassandraSuite) TearDownSuite() {
 }
 
 // newStore builds a store over the suite session (pageSize 0 = default).
-func (s *AnalyticsCassandraSuite) newStore(session cassandra.Session, pageSize int) *analyticscassandra.Store {
+func (s *AnalyticsCassandraSuite) newStore(
+	session cassandra.Session,
+	pageSize int,
+) *analyticscassandra.Store {
 	store, err := analyticscassandra.New(session, analyticscassandra.Config{
-		Cubes:       map[string][]types.Grain{itCube: {types.GrainHour, types.GrainDay}},
-		BucketWidth: map[types.Grain]types.Grain{types.GrainHour: types.GrainDay, types.GrainDay: types.GrainMonth},
-		PageSize:    pageSize, MaxConcurrentBuckets: 4,
+		Cubes: map[string][]types.Grain{itCube: {types.GrainHour, types.GrainDay}},
+		BucketWidth: map[types.Grain]types.Grain{
+			types.GrainHour: types.GrainDay,
+			types.GrainDay:  types.GrainMonth,
+		},
+		PageSize:             pageSize,
+		MaxConcurrentBuckets: 4,
 	})
 	s.Require().NoError(err)
 	return store
@@ -104,7 +114,10 @@ func fact(org, key string, at time.Time, team, model string, tokens float64) typ
 
 // totals drains q's stream and merges every row's tokens_in partial per group
 // (keyed by the group's team value, "" for an ungrouped query).
-func (s *AnalyticsCassandraSuite) totals(store interfaces.AnalyticsStore, q types.AggregateQuery) map[string]vizql.Partial {
+func (s *AnalyticsCassandraSuite) totals(
+	store interfaces.AnalyticsStore,
+	q types.AggregateQuery,
+) map[string]vizql.Partial {
 	ctx := context.Background()
 	stream, err := store.Aggregate(ctx, q)
 	s.Require().NoError(err)
@@ -152,7 +165,15 @@ func (s *AnalyticsCassandraSuite) TestCassandra_AggregatesAcrossBucketBoundaries
 		fact(org, "b", time.Date(2026, 10, 9, 0, 30, 0, 0, time.UTC), "t-1", "m", 20),
 	}))
 
-	got := s.totals(store, query(org, types.GrainHour, time.Date(2026, 10, 8, 20, 0, 0, 0, time.UTC), time.Date(2026, 10, 9, 2, 0, 0, 0, time.UTC)))
+	got := s.totals(
+		store,
+		query(
+			org,
+			types.GrainHour,
+			time.Date(2026, 10, 8, 20, 0, 0, 0, time.UTC),
+			time.Date(2026, 10, 9, 2, 0, 0, 0, time.UTC),
+		),
+	)
 
 	s.InDelta(30.0, vizql.Finalize(got["t-1"], types.AggSum), 0)
 	s.InDelta(2.0, vizql.Finalize(got["t-1"], types.AggCount), 0)
@@ -160,8 +181,8 @@ func (s *AnalyticsCassandraSuite) TestCassandra_AggregatesAcrossBucketBoundaries
 
 // randFilter is one generated filter: its listquery JSON and the same predicate in Go.
 type randFilter struct {
-	json  string
 	match func(f types.Fact) bool
+	json  string
 }
 
 // genFilter builds a random filter over team, model and the day-aligned time.
@@ -171,25 +192,43 @@ func genFilter(r *rand.Rand, days []time.Time) randFilter {
 		switch r.Intn(4) {
 		case 0:
 			t := teams[r.Intn(len(teams))]
-			return randFilter{fmt.Sprintf(`{"$eq":{"team":%q}}`, t), func(f types.Fact) bool { return f.Dims["team"] == t }}
+			return randFilter{
+				json:  fmt.Sprintf(`{"$eq":{"team":%q}}`, t),
+				match: func(f types.Fact) bool { return f.Dims["team"] == t },
+			}
 		case 1:
 			a, b := teams[r.Intn(len(teams))], teams[r.Intn(len(teams))]
-			return randFilter{fmt.Sprintf(`{"$in":{"team":[%q,%q]}}`, a, b), func(f types.Fact) bool { return f.Dims["team"] == a || f.Dims["team"] == b }}
+			return randFilter{
+				json:  fmt.Sprintf(`{"$in":{"team":[%q,%q]}}`, a, b),
+				match: func(f types.Fact) bool { return f.Dims["team"] == a || f.Dims["team"] == b },
+			}
 		case 2:
 			m := models[r.Intn(len(models))]
-			return randFilter{fmt.Sprintf(`{"$ne":{"model":%q}}`, m), func(f types.Fact) bool { return f.Dims["model"] != m }}
+			return randFilter{
+				json:  fmt.Sprintf(`{"$ne":{"model":%q}}`, m),
+				match: func(f types.Fact) bool { return f.Dims["model"] != m },
+			}
 		default:
 			d := days[r.Intn(len(days))]
-			return randFilter{fmt.Sprintf(`{"$gte":{"ts":%q}}`, d.Format(time.RFC3339)), func(f types.Fact) bool {
-				return !vizql.Truncate(f.TS, types.GrainDay).Before(d)
-			}}
+			return randFilter{
+				json: fmt.Sprintf(`{"$gte":{"ts":%q}}`, d.Format(time.RFC3339)),
+				match: func(f types.Fact) bool {
+					return !vizql.Truncate(f.TS, types.GrainDay).Before(d)
+				},
+			}
 		}
 	}
 	a, b := leaf(), leaf()
 	if r.Intn(2) == 0 {
-		return randFilter{`{"$and":[` + a.json + `,` + b.json + `]}`, func(f types.Fact) bool { return a.match(f) && b.match(f) }}
+		return randFilter{
+			json:  `{"$and":[` + a.json + `,` + b.json + `]}`,
+			match: func(f types.Fact) bool { return a.match(f) && b.match(f) },
+		}
 	}
-	return randFilter{`{"$or":[` + a.json + `,` + b.json + `]}`, func(f types.Fact) bool { return a.match(f) || b.match(f) }}
+	return randFilter{
+		json:  `{"$or":[` + a.json + `,` + b.json + `]}`,
+		match: func(f types.Fact) bool { return a.match(f) || b.match(f) },
+	}
 }
 
 // TestCassandra_PushdownMatchesFullScan tests, over random filters, that the
@@ -205,19 +244,28 @@ func genFilter(r *rand.Rand, days []time.Time) randFilter {
 func (s *AnalyticsCassandraSuite) TestCassandra_PushdownMatchesFullScan() {
 	store := s.newStore(s.session, 7)
 	org := "org-pushdown"
-	r := rand.New(rand.NewSource(42)) //nolint:gosec // deterministic test data
+	r := rand.New(rand.NewSource(42))
 	var days []time.Time
-	for d := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC); d.Before(time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)); d = d.AddDate(0, 0, 1) {
+	first := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
+	for d := first; d.Before(end); d = d.AddDate(0, 0, 1) {
 		days = append(days, d)
 	}
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 80)
 	for i := range 80 {
 		at := days[r.Intn(len(days))].Add(time.Duration(r.Intn(24*60)) * time.Minute)
-		facts = append(facts, fact(org, fmt.Sprintf("f-%d", i), at,
-			[]string{"t-1", "t-2", "t-3"}[r.Intn(3)], []string{"m-a", "m-b"}[r.Intn(2)], float64(1+r.Intn(100))))
+		facts = append(facts, fact(
+			org,
+			fmt.Sprintf("f-%d", i),
+			at,
+			[]string{"t-1", "t-2", "t-3"}[r.Intn(3)],
+			[]string{"m-a", "m-b"}[r.Intn(2)],
+			float64(1+r.Intn(100)),
+		))
 	}
 	s.Require().NoError(store.Write(context.Background(), facts))
-	m := listquery.NewMap().Add(listquery.String("team"), listquery.String("model"), listquery.Time("ts").AsTime())
+	m := listquery.NewMap().
+		Add(listquery.String("team"), listquery.String("model"), listquery.Time("ts").AsTime())
 
 	for range 30 {
 		gen := genFilter(r, days)
@@ -258,7 +306,15 @@ func (s *AnalyticsCassandraSuite) TestCassandra_RedeliveredFactIsNoop() {
 	s.Require().NoError(store.Write(context.Background(), []types.Fact{f}))
 
 	for _, g := range []types.Grain{types.GrainHour, types.GrainDay} {
-		got := s.totals(store, query(org, g, time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)))
+		got := s.totals(
+			store,
+			query(
+				org,
+				g,
+				time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC),
+				time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
+			),
+		)
 		s.InDelta(17.0, vizql.Finalize(got["t-1"], types.AggSum), 0, g)
 		s.InDelta(1.0, vizql.Finalize(got["t-1"], types.AggCount), 0, g)
 	}
@@ -277,12 +333,27 @@ func (s *AnalyticsCassandraSuite) TestCassandra_RedeliveredFactIsNoop() {
 func (s *AnalyticsCassandraSuite) TestCassandra_PagingResumeToken() {
 	store := s.newStore(s.session, 2)
 	org := "org-paging"
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 5)
 	for i := range 5 {
-		facts = append(facts, fact(org, fmt.Sprintf("p-%d", i), time.Date(2026, 10, 9, i, 0, 0, 0, time.UTC), fmt.Sprintf("t-%d", i), "m", 1))
+		facts = append(
+			facts,
+			fact(
+				org,
+				fmt.Sprintf("p-%d", i),
+				time.Date(2026, 10, 9, i, 0, 0, 0, time.UTC),
+				fmt.Sprintf("t-%d", i),
+				"m",
+				1,
+			),
+		)
 	}
 	s.Require().NoError(store.Write(context.Background(), facts))
-	q := query(org, types.GrainHour, time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))
+	q := query(
+		org,
+		types.GrainHour,
+		time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
+	)
 	ctx := context.Background()
 
 	first, err := store.Aggregate(ctx, q)
@@ -343,7 +414,9 @@ func (q crashingQuery) Idempotent(b bool) cassandra.Query {
 }
 
 // Exec fails with CodeUnavailable, as a process killed mid-write would.
-func (crashingQuery) Exec() error { return coreerr.New(coreerr.CodeUnavailable, "process killed") }
+func (crashingQuery) Exec() error {
+	return apperr.New(apperr.CodeUnavailable, "process killed")
+}
 
 // TestCassandra_CrashBetweenWritesDoesNotLoseMeasures tests that a write that
 // dies after some of a fact's rows landed is repaired exactly by redelivery.
@@ -358,24 +431,45 @@ func (crashingQuery) Exec() error { return coreerr.New(coreerr.CodeUnavailable, 
 func (s *AnalyticsCassandraSuite) TestCassandra_CrashBetweenWritesDoesNotLoseMeasures() {
 	org := "org-crash"
 	f := fact(org, "c-1", time.Date(2026, 10, 9, 14, 0, 0, 0, time.UTC), "t-1", "m", 25)
-	crashing := s.newStore(&crashingSession{Session: s.session, table: analyticscassandra.TableName(itCube, types.GrainDay)}, 0)
+	crashing := s.newStore(
+		&crashingSession{
+			Session: s.session,
+			table:   analyticscassandra.TableName(itCube, types.GrainDay),
+		},
+		0,
+	)
 
 	err := crashing.Write(context.Background(), []types.Fact{f})
-	s.Equal(coreerr.CodeUnavailable, coreerr.Code(err))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(err))
 
 	store := s.newStore(s.session, 0)
 	s.Require().NoError(store.Write(context.Background(), []types.Fact{f}))
 	for _, g := range []types.Grain{types.GrainHour, types.GrainDay} {
-		got := s.totals(store, query(org, g, time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)))
+		got := s.totals(
+			store,
+			query(
+				org,
+				g,
+				time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC),
+				time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC),
+			),
+		)
 		s.InDelta(25.0, vizql.Finalize(got["t-1"], types.AggSum), 0, g)
 		s.InDelta(1.0, vizql.Finalize(got["t-1"], types.AggCount), 0, g)
 	}
 }
 
 // partitionRows counts the stored rows of one partition.
-func (s *AnalyticsCassandraSuite) partitionRows(org string, grain types.Grain, bucket time.Time) int {
-	iter := s.session.Query("SELECT idempotency_key FROM "+analyticscassandra.TableName(itCube, grain)+
-		" WHERE org_id = ? AND cube = ? AND bucket = ?", org, itCube, bucket).Iter()
+func (s *AnalyticsCassandraSuite) partitionRows(
+	org string,
+	grain types.Grain,
+	bucket time.Time,
+) int {
+	iter := s.session.Query("SELECT idempotency_key FROM "+analyticscassandra.TableName(
+		itCube, grain,
+	)+
+		" WHERE org_id = ? AND cube = ? AND bucket = ?", org, itCube, bucket).
+		Iter()
 	n := 0
 	var key string
 	for iter.Scan(&key) {
@@ -387,9 +481,12 @@ func (s *AnalyticsCassandraSuite) partitionRows(org string, grain types.Grain, b
 
 // writeCompactionFacts writes 40 facts of one hourly group (t-1) and 3 of another
 // (t-2) into the closed day bucket 2025-03-04, returning their tokens per team.
-func (s *AnalyticsCassandraSuite) writeCompactionFacts(store *analyticscassandra.Store, org string) map[string][]float64 {
+func (s *AnalyticsCassandraSuite) writeCompactionFacts(
+	store *analyticscassandra.Store,
+	org string,
+) map[string][]float64 {
 	values := map[string][]float64{}
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 43)
 	for i := range 43 {
 		team := "t-1"
 		if i >= 40 {
@@ -397,7 +494,17 @@ func (s *AnalyticsCassandraSuite) writeCompactionFacts(store *analyticscassandra
 		}
 		v := float64(1 + i%17)
 		values[team] = append(values[team], v)
-		facts = append(facts, fact(org, fmt.Sprintf("k-%d", i), time.Date(2025, 3, 4, 9, i%60, 0, 0, time.UTC), team, "m", v))
+		facts = append(
+			facts,
+			fact(
+				org,
+				fmt.Sprintf("k-%d", i),
+				time.Date(2025, 3, 4, 9, i%60, 0, 0, time.UTC),
+				team,
+				"m",
+				v,
+			),
+		)
 	}
 	s.Require().NoError(store.Write(context.Background(), facts))
 	return values
@@ -421,13 +528,23 @@ func (s *AnalyticsCassandraSuite) TestCassandra_CompactionPreservesTotals() {
 	before := s.totals(store, q)
 	s.Equal(43, s.partitionRows(org, types.GrainHour, bucket))
 
-	s.Require().NoError(store.Compact(context.Background(), itCube, types.GrainHour, org, bucket))
+	s.Require().
+		NoError(store.Compact(context.Background(), itCube, types.GrainHour, org, bucket))
 
 	after := s.totals(store, q)
 	s.Equal(2, s.partitionRows(org, types.GrainHour, bucket))
 	for _, team := range []string{"t-1", "t-2"} {
-		for _, agg := range []types.Aggregate{types.AggSum, types.AggCount, types.AggMin, types.AggMax, types.AggP95} {
-			s.InDelta(vizql.Finalize(before[team], agg), vizql.Finalize(after[team], agg), 1e-9, "%s %s", team, agg)
+		for _, agg := range []types.Aggregate{
+			types.AggSum, types.AggCount, types.AggMin, types.AggMax, types.AggP95,
+		} {
+			s.InDelta(
+				vizql.Finalize(before[team], agg),
+				vizql.Finalize(after[team], agg),
+				1e-9,
+				"%s %s",
+				team,
+				agg,
+			)
 		}
 	}
 }
@@ -459,7 +576,9 @@ func (s *AnalyticsCassandraSuite) TestCassandra_CompactionIsIdempotent() {
 	s.Require().NoError(store.Compact(ctx, itCube, types.GrainHour, org, bucket))
 	s.InDelta(want, vizql.Finalize(s.totals(store, q)["t-1"], types.AggSum), 0)
 
-	s.Require().NoError(store.Write(ctx, []types.Fact{fact(org, "late", time.Date(2025, 3, 4, 9, 5, 0, 0, time.UTC), "t-1", "m", 100)}))
+	lateAt := time.Date(2025, 3, 4, 9, 5, 0, 0, time.UTC)
+	late := fact(org, "late", lateAt, "t-1", "m", 100)
+	s.Require().NoError(store.Write(ctx, []types.Fact{late}))
 	s.Require().NoError(store.Compact(ctx, itCube, types.GrainHour, org, bucket))
 	got := s.totals(store, q)["t-1"]
 	s.InDelta(want+100, vizql.Finalize(got, types.AggSum), 0)

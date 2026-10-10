@@ -1,5 +1,7 @@
 """Tests for Job interfaces and PeriodicJob dataclass."""
 
+import pytest
+
 from techai_webutils.core.interfaces.jobs import (
     Job,
     JobEnqueuer,
@@ -8,10 +10,11 @@ from techai_webutils.core.interfaces.jobs import (
     Worker,
     WorkerRegistry,
 )
-import pytest
 
 
 class TestPeriodicJob:
+    """Tests for the periodic job."""
+
     def test_construction(self) -> None:
         """Test that PeriodicJob carries its dispatch kind, cron schedule, and args intact.
 
@@ -45,6 +48,8 @@ class TestPeriodicJob:
 
 
 class TestJobABCs:
+    """Tests for the job ABCs."""
+
     def test_cannot_instantiate_job(self) -> None:
         """Test that the Job ABC cannot be instantiated without kind/args implementations.
 

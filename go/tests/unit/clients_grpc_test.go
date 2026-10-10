@@ -7,19 +7,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	platformgrpc "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	platformgrpc "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
 )
 
-// TestGRPCServerFactory tests that the server factory creates a working gRPC server with a registered health service.
+// TestGRPCServerFactory tests that the server factory creates a working gRPC server with
+// a registered health service.
 //
 // Why this test is important:
 //   - Kubernetes liveness and readiness probes depend on gRPC health checks
 //   - A broken server factory prevents all gRPC services from starting
-//   - Validates the full server lifecycle: create, register health, listen, serve, health check responds
+//   - Validates the full server lifecycle: create, register health, listen, serve, health
+//     check responds
 //
 // What it tests:
 //   - NewServer returns a non-nil gRPC server
@@ -38,7 +40,7 @@ func TestGRPCServerFactory(t *testing.T) {
 	platformgrpc.RegisterHealthService(server)
 
 	// Start the server
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err, "failed to create listener")
 
 	go func() {
@@ -57,14 +59,17 @@ func TestGRPCServerFactory(t *testing.T) {
 	client := healthpb.NewHealthClient(conn)
 	resp, err := client.Check(context.Background(), &healthpb.HealthCheckRequest{})
 	require.NoError(t, err, "health check failed")
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.Status)
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 }
 
-// TestGRPCClientFactory tests that the client factory establishes a connection and can call the health service.
+// TestGRPCClientFactory tests that the client factory establishes a connection and can
+// call the health service.
 //
 // Why this test is important:
-//   - Validates end-to-end client-server connectivity to catch misconfigured defaults early
-//   - The client factory encapsulates connection options (timeouts, credentials, interceptors)
+//   - Validates end-to-end client-server connectivity to catch misconfigured defaults
+//     early
+//   - The client factory encapsulates connection options (timeouts, credentials,
+//     interceptors)
 //   - A broken client factory would prevent all inter-service gRPC communication
 //
 // What it tests:
@@ -78,7 +83,7 @@ func TestGRPCClientFactory(t *testing.T) {
 	server := platformgrpc.NewServer(cfg)
 	platformgrpc.RegisterHealthService(server)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err, "failed to create listener")
 
 	go func() {
@@ -96,5 +101,5 @@ func TestGRPCClientFactory(t *testing.T) {
 	client := healthpb.NewHealthClient(conn)
 	resp, err := client.Check(context.Background(), &healthpb.HealthCheckRequest{})
 	require.NoError(t, err, "health check via client factory failed")
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.Status)
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 }

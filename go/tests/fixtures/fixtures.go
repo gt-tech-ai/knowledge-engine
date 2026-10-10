@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
@@ -131,7 +131,11 @@ func SpyTracer(onSetAttribute func(key string, value any)) interfaces.Tracer {
 
 	t := mocks.NewMockTracer(ctrl)
 	t.EXPECT().Start(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ string, _ ...interfaces.SpanOption) (context.Context, interfaces.Span) {
+		func(
+			ctx context.Context,
+			_ string,
+			_ ...interfaces.SpanOption,
+		) (context.Context, interfaces.Span) {
 			return ctx, span
 		},
 	).
@@ -201,7 +205,8 @@ func ErrPipeline(err error) *mocks.MockPipeline[string, string] {
 	return StubPipeline(func(context.Context, string) (string, error) { return "", err })
 }
 
-// PanicPipeline returns a MockPipeline whose Execute panics (for recovery-decorator tests).
+// PanicPipeline returns a MockPipeline whose Execute panics (for recovery-decorator
+// tests).
 func PanicPipeline() *mocks.MockPipeline[string, string] {
 	return StubPipeline(
 		func(context.Context, string) (string, error) { panic("test panic in pipeline") },
@@ -220,7 +225,9 @@ func StubWorkflow(
 // PassWorkflow returns a MockWorkflow that echoes "mock-workflow-output-"+input.
 func PassWorkflow() *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(
-		func(_ context.Context, in string) (string, error) { return "mock-workflow-output-" + in, nil },
+		func(_ context.Context, in string) (string, error) {
+			return "mock-workflow-output-" + in, nil
+		},
 	)
 }
 
@@ -229,7 +236,8 @@ func ErrWorkflow(err error) *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(func(context.Context, string) (string, error) { return "", err })
 }
 
-// PanicWorkflow returns a MockWorkflow whose Execute panics (for recovery-decorator tests).
+// PanicWorkflow returns a MockWorkflow whose Execute panics (for recovery-decorator
+// tests).
 func PanicWorkflow() *mocks.MockWorkflow[string, string] {
 	return StubWorkflow(
 		func(context.Context, string) (string, error) { panic("test panic in workflow") },
@@ -276,7 +284,7 @@ func StubCircuitBreaker(open bool) *mocks.MockCircuitBreaker {
 	cb := mocks.NewMockCircuitBreaker(newCtrl())
 	cb.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error {
 		if open {
-			return errors.Sentinel("circuit breaker is open")
+			return apperr.Sentinel("circuit breaker is open")
 		}
 		return fn()
 	}).AnyTimes()
@@ -290,7 +298,7 @@ func StubRateLimiter(allowed bool) *mocks.MockRateLimiter {
 	rl.EXPECT().Allow().Return(allowed).AnyTimes()
 	rl.EXPECT().Wait(gomock.Any()).DoAndReturn(func(context.Context) error {
 		if !allowed {
-			return errors.Sentinel("rate limit exceeded")
+			return apperr.Sentinel("rate limit exceeded")
 		}
 		return nil
 	}).AnyTimes()
@@ -302,16 +310,13 @@ func StubRateLimiter(allowed bool) *mocks.MockRateLimiter {
 // ---------------------------------------------------------------------------
 
 // StubClientStream returns a generated MockClientStream for stream-interceptor
-// tests: Context returns ctx (background when nil), SendMsg returns sendErr, and
+// tests: Context returns ctx (the caller's, never nil), SendMsg returns sendErr, and
 // RecvMsg yields recvErrs in order then io.EOF. It replaces the former FakeClientStream.
 func StubClientStream(
 	ctx context.Context,
 	sendErr error,
 	recvErrs ...error,
 ) grpc.ClientStream {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	s := mocks.NewMockClientStream(newCtrl())
 	s.EXPECT().Header().Return(metadata.MD(nil), nil).AnyTimes()
 	s.EXPECT().Trailer().Return(metadata.MD(nil)).AnyTimes()
@@ -349,7 +354,11 @@ func StubStore() *mocks.MockStore[TestEntity, TestParams, string] {
 		},
 	).AnyTimes()
 	s.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ TestParams, _ types.PageRequest) (*types.Page[TestEntity], error) {
+		func(
+			_ context.Context,
+			_ TestParams,
+			_ types.PageRequest,
+		) (*types.Page[TestEntity], error) {
 			out := make([]TestEntity, 0, len(items))
 			for _, e := range items {
 				out = append(out, *e)
@@ -359,11 +368,17 @@ func StubStore() *mocks.MockStore[TestEntity, TestParams, string] {
 	).
 		AnyTimes()
 	s.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, e *TestEntity) (*TestEntity, error) { items[e.ID] = e; return e, nil },
+		func(_ context.Context, e *TestEntity) (*TestEntity, error) {
+			items[e.ID] = e
+			return e, nil
+		},
 	).
 		AnyTimes()
 	s.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, id string, e *TestEntity) (*TestEntity, error) { items[id] = e; return e, nil },
+		func(_ context.Context, id string, e *TestEntity) (*TestEntity, error) {
+			items[id] = e
+			return e, nil
+		},
 	).
 		AnyTimes()
 	s.EXPECT().Delete(gomock.Any(), gomock.Any()).DoAndReturn(

@@ -17,7 +17,11 @@ from techai_webutils.core.interfaces.execution import BatchResult, StepResult, S
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.execution import AnyJob, JobMeta
     from techai_webutils.core.interfaces.logger import Logger
-    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+    from techai_webutils.core.interfaces.metrics import (
+        MetricCounter,
+        MetricHistogram,
+        MetricsProvider,
+    )
     from techai_webutils.core.interfaces.tracer import TracerProvider
 
 
@@ -41,11 +45,15 @@ class _LoggingJob:
         try:
             result = await self._inner.execute()
         except Exception as exc:
-            self._logger.exception("job error", name=meta.name, elapsed=loop.time() - start, error=str(exc))
+            self._logger.exception(
+                "job error", name=meta.name, elapsed=loop.time() - start, error=str(exc)
+            )
             raise
         elapsed = loop.time() - start
         if result.has_failures:
-            self._logger.warning("job finished with failures", name=meta.name, elapsed=elapsed)
+            self._logger.warning(
+                "job finished with failures", name=meta.name, elapsed=elapsed
+            )
         else:
             self._logger.info("job finished", name=meta.name, elapsed=elapsed)
         return result
@@ -87,7 +95,9 @@ class _MetricsJob:
         except Exception:
             self._record(meta.name, "error", loop.time() - start)
             raise
-        self._record(meta.name, "failed" if result.has_failures else "ok", loop.time() - start)
+        self._record(
+            meta.name, "failed" if result.has_failures else "ok", loop.time() - start
+        )
         return result
 
     def _record(self, job: str, outcome: str, elapsed: float) -> None:
@@ -138,10 +148,17 @@ class _RecoveryJob:
             raise  # never swallow cancellation
         except Exception as exc:
             if self._logger is not None:
-                self._logger.exception("job exception recovered", name=meta.name, error=str(exc))
+                self._logger.exception(
+                    "job exception recovered", name=meta.name, error=str(exc)
+                )
             return BatchResult(
                 results=(
-                    StepResult(name=meta.name, group=meta.group, status=StepStatus.FAIL, error=str(exc)),
+                    StepResult(
+                        name=meta.name,
+                        group=meta.group,
+                        status=StepStatus.FAIL,
+                        error=str(exc),
+                    ),
                 ),
             )
 

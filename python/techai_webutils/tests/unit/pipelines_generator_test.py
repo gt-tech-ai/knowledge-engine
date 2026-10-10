@@ -6,24 +6,26 @@ completion) — the prompt *content* (numbered passages, citation instruction) i
 concern and is tested there.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.llm import LLMProvider, LLMResponse
 from techai_webutils.core.interfaces.retrieval import HistoryTurn, RetrievalResult
-
 from techai_webutils.pipelines.generator import GenerationPrompt, ResponseGenerator
 
 
 async def _aiter(items: list[str]) -> AsyncIterator[str]:
     """Yield the items as an async iterator."""
+    await asyncio.sleep(0)
     for item in items:
         yield item
 
 
 def _passage(text: str) -> RetrievalResult:
-    """A retrieval result carrying ``text`` as its chunk."""
+    """Return a retrieval result carrying ``text`` as its chunk."""
     return RetrievalResult(
         document_id="d1",
         document_name="Doc",
@@ -35,6 +37,8 @@ def _passage(text: str) -> RetrievalResult:
 
 
 class TestResponseGenerator:
+    """Tests for the response generator."""
+
     @pytest.mark.asyncio
     async def test_stream_yields_llm_tokens(self) -> None:
         """Test that streaming reassembles the LLM's tokens (generator logic, prompt-agnostic).
@@ -73,9 +77,9 @@ class TestResponseGenerator:
             finish_reason="stop",
         )
         assert (
-            await ResponseGenerator(llm, create_autospec(GenerationPrompt, instance=True)).complete(
-                "q", [_passage("c")]
-            )
+            await ResponseGenerator(
+                llm, create_autospec(GenerationPrompt, instance=True)
+            ).complete("q", [_passage("c")])
             == "the answer"
         )
 

@@ -9,8 +9,8 @@ be reconstructed into a ``VectorSearchResult`` without a second lookup.
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
 import uuid
+from typing import TYPE_CHECKING
 
 from qdrant_client import models
 
@@ -139,10 +139,14 @@ class QdrantVectorStore(NoOpAsyncResource, VectorStore):
         """Count the points belonging to ``document_id``; 0 when the collection does not exist yet."""
         if not await self._client.collection_exists(collection):
             return 0
-        result = await self._client.count(collection, count_filter=_document_filter(document_id), exact=True)
+        result = await self._client.count(
+            collection, count_filter=_document_filter(document_id), exact=True
+        )
         return result.count
 
-    async def stored_metadata(self, collection: str, ids: Sequence[str]) -> dict[str, dict[str, str]]:
+    async def stored_metadata(
+        self, collection: str, ids: Sequence[str]
+    ) -> dict[str, dict[str, str]]:
         """Return ``{raw id: stored metadata}`` for the ``ids`` already stored (a checkpoint/resume probe).
 
         Maps each raw id to its deterministic Qdrant point id and retrieves those points with their
@@ -175,7 +179,11 @@ def _point_id(raw_id: str) -> str:
 def _document_filter(document_id: str) -> models.Filter:
     """Build a payload filter matching every point whose ``document_id`` equals ``document_id``."""
     return models.Filter(
-        must=[models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id))],
+        must=[
+            models.FieldCondition(
+                key="document_id", match=models.MatchValue(value=document_id)
+            )
+        ],
     )
 
 
@@ -187,7 +195,11 @@ _PROMOTED_PAYLOAD_KEYS = frozenset({"content", "document_id", "entry_id"})
 
 def _metadata(payload: Mapping[str, object]) -> dict[str, str]:
     """Return a point payload's metadata: every key not promoted to an entry field, stringified."""
-    return {key: str(value) for key, value in payload.items() if key not in _PROMOTED_PAYLOAD_KEYS}
+    return {
+        key: str(value)
+        for key, value in payload.items()
+        if key not in _PROMOTED_PAYLOAD_KEYS
+    }
 
 
 def _to_result(point: models.ScoredPoint) -> VectorSearchResult:

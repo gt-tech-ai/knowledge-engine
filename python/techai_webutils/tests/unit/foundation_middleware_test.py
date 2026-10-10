@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+
+import pytest
+
 from techai_webutils.foundation.middleware.chain import chain
 from techai_webutils.foundation.middleware.request_id import (
     get_request_id,
     request_id_middleware,
     set_request_id,
 )
-import pytest
 
 
 class TestChain:
@@ -94,12 +97,13 @@ class TestRequestIdMiddleware:
         captured_id: str = ""
 
         async def handler() -> None:
+            await asyncio.sleep(0)
             nonlocal captured_id
             captured_id = get_request_id()
 
         wrapped = request_id_middleware(handler)
         await wrapped()
-        assert captured_id != ""
+        assert captured_id
         assert len(captured_id) == 36  # UUID format
 
     @pytest.mark.asyncio
@@ -119,6 +123,7 @@ class TestRequestIdMiddleware:
         captured_id: str = ""
 
         async def handler() -> None:
+            await asyncio.sleep(0)
             nonlocal captured_id
             captured_id = get_request_id()
 
@@ -144,6 +149,4 @@ class TestRequestIdMiddleware:
         try:
             assert get_request_id() == "test-id"
         finally:
-            from techai_webutils.foundation.middleware.request_id import _request_id_var
-
-            _request_id_var.reset(token)
+            token.var.reset(token)

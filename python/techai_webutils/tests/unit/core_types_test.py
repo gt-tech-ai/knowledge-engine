@@ -4,7 +4,10 @@ Tests all shared types for correctness and Go parity: ID, Option, Page,
 PageRequest, SortOrder, SortField, and Timestamps.
 """
 
+import dataclasses
 from datetime import UTC, datetime
+
+import pytest
 
 from techai_webutils.core.domain_types.types import (
     ID,
@@ -172,14 +175,12 @@ class TestOption:
             "absent" under another caller, producing data-dependent heisenbugs
 
         **What it tests:**
-          - Assigning to opt._value raises AttributeError (frozen), leaving the value intact
+          - Assigning to an attribute raises FrozenInstanceError, leaving the value intact
         """
         opt = some(42)
-        try:
-            opt._value = 99  # type: ignore[misc]
-            raise AssertionError("Should have raised FrozenInstanceError")
-        except AttributeError:
-            pass
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            opt.valid = False
+        assert opt.get() == (42, True)
 
 
 class TestPage:
@@ -297,7 +298,7 @@ class TestPageRequest:
         req = PageRequest()
         assert req.page_size == 20
         assert req.page_number == 1
-        assert req.cursor == ""
+        assert not req.cursor
 
     def test_custom_values(self) -> None:
         """Test that explicit pagination arguments override the defaults.
@@ -400,7 +401,8 @@ class TestSortField:
         sf = SortField(field="name")
         try:
             sf.field = "other"  # type: ignore[misc]
-            raise AssertionError("Should have raised FrozenInstanceError")
+            msg = "Should have raised FrozenInstanceError"
+            raise AssertionError(msg)
         except AttributeError:
             pass
 

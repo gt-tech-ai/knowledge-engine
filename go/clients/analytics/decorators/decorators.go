@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
@@ -52,7 +52,12 @@ func (b *Builder) WithMetrics(m interfaces.Metrics) *Builder { b.metrics = m; re
 func (b *Builder) WithTracer(t interfaces.Tracer) *Builder { b.tracer = t; return b }
 
 // WithCircuitBreaker sheds operations while the breaker is open (CodeUnavailable).
-func (b *Builder) WithCircuitBreaker(cb interfaces.CircuitBreaker) *Builder { b.cb = cb; return b }
+func (b *Builder) WithCircuitBreaker(
+	cb interfaces.CircuitBreaker,
+) *Builder {
+	b.cb = cb
+	return b
+}
 
 // WithTimeout bounds opening a stream, each write and each compaction; an
 // expired deadline is CodeTimeout.
@@ -62,10 +67,15 @@ func (b *Builder) WithTimeout(d time.Duration) *Builder { b.timeout = d; return 
 func (b *Builder) Build() interfaces.AnalyticsStore {
 	return &store{
 		base: b.base,
-		aggregate: chain(b, "aggregate", execFunc[types.AggregateQuery, interfaces.RowStream](
-			func(ctx context.Context, q types.AggregateQuery) (interfaces.RowStream, error) {
-				return b.base.Aggregate(ctx, q)
-			})),
+		aggregate: chain(
+			b,
+			"aggregate",
+			execFunc[types.AggregateQuery, interfaces.RowStream](
+				func(ctx context.Context, q types.AggregateQuery) (interfaces.RowStream, error) {
+					return b.base.Aggregate(ctx, q)
+				},
+			),
+		),
 		write: chain(b, "write", execFunc[[]types.Fact, struct{}](
 			func(ctx context.Context, facts []types.Fact) (struct{}, error) {
 				return struct{}{}, b.base.Write(ctx, facts)
@@ -74,7 +84,10 @@ func (b *Builder) Build() interfaces.AnalyticsStore {
 			func(ctx context.Context, a compactArgs) (struct{}, error) {
 				c, ok := b.base.(interfaces.AnalyticsCompactor)
 				if !ok {
-					return struct{}{}, coreerr.New(coreerr.CodeInvalidInput, "analytics: store does not compact")
+					return struct{}{}, apperr.New(
+						apperr.CodeInvalidInput,
+						"analytics: store does not compact",
+					)
 				}
 				return struct{}{}, c.Compact(ctx, a.cube, a.grain, a.org, a.bucket)
 			})),
@@ -92,24 +105,35 @@ type compactArgs struct {
 }
 
 // chain applies the layers to one operation, innermost first.
-func chain[In, Out any](b *Builder, op string, e decorator.Executor[In, Out]) decorator.Executor[In, Out] {
+func chain[In, Out any](
+	b *Builder,
+	op string,
+	e decorator.Executor[In, Out],
+) decorator.Executor[In, Out] {
 	name := b.name + "." + op
 	if b.timeout > 0 {
 		e = &codedTimeout[In, Out]{inner: decorator.Timeout(e, b.timeout)}
 	}
 	if b.cb != nil {
 		e = decorator.CircuitBreaker(e, b.cb, func(err error) error {
-			return coreerr.Wrap(err, coreerr.CodeUnavailable, "analytics: circuit breaker open")
+			return apperr.Wrap(
+				err,
+				apperr.CodeUnavailable,
+				"analytics: circuit breaker open",
+			)
 		})
 	}
 	if b.tracer != nil {
 		e = decorator.Tracing(e, b.tracer, tier, name)
 	}
 	if b.metrics != nil {
-		e = decorator.Metrics(e, tier, name, b.metrics, decorator.DefaultBuckets)
+		e = decorator.Metrics(e, tier, name, b.metrics, decorator.DefaultBuckets())
 	}
 	return decorator.Recovery(e, b.logger, tier, name, func(n string, r any) error {
-		return coreerr.New(coreerr.CodeInternal, fmt.Sprintf("analytics %s panic recovered: %v", n, r))
+		return apperr.New(
+			apperr.CodeInternal,
+			fmt.Sprintf("analytics %s panic recovered: %v", n, r),
+		)
 	})
 }
 
@@ -132,7 +156,10 @@ func (s *store) Start(ctx context.Context) error { return s.base.Start(ctx) }
 func (s *store) Stop(ctx context.Context) error { return s.base.Stop(ctx) }
 
 // Aggregate runs the decorated Aggregate.
-func (s *store) Aggregate(ctx context.Context, q types.AggregateQuery) (interfaces.RowStream, error) {
+func (s *store) Aggregate(
+	ctx context.Context,
+	q types.AggregateQuery,
+) (interfaces.RowStream, error) {
 	return s.aggregate.Execute(ctx, q)
 }
 
@@ -144,8 +171,17 @@ func (s *store) Write(ctx context.Context, facts []types.Fact) error {
 
 // Compact runs the decorated Compact; a base without a compactor is
 // CodeInvalidInput.
-func (s *store) Compact(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time) error {
-	_, err := s.compact.Execute(ctx, compactArgs{bucket: bucket, cube: cube, org: org, grain: grain})
+func (s *store) Compact(
+	ctx context.Context,
+	cube string,
+	grain types.Grain,
+	org string,
+	bucket time.Time,
+) error {
+	_, err := s.compact.Execute(
+		ctx,
+		compactArgs{bucket: bucket, cube: cube, org: org, grain: grain},
+	)
 	return err
 }
 
@@ -153,7 +189,12 @@ func (s *store) Compact(ctx context.Context, cube string, grain types.Grain, org
 type execFunc[In, Out any] func(ctx context.Context, in In) (Out, error)
 
 // Execute calls the function.
-func (f execFunc[In, Out]) Execute(ctx context.Context, in In) (Out, error) { return f(ctx, in) }
+func (f execFunc[In, Out]) Execute(
+	ctx context.Context,
+	in In,
+) (Out, error) {
+	return f(ctx, in)
+}
 
 // codedTimeout turns an expired deadline into CodeTimeout.
 type codedTimeout[In, Out any] struct {
@@ -164,8 +205,13 @@ type codedTimeout[In, Out any] struct {
 // Execute runs inner and codes a deadline overrun.
 func (d *codedTimeout[In, Out]) Execute(ctx context.Context, in In) (Out, error) {
 	out, err := d.inner.Execute(ctx, in)
-	if err != nil && coreerr.StdIs(err, context.DeadlineExceeded) && coreerr.Code(err) != coreerr.CodeTimeout {
-		return out, coreerr.Wrap(err, coreerr.CodeTimeout, "analytics: operation timed out")
+	if err != nil && apperr.StdIs(err, context.DeadlineExceeded) &&
+		apperr.Code(err) != apperr.CodeTimeout {
+		return out, apperr.Wrap(
+			err,
+			apperr.CodeTimeout,
+			"analytics: operation timed out",
+		)
 	}
 	return out, err
 }

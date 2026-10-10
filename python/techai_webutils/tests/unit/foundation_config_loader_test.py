@@ -1,7 +1,8 @@
 """Tests for YamlConfigLoader."""
 
-from pathlib import Path
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
 from techai_webutils.foundation.config.config_loader import YamlConfigLoader
 
@@ -35,7 +36,7 @@ class TestYamlConfigLoader:
           - get_string("missing") returns "" when key does not exist
         """
         loader = self._make_loader({})
-        assert loader.get_string("missing") == ""
+        assert not loader.get_string("missing")
 
     def test_get_int(self) -> None:
         """Test that get_int retrieves an integer value by key.
@@ -165,10 +166,10 @@ class TestYamlConfigLoader:
         """
         loader = self._make_loader({"host": "localhost", "port": 5432})
 
+        @dataclass
         class Config:
-            def __init__(self, host: str, port: int) -> None:
-                self.host = host
-                self.port = port
+            host: str
+            port: int
 
         cfg = loader.unmarshal(Config)
         assert cfg.host == "localhost"

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -14,33 +14,47 @@ import (
 // cannot catch).
 const maxFilterDepth = 32
 
-// opTokens maps the JSON wire operator tokens to the core FilterOperator (v1 set).
-var opTokens = map[string]types.FilterOperator{
-	"$eq":     types.OpEq,
-	"$ne":     types.OpNe,
-	"$in":     types.OpIn,
-	"$not_in": types.OpNotIn,
-	"$like":   types.OpLike,
-	"$gt":     types.OpGt,
-	"$gte":    types.OpGte,
-	"$lt":     types.OpLt,
-	"$lte":    types.OpLte,
+// opToken maps a JSON wire operator token to the core FilterOperator (v1 set);
+// ok is false for an unknown token.
+func opToken(token string) (op types.FilterOperator, ok bool) {
+	switch token {
+	case "$eq":
+		return types.OpEq, true
+	case "$ne":
+		return types.OpNe, true
+	case "$in":
+		return types.OpIn, true
+	case "$not_in":
+		return types.OpNotIn, true
+	case "$like":
+		return types.OpLike, true
+	case "$gt":
+		return types.OpGt, true
+	case "$gte":
+		return types.OpGte, true
+	case "$lt":
+		return types.OpLt, true
+	case "$lte":
+		return types.OpLte, true
+	default:
+		return op, false
+	}
 }
 
 // Parse compiles a JSON filter string, gated by the resource allow-list m, into the core
 // Filter contract. Blank input (or "{}") yields an empty CompositeFilter (IsEmpty() true)
 // — a store applies no WHERE. Malformed JSON, an unknown/duplicate operator, a
 // non-allow-listed field, a type-incompatible value, or nesting past maxFilterDepth is a
-// CodeInvalidInput error (ARCHITECTURE.md#error-codes). The result is the Filter interface — a
-// FilterClause for a single comparison, a CompositeFilter for $and/$or — never
-// *FilterClause, since a top-level $and/$or is composite.
+// CodeInvalidInput error (ARCHITECTURE.md#error-codes). The result is the Filter
+// interface — a FilterClause for a single comparison, a CompositeFilter for $and/$or —
+// never *FilterClause, since a top-level $and/$or is composite.
 func Parse(m *Map, jsonStr string) (types.Filter, error) {
 	if strings.TrimSpace(jsonStr) == "" {
 		return types.CompositeFilter{}, nil // no filter → IsEmpty
 	}
 	var node map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(jsonStr), &node); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInvalidInput, "filter: invalid JSON")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "filter: invalid JSON")
 	}
 	if len(node) == 0 {
 		return types.CompositeFilter{}, nil // "{}" → no filter → IsEmpty
@@ -52,14 +66,14 @@ func Parse(m *Map, jsonStr string) (types.Filter, error) {
 // recursion at maxFilterDepth.
 func parseNode(m *Map, node map[string]json.RawMessage, depth int) (types.Filter, error) {
 	if depth > maxFilterDepth {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"filter: nesting exceeds max depth",
 		)
 	}
 	if len(node) != 1 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"filter: each object must carry exactly one operator",
 		)
 	}
@@ -67,17 +81,17 @@ func parseNode(m *Map, node map[string]json.RawMessage, depth int) (types.Filter
 		if key == "$and" || key == "$or" {
 			return parseComposite(m, key, raw, depth)
 		}
-		op, ok := opTokens[key]
+		op, ok := opToken(key)
 		if !ok {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"filter: unknown operator "+key,
 			)
 		}
 		return parseClause(m, op, raw)
 	}
 	// Unreachable given the len(node) == 1 guard; a coded error (never nil,nil) if reached.
-	return nil, errors.New(errors.CodeInvalidInput, "filter: empty object")
+	return nil, apperr.New(apperr.CodeInvalidInput, "filter: empty object")
 }
 
 // parseComposite walks a $and/$or array into a CompositeFilter.
@@ -89,15 +103,15 @@ func parseComposite(
 ) (types.Filter, error) {
 	var arr []map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"filter: "+key+" must be an array of filters",
 		)
 	}
 	if len(arr) == 0 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"filter: "+key+" must not be empty",
 		)
 	}
@@ -124,23 +138,23 @@ func parseClause(
 ) (types.Filter, error) {
 	var fieldVal map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fieldVal); err != nil {
-		return nil, errors.Wrap(
+		return nil, apperr.Wrap(
 			err,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"filter: operator body must be {field: value}",
 		)
 	}
 	if len(fieldVal) != 1 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"filter: operator body must carry exactly one field",
 		)
 	}
 	for name, rawV := range fieldVal {
 		field, ok := m.Lookup(name)
 		if !ok {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"filter: field not allow-listed: "+name,
 			)
 		}
@@ -150,8 +164,9 @@ func parseClause(
 		}
 		return types.FilterClause{Field: field.Name, Operator: op, Value: value}, nil
 	}
-	// Unreachable given the len(fieldVal) == 1 guard; a coded error (never nil,nil) if reached.
-	return nil, errors.New(errors.CodeInvalidInput, "filter: empty operator body")
+	// Unreachable given the len(fieldVal) == 1 guard; a coded error (never nil,nil) if
+	// reached.
+	return nil, apperr.New(apperr.CodeInvalidInput, "filter: empty operator body")
 }
 
 // decodeValue decodes an operator operand: an array of type-compatible elements for
@@ -164,9 +179,9 @@ func decodeValue(
 	if op == types.OpIn || op == types.OpNotIn {
 		var arr []json.RawMessage
 		if err := json.Unmarshal(raw, &arr); err != nil {
-			return nil, errors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				errors.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"filter: in/not_in requires an array",
 			)
 		}
@@ -187,8 +202,8 @@ func decodeValue(
 // rejecting a null or type-incompatible value with CodeInvalidInput.
 func decodeScalar(raw json.RawMessage, ft FieldType) (any, error) {
 	mismatch := func() error {
-		return errors.New(
-			errors.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			"filter: value type does not match field type",
 		)
 	}
@@ -227,9 +242,9 @@ func decodeScalar(raw json.RawMessage, ft FieldType) (any, error) {
 		}
 		ts, err := time.Parse(time.RFC3339, s)
 		if err != nil {
-			return nil, errors.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				errors.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"filter: time value must be RFC3339",
 			)
 		}

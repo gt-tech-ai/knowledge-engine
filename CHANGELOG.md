@@ -6,6 +6,58 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-10
+
+### Added
+
+- Go `errors.ContextCode(err, fallback)`: like `CodeOr`, but maps an uncoded
+  `context.DeadlineExceeded` to `CodeTimeout` and `context.Canceled` to `CodeCanceled`.
+- Go `sqs.NewPublisherContext(ctx, cfg)`: like `sqs.NewPublisher`, but loads the AWS
+  config under `ctx`, so a caller's deadline or cancellation bounds client construction.
+- Python coded errors that are also builtins: `AppValueError` (`InvalidInputError` +
+  `ValueError`), `AppTypeError` (`InvalidInputError` + `TypeError`), `AppRuntimeError`
+  (`InternalError` + `RuntimeError`) and `AppFileNotFoundError` (`NotFoundError` +
+  `FileNotFoundError`), exported from `techai_webutils.core.errors`.
+
+### Changed
+
+- Go `messaging.NewFromConfig` now honours its context: the SQS backend loads its AWS
+  config under it instead of `context.Background()`.
+- Go `fixtures.StubClientStream` no longer substitutes `context.Background()` for a nil
+  context; pass the caller's context.
+- **Breaking (Go):** four exported package-level vars are now functions.
+  `decorator.DefaultBuckets` is `decorator.DefaultBuckets()` (a fresh slice per call);
+  callers must add `()`. `errors.Combine`, `errors.Append` and `listquery.IdentityColumn`
+  keep their signatures, so calls and value uses (`Resolve: listquery.IdentityColumn`)
+  still compile; only code that assigned to them breaks.
+- Go Redis messaging `Subscriber`: the handler context is now derived from the first
+  `Subscribe`/`PSubscribe` call's context without its cancellation, so handlers see that
+  call's context values. Cancelling that call still does not stop delivery; `Close` does.
+- Go: errors that came back raw from a third-party SDK, the standard library or a context
+  (redis/postgres/gRPC/connect close and ping, cache envelope encode/decode, config
+  unmarshal, rate-limiter and bulkhead waits, hedged calls, memory messaging, and others)
+  now carry an `ErrorCode`. `errors.Is` / `errors.As` against the original error still
+  match; the `Error()` text gains the `CODE: message:` prefix.
+- **Breaking (Python):** `VectorStore.stored_metadata` is now abstract. A custom
+  `VectorStore` subclass must implement it; return `{}` when the store has no cheap
+  existence probe (the old default). `StubVectorStore` now answers it from its map.
+- Python `BaseController.handle_error`, `write_json`, `write_error` and
+  `write_no_content` are static methods; calls through an instance are unchanged.
+- Python `NoopEmailSender`, `LangdetectMetadataExtractor`, `DisabledHedger`,
+  `DelayHedger` and `AlwaysLeader` now subclass their core Protocol explicitly.
+- Python `HandlerFunc` is defined in `techai_webutils.controllers.decorators`;
+  `techai_webutils.controllers` still re-exports it.
+- Python stub LLM streams yield to the event loop before each token.
+- Python gRPC `TracingServerInterceptor`: on a server-streaming RPC the SERVER span is
+  current only while each response is produced, not across the `yield` to grpc.aio.
+- Python: production code that raised a bare `ValueError`, `TypeError`, `RuntimeError` or
+  `FileNotFoundError` (unknown kinds, unopened clients, missing config files, and others)
+  now raises the matching coded subclass above. `except ValueError` and the other builtin
+  catches still match, and the message is unchanged.
+- Go S3 outbox sink: each `PutObject` carries a SHA-256 checksum
+  (`ChecksumAlgorithm` + `ChecksumSHA256`) instead of `Content-MD5`; Object Lock buckets
+  accept either.
+
 ## [0.3.2] - 2026-10-09
 
 ### Added

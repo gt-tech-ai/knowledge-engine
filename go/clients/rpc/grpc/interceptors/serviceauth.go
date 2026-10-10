@@ -38,10 +38,11 @@ func ServiceAuthClientInterceptor(token string) grpc.UnaryClientInterceptor {
 	}
 }
 
-// ServiceAuthStreamClientInterceptor returns a stream client interceptor that attaches the
-// caller's service-to-service bearer token as `authorization: Bearer <token>` outgoing
-// metadata when a stream opens — the streaming counterpart of ServiceAuthClientInterceptor,
-// with the same empty-token, single-value and transport-security rules.
+// ServiceAuthStreamClientInterceptor returns a stream client interceptor that attaches
+// the caller's service-to-service bearer token as `authorization: Bearer <token>`
+// outgoing metadata when a stream opens — the streaming counterpart of
+// ServiceAuthClientInterceptor, with the same empty-token, single-value and
+// transport-security rules.
 func ServiceAuthStreamClientInterceptor(token string) grpc.StreamClientInterceptor {
 	return func(
 		ctx context.Context,

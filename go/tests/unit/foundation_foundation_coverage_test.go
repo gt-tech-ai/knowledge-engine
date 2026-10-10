@@ -1,8 +1,10 @@
-// Package foundation_test provides additional tests to increase coverage of the foundation layer.
+// Package foundation_test provides additional tests to increase coverage of the
+// foundation layer.
 //
 // This file covers:
 //   - Logger: stdlib logger operations, zap logger With/WithContext, logctx utilities
-//   - Metrics: Prometheus counter/histogram/gauge operations, noop metrics, HTTPServerMetrics
+//   - Metrics: Prometheus counter/histogram/gauge operations, noop metrics,
+//     HTTPServerMetrics
 //   - Resilience: channel bulkhead Execute, retry exponential config, rate limiter token
 package unit_test
 
@@ -74,7 +76,7 @@ func TestStdlibLogger_With(t *testing.T) {
 	require.NotNil(t, child, "expected non-nil child logger")
 
 	// Verify interface
-	var _ interfaces.Logger = child
+	_ = child
 	child.Info("child message")
 }
 
@@ -99,7 +101,7 @@ func TestStdlibLogger_WithContext(t *testing.T) {
 	// Without correlation ID, should return same logger
 	ctx := context.Background()
 	same := l.WithContext(ctx)
-	assert.True(t, l == same, "expected same logger when no correlation ID")
+	assert.Equal(t, l, same, "expected same logger when no correlation ID")
 
 	// With correlation ID, should return enriched logger
 	ctx = logctx.WithCorrelationID(ctx, "req-456")
@@ -230,7 +232,7 @@ func TestZapLogger_WithContext(t *testing.T) {
 
 	ctx := context.Background()
 	same := l.WithContext(ctx)
-	assert.True(t, l == same, "expected same logger when no correlation ID")
+	assert.Equal(t, l, same, "expected same logger when no correlation ID")
 
 	ctx = logctx.WithCorrelationID(ctx, "req-789")
 	enriched := l.WithContext(ctx)
@@ -431,7 +433,7 @@ func TestLogctx_CorrelationID_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	assert.Equal(t, "", logctx.CorrelationID(ctx))
+	assert.Empty(t, logctx.CorrelationID(ctx))
 
 	ctx = logctx.WithCorrelationID(ctx, "corr-abc")
 	assert.Equal(t, "corr-abc", logctx.CorrelationID(ctx))
@@ -591,7 +593,7 @@ func TestPromMetrics_Handler(t *testing.T) {
 	require.NotNil(t, handler, "expected non-nil handler")
 
 	// Issue a request to verify handler serves content
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

@@ -17,7 +17,11 @@ from techai_webutils.execution.engine.fan_out import fan_out
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
-    from techai_webutils.core.interfaces.execution import BatchResult, ExecutionObserver, StepResult
+    from techai_webutils.core.interfaces.execution import (
+        BatchResult,
+        ExecutionObserver,
+        StepResult,
+    )
     from techai_webutils.execution.executor.ray_runtime import RayRuntime
 
 
@@ -53,4 +57,6 @@ class RayExecutor:
         async def dispatch(item: T) -> StepResult:
             return await self._runtime.submit(fn, item)
 
-        return await fan_out(items, concurrency, dispatch, self._observer, name=self._name)
+        return await fan_out(
+            items, concurrency, dispatch, self._observer, name=self._name
+        )

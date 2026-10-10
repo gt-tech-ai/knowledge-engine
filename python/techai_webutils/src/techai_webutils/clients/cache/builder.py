@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from techai_webutils.clients.cache.local import LocalCache
 from techai_webutils.clients.cache.null import NullCache
 from techai_webutils.clients.cache.redis import RedisCache
 from techai_webutils.clients.cache.types import FailureMode
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.cache import Cache
@@ -80,8 +81,8 @@ def new_cache_from_config(config: CacheConfig) -> Cache:
     if config.kind == CacheKind.REDIS:
         if config.redis_client is None:
             msg = "redis_client is required when kind is REDIS"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         return RedisCache(client=config.redis_client, failure_mode=config.failure_mode)
 
     msg = f"unknown cache kind: {config.kind}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

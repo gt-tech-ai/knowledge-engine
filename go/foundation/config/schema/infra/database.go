@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // DatabaseConfig holds PostgreSQL connection configuration.
@@ -27,7 +27,8 @@ type DatabaseConfig struct {
 	// SSLMode controls TLS negotiation (e.g. "disable", "require", "verify-full").
 	SSLMode string `mapstructure:"sslmode" envalias:"DB_SSLMODE"`
 
-	// ConnectionMaxLifetime is the maximum duration a connection may be reused before it is closed.
+	// ConnectionMaxLifetime is the maximum duration a connection may be reused before it
+	// is closed.
 	ConnectionMaxLifetime time.Duration `mapstructure:"connection_max_lifetime"`
 
 	// ConnMaxIdleTime is the maximum duration a connection may sit idle before it
@@ -60,7 +61,8 @@ type DatabaseConfig struct {
 	MaxIdleConnections int `mapstructure:"max_idle_connections"`
 }
 
-// DefaultDatabaseConfig returns a DatabaseConfig with defaults matching Docker Compose local dev.
+// DefaultDatabaseConfig returns a DatabaseConfig with defaults matching Docker Compose
+// local dev.
 func DefaultDatabaseConfig() DatabaseConfig {
 	return DatabaseConfig{
 		Host:                  "localhost",
@@ -96,7 +98,7 @@ func (c *DatabaseConfig) DSN() string {
 // Validate returns an error if the configuration is invalid.
 func (c *DatabaseConfig) Validate() error {
 	if c.Host == "" {
-		return coreerr.InvalidInput("database.host is required")
+		return apperr.InvalidInput("database.host is required")
 	}
 	return nil
 }

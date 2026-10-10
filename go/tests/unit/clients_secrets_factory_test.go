@@ -9,7 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -48,8 +48,11 @@ func TestNewFromConfig_EnvKindResolves(t *testing.T) {
 // What it tests:
 //   - NewFromConfig(KindFile) with no Runner returns CodeInvalidInput.
 func TestNewFromConfig_FileKindRequiresRunner(t *testing.T) {
-	_, err := secrets.NewFromConfig(context.Background(), secrets.Config{Kind: secrets.KindFile})
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	_, err := secrets.NewFromConfig(
+		context.Background(),
+		secrets.Config{Kind: secrets.KindFile},
+	)
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }
 
 // TestNewFromConfig_FileKindBuildsWithRunner tests that the factory builds a file Source
@@ -75,14 +78,18 @@ func TestNewFromConfig_FileKindBuildsWithRunner(t *testing.T) {
 // TestNewFromConfig_UnknownKindFailsLoudly tests that an unrecognized Kind is rejected.
 //
 // Why this test is important:
-//   - Fail-loud on an unknown Kind is the factory contract (ARCHITECTURE.md#swappable-components); a silent
-//     nil Source would defer the failure to a confusing later nil-panic.
+//   - Fail-loud on an unknown Kind is the factory contract
+//     (ARCHITECTURE.md#swappable-components); a silent nil Source would defer the failure
+//     to a confusing later nil-panic.
 //
 // What it tests:
 //   - NewFromConfig with an out-of-range Kind returns CodeInvalidInput.
 func TestNewFromConfig_UnknownKindFailsLoudly(t *testing.T) {
-	_, err := secrets.NewFromConfig(context.Background(), secrets.Config{Kind: secrets.Kind(99)})
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	_, err := secrets.NewFromConfig(
+		context.Background(),
+		secrets.Config{Kind: secrets.Kind(99)},
+	)
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }
 
 // TestKind_String tests that each Kind renders its stable config string.

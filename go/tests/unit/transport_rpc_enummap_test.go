@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	apprpc "github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
 )
 
@@ -28,17 +28,20 @@ func newTestMapper() apprpc.EnumMapper[enumP, enumD] {
 		map[enumP]enumD{pOne: dOne, pTwo: dTwo})
 }
 
-// TestEnumMapper tests the bidirectional proto↔domain enum mapper's three conversion shapes.
+// TestEnumMapper tests the bidirectional proto↔domain enum mapper's three conversion
+// shapes.
 //
 // Why this test is important:
-//   - It is the single source of truth for a value's proto↔domain correspondence across the RPC
-//     converters; a wrong reverse mapping, a missing "no filter" sentinel, or a swallowed unknown value
-//     would silently mis-convert an enum at the transport edge.
+//   - It is the single source of truth for a value's proto↔domain correspondence across
+//     the RPC converters; a wrong reverse mapping, a missing "no filter" sentinel, or a
+//     swallowed unknown value would silently mis-convert an enum at the transport edge.
 //
 // What it tests:
-//   - ToProtoValue / ToDomainOK round-trip a known value; an unmapped domain value falls back to protoZero.
+//   - ToProtoValue / ToDomainOK round-trip a known value; an unmapped domain value falls
+//     back to protoZero.
 //   - ToDomainOrError rejects an unknown proto value as CodeInvalidInput.
-//   - ToDomainFilter treats protoZero (unspecified) as "no filter" (ok=false) and maps a known value.
+//   - ToDomainFilter treats protoZero (unspecified) as "no filter" (ok=false) and maps a
+//     known value.
 //   - ToDomainEntries exposes the forward table for derived projections.
 func TestEnumMapper(t *testing.T) {
 	t.Parallel()
@@ -57,7 +60,7 @@ func TestEnumMapper(t *testing.T) {
 
 	_, err := m.ToDomainOrError(enumP(99))
 	require.Error(t, err)
-	assert.Equal(t, errors.CodeInvalidInput, errors.Code(err))
+	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err))
 
 	_, ok = m.ToDomainFilter(pUnspecified) // unspecified → "no filter"
 	assert.False(t, ok)
@@ -68,12 +71,14 @@ func TestEnumMapper(t *testing.T) {
 	assert.Len(t, m.ToDomainEntries(), 2)
 }
 
-// TestNewEnumMapper_ReverseCollisionPanics tests the loud-at-init guard against a non-invertible table.
+// TestNewEnumMapper_ReverseCollisionPanics tests the loud-at-init guard against a
+// non-invertible table.
 //
 // Why this test is important:
-//   - The reverse (domain→proto) table requires unique domain values; a collision would make
-//     ToProtoValue a silent last-writer-wins under Go's randomized map iteration. The mappers are built
-//     at package init, so the contract is a loud panic at startup, never a silent mis-mapping in prod.
+//   - The reverse (domain→proto) table requires unique domain values; a collision would
+//     make ToProtoValue a silent last-writer-wins under Go's randomized map iteration.
+//     The mappers are built at package init, so the contract is a loud panic at startup,
+//     never a silent mis-mapping in prod.
 //
 // What it tests:
 //   - Two proto values mapping to the same domain value panics at construction.

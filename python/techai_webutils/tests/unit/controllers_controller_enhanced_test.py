@@ -1,6 +1,14 @@
 """Tests for enhanced BaseController, ErrorResponse, and authorization decorator."""
 
-from techai_webutils.controllers.base import BaseController, ErrorResponse, map_error_to_http_status
+import asyncio
+
+import pytest
+
+from techai_webutils.controllers.base import (
+    BaseController,
+    ErrorResponse,
+    map_error_to_http_status,
+)
 from techai_webutils.controllers.decorators import HandlerBuilder
 from techai_webutils.core.errors.errors import (
     AppError,
@@ -12,7 +20,6 @@ from techai_webutils.core.errors.errors import (
     NotFoundError,
     UnauthorizedError,
 )
-import pytest
 
 
 class TestMapErrorToHTTPStatus:
@@ -129,7 +136,7 @@ class TestErrorResponse:
         resp = ErrorResponse(error="not found", code="NOT_FOUND")
         assert resp.error == "not found"
         assert resp.code == "NOT_FOUND"
-        assert resp.details == ""
+        assert not resp.details
 
 
 class TestBaseControllerEnhanced:
@@ -216,8 +223,9 @@ class TestBaseControllerEnhanced:
         result = ctrl.write_error(NotFoundError("user not found"))
         assert result["status"] == 404
         data = result["data"]
-        assert data["error"] == "user not found"  # type: ignore[index]
-        assert data["code"] == "NOT_FOUND"  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "user not found"
+        assert data["code"] == "NOT_FOUND"
 
     def test_write_error_internal_hides_message(self) -> None:
         """Test that InternalError responses hide sensitive details from clients.
@@ -236,8 +244,9 @@ class TestBaseControllerEnhanced:
         result = ctrl.write_error(InternalError("secret db error"))
         assert result["status"] == 500
         data = result["data"]
-        assert data["error"] == "internal server error"  # type: ignore[index]
-        assert data["details"] == ""  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "internal server error"
+        assert not data["details"]
 
     def test_write_error_unknown_exception(self) -> None:
         """Test that unknown exceptions are treated as internal errors.
@@ -255,7 +264,8 @@ class TestBaseControllerEnhanced:
         result = ctrl.write_error(RuntimeError("unexpected"))
         assert result["status"] == 500
         data = result["data"]
-        assert data["error"] == "internal server error"  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "internal server error"
 
     def test_write_error_unknown_code_hides_message(self) -> None:
         """Test that an UNKNOWN-coded AppError hides its message from clients.
@@ -275,9 +285,10 @@ class TestBaseControllerEnhanced:
         result = ctrl.write_error(AppError(ErrorCode.UNKNOWN, "raw db text"))
         assert result["status"] == 500
         data = result["data"]
-        assert data["error"] == "internal server error"  # type: ignore[index]
-        assert "raw db text" not in data["error"]  # type: ignore[index]
-        assert data["details"] == ""  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "internal server error"
+        assert "raw db text" not in data["error"]
+        assert not data["details"]
 
     def test_write_error_ingestion_exposes_message(self) -> None:
         """Test that an INGESTION_ERROR exposes its message (matching Go's WriteError).
@@ -296,9 +307,10 @@ class TestBaseControllerEnhanced:
         result = ctrl.write_error(AppError(ErrorCode.INGESTION_ERROR, "parser detail"))
         assert result["status"] == 500
         data = result["data"]
-        assert data["error"] == "parser detail"  # type: ignore[index]
-        assert data["details"] == "parser detail"  # type: ignore[index]
-        assert data["code"] == "INGESTION_ERROR"  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "parser detail"
+        assert data["details"] == "parser detail"
+        assert data["code"] == "INGESTION_ERROR"
 
     def test_write_error_quality_failed_exposes_message(self) -> None:
         """Test that a QUALITY_FAILED error exposes its message (matching Go's WriteError).
@@ -314,9 +326,10 @@ class TestBaseControllerEnhanced:
         ctrl = BaseController()
         result = ctrl.write_error(AppError(ErrorCode.QUALITY_FAILED, "gate detail"))
         data = result["data"]
-        assert data["error"] == "gate detail"  # type: ignore[index]
-        assert data["details"] == "gate detail"  # type: ignore[index]
-        assert data["code"] == "QUALITY_FAILED"  # type: ignore[index]
+        assert isinstance(data, dict)
+        assert data["error"] == "gate detail"
+        assert data["details"] == "gate detail"
+        assert data["code"] == "QUALITY_FAILED"
 
 
 class TestHandlerBuilderAuthorization:
@@ -336,9 +349,11 @@ class TestHandlerBuilderAuthorization:
         """
 
         async def handler(req: str) -> str:
+            await asyncio.sleep(0)
             return f"ok-{req}"
 
         async def allow() -> bool:
+            await asyncio.sleep(0)
             return True
 
         h = HandlerBuilder(handler, "test").with_authorization(allow).build()
@@ -358,10 +373,12 @@ class TestHandlerBuilderAuthorization:
           - ForbiddenError is raised when authorization check returns False
         """
 
-        async def handler(req: str) -> str:
+        async def handler(_req: str) -> str:
+            await asyncio.sleep(0)
             return "should not reach"
 
         async def deny() -> bool:
+            await asyncio.sleep(0)
             return False
 
         h = HandlerBuilder(handler, "test").with_authorization(deny).build()

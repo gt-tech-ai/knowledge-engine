@@ -2,7 +2,6 @@ package interceptors
 
 import (
 	"context"
-	"slices"
 
 	"connectrpc.com/connect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -15,10 +14,10 @@ import (
 // resolved (a public or unauthenticated request). The nil UUID also counts as no
 // tenant.
 //
-// Read the tenant from the resolved principal (core/principal.PrincipalFrom) and register the
-// tenant-scope interceptor after the principal interceptor: the principal interceptor
-// clears the raw AuthClaims, so an extractor reading GetAuthClaims after it never sees
-// a tenant.
+// Read the tenant from the resolved principal (core/principal.PrincipalFrom) and register
+// the tenant-scope interceptor after the principal interceptor: the principal interceptor
+// clears the raw AuthClaims, so an extractor reading GetAuthClaims after it never sees a
+// tenant.
 type TenantExtractor func(ctx context.Context) (uuid.UUID, bool)
 
 // TenantStamper returns ctx scoped to tenant for one persistence mechanism — e.g.
@@ -50,8 +49,8 @@ func SessionVarStamper(name string) TenantStamper {
 type tenantScopeInterceptor struct {
 	// extract resolves the request's tenant.
 	extract TenantExtractor
-	// stampers apply the tenant scope, in order.
-	stampers []TenantStamper
+	// stamper applies every configured stamper's tenant scope, in order.
+	stamper TenantStamper
 }
 
 // NewTenantScopeInterceptor returns an interceptor that stamps the tenant resolved
@@ -63,7 +62,7 @@ type tenantScopeInterceptor struct {
 //
 // It panics if extract is nil, no stamper is given or a stamper is nil, so a wiring
 // mistake fails at startup instead of leaving every request unscoped. The stampers are
-// copied, so the caller may reuse its slice.
+// composed into one chain at construction, so the caller may reuse its slice.
 func NewTenantScopeInterceptor(
 	extract TenantExtractor,
 	stampers ...TenantStamper,
@@ -79,7 +78,21 @@ func NewTenantScopeInterceptor(
 			panic("interceptors: NewTenantScopeInterceptor requires non-nil stampers")
 		}
 	}
-	return tenantScopeInterceptor{extract: extract, stampers: slices.Clone(stampers)}
+	return tenantScopeInterceptor{extract: extract, stamper: composeStampers(stampers)}
+}
+
+// composeStampers folds a non-empty stamper list into one stamper that applies them in
+// order. The closures capture the stamper values, not the slice, so later writes to
+// the caller's slice do not change the chain.
+func composeStampers(stampers []TenantStamper) TenantStamper {
+	chain := stampers[0]
+	for _, next := range stampers[1:] {
+		prev := chain
+		chain = func(ctx context.Context, tenant uuid.UUID) context.Context {
+			return next(prev(ctx, tenant), tenant)
+		}
+	}
+	return chain
 }
 
 // WrapUnary stamps the tenant on the unary request context.
@@ -106,15 +119,12 @@ func (i tenantScopeInterceptor) WrapStreamingHandler(
 	}
 }
 
-// stamp applies every stamper for the extracted tenant, or returns ctx unchanged
+// stamp applies the stamper chain for the extracted tenant, or returns ctx unchanged
 // when none is resolved or the tenant is the nil UUID.
 func (i tenantScopeInterceptor) stamp(ctx context.Context) context.Context {
 	tenant, ok := i.extract(ctx)
 	if !ok || tenant == uuid.Nil {
 		return ctx
 	}
-	for _, s := range i.stampers {
-		ctx = s(ctx, tenant)
-	}
-	return ctx
+	return i.stamper(ctx, tenant)
 }

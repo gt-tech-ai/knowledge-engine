@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/env"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -47,11 +47,19 @@ func TestEnvSource_MissingAndUnmappedAreNotFound(t *testing.T) {
 
 	unmapped := env.New(map[types.Ref]string{})
 	_, err := unmapped.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unmapped ref must be not-found")
+	require.True(
+		t,
+		apperr.Is(err, apperr.CodeNotFound),
+		"unmapped ref must be not-found",
+	)
 
 	unset := env.New(map[types.Ref]string{ref: "KE_DEFINITELY_UNSET_VAR_XYZ_9137"})
 	_, err = unset.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound), "unset variable must be not-found")
+	require.True(
+		t,
+		apperr.Is(err, apperr.CodeNotFound),
+		"unset variable must be not-found",
+	)
 }
 
 // TestEnvSource_PutIsUnsupported tests that writing to the env Source fails loudly.
@@ -67,5 +75,5 @@ func TestEnvSource_PutIsUnsupported(t *testing.T) {
 	src := env.New(map[types.Ref]string{ref: "KE_X"})
 
 	err := src.Put(context.Background(), ref, types.NewSecret("v"))
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }

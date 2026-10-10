@@ -14,14 +14,14 @@ type MessagePublisher interface {
 	PublishBatch(ctx context.Context, topic string, payloads [][]byte) error
 }
 
-// CountingPublisher is a MessagePublisher that also reports how many subscribers
-// received a published message — the Redis PUBLISH model, whose reply is the number
-// of clients the message was delivered to. It is an opt-in capability interface that
-// composes with MessagePublisher (ARCHITECTURE.md#interface-composition) rather than widening the shared
-// contract: a fan-out consumer that must know whether a message reached anyone (e.g.
-// the WebSocket backplane deciding cluster-wide delivery) depends on it, while a
-// broker with no delivered-count notion (SQS, an in-memory bus) simply does not
-// implement it.
+// CountingPublisher is a MessagePublisher that also reports how many subscribers received
+// a published message — the Redis PUBLISH model, whose reply is the number of clients the
+// message was delivered to. It is an opt-in capability interface that composes with
+// MessagePublisher (ARCHITECTURE.md#interface-composition) rather than widening the
+// shared contract: a fan-out consumer that must know whether a message reached anyone
+// (e.g. the WebSocket backplane deciding cluster-wide delivery) depends on it, while a
+// broker with no delivered-count notion (SQS, an in-memory bus) simply does not implement
+// it.
 type CountingPublisher interface {
 	// MessagePublisher provides the base Publish/PublishBatch operations.
 	MessagePublisher
@@ -44,11 +44,11 @@ type MessageConsumer interface {
 	Close() error
 }
 
-// DynamicConsumer is a MessageConsumer that can also remove a per-channel
-// subscription at runtime. Pub/Sub brokers (e.g. Redis) multiplex many channels
-// over one subscription and add/remove them dynamically; SQS-style queue
-// consumers do not. It is an opt-in capability interface that composes with
-// MessageConsumer (ARCHITECTURE.md#interface-composition) rather than widening the shared contract —
+// DynamicConsumer is a MessageConsumer that can also remove a per-channel subscription at
+// runtime. Pub/Sub brokers (e.g. Redis) multiplex many channels over one subscription and
+// add/remove them dynamically; SQS-style queue consumers do not. It is an opt-in
+// capability interface that composes with MessageConsumer
+// (ARCHITECTURE.md#interface-composition) rather than widening the shared contract —
 // backends that cannot unsubscribe simply do not implement it.
 type DynamicConsumer interface {
 	// MessageConsumer provides the base Subscribe/Close operations.
@@ -62,8 +62,8 @@ type DynamicConsumer interface {
 // PatternConsumer is a DynamicConsumer that also supports glob-pattern (wildcard)
 // subscriptions — the Redis PSUBSCRIBE model, where one subscription matches every
 // channel whose name matches a pattern. It composes with DynamicConsumer (and thus
-// MessageConsumer) per ARCHITECTURE.md#interface-composition; backends without pattern matching do not
-// implement it.
+// MessageConsumer) per ARCHITECTURE.md#interface-composition; backends without pattern
+// matching do not implement it.
 type PatternConsumer interface {
 	// DynamicConsumer provides the base consume operations plus per-channel Unsubscribe.
 	DynamicConsumer

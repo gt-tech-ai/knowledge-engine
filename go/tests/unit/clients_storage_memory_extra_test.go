@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
@@ -45,7 +45,13 @@ func TestStorageMemory_ErrorPaths(t *testing.T) {
 	id, err := c.CreateMultipartUpload(ctx, "b", "intended", "application/octet-stream")
 	require.NoError(t, err)
 	err = c.CompleteMultipartUpload(ctx, "b", "elsewhere", id, nil)
-	require.Equal(t, coreerrors.CodeNotFound, coreerrors.Code(err), "a mismatched key is not the upload: %v", err)
+	require.Equal(
+		t,
+		apperr.CodeNotFound,
+		apperr.Code(err),
+		"a mismatched key is not the upload: %v",
+		err,
+	)
 	exists, err := c.Exists(ctx, "b", "elsewhere")
 	require.NoError(t, err)
 	require.False(t, exists, "a mismatched complete must not write an object")
@@ -66,7 +72,7 @@ func TestStorageClient_Exists_ReturnsTrueWhenPresent(t *testing.T) {
 	api := mocks.NewMockS3API(gomock.NewController(t))
 	api.EXPECT().HeadObject(gomock.Any(), gomock.Any()).
 		Return(&awss3.HeadObjectOutput{ContentLength: aws.Int64(5)}, nil)
-	c := newStorageClientWithMock(t, api, 0)
+	c := newStorageClientWithMock(t.Context(), t, api, 0)
 
 	exists, err := c.Exists(context.Background(), "b", "k")
 	require.NoError(t, err)

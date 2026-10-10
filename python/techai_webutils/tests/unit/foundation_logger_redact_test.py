@@ -6,10 +6,10 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 
-from hypothesis import given
-from hypothesis import strategies as st
 import pytest
 import structlog
+from hypothesis import given
+from hypothesis import strategies as st
 
 from techai_webutils.foundation.logger import configure_logging, get_logger
 from techai_webutils.foundation.logger.redact import REDACTED, redact_pii
@@ -33,7 +33,7 @@ def restore_logging() -> Iterator[None]:
     root.setLevel(level)
 
 
-def test_redact_pii_matches_go_vectors():
+def test_redact_pii_matches_go_vectors() -> None:
     """Test that ``redact_pii`` produces Go's exact output for every shared vector.
 
     **Why this test is important:**
@@ -52,7 +52,7 @@ def test_redact_pii_matches_go_vectors():
 
 
 @pytest.mark.usefixtures("restore_logging")
-def test_logger_applies_redaction_when_flag_set():
+def test_logger_applies_redaction_when_flag_set() -> None:
     """Test that ``configure_logging(redact_pii=True)`` redacts the message and string fields.
 
     **Why this test is important:**
@@ -82,7 +82,7 @@ def test_logger_applies_redaction_when_flag_set():
 
 
 @pytest.mark.usefixtures("restore_logging")
-def test_logger_redacts_nested_fields():
+def test_logger_redacts_nested_fields() -> None:
     """Test that redaction walks into dict, list and tuple field values.
 
     **Why this test is important:**
@@ -109,7 +109,9 @@ def test_logger_redacts_nested_fields():
     assert line["pair"] == ["[REDACTED]", "plain"]
 
 
-_LOCAL_PART = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789._+-", min_size=1, max_size=12)
+_LOCAL_PART = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyz0123456789._+-", min_size=1, max_size=12
+)
 """E-mail local parts drawn from the characters the pattern accepts."""
 
 _FILLER = st.text(alphabet="abcdefghij ,;!?", max_size=20)
@@ -117,7 +119,9 @@ _FILLER = st.text(alphabet="abcdefghij ,;!?", max_size=20)
 
 
 @given(_FILLER, _LOCAL_PART, _FILLER)
-def test_redact_pii_removes_any_embedded_email_and_is_idempotent(before: str, local: str, after: str):
+def test_redact_pii_removes_any_embedded_email_and_is_idempotent(
+    before: str, local: str, after: str
+) -> None:
     """Test, over generated text, that an embedded e-mail never survives and redaction is idempotent.
 
     **Why this test is important:**

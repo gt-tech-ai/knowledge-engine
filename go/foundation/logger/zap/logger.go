@@ -125,7 +125,8 @@ func (l *Logger) With(keysAndValues ...any) interfaces.Logger {
 // WithContext returns a logger enriched with the correlation, trace, and span
 // IDs found in ctx. The receiver is returned unchanged when none are present.
 func (l *Logger) WithContext(ctx context.Context) interfaces.Logger {
-	// Extract all context fields independently - do NOT early-return on any single empty field
+	// Extract all context fields independently - do NOT early-return on any single empty
+	// field
 	correlationID := logctx.CorrelationID(ctx)
 	traceID := logctx.TraceID(ctx)
 	spanID := logctx.SpanID(ctx)
@@ -259,24 +260,24 @@ func (h *redactingHandler) WithGroup(name string) slog.Handler {
 	return &redactingHandler{inner: h.inner.WithGroup(name)}
 }
 
-// noRedactKeys are structured fields that must never be PII-scrubbed: their
-// values are opaque identifiers (hex trace/span IDs, UUIDs, source locations)
-// that can spuriously match PII patterns and whose redaction would break
-// log<->trace correlation.
-var noRedactKeys = map[string]struct{}{
-	"trace_id":       {},
-	"span_id":        {},
-	"correlation_id": {},
-	"request_id":     {},
-	"caller":         {},
-	"stacktrace":     {},
+// noRedactKey reports whether key names a structured field that must never be
+// PII-scrubbed: its value is an opaque identifier (hex trace/span IDs, UUIDs,
+// source locations) that can spuriously match PII patterns and whose redaction
+// would break log<->trace correlation.
+func noRedactKey(key string) bool {
+	switch key {
+	case "trace_id", "span_id", "correlation_id", "request_id", "caller", "stacktrace":
+		return true
+	default:
+		return false
+	}
 }
 
-// redactAttr returns a, with its string value PII-scrubbed, unless its key is
-// in noRedactKeys or its value is not a string, in which case a is returned
+// redactAttr returns a, with its string value PII-scrubbed, unless noRedactKey
+// matches its key or its value is not a string, in which case a is returned
 // unchanged.
 func redactAttr(a slog.Attr) slog.Attr {
-	if _, skip := noRedactKeys[a.Key]; skip {
+	if noRedactKey(a.Key) {
 		return a
 	}
 	if a.Value.Kind() == slog.KindString {

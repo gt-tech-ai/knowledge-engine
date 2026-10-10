@@ -11,14 +11,15 @@
 //	}
 //	l.Info("application started")
 //
-// Shared utilities (WithCorrelationID, CorrelationID, RedactPII) are available from this package.
+// Shared utilities (WithCorrelationID, CorrelationID, RedactPII) are available from this
+// package.
 package logger
 
 import (
 	"context"
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger/logctx"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger/stdlib"
@@ -80,8 +81,8 @@ func NewFromConfig(cfg Config) (interfaces.Logger, error) {
 		return stdlib.New(stdlibCfg), nil
 
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown logger kind: %v", cfg.Kind),
 		)
 	}

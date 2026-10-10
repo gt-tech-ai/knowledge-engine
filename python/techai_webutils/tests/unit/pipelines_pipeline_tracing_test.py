@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
+
 from techai_webutils.core.errors.errors import InvalidInputError
 from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 from techai_webutils.pipelines.base import BaseAsyncPipeline
@@ -23,6 +25,8 @@ def _tracer() -> tuple[TracerProvider, TracerSpan]:
 
 
 class TestAsyncPipelineTracing:
+    """Tests for the async pipeline tracing."""
+
     @pytest.mark.asyncio
     async def test_spans_execution(self) -> None:
         """Test that with_tracing wraps execution in a span.
@@ -36,10 +40,15 @@ class TestAsyncPipelineTracing:
         """
 
         async def transform(x: str) -> str:
+            await asyncio.sleep(0)
             return x.upper()
 
         tracer, _span = _tracer()
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(transform), "meta").with_tracing(tracer).build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(transform), "meta")
+            .with_tracing(tracer)
+            .build()
+        )
 
         assert await p.execute("hi") == "HI"
         tracer.span.assert_called_once()
@@ -57,10 +66,16 @@ class TestAsyncPipelineTracing:
         """
 
         async def failing(_x: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         tracer, span = _tracer()
-        p = AsyncPipelineBuilder(BaseAsyncPipeline(failing), "meta").with_tracing(tracer).build()
+        p = (
+            AsyncPipelineBuilder(BaseAsyncPipeline(failing), "meta")
+            .with_tracing(tracer)
+            .build()
+        )
 
         with pytest.raises(InvalidInputError):
             await p.execute("x")

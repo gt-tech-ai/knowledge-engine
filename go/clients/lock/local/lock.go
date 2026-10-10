@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -48,7 +48,7 @@ func (l *Lock) Acquire(
 	}
 	id, err := uuid.NewRandom()
 	if err != nil {
-		return "", false, errors.Wrap(err, errors.CodeInternal, "generate lock token")
+		return "", false, apperr.Wrap(err, apperr.CodeInternal, "generate lock token")
 	}
 	token = id.String()
 	l.held[key] = token

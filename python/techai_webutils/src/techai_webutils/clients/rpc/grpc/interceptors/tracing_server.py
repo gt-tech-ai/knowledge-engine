@@ -17,14 +17,16 @@ from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+
+    from opentelemetry.trace import Span
 
 _RESPONSE_PROPAGATOR = TraceContextTextMapPropagator()
 """W3C TraceContext propagator used directly (not the global one) so the ``traceresponse`` value is
 deterministic regardless of process-wide propagator setup — mirroring the Go connect interceptor."""
 
 
-def _set_trace_response(context: grpc.aio.ServicerContext) -> None:
+def _set_trace_response(context: grpc.aio.ServicerContext[object, object]) -> None:
     """Return the active span's trace id to the caller as ``traceresponse`` trailing metadata.
 
     The gRPC analogue of the Go connect interceptor's ``traceresponse`` header: serialize
@@ -36,6 +38,26 @@ def _set_trace_response(context: grpc.aio.ServicerContext) -> None:
     traceparent = carrier.get("traceparent")
     if traceparent:
         context.set_trailing_metadata((("traceresponse", traceparent),))
+
+
+async def _under_span(
+    span: Span, responses: AsyncIterator[object]
+) -> AsyncGenerator[object]:
+    """Re-yield ``responses``, producing each one with ``span`` as the current span.
+
+    Only the step that produces a response runs under the span; the span context is detached
+    before each ``yield``, so it never leaks into whichever task resumes or closes the stream.
+    Exceptions propagate unrecorded: the caller records them once on the span.
+    """
+    while True:
+        with otel_trace.use_span(
+            span, record_exception=False, set_status_on_exception=False
+        ):
+            try:
+                response = await anext(responses)
+            except StopAsyncIteration:
+                return
+        yield response
 
 
 class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc]
@@ -55,8 +77,8 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
         The server-streaming case matters here: a streaming RPC (e.g. a streamed answer) is common, so
         a unary-only interceptor would leave the whole streamed request path un-parented — each inner
         client span would start a NEW root trace, breaking single-request correlation. Wrapping the whole
-        streamed response in one SERVER span keeps that span active across every ``yield``, so every
-        inner client-stack span is its child and shares the upstream trace id.
+        streamed response in one SERVER span keeps that span current while each chunk is produced, so
+        every inner client-stack span is its child and shares the upstream trace id.
         """
         handler = await continuation(handler_call_details)
         if handler is None:
@@ -70,9 +92,13 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
         if handler.unary_unary is not None:
             inner_unary = handler.unary_unary
 
-            async def traced_unary(request: object, context: grpc.aio.ServicerContext) -> object:
+            async def traced_unary(
+                request: object, context: grpc.aio.ServicerContext[object, object]
+            ) -> object:
                 """Run the wrapped unary handler inside a SERVER span (failure -> ERROR status)."""
-                with tracer.start_as_current_span(method, context=parent, kind=SpanKind.SERVER) as span:
+                with tracer.start_as_current_span(
+                    method, context=parent, kind=SpanKind.SERVER
+                ) as span:
                     span.set_attribute("rpc.system", "grpc")
                     span.set_attribute("rpc.method", method)
                     _set_trace_response(context)
@@ -92,24 +118,36 @@ class TracingServerInterceptor(grpc.aio.ServerInterceptor):  # type: ignore[misc
         if handler.unary_stream is not None:
             inner_stream = handler.unary_stream
 
-            async def traced_stream(request: object, context: grpc.aio.ServicerContext) -> Any:  # noqa: ANN401
-                """Run the wrapped server-streaming handler inside one SERVER span held open across yields.
+            async def traced_stream(
+                request: object, context: grpc.aio.ServicerContext[object, object]
+            ) -> Any:  # noqa: ANN401
+                """Run the wrapped server-streaming handler under one SERVER span for the whole stream.
 
-                The span stays current for the whole stream, so the rewrite/retrieve/citations/generate
-                client spans that fire while producing chunks are children of this one — the single
-                request stays one trace. A failure is recorded on the span (status ERROR) and re-raised.
+                The span is current while the handler produces each chunk, so the
+                rewrite/retrieve/citations/generate client spans that fire meanwhile are children of
+                this one — the single request stays one trace. A failure is recorded on the span
+                (status ERROR) and re-raised; the span ends when the stream finishes, fails, or is
+                closed (grpc.aio closes the generator on a client cancel).
                 """
-                with tracer.start_as_current_span(method, context=parent, kind=SpanKind.SERVER) as span:
-                    span.set_attribute("rpc.system", "grpc")
-                    span.set_attribute("rpc.method", method)
+                span = tracer.start_span(method, context=parent, kind=SpanKind.SERVER)
+                span.set_attribute("rpc.system", "grpc")
+                span.set_attribute("rpc.method", method)
+                with otel_trace.use_span(span):
                     _set_trace_response(context)
-                    try:
-                        async for response in inner_stream(request, context):
-                            yield response
-                    except Exception as exc:
-                        span.record_exception(exc)
-                        span.set_status(Status(StatusCode.ERROR))
-                        raise
+                responses = _under_span(span, aiter(inner_stream(request, context)))
+                try:
+                    async for response in responses:
+                        yield response
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(Status(StatusCode.ERROR))
+                    raise
+                finally:
+                    # Close the re-yielding generator explicitly (the aclosing contract,
+                    # without a context manager around the yield) as soon as this stream
+                    # ends, fails or is closed, instead of leaving it to garbage collection.
+                    await responses.aclose()
+                    span.end()
 
             return grpc.unary_stream_rpc_method_handler(
                 traced_stream,

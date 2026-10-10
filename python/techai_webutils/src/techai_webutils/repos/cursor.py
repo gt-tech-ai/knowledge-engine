@@ -6,8 +6,10 @@ Mirrors Go's ``repos/repository/cursor.go``.
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
+
+from techai_webutils.core.errors import AppValueError
 
 
 @dataclass(frozen=True)
@@ -46,4 +48,4 @@ class CursorCodec:
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             msg = f"invalid cursor: {cursor!r}"
-            raise ValueError(msg) from e
+            raise AppValueError(msg) from e

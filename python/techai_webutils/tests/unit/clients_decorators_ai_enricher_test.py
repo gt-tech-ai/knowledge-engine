@@ -6,24 +6,39 @@ GenAI semantic attributes, so the OTel span is the only boundary mocked here.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+import asyncio
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
-from techai_webutils.clients.decorators.ai_enricher import GEN_AI_SYSTEM_BY_PROVIDER, AiSpanEnricher
+from techai_webutils.clients.decorators.ai_enricher import (
+    GEN_AI_SYSTEM_BY_PROVIDER,
+    AiSpanEnricher,
+)
 from techai_webutils.clients.llm.stub import StubLlmProvider
-from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMProvider, LLMResponse, StreamUsage
+from techai_webutils.core.interfaces.llm import (
+    LLMConfig,
+    LLMMessage,
+    LLMProvider,
+    LLMResponse,
+    StreamUsage,
+)
 from techai_webutils.core.interfaces.retrieval import RetrievalEngine, RetrievalResult
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 _SPAN_SOURCE = "techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"
 """Import site of the OTel current-span lookup the enricher stamps."""
 
 
 def _messages() -> list[LLMMessage]:
-    """A system + user message pair."""
-    return [LLMMessage(role="system", content="be brief"), LLMMessage(role="user", content="hello")]
+    """Return a system + user message pair."""
+    return [
+        LLMMessage(role="system", content="be brief"),
+        LLMMessage(role="user", content="hello"),
+    ]
 
 
 def _attributes(span: MagicMock) -> dict[str, Any]:
@@ -32,14 +47,14 @@ def _attributes(span: MagicMock) -> dict[str, Any]:
 
 
 def _llm(response: LLMResponse) -> MagicMock:
-    """An ``LLMProvider`` mock (spec-bound) whose ``complete`` returns ``response``."""
+    """Return an ``LLMProvider`` mock (spec-bound) whose ``complete`` returns ``response``."""
     inner = MagicMock(spec=LLMProvider)
     inner.complete = AsyncMock(return_value=response)
     return inner
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
+async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response() -> None:
     """Test that ``complete`` stamps the GenAI usage, model, finish reason, system and step.
 
     **Why this test is important:**
@@ -54,11 +69,17 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
       - no span is opened (no span ``end``)
     """
     response = LLMResponse(
-        content="hi", model="nova-lite", input_tokens=42, output_tokens=7, finish_reason="stop"
+        content="hi",
+        model="nova-lite",
+        input_tokens=42,
+        output_tokens=7,
+        finish_reason="stop",
     )
     inner = _llm(response)
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
+    enricher = cast(
+        "LLMProvider", AiSpanEnricher(inner, step="generate", capture_content=False)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         result = await enricher.complete(_messages(), LLMConfig(model="nova-lite"))
@@ -77,7 +98,7 @@ async def test_ai_span_enricher_stamps_gen_ai_usage_from_llm_response():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system():
+async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system() -> None:
     """Test that the provider's class name selects ``gen_ai.system`` and other attributes pass through.
 
     **Why this test is important:**
@@ -90,7 +111,10 @@ async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system():
       - an unenriched method (``model_name``) passes through untouched
     """
     span = MagicMock()
-    enricher = AiSpanEnricher(StubLlmProvider(), step="rewrite", capture_content=False)
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(StubLlmProvider(), step="rewrite", capture_content=False),
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         await enricher.complete(_messages())
@@ -107,12 +131,13 @@ async def test_ai_span_enricher_maps_provider_class_to_gen_ai_system():
 
 async def _usage_stream(*items: str | StreamUsage) -> AsyncIterator[str | StreamUsage]:
     """Yield the given stream items in order."""
+    await asyncio.sleep(0)
     for item in items:
         yield item
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
+async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion() -> None:
     """Test that ``stream`` re-yields only text and stamps usage when the ``StreamUsage`` arrives.
 
     **Why this test is important:**
@@ -124,11 +149,15 @@ async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
       - the span gets the usage counts, model and finish reason from the terminal ``StreamUsage``
       - nothing is stamped before the stream is consumed
     """
-    usage = StreamUsage(model="nova-lite", input_tokens=30, output_tokens=2, finish_reason="end_turn")
+    usage = StreamUsage(
+        model="nova-lite", input_tokens=30, output_tokens=2, finish_reason="end_turn"
+    )
     inner = MagicMock(spec=LLMProvider)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("Hel", "lo", usage))
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
+    enricher = cast(
+        "LLMProvider", AiSpanEnricher(inner, step="generate", capture_content=False)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         iterator = await enricher.stream(_messages())
@@ -148,7 +177,7 @@ async def test_ai_span_enricher_stream_stamps_usage_at_exhaustion():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
+async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps() -> None:
     """Test that ``stream_with_usage`` is enriched and still hands the caller its ``StreamUsage``.
 
     **Why this test is important:**
@@ -159,14 +188,20 @@ async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
       - the caller sees exactly ``["Hel", "lo", usage]`` (the usage item is not swallowed)
       - the span gets the requested model from the config and the served model from the usage
     """
-    usage = StreamUsage(model="nova-lite-v1", input_tokens=30, output_tokens=2, finish_reason="end_turn")
+    usage = StreamUsage(
+        model="nova-lite-v1", input_tokens=30, output_tokens=2, finish_reason="end_turn"
+    )
     inner = MagicMock(spec=LLMProvider)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("Hel", "lo", usage))
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
+    enricher = cast(
+        "LLMProvider", AiSpanEnricher(inner, step="generate", capture_content=False)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
-        iterator = await enricher.stream_with_usage(_messages(), LLMConfig(model="nova-lite"))
+        iterator = await enricher.stream_with_usage(
+            _messages(), LLMConfig(model="nova-lite")
+        )
         items = [t async for t in iterator]
 
     assert items == ["Hel", "lo", usage]
@@ -182,7 +217,7 @@ async def test_ai_span_enricher_stream_with_usage_keeps_usage_and_stamps():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_reports_requested_and_served_model():
+async def test_ai_span_enricher_reports_requested_and_served_model() -> None:
     """Test that ``complete`` stamps the requested and the served model separately.
 
     **Why this test is important:**
@@ -195,10 +230,17 @@ async def test_ai_span_enricher_reports_requested_and_served_model():
       - with no config, both are the response's model
     """
     response = LLMResponse(
-        content="hi", model="nova-lite-v1", input_tokens=1, output_tokens=1, finish_reason="stop"
+        content="hi",
+        model="nova-lite-v1",
+        input_tokens=1,
+        output_tokens=1,
+        finish_reason="stop",
     )
     aliased, plain = MagicMock(), MagicMock()
-    enricher = AiSpanEnricher(_llm(response), step="generate", capture_content=False)
+    enricher = cast(
+        "LLMProvider",
+        AiSpanEnricher(_llm(response), step="generate", capture_content=False),
+    )
 
     with patch(_SPAN_SOURCE, return_value=aliased):
         await enricher.complete(_messages(), LLMConfig(model="nova-alias"))
@@ -212,7 +254,7 @@ async def test_ai_span_enricher_reports_requested_and_served_model():
 
 
 def _result(i: int) -> RetrievalResult:
-    """A retrieval result whose document id is ``doc-<i>``."""
+    """Return a retrieval result whose document id is ``doc-<i>``."""
     return RetrievalResult(
         document_id=f"doc-{i}",
         document_name=f"d{i}",
@@ -224,7 +266,7 @@ def _result(i: int) -> RetrievalResult:
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_stamps_retrieval_shape():
+async def test_ai_span_enricher_stamps_retrieval_shape() -> None:
     """Test that ``retrieve`` stamps top_k, the result count and at most 20 document ids.
 
     **Why this test is important:**
@@ -240,7 +282,9 @@ async def test_ai_span_enricher_stamps_retrieval_shape():
     inner = MagicMock(spec=RetrievalEngine)
     inner.retrieve = AsyncMock(return_value=results)
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="retrieve", capture_content=False)
+    enricher = cast(
+        "RetrievalEngine", AiSpanEnricher(inner, step="retrieve", capture_content=False)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         got = await enricher.retrieve("q", top_k=25, filters={"org": "o1"})
@@ -257,7 +301,7 @@ async def test_ai_span_enricher_stamps_retrieval_shape():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_capture_content_false_records_no_text():
+async def test_ai_span_enricher_capture_content_false_records_no_text() -> None:
     """Test that with ``capture_content=False`` no prompt or completion text reaches the span.
 
     **Why this test is important:**
@@ -267,11 +311,15 @@ async def test_ai_span_enricher_capture_content_false_records_no_text():
     **What it tests:**
       - after ``complete`` and a drained ``stream``, ``add_event`` was never called
     """
-    response = LLMResponse(content="secret", model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+    response = LLMResponse(
+        content="secret", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
     inner = _llm(response)
     inner.stream_with_usage = AsyncMock(return_value=_usage_stream("secret"))
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="generate", capture_content=False)
+    enricher = cast(
+        "LLMProvider", AiSpanEnricher(inner, step="generate", capture_content=False)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         await enricher.complete(_messages())
@@ -281,7 +329,7 @@ async def test_ai_span_enricher_capture_content_false_records_no_text():
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_capture_content_true_redacts_pii():
+async def test_ai_span_enricher_capture_content_true_redacts_pii() -> None:
     """Test that captured prompt and completion events are PII-redacted and capped at 4 KiB.
 
     **Why this test is important:**
@@ -298,27 +346,43 @@ async def test_ai_span_enricher_capture_content_true_redacts_pii():
         LLMMessage(role="user", content="mail bob@x.io"),
     ]
     response = LLMResponse(
-        content="reply to bob@x.io", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+        content="reply to bob@x.io",
+        model="m",
+        input_tokens=1,
+        output_tokens=1,
+        finish_reason="stop",
     )
     inner = _llm(response)
-    inner.stream_with_usage = AsyncMock(return_value=_usage_stream("a" * 3000, "b" * 3000))
+    inner.stream_with_usage = AsyncMock(
+        return_value=_usage_stream("a" * 3000, "b" * 3000)
+    )
     span = MagicMock()
-    enricher = AiSpanEnricher(inner, step="generate", capture_content=True)
+    enricher = cast(
+        "LLMProvider", AiSpanEnricher(inner, step="generate", capture_content=True)
+    )
 
     with patch(_SPAN_SOURCE, return_value=span):
         await enricher.complete(messages)
         _ = [t async for t in await enricher.stream(messages)]
 
     events = span.add_event.call_args_list
-    assert events[0] == call("gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"})
-    assert events[1] == call("gen_ai.content.completion", {"gen_ai.completion": "reply to [REDACTED]"})
-    assert events[2] == call("gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"})
-    assert events[3] == call("gen_ai.content.completion", {"gen_ai.completion": "a" * 3000 + "b" * 1096})
+    assert events[0] == call(
+        "gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"}
+    )
+    assert events[1] == call(
+        "gen_ai.content.completion", {"gen_ai.completion": "reply to [REDACTED]"}
+    )
+    assert events[2] == call(
+        "gen_ai.content.prompt", {"gen_ai.prompt": "be brief\nmail [REDACTED]"}
+    )
+    assert events[3] == call(
+        "gen_ai.content.completion", {"gen_ai.completion": "a" * 3000 + "b" * 1096}
+    )
     assert len(events) == 4
 
 
 @pytest.mark.asyncio
-async def test_ai_span_enricher_enrichment_error_does_not_propagate():
+async def test_ai_span_enricher_enrichment_error_does_not_propagate() -> None:
     """Test that a failure while stamping never fails or alters the wrapped call.
 
     **Why this test is important:**
@@ -329,11 +393,15 @@ async def test_ai_span_enricher_enrichment_error_does_not_propagate():
       - with ``set_attribute`` raising, ``complete`` returns the exact inner response, ``stream``
         yields the exact text and ``retrieve`` returns the exact result list
     """
-    response = LLMResponse(content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+    response = LLMResponse(
+        content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
     llm = _llm(response)
     llm.stream_with_usage = AsyncMock(
         return_value=_usage_stream(
-            "o", "k", StreamUsage(model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+            "o",
+            "k",
+            StreamUsage(model="m", input_tokens=1, output_tokens=1, finish_reason="stop"),
         )
     )
     results = [_result(0)]
@@ -342,15 +410,16 @@ async def test_ai_span_enricher_enrichment_error_does_not_propagate():
     span = MagicMock()
     span.set_attribute.side_effect = RuntimeError("exporter down")
 
+    llm_enricher = cast(
+        "LLMProvider", AiSpanEnricher(llm, step="generate", capture_content=True)
+    )
+    engine_enricher = cast(
+        "RetrievalEngine", AiSpanEnricher(engine, step="retrieve", capture_content=False)
+    )
     with patch(_SPAN_SOURCE, return_value=span):
-        got_response = await AiSpanEnricher(llm, step="generate", capture_content=True).complete(_messages())
-        tokens = [
-            t
-            async for t in await AiSpanEnricher(llm, step="generate", capture_content=True).stream(
-                _messages()
-            )
-        ]
-        got_results = await AiSpanEnricher(engine, step="retrieve", capture_content=False).retrieve("q")
+        got_response = await llm_enricher.complete(_messages())
+        tokens = [t async for t in await llm_enricher.stream(_messages())]
+        got_results = await engine_enricher.retrieve("q")
 
     assert got_response is response
     assert tokens == ["o", "k"]

@@ -12,7 +12,13 @@ import asyncio
 from dataclasses import replace
 from typing import TYPE_CHECKING, Self
 
-from techai_webutils.core.interfaces.execution import BatchResult, JobMeta, StepResult, StepStatus
+from techai_webutils.core.errors import AppValueError
+from techai_webutils.core.interfaces.execution import (
+    BatchResult,
+    JobMeta,
+    StepResult,
+    StepStatus,
+)
 from techai_webutils.execution.engine.fan_out import fan_out
 
 if TYPE_CHECKING:
@@ -81,7 +87,11 @@ class Job[T]:
         items = list(await self._discoverer.discover())
         if not items:
             return BatchResult(
-                results=(StepResult(name=self._name, group=self._group, status=StepStatus.SKIP),),
+                results=(
+                    StepResult(
+                        name=self._name, group=self._group, status=StepStatus.SKIP
+                    ),
+                ),
             )
 
         batch = await fan_out(
@@ -131,7 +141,8 @@ def _downgrade_failures(batch: BatchResult) -> BatchResult:
     """Downgrade every FAIL result to WARN (mirrors Go WarnOnly)."""
     return BatchResult(
         results=tuple(
-            replace(r, status=StepStatus.WARN) if r.status is StepStatus.FAIL else r for r in batch.results
+            replace(r, status=StepStatus.WARN) if r.status is StepStatus.FAIL else r
+            for r in batch.results
         ),
     )
 
@@ -191,7 +202,7 @@ class JobBuilder[T]:
         """Construct the Job[T]; raises ValueError if a discoverer or processor is missing."""
         if self._discoverer is None or self._processor is None:
             msg = "JobBuilder requires both a discoverer and a processor"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         return Job(
             self._name,
             self._discoverer,

@@ -11,7 +11,8 @@ import (
 // The adapter handles the full HTTP lifecycle:
 //  1. Parse the HTTP request into a typed Req using the provided parse function
 //  2. Call the decorated HandlerFunc with the parsed request
-//  3. Write the response using BaseController (WriteSuccess for 200, WriteCreated for 201, etc.)
+//  3. Write the response using BaseController (WriteSuccess for 200, WriteCreated for
+//     201, etc.)
 //
 // Use writeStatus to control the success HTTP status code (e.g., http.StatusOK,
 // http.StatusCreated). For 204 No Content responses, use AdaptNoContent instead.

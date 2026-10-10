@@ -9,8 +9,9 @@ import (
 // compile-time assertion that *loggingDecorator satisfies the seam.
 var _ interfaces.ReplayBuffer = (*loggingDecorator)(nil)
 
-// loggingDecorator logs each buffer operation at Debug with its outcome and any failure at Error,
-// binding the request context so entries carry the active trace/span ids. Innermost of the trio.
+// loggingDecorator logs each buffer operation at Debug with its outcome and any failure
+// at Error, binding the request context so entries carry the active trace/span ids.
+// Innermost of the trio.
 type loggingDecorator struct {
 	// inner is the next buffer in the decorator chain.
 	inner interfaces.ReplayBuffer
@@ -46,7 +47,8 @@ func (d *loggingDecorator) Append(
 	return nil
 }
 
-// ReplayAfter logs the replay outcome (count + complete) or failure, trace-correlated via ctx.
+// ReplayAfter logs the replay outcome (count + complete) or failure, trace-correlated via
+// ctx.
 func (d *loggingDecorator) ReplayAfter(
 	ctx context.Context,
 	key, afterMsgID string,

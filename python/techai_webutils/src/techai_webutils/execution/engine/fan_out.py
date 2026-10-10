@@ -92,7 +92,7 @@ async def fan_out[T](
                     duration=loop.time() - began,
                 )
             else:
-                if res.duration == 0.0:
+                if not res.duration:
                     res = replace(res, duration=loop.time() - began)
             results[index] = res
             obs.on_step_complete(res)

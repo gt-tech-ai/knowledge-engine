@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.splitter import DocumentSplitter
 
@@ -43,4 +45,4 @@ def splitter_from_config(config: SplitterConfig) -> DocumentSplitter:
 
         return KbUnitSplitter(max_bytes=config.max_bytes)
     msg = f"unknown splitter kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

@@ -5,12 +5,17 @@ empty listing, and — critically — that ``list_documents`` delegates through 
 ``PollingIngestor`` and ``RetryingIngestor`` decorators so the composed stack still instantiates.
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from techai_webutils.clients.kb_ingestion.bedrock.ingestor import BedrockKnowledgeBaseIngestor
-from techai_webutils.clients.kb_ingestion.decorators import PollingIngestor, RetryingIngestor
+from techai_webutils.clients.kb_ingestion.bedrock.ingestor import (
+    BedrockKnowledgeBaseIngestor,
+)
+from techai_webutils.clients.kb_ingestion.decorators import (
+    PollingIngestor,
+    RetryingIngestor,
+)
 from techai_webutils.clients.kb_ingestion.mapping import kb_document_from_payload
 from techai_webutils.clients.kb_ingestion.noop.ingestor import StubKnowledgeBaseIngestor
 from techai_webutils.core.interfaces.kb_ingestion import KnowledgeBaseDocument
@@ -29,7 +34,7 @@ class TestKbDocumentFromPayload:
         **What it tests:**
           - identifier.s3.uri, status, and statusReason are lifted verbatim onto KnowledgeBaseDocument.
         """
-        detail = {
+        detail: dict[str, object] = {
             "status": "INDEXED",
             "identifier": {"dataSourceType": "S3", "s3": {"uri": "s3://b/docs/f.pdf"}},
             "statusReason": "",
@@ -48,9 +53,12 @@ class TestKbDocumentFromPayload:
         **What it tests:**
           - A detail with a non-S3 identifier (and one with no identifier) maps to s3_uri == "".
         """
-        custom = {"status": "FAILED", "identifier": {"dataSourceType": "CUSTOM", "custom": {"id": "x"}}}
-        assert kb_document_from_payload(custom).s3_uri == ""
-        assert kb_document_from_payload({"status": "FAILED"}).s3_uri == ""
+        custom: dict[str, object] = {
+            "status": "FAILED",
+            "identifier": {"dataSourceType": "CUSTOM", "custom": {"id": "x"}},
+        }
+        assert not kb_document_from_payload(custom).s3_uri
+        assert not kb_document_from_payload({"status": "FAILED"}).s3_uri
 
 
 class TestBedrockListDocuments:
@@ -70,31 +78,56 @@ class TestBedrockListDocuments:
         """
         page1 = {
             "documentDetails": [
-                {"status": "INDEXED", "identifier": {"s3": {"uri": "s3://b/a"}}, "statusReason": ""},
-                {"status": "FAILED", "identifier": {"s3": {"uri": "s3://b/b"}}, "statusReason": "bad"},
+                {
+                    "status": "INDEXED",
+                    "identifier": {"s3": {"uri": "s3://b/a"}},
+                    "statusReason": "",
+                },
+                {
+                    "status": "FAILED",
+                    "identifier": {"s3": {"uri": "s3://b/b"}},
+                    "statusReason": "bad",
+                },
             ],
             "nextToken": "tok2",
         }
         page2 = {
             "documentDetails": [
-                {"status": "INDEXED", "identifier": {"s3": {"uri": "s3://b/c"}}, "statusReason": ""},
+                {
+                    "status": "INDEXED",
+                    "identifier": {"s3": {"uri": "s3://b/c"}},
+                    "statusReason": "",
+                },
             ],
         }
         fake_client = AsyncMock()
         fake_client.list_knowledge_base_documents.side_effect = [page1, page2]
 
-        ingestor = BedrockKnowledgeBaseIngestor(region="us-east-1")
-        ingestor._client = fake_client  # inject the fake bedrock-agent client  # noqa: SLF001
+        # The ingestor opens its bedrock-agent client through aiobotocore's session on first use;
+        # mock that SDK boundary so the open yields the fake client.
+        session = MagicMock()
+        session.create_client.return_value.__aenter__.return_value = fake_client
+        with patch("aiobotocore.session.get_session", return_value=session):
+            ingestor = BedrockKnowledgeBaseIngestor(region="us-east-1")
 
-        docs = await ingestor.list_documents(knowledge_base_id="kb1", data_source_id="ds1")
+        docs = await ingestor.list_documents(
+            knowledge_base_id="kb1", data_source_id="ds1"
+        )
 
         assert docs == [
             KnowledgeBaseDocument(s3_uri="s3://b/a", status="INDEXED", status_reason=""),
-            KnowledgeBaseDocument(s3_uri="s3://b/b", status="FAILED", status_reason="bad"),
+            KnowledgeBaseDocument(
+                s3_uri="s3://b/b", status="FAILED", status_reason="bad"
+            ),
             KnowledgeBaseDocument(s3_uri="s3://b/c", status="INDEXED", status_reason=""),
         ]
         assert fake_client.list_knowledge_base_documents.await_count == 2
-        assert fake_client.list_knowledge_base_documents.await_args_list[1].kwargs["nextToken"] == "tok2"
+        assert (
+            fake_client.list_knowledge_base_documents.await_args_list[1].kwargs[
+                "nextToken"
+            ]
+            == "tok2"
+        )
 
 
 class TestDecoratorDelegation:

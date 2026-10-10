@@ -20,12 +20,13 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/cassandra"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
-	"golang.org/x/sync/errgroup"
 )
 
 // Compile-time interface assertions.
@@ -100,15 +101,24 @@ func newStore(cfg Config) (*Store, error) {
 	}
 	for cube, grains := range cfg.Cubes {
 		if !identifier.MatchString(cube) {
-			return nil, errors.New(errors.CodeInvalidInput, "analytics: invalid cube name "+cube)
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
+				"analytics: invalid cube name "+cube,
+			)
 		}
 		for _, g := range grains {
 			width, ok := cfg.BucketWidth[g]
 			if !ok {
-				return nil, errors.New(errors.CodeInvalidInput, "analytics: no bucket width for grain "+string(g))
+				return nil, apperr.New(
+					apperr.CodeInvalidInput,
+					"analytics: no bucket width for grain "+string(g),
+				)
 			}
 			if !vizql.ValidGrain(g) || !vizql.ValidGrain(width) {
-				return nil, errors.New(errors.CodeInvalidInput, "analytics: unknown grain or bucket width for "+string(g))
+				return nil, apperr.New(
+					apperr.CodeInvalidInput,
+					"analytics: unknown grain or bucket width for "+string(g),
+				)
 			}
 		}
 	}
@@ -123,10 +133,14 @@ func TableName(cube string, grain types.Grain) string {
 // SchemaCQL returns the CREATE TABLE statement of cube at grain in keyspace.
 func SchemaCQL(keyspace, cube string, grain types.Grain) (string, error) {
 	if !identifier.MatchString(cube) || !identifier.MatchString(keyspace) {
-		return "", errors.New(errors.CodeInvalidInput, "analytics: invalid keyspace or cube name")
+		return "", apperr.New(
+			apperr.CodeInvalidInput,
+			"analytics: invalid keyspace or cube name",
+		)
 	}
 	return "CREATE TABLE IF NOT EXISTS " + keyspace + "." + TableName(cube, grain) + ` (
-  org_id text, cube text, bucket timestamp, ts timestamp, dims_key text, idempotency_key text,
+  org_id text, cube text, bucket timestamp, ts timestamp, dims_key text,
+  idempotency_key text,
   dims map<text, text>, partials map<text, blob>,
   PRIMARY KEY ((org_id, cube, bucket), ts, dims_key, idempotency_key))`, nil
 }
@@ -163,7 +177,7 @@ func (s *Store) sess() (cassandra.Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.session == nil {
-		return nil, errors.New(errors.CodeUnavailable, "analytics: store is not started")
+		return nil, apperr.New(apperr.CodeUnavailable, "analytics: store is not started")
 	}
 	return s.session, nil
 }
@@ -197,13 +211,22 @@ func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 	for _, fact := range facts {
 		grains, ok := s.cfg.Cubes[fact.Cube]
 		if !ok {
-			return errors.New(errors.CodeInvalidInput, "analytics: undeclared cube "+fact.Cube)
+			return apperr.New(
+				apperr.CodeInvalidInput,
+				"analytics: undeclared cube "+fact.Cube,
+			)
 		}
 		if fact.OrgID == "" || fact.IdempotencyKey == "" {
-			return errors.New(errors.CodeInvalidInput, "analytics: a fact needs an org_id and an idempotency_key")
+			return apperr.New(
+				apperr.CodeInvalidInput,
+				"analytics: a fact needs an org_id and an idempotency_key",
+			)
 		}
 		if fact.Schema != 0 && fact.Schema != types.FactSchemaVersion {
-			return errors.New(errors.CodeInvalidInput, "analytics: unknown fact schema version")
+			return apperr.New(
+				apperr.CodeInvalidInput,
+				"analytics: unknown fact schema version",
+			)
 		}
 		partials := make(map[string][]byte, len(fact.Measures))
 		for name, v := range fact.Measures {
@@ -226,12 +249,25 @@ func (s *Store) Write(ctx context.Context, facts []types.Fact) error {
 }
 
 // insert writes one fact's partial row into grain's table.
-func (s *Store) insert(ctx context.Context, session cassandra.Session, fact types.Fact, grain types.Grain, partials map[string][]byte) error {
+func (s *Store) insert(
+	ctx context.Context,
+	session cassandra.Session,
+	fact types.Fact,
+	grain types.Grain,
+	partials map[string][]byte,
+) error {
 	stmt := "INSERT INTO " + TableName(fact.Cube, grain) +
-		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		" (org_id, cube, bucket, ts, dims_key, idempotency_key, dims, partials)" +
+		" VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	args := []any{
-		fact.OrgID, fact.Cube, vizql.Truncate(fact.TS, s.cfg.BucketWidth[grain]), vizql.Truncate(fact.TS, grain),
-		DimsKey(fact.Dims), fact.IdempotencyKey, fact.Dims, partials,
+		fact.OrgID,
+		fact.Cube,
+		vizql.Truncate(fact.TS, s.cfg.BucketWidth[grain]),
+		vizql.Truncate(fact.TS, grain),
+		DimsKey(fact.Dims),
+		fact.IdempotencyKey,
+		fact.Dims,
+		partials,
 	}
 	if ttl := s.cfg.TTL[grain]; ttl > 0 {
 		stmt += " USING TTL ?"
@@ -244,20 +280,33 @@ func (s *Store) insert(ctx context.Context, session cassandra.Session, fact type
 // table is q.Grain's (the cube's coarsest grain when unset). An undeclared cube or
 // grain, a missing org, an open-ended time range, or a resume token issued for a
 // different query is CodeInvalidInput; a store not yet started is CodeUnavailable.
-func (s *Store) Aggregate(ctx context.Context, q types.AggregateQuery) (interfaces.RowStream, error) {
+func (s *Store) Aggregate(
+	ctx context.Context,
+	q types.AggregateQuery,
+) (interfaces.RowStream, error) {
 	grains, ok := s.cfg.Cubes[q.Cube]
 	if !ok {
-		return nil, errors.New(errors.CodeInvalidInput, "analytics: undeclared cube "+q.Cube)
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"analytics: undeclared cube "+q.Cube,
+		)
 	}
 	grain := q.Grain
 	if grain == "" && len(grains) > 0 {
 		grain = coarsest(grains)
 	}
 	if !slices.Contains(grains, grain) {
-		return nil, errors.New(errors.CodeInvalidInput, "analytics: cube "+q.Cube+" has no grain "+string(grain))
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"analytics: cube "+q.Cube+" has no grain "+string(grain),
+		)
 	}
-	if q.OrgID == "" || q.TimeRange.From.IsZero() || q.TimeRange.To.IsZero() || !q.TimeRange.From.Before(q.TimeRange.To) {
-		return nil, errors.New(errors.CodeInvalidInput, "analytics: a query needs an org_id and a bounded time range")
+	if q.OrgID == "" || q.TimeRange.From.IsZero() || q.TimeRange.To.IsZero() ||
+		!q.TimeRange.From.Before(q.TimeRange.To) {
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
+			"analytics: a query needs an org_id and a bounded time range",
+		)
 	}
 	width := s.cfg.BucketWidth[grain]
 	lo, hi := pushdown(q.Filter, q.TimeRange.From.UTC(), q.TimeRange.To.UTC())
@@ -278,16 +327,29 @@ func (s *Store) Aggregate(ctx context.Context, q types.AggregateQuery) (interfac
 		return nil, err
 	}
 	plan := &readPlan{
-		session: session, fingerprint: fingerprint, table: TableName(q.Cube, grain), org: q.OrgID, cube: q.Cube,
-		lo: lo, hi: hi, pageSize: s.cfg.PageSize, groupBy: q.GroupBy, measures: measureNames(q.Measures),
-		keep: compileResidual(q.Filter),
+		session:     session,
+		fingerprint: fingerprint,
+		table:       TableName(q.Cube, grain),
+		org:         q.OrgID,
+		cube:        q.Cube,
+		lo:          lo,
+		hi:          hi,
+		pageSize:    s.cfg.PageSize,
+		groupBy:     q.GroupBy,
+		measures:    measureNames(q.Measures),
+		keep:        compileResidual(q.Filter),
 	}
 	return newStream(ctx, plan, buckets, resume, s.cfg.MaxConcurrentBuckets), nil
 }
 
 // coarsest returns the coarsest of grains (month > day > hour > minute).
 func coarsest(grains []types.Grain) types.Grain {
-	order := []types.Grain{types.GrainMonth, types.GrainDay, types.GrainHour, types.GrainMinute}
+	order := []types.Grain{
+		types.GrainMonth,
+		types.GrainDay,
+		types.GrainHour,
+		types.GrainMinute,
+	}
 	for _, g := range order {
 		if slices.Contains(grains, g) {
 			return g

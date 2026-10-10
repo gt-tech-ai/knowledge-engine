@@ -40,7 +40,9 @@ async def test_upload_then_download_roundtrip(s3_config: S3Config) -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_download_to_path_streams_large_object_to_disk(s3_config: S3Config, tmp_path: Path) -> None:
+async def test_download_to_path_streams_large_object_to_disk(
+    s3_config: S3Config, tmp_path: Path
+) -> None:
     """Test that download_to_path streams a multi-chunk object to disk byte-exact.
 
     **Why this test is important:**
@@ -58,7 +60,9 @@ async def test_download_to_path_streams_large_object_to_disk(s3_config: S3Config
     payload = b"large-lane-" * 131_072  # ~2.75 MiB -> 3 chunked reads + a partial tail
     dest = tmp_path / "streamed.bin"
     async with S3StorageClient(s3_config) as storage:
-        await storage.upload(s3_config.bucket, "docs/large.bin", payload, "application/octet-stream")
+        await storage.upload(
+            s3_config.bucket, "docs/large.bin", payload, "application/octet-stream"
+        )
 
         await storage.download_to_path(s3_config.bucket, "docs/large.bin", str(dest))
 

@@ -30,7 +30,9 @@ class RewritePrompt(Protocol):
 class LlmQueryRewriter(QueryRewriter):
     """Rewrites follow-up questions into standalone queries via an LLM + an injected prompt strategy."""
 
-    def __init__(self, llm: LLMProvider, prompt: RewritePrompt, config: LLMConfig | None = None) -> None:
+    def __init__(
+        self, llm: LLMProvider, prompt: RewritePrompt, config: LLMConfig | None = None
+    ) -> None:
         """Bind the LLM provider, the consumer-supplied rewrite prompt, and the per-call decoding config.
 
         ``config`` carries the decoding dials from the consumer's config — a low temperature keeps the
@@ -40,10 +42,14 @@ class LlmQueryRewriter(QueryRewriter):
         self._prompt = prompt
         self._config = config
 
-    async def rewrite(self, query: str, history: Sequence[HistoryTurn] | None = None) -> list[str]:
+    async def rewrite(
+        self, query: str, history: Sequence[HistoryTurn] | None = None
+    ) -> list[str]:
         """Return a standalone query; passthrough when there is no conversation history."""
         if not history:
             return [query]
-        response = await self._llm.complete(self._prompt.messages(query, history), self._config)
+        response = await self._llm.complete(
+            self._prompt.messages(query, history), self._config
+        )
         rewritten = response.content.strip()
         return [rewritten or query]

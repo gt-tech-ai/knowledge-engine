@@ -61,8 +61,8 @@ func (h *stacktraceHandler) Handle(ctx context.Context, r slog.Record) error {
 // (notably core/errors.AppError). It is matched structurally so this package
 // stays free of a dependency on the errors package.
 //
-// SDK seam — mirrors pkg/errors' unexported stackTracer interface (StackTrace() string), matched
-// structurally to stay dependency-free, so it cannot compose with a core port.
+// SDK seam — mirrors pkg/errors' unexported stackTracer interface (StackTrace() string),
+// matched structurally to stay dependency-free, so it cannot compose with a core port.
 type stackTracer interface {
 	// StackTrace returns the captured stack from where the error originated.
 	StackTrace() string

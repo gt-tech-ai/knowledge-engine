@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/database/postgres"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
@@ -51,8 +51,8 @@ func NewFromConfig(cfg Config) (interfaces.DatabasePool, error) {
 	case KindPostgres:
 		return postgres.New(cfg.Database), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown database kind: %v", cfg.Kind),
 		)
 	}

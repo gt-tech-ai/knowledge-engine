@@ -44,7 +44,7 @@ func TestLockFactory_LocalBackend(t *testing.T) {
 	heldCtx, release, held, err := l.Hold(context.Background(), "k2")
 	require.NoError(t, err)
 	assert.True(t, held, "Hold on a free key should acquire")
-	assert.NoError(t, heldCtx.Err(), "held context is live while held")
+	require.NoError(t, heldCtx.Err(), "held context is live while held")
 	release()
 }
 

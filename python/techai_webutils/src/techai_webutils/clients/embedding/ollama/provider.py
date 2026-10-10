@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
 from techai_webutils.core.interfaces.embedding import EmbeddingProvider, EmbeddingResult
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
@@ -41,12 +42,14 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
         model/config mismatch fails here with a clear message rather than as a silent no-op far
         downstream at vector-store upsert or search time.
         """
-        response = await self._client.post("/api/embed", json={"model": self._model, "input": texts})
+        response = await self._client.post(
+            "/api/embed", json={"model": self._model, "input": texts}
+        )
         response.raise_for_status()
         body = response.json()
         if "embeddings" not in body:
             msg = f"Ollama /api/embed response missing 'embeddings' key: {body!r}"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         results: list[EmbeddingResult] = []
         for vector in body["embeddings"]:
             if len(vector) != self._dimension:
@@ -54,8 +57,10 @@ class OllamaEmbeddingProvider(NoOpAsyncResource, EmbeddingProvider):
                     f"Ollama model {self._model!r} returned a {len(vector)}-d vector, "
                     f"expected {self._dimension} (check embedding.dimension config)"
                 )
-                raise ValueError(msg)
-            results.append(EmbeddingResult(embedding=list(vector), model=self._model, token_count=0))
+                raise AppValueError(msg)
+            results.append(
+                EmbeddingResult(embedding=list(vector), model=self._model, token_count=0)
+            )
         return results
 
     def dimension(self) -> int:

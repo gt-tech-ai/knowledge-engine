@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -49,5 +50,12 @@ func (l *Limiter) Allow() bool {
 
 // Wait blocks until the limiter permits an event or ctx is cancelled.
 func (l *Limiter) Wait(ctx context.Context) error {
-	return l.inner.Wait(ctx)
+	if err := l.inner.Wait(ctx); err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.ContextCode(err, apperr.CodeTimeout),
+			"rate limiter wait",
+		)
+	}
+	return nil
 }

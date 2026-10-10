@@ -7,11 +7,12 @@ import (
 	"testing"
 	"testing/quick"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // partialOf merges one single-observation partial per value (the per-fact rows a
@@ -43,7 +44,9 @@ func positives(raw []float64) []float64 {
 // aggregate: count/min/max exactly, sum/avg within float rounding, quantiles exactly
 // (sketch merges add bin counts, which is exact).
 func sameAnswers(a, b vizql.Partial) bool {
-	for _, agg := range []types.Aggregate{types.AggCount, types.AggMin, types.AggMax, types.AggP50, types.AggP95, types.AggP99} {
+	for _, agg := range []types.Aggregate{
+		types.AggCount, types.AggMin, types.AggMax, types.AggP50, types.AggP95, types.AggP99,
+	} {
 		x, y := vizql.Finalize(a, agg), vizql.Finalize(b, agg)
 		if x != y && !(math.IsNaN(x) && math.IsNaN(y)) {
 			return false
@@ -85,13 +88,23 @@ func TestPartial_MergeIsAssociativeAndCommutative(t *testing.T) {
 	t.Parallel()
 
 	law := func(ra, rb, rc []float64) bool {
-		a, b, c := partialOf(t, positives(ra)), partialOf(t, positives(rb)), partialOf(t, positives(rc))
+		a, b, c := partialOf(
+			t,
+			positives(ra),
+		), partialOf(
+			t,
+			positives(rb),
+		), partialOf(
+			t,
+			positives(rc),
+		)
 		before := vizql.Finalize(b, types.AggP95)
 		left := merged(merged(a, b), c)
 		right := merged(a, merged(b, c))
 		after := vizql.Finalize(b, types.AggP95)
 		unchanged := before == after || (math.IsNaN(before) && math.IsNaN(after))
-		return sameAnswers(left, right) && sameAnswers(merged(a, b), merged(b, a)) && unchanged
+		return sameAnswers(left, right) && sameAnswers(merged(a, b), merged(b, a)) &&
+			unchanged
 	}
 	require.NoError(t, quick.Check(law, &quick.Config{MaxCount: 200}))
 
@@ -124,7 +137,9 @@ func TestFinalize_ComputesEachAggregate(t *testing.T) {
 	var empty vizql.Partial
 	assert.InDelta(t, 0.0, vizql.Finalize(empty, types.AggSum), 0)
 	assert.InDelta(t, 0.0, vizql.Finalize(empty, types.AggCount), 0)
-	for _, agg := range []types.Aggregate{types.AggAvg, types.AggMin, types.AggMax, types.AggP95} {
+	for _, agg := range []types.Aggregate{
+		types.AggAvg, types.AggMin, types.AggMax, types.AggP95,
+	} {
 		assert.True(t, math.IsNaN(vizql.Finalize(empty, agg)), agg)
 	}
 	assert.True(t, math.IsNaN(vizql.Finalize(p, types.AggCountDistinct)))
@@ -146,7 +161,7 @@ func TestFinalize_ComputesEachAggregate(t *testing.T) {
 func TestSketch_MergePreservesQuantilesWithin1Pct(t *testing.T) {
 	t.Parallel()
 
-	r := rand.New(rand.NewSource(7)) //nolint:gosec // deterministic test data
+	r := rand.New(rand.NewSource(7))
 	for trial := range 50 {
 		n := 50 + r.Intn(2000)
 		values := make([]float64, n)
@@ -170,7 +185,14 @@ func TestSketch_MergePreservesQuantilesWithin1Pct(t *testing.T) {
 		}{{types.AggP50, 0.5}, {types.AggP95, 0.95}, {types.AggP99, 0.99}} {
 			exact := sorted[int(q.q*float64(n-1))]
 			got := vizql.Finalize(total, q.agg)
-			assert.LessOrEqual(t, math.Abs(got-exact), 0.01*exact+1e-12, "trial %d %s", trial, q.agg)
+			assert.LessOrEqual(
+				t,
+				math.Abs(got-exact),
+				0.01*exact+1e-12,
+				"trial %d %s",
+				trial,
+				q.agg,
+			)
 		}
 	}
 }

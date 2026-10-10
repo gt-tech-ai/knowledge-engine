@@ -11,11 +11,11 @@ import asyncio
 from dataclasses import dataclass, field
 
 import pytest
+
 from techai_webutils.core.interfaces.execution import StepResult
 from techai_webutils.execution.executor.pooled import (
     PooledExecutor,
     PooledWorker,
-    _LazyWorker,
 )
 
 
@@ -50,12 +50,15 @@ def _counting_factory(log: _Log):  # noqa: ANN202
     """Return a WorkerFactory that builds counting workers recording into ``log``."""
 
     async def build() -> PooledWorker[int]:
+        await asyncio.sleep(0)
         return _CountingWorker(log)
 
     return build
 
 
 class TestPooledExecutor:
+    """Tests for the pooled executor."""
+
     @pytest.mark.asyncio
     async def test_builds_each_worker_once_and_routes_all(self) -> None:
         """Test that the pool builds one worker per slot, reuses it, and closes them all.
@@ -75,16 +78,16 @@ class TestPooledExecutor:
 
         assert batch.total == 10
         assert batch.succeeded == 10
-        assert log.built == 3  # noqa: PLR2004 — one build per pool slot
-        assert log.closed == 3  # noqa: PLR2004 — every built worker closed
+        assert log.built == 3
+        assert log.closed == 3
         assert sorted(log.processed) == list(range(10))
 
     @pytest.mark.asyncio
-    async def test_lazy_worker_builds_once_under_concurrent_first_calls(self) -> None:
-        """Test that _LazyWorker builds its worker EXACTLY once even under concurrent first calls.
+    async def test_slot_builds_once_under_concurrent_first_calls(self) -> None:
+        """Test that a pool slot builds its worker EXACTLY once even under concurrent first calls.
 
         **Why this test is important:**
-          - _LazyWorker is the shared build-once primitive behind both pool paths; it is load-bearing
+          - The slot's build-once primitive is shared by both pool paths; it is load-bearing
             in the Ray actor (real_ray_pool._WorkerActor), where an async actor runs its methods
             concurrently on one event loop. Without the lock, concurrent first-item calls each
             ``await factory()`` (the build yields on the S3-session open) and build a SECOND worker,
@@ -92,9 +95,10 @@ class TestPooledExecutor:
             actor pool relies on. Ray-free so the guarantee runs in CI.
 
         **What it tests:**
-          - 8 concurrent ``get()`` calls against a factory that yields mid-build invoke the factory
-            exactly once and every caller receives the SAME worker instance.
+          - 8 items dispatched concurrently onto a one-slot pool, whose factory yields mid-build,
+            invoke the factory exactly once; that one worker processes all 8 and is closed once.
         """
+        log = _Log()
         builds = 0
 
         async def factory() -> PooledWorker[int]:
@@ -103,15 +107,16 @@ class TestPooledExecutor:
             # Yield DURING the build so concurrent first calls interleave — the exact race window a
             # missing build-once lock would let through (each would build its own worker).
             await asyncio.sleep(0)
-            return _CountingWorker(_Log())
+            return _CountingWorker(log)
 
-        lazy = _LazyWorker(factory)
-
-        got = await asyncio.gather(*(lazy.get() for _ in range(8)))
+        batch = await PooledExecutor(factory, pool_size=1).run(
+            list(range(8)), concurrency=8
+        )
 
         assert builds == 1  # built exactly once despite 8 concurrent first calls
-        assert all(worker is got[0] for worker in got)  # every caller shares the one instance
-        assert lazy.built is got[0]
+        assert batch.succeeded == 8
+        assert sorted(log.processed) == list(range(8))  # the one worker served every item
+        assert log.closed == 1
 
     @pytest.mark.asyncio
     async def test_isolates_a_failing_item(self) -> None:
@@ -127,7 +132,7 @@ class TestPooledExecutor:
 
         class _Worker:
             async def process(self, item: object) -> StepResult:
-                if item == 2:  # noqa: PLR2004 — the one poison item in this fixture
+                if item == 2:
                     msg = "boom"
                     raise ValueError(msg)
                 return StepResult(name=f"item-{item}")
@@ -135,6 +140,7 @@ class TestPooledExecutor:
             async def aclose(self) -> None: ...
 
         async def factory() -> PooledWorker[int]:
+            await asyncio.sleep(0)
             return _Worker()
 
         ex = PooledExecutor(factory, pool_size=2)
@@ -170,10 +176,11 @@ class TestPooledExecutor:
             async def aclose(self) -> None: ...
 
         async def factory() -> PooledWorker[int]:
+            await asyncio.sleep(0)
             return _Worker()
 
         ex = PooledExecutor(factory, pool_size=4)
 
         await ex.run(list(range(8)), concurrency=2)
 
-        assert peak <= 2  # noqa: PLR2004 — the configured concurrency bound
+        assert peak <= 2

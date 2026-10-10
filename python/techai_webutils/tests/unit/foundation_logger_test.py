@@ -24,9 +24,10 @@ structured output format directly.
 Run with: pytest tests/python/test_foundation/test_logger.py
 """
 
-from io import StringIO
 import json
 import logging
+from io import StringIO
+from typing import NoReturn
 
 import pytest
 
@@ -35,6 +36,12 @@ from techai_webutils.foundation.logger.logger import (
     configure_logging,
     get_logger,
 )
+
+
+def _raise_boom() -> NoReturn:
+    """Raise the error whose traceback ``exception`` logs."""
+    msg = "boom"
+    raise ValueError(msg)
 
 
 class TestStructuredLogger:
@@ -154,9 +161,20 @@ class TestStructuredLogger:
             the requested DEBUG level, so the noise-suppression can't accidentally mute real app logs.
         """
         configure_logging(level="DEBUG")
-        for name in ("botocore", "aiobotocore", "urllib3", "s3transfer", "httpx", "httpcore", "grpc"):
+        for name in (
+            "botocore",
+            "aiobotocore",
+            "urllib3",
+            "s3transfer",
+            "httpx",
+            "httpcore",
+            "grpc",
+        ):
             assert logging.getLogger(name).getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("knowledge_engine_ingestion.jobs").getEffectiveLevel() == logging.DEBUG
+        assert (
+            logging.getLogger("knowledge_engine_ingestion.jobs").getEffectiveLevel()
+            == logging.DEBUG
+        )
 
 
 class TestStructlogLoggerDelegation:
@@ -186,7 +204,7 @@ class TestStructlogLoggerDelegation:
         log.warning("w")
         log.error("e")
         try:
-            raise ValueError("boom")
+            _raise_boom()
         except ValueError:
             log.exception("x")
         log.bind(a=2).info("bound")
@@ -204,7 +222,9 @@ class TestStructlogLoggerDelegation:
         assert lines[0]["k"] == 1
         assert lines[-1]["a"] == 2
 
-    def test_git_sha_appears_in_output_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_git_sha_appears_in_output_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A configured GIT_SHA is injected into every emitted log line.
 
         **Why this test is important:**

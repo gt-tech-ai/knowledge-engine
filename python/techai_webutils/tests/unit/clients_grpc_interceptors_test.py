@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from io import StringIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import grpc
@@ -12,17 +13,17 @@ import pytest
 
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
 from techai_webutils.clients.rpc.grpc.interceptors.logging import LoggingInterceptor
-from techai_webutils.foundation.logger.logger import configure_logging
 from techai_webutils.clients.rpc.grpc.interceptors.metrics import MetricsInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.retry import RetryInterceptor
 from techai_webutils.clients.rpc.grpc.interceptors.timeout import TimeoutInterceptor
+from techai_webutils.foundation.logger.logger import configure_logging
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
 def _rpc_error(code: grpc.StatusCode) -> grpc.RpcError:
-    """A real grpc.RpcError (so ``except grpc.RpcError`` catches it) with a mocked ``code()``.
+    """Return a real grpc.RpcError (so ``except grpc.RpcError`` catches it) with a mocked ``code()``.
 
     The exception type must be real to be raisable/catchable; only its status code is mocked,
     which is what the transient-vs-fatal branch reads.
@@ -39,7 +40,9 @@ class _Call:
     test can await the returned call again for the cached response — mirroring the real UnaryUnaryCall.
     """
 
-    def __init__(self, response: object = None, error: grpc.RpcError | None = None) -> None:
+    def __init__(
+        self, response: object = None, error: grpc.RpcError | None = None
+    ) -> None:
         """Configure the call to resolve to ``response`` or raise ``error`` when awaited."""
         self._response = response
         self._error = error
@@ -48,6 +51,7 @@ class _Call:
         """Yield the configured response, or raise the configured error."""
 
         async def _resolve() -> object:
+            await asyncio.sleep(0)
             if self._error is not None:
                 raise self._error
             return self._response
@@ -78,7 +82,9 @@ class TestInterceptorBuilder:
         **What it tests:**
           - build() returns Logging, Retry, Timeout in order
         """
-        interceptors = InterceptorBuilder().with_logging().with_retry().with_timeout().build()
+        interceptors = (
+            InterceptorBuilder().with_logging().with_retry().with_timeout().build()
+        )
         assert len(interceptors) == 3
         assert isinstance(interceptors[0], LoggingInterceptor)
         assert isinstance(interceptors[1], RetryInterceptor)
@@ -116,9 +122,11 @@ class TestRetryInterceptor:
         continuation = AsyncMock(return_value=_Call(response=sentinel))
         interceptor = RetryInterceptor(max_attempts=3, base_delay=0.0)
 
-        result = await interceptor.intercept_unary_unary(continuation, MagicMock(), MagicMock())
+        result = await interceptor.intercept_unary_unary(
+            continuation, MagicMock(), MagicMock()
+        )
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         continuation.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -133,13 +141,18 @@ class TestRetryInterceptor:
         """
         sentinel = object()
         continuation = AsyncMock(
-            side_effect=[_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE)), _Call(response=sentinel)],
+            side_effect=[
+                _Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE)),
+                _Call(response=sentinel),
+            ],
         )
         interceptor = RetryInterceptor(max_attempts=3, base_delay=0.0)
 
-        result = await interceptor.intercept_unary_unary(continuation, MagicMock(), MagicMock())
+        result = await interceptor.intercept_unary_unary(
+            continuation, MagicMock(), MagicMock()
+        )
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         assert continuation.await_count == 2
 
     @pytest.mark.asyncio
@@ -152,11 +165,15 @@ class TestRetryInterceptor:
         **What it tests:**
           - An INVALID_ARGUMENT error propagates on the first attempt (continuation awaited once).
         """
-        continuation = AsyncMock(return_value=_Call(error=_rpc_error(grpc.StatusCode.INVALID_ARGUMENT)))
+        continuation = AsyncMock(
+            return_value=_Call(error=_rpc_error(grpc.StatusCode.INVALID_ARGUMENT))
+        )
         interceptor = RetryInterceptor(max_attempts=3, base_delay=0.0)
 
         with pytest.raises(grpc.RpcError):
-            await interceptor.intercept_unary_unary(continuation, MagicMock(), MagicMock())
+            await interceptor.intercept_unary_unary(
+                continuation, MagicMock(), MagicMock()
+            )
 
         continuation.assert_awaited_once()
 
@@ -170,11 +187,15 @@ class TestRetryInterceptor:
         **What it tests:**
           - The continuation is awaited exactly max_attempts times, then the error is raised.
         """
-        continuation = AsyncMock(return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE)))
+        continuation = AsyncMock(
+            return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE))
+        )
         interceptor = RetryInterceptor(max_attempts=3, base_delay=0.0)
 
         with pytest.raises(grpc.RpcError):
-            await interceptor.intercept_unary_unary(continuation, MagicMock(), MagicMock())
+            await interceptor.intercept_unary_unary(
+                continuation, MagicMock(), MagicMock()
+            )
 
         assert continuation.await_count == 3
 
@@ -207,10 +228,13 @@ class TestTimeoutInterceptor:
         continuation = AsyncMock(return_value=_Call(response=object()))
         interceptor = TimeoutInterceptor(timeout_seconds=12.5)
 
-        await interceptor.intercept_unary_unary(continuation, self._details(None), request)
+        await interceptor.intercept_unary_unary(
+            continuation, self._details(None), request
+        )
 
+        assert continuation.await_args is not None
         passed_details, passed_request = continuation.await_args.args
-        assert passed_details.timeout == 12.5
+        assert passed_details.timeout == pytest.approx(12.5)
         assert passed_request is request
 
     @pytest.mark.asyncio
@@ -229,9 +253,10 @@ class TestTimeoutInterceptor:
 
         await interceptor.intercept_unary_unary(continuation, details, object())
 
+        assert continuation.await_args is not None
         passed_details = continuation.await_args.args[0]
         assert passed_details is details
-        assert passed_details.timeout == 3.0
+        assert passed_details.timeout == pytest.approx(3.0)
 
 
 class TestLoggingInterceptor:
@@ -260,9 +285,11 @@ class TestLoggingInterceptor:
         details = MagicMock(method="/svc/Method")
 
         result = await interceptor.intercept_unary_unary(continuation, details, object())
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
 
-        records = [json.loads(line) for line in output.getvalue().strip().split("\n") if line]
+        records = [
+            json.loads(line) for line in output.getvalue().strip().split("\n") if line
+        ]
         complete = [r for r in records if r.get("message") == "grpc client call complete"]
         assert complete, records
         assert complete[-1]["method"] == "/svc/Method"
@@ -284,14 +311,18 @@ class TestLoggingInterceptor:
         output = StringIO()
         configure_logging(level="DEBUG", stream=output)
 
-        continuation = AsyncMock(return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE)))
+        continuation = AsyncMock(
+            return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE))
+        )
         interceptor = LoggingInterceptor(logger_name="test.grpc.client")
         details = MagicMock(method="/svc/Method")
 
         with pytest.raises(grpc.RpcError):
             await interceptor.intercept_unary_unary(continuation, details, object())
 
-        records = [json.loads(line) for line in output.getvalue().strip().split("\n") if line]
+        records = [
+            json.loads(line) for line in output.getvalue().strip().split("\n") if line
+        ]
         failed = [r for r in records if r.get("message") == "grpc client call failed"]
         assert failed, records
         assert failed[-1]["method"] == "/svc/Method"
@@ -318,7 +349,7 @@ class TestMetricsInterceptor:
 
         result = await interceptor.intercept_unary_unary(continuation, details, object())
 
-        assert await result is sentinel
+        assert await cast("_Call", result) is sentinel
         counter.increment.assert_called_once_with(method="/svc/Method", status="ok")
         histogram.observe.assert_called_once()
 
@@ -333,7 +364,9 @@ class TestMetricsInterceptor:
           - The counter is incremented with the failure status, latency observed, and the error raised.
         """
         counter, histogram = MagicMock(), MagicMock()
-        continuation = AsyncMock(return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE)))
+        continuation = AsyncMock(
+            return_value=_Call(error=_rpc_error(grpc.StatusCode.UNAVAILABLE))
+        )
         interceptor = MetricsInterceptor(counter, histogram)
         details = MagicMock(method="/svc/Method")
 
@@ -341,5 +374,7 @@ class TestMetricsInterceptor:
             await interceptor.intercept_unary_unary(continuation, details, object())
 
         assert counter.increment.call_args.kwargs["method"] == "/svc/Method"
-        assert counter.increment.call_args.kwargs["status"] == str(grpc.StatusCode.UNAVAILABLE)
+        assert counter.increment.call_args.kwargs["status"] == str(
+            grpc.StatusCode.UNAVAILABLE
+        )
         histogram.observe.assert_called_once()

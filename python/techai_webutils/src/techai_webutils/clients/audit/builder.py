@@ -48,7 +48,10 @@ class AuditSinkConfig:
     def __post_init__(self) -> None:
         """Reject an enforcement mode other than ``shadow`` / ``enforced`` (``INVALID_INPUT``)."""
         if self.enforcement not in _ENFORCEMENT_MODES:
-            raise AppError(ErrorCode.INVALID_INPUT, f"unknown audit enforcement mode: {self.enforcement!r}")
+            raise AppError(
+                ErrorCode.INVALID_INPUT,
+                f"unknown audit enforcement mode: {self.enforcement!r}",
+            )
 
 
 def new_audit_sink_from_config(
@@ -71,5 +74,7 @@ def new_audit_sink_from_config(
         return StubAuditSink()
     factory = backends.get(config.kind)
     if factory is None:
-        raise AppError(ErrorCode.INVALID_INPUT, f"unknown audit sink kind: {config.kind!r}")
+        raise AppError(
+            ErrorCode.INVALID_INPUT, f"unknown audit sink kind: {config.kind!r}"
+        )
     return factory(config)

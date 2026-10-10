@@ -18,19 +18,23 @@ from techai_webutils.execution.gate import Gate, new_gate, run_gate
 
 
 def _ok(name: str) -> BatchResult:
-    """A single-item passing batch."""
+    """Return a single-item passing batch."""
     return BatchResult(results=[StepResult(name=name, status=StepStatus.PASS)])
 
 
 def _fail(name: str) -> BatchResult:
-    """A single-item failing batch."""
-    return BatchResult(results=[StepResult(name=name, status=StepStatus.FAIL, error="boom")])
+    """Return a single-item failing batch."""
+    return BatchResult(
+        results=[StepResult(name=name, status=StepStatus.FAIL, error="boom")]
+    )
 
 
 class _RecordingJob:
     """An in-test AnyJob recording that it ran and returning a preset BatchResult."""
 
-    def __init__(self, name: str, result: BatchResult, ran: list[str] | None = None) -> None:
+    def __init__(
+        self, name: str, result: BatchResult, ran: list[str] | None = None
+    ) -> None:
         self._name: str = name
         self._result: BatchResult = result
         self._ran: list[str] | None = ran
@@ -56,14 +60,28 @@ def _recording_observer() -> tuple[MagicMock, list[tuple[str, str]]]:
     """
     events: list[tuple[str, str]] = []
     obs = MagicMock(spec=ExecutionObserver)
-    obs.on_gate_start.side_effect = lambda name, phases: events.append(("gate_start", name))
-    obs.on_phase_start.side_effect = lambda name, jobs: events.append(("phase_start", name))
-    obs.on_phase_complete.side_effect = lambda name, result, elapsed: events.append(("phase_complete", name))
-    obs.on_gate_complete.side_effect = lambda name, result, elapsed: events.append(("gate_complete", name))
+    obs.on_gate_start.side_effect = lambda name, _phases: events.append((
+        "gate_start",
+        name,
+    ))
+    obs.on_phase_start.side_effect = lambda name, _jobs: events.append((
+        "phase_start",
+        name,
+    ))
+    obs.on_phase_complete.side_effect = lambda name, _result, _elapsed: events.append((
+        "phase_complete",
+        name,
+    ))
+    obs.on_gate_complete.side_effect = lambda name, _result, _elapsed: events.append((
+        "gate_complete",
+        name,
+    ))
     return obs, events
 
 
 class TestRunGate:
+    """Tests for the run gate."""
+
     @pytest.mark.asyncio
     async def test_aggregates_results_and_fires_lifecycle(self) -> None:
         """Test that a gate runs its phases in order, aggregates results, and fires the observer.
@@ -110,7 +128,9 @@ class TestRunGate:
         ran: list[str] = []
         gate = (
             new_gate("g")
-            .parallel("p", _RecordingJob("a", _ok("a"), ran), _RecordingJob("b", _ok("b"), ran))
+            .parallel(
+                "p", _RecordingJob("a", _ok("a"), ran), _RecordingJob("b", _ok("b"), ran)
+            )
             .build()
         )
         result = await run_gate(gate)
@@ -131,7 +151,11 @@ class TestRunGate:
         ran: list[str] = []
         gate = (
             new_gate("g")
-            .serial("p", _RecordingJob("bad", _fail("bad"), ran), _RecordingJob("next", _ok("next"), ran))
+            .serial(
+                "p",
+                _RecordingJob("bad", _fail("bad"), ran),
+                _RecordingJob("next", _ok("next"), ran),
+            )
             .build()
         )
         result = await run_gate(gate)

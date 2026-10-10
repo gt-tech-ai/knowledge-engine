@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from techai_webutils.core.interfaces.pipeline import AsyncPipeline, Pipeline
 from techai_webutils.foundation.decorator import (
@@ -27,16 +27,15 @@ from techai_webutils.foundation.decorator import (
     AsyncTracingDecoratorBase,
     LoggingDecoratorBase,
     MetricsDecoratorBase,
-    RecoveryDecoratorBase,
-    TimeoutDecoratorBase,
 )
 from techai_webutils.pipelines.base import BasePipeline
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+    from techai_webutils.core.interfaces.logger import Logger
     from techai_webutils.core.interfaces.metrics import MetricHistogram
     from techai_webutils.core.interfaces.tracer import TracerProvider
-    from techai_webutils.core.interfaces.logger import Logger
-    from collections.abc import Coroutine
 
 
 def _run_sync[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -86,7 +85,7 @@ class _AsyncPipelineWrapper[In, Out](AsyncPipeline[In, Out]):
         # If the sync pipeline is actually BasePipeline (async-first design),
         # use its internal async implementation directly
         if isinstance(sync_pipeline, BasePipeline):
-            self._async_pipeline = sync_pipeline._async  # noqa: SLF001
+            self._async_pipeline = sync_pipeline.async_pipeline
             self._sync_pipeline = None
         else:
             # For other sync pipelines, we need to wrap them
@@ -101,7 +100,9 @@ class _AsyncPipelineWrapper[In, Out](AsyncPipeline[In, Out]):
         if self._sync_pipeline is not None:
             # Run sync code in thread pool to avoid blocking event loop
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._sync_pipeline.execute, input_data)
+            return await loop.run_in_executor(
+                None, self._sync_pipeline.execute, input_data
+            )
         # This should never happen - one of the pipelines must be set
         msg = "Internal error: both async and sync pipelines are None"
         raise RuntimeError(msg)
@@ -118,21 +119,11 @@ class LoggingPipelineDecorator[In, Out](LoggingDecoratorBase[In, Out], Pipeline[
 class MetricsPipelineDecorator[In, Out](MetricsDecoratorBase[In, Out], Pipeline[In, Out]):
     """Pipeline decorator that records execution duration via histogram."""
 
-    def __init__(self, inner: Pipeline[In, Out], name: str, histogram: MetricHistogram) -> None:
+    def __init__(
+        self, inner: Pipeline[In, Out], name: str, histogram: MetricHistogram
+    ) -> None:
         """Wrap inner with duration-histogram metrics."""
         super().__init__(inner, name, histogram)
-
-
-class _TimeoutPipelineDecorator[In, Out](TimeoutDecoratorBase[In, Out], Pipeline[In, Out]):
-    """Pipeline decorator that enforces a timeout on synchronous execution."""
-
-    def __init__(self, inner: Pipeline[In, Out], timeout: float) -> None:
-        """Wrap inner with a "pipeline"-labelled timeout."""
-        super().__init__(inner, timeout, noun="pipeline")
-
-
-class _RecoveryPipelineDecorator[In, Out](RecoveryDecoratorBase[In, Out], Pipeline[In, Out]):
-    """Pipeline decorator that normalizes unexpected exceptions to InternalError."""
 
 
 class PipelineBuilder[In, Out]:
@@ -210,23 +201,33 @@ class PipelineBuilder[In, Out]:
 # ---------------------------------------------------------------------------
 
 
-class LoggingAsyncPipelineDecorator[In, Out](AsyncLoggingDecoratorBase[In, Out], AsyncPipeline[In, Out]):
+class LoggingAsyncPipelineDecorator[In, Out](
+    AsyncLoggingDecoratorBase[In, Out], AsyncPipeline[In, Out]
+):
     """Async pipeline decorator that logs execution start, duration, and errors."""
 
     def __init__(self, inner: AsyncPipeline[In, Out], name: str, logger: Logger) -> None:
         """Wrap inner with "async_pipeline"-labelled logging."""
-        super().__init__(inner, name, logger, msg_prefix="async_pipeline", field_key="pipeline")
+        super().__init__(
+            inner, name, logger, msg_prefix="async_pipeline", field_key="pipeline"
+        )
 
 
-class MetricsAsyncPipelineDecorator[In, Out](AsyncMetricsDecoratorBase[In, Out], AsyncPipeline[In, Out]):
+class MetricsAsyncPipelineDecorator[In, Out](
+    AsyncMetricsDecoratorBase[In, Out], AsyncPipeline[In, Out]
+):
     """Async pipeline decorator that records execution duration via histogram."""
 
-    def __init__(self, inner: AsyncPipeline[In, Out], name: str, histogram: MetricHistogram) -> None:
+    def __init__(
+        self, inner: AsyncPipeline[In, Out], name: str, histogram: MetricHistogram
+    ) -> None:
         """Wrap inner with duration-histogram metrics."""
         super().__init__(inner, name, histogram)
 
 
-class _TimeoutAsyncPipelineDecorator[In, Out](AsyncTimeoutDecoratorBase[In, Out], AsyncPipeline[In, Out]):
+class _TimeoutAsyncPipelineDecorator[In, Out](
+    AsyncTimeoutDecoratorBase[In, Out], AsyncPipeline[In, Out]
+):
     """Async pipeline decorator that enforces a timeout."""
 
     def __init__(self, inner: AsyncPipeline[In, Out], timeout: float) -> None:
@@ -234,16 +235,24 @@ class _TimeoutAsyncPipelineDecorator[In, Out](AsyncTimeoutDecoratorBase[In, Out]
         super().__init__(inner, timeout, noun="async pipeline")
 
 
-class _RecoveryAsyncPipelineDecorator[In, Out](AsyncRecoveryDecoratorBase[In, Out], AsyncPipeline[In, Out]):
+class _RecoveryAsyncPipelineDecorator[In, Out](
+    AsyncRecoveryDecoratorBase[In, Out], AsyncPipeline[In, Out]
+):
     """Async pipeline decorator that normalizes unexpected exceptions."""
 
 
-class _TracingAsyncPipelineDecorator[In, Out](AsyncTracingDecoratorBase[In, Out], AsyncPipeline[In, Out]):
+class _TracingAsyncPipelineDecorator[In, Out](
+    AsyncTracingDecoratorBase[In, Out], AsyncPipeline[In, Out]
+):
     """Async pipeline decorator that runs execution inside a span."""
 
-    def __init__(self, inner: AsyncPipeline[In, Out], name: str, tracer: TracerProvider) -> None:
+    def __init__(
+        self, inner: AsyncPipeline[In, Out], name: str, tracer: TracerProvider
+    ) -> None:
         """Wrap inner with a "pipeline"-labelled tracing span."""
-        super().__init__(inner, name, tracer, span_prefix="pipeline", field_key="pipeline")
+        super().__init__(
+            inner, name, tracer, span_prefix="pipeline", field_key="pipeline"
+        )
 
 
 class AsyncPipelineBuilder[In, Out]:

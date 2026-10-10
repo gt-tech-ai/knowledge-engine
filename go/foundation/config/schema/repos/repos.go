@@ -22,10 +22,10 @@ type CachingConfig struct {
 	Version int `mapstructure:"version"`
 }
 
-// CompilerConfig selects the query-compiler backend — the target query language the list stores
-// compile a validated filter/sort into. "ent" compiles to Ent dialect/sql (Postgres);
-// mongo / elastic / gorm are reserved for future backends. Which backend you get is a config change,
-// not a code edit.
+// CompilerConfig selects the query-compiler backend — the target query language the list
+// stores compile a validated filter/sort into. "ent" compiles to Ent dialect/sql
+// (Postgres); mongo / elastic / gorm are reserved for future backends. Which backend you
+// get is a config change, not a code edit.
 type CompilerConfig struct {
 	// Kind selects the backend: "ent" (the only implemented target today).
 	Kind string `mapstructure:"kind"`

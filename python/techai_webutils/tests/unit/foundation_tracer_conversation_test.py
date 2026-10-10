@@ -25,14 +25,14 @@ _PREV_TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
 
 def _ctx(**members: str) -> Context:
-    """A context carrying the given baggage members."""
+    """Return a context carrying the given baggage members."""
     ctx = Context()
     for key, value in members.items():
         ctx = baggage.set_baggage(key.replace("_", "."), value, context=ctx)
     return ctx
 
 
-def test_root_span_stamped_with_conversation_id_and_turn_index():
+def test_root_span_stamped_with_conversation_id_and_turn_index() -> None:
     """Test that a turn's baggage round-trips into ``conversation.id`` / ``turn.index`` on the root span.
 
     **Why this test is important:**
@@ -44,18 +44,27 @@ def test_root_span_stamped_with_conversation_id_and_turn_index():
         ``vv.prev.traceparent`` into the exact ``ConversationContext``
       - ``stamp_conversation`` sets exactly ``conversation.id`` and ``turn.index`` (an int)
     """
-    ctx = _ctx(vv_conversation_id="conv_42", vv_turn_index="3", vv_prev_traceparent=_PREV_TRACEPARENT)
+    ctx = _ctx(
+        vv_conversation_id="conv_42",
+        vv_turn_index="3",
+        vv_prev_traceparent=_PREV_TRACEPARENT,
+    )
     span = MagicMock()
 
     conv = extract_conversation(ctx)
     assert conv is not None
     stamp_conversation(span, conv)
 
-    assert conv == ConversationContext(conversation_id="conv_42", turn_index=3, prev=_PREV)
-    assert span.set_attribute.call_args_list == [call("conversation.id", "conv_42"), call("turn.index", 3)]
+    assert conv == ConversationContext(
+        conversation_id="conv_42", turn_index=3, prev=_PREV
+    )
+    assert span.set_attribute.call_args_list == [
+        call("conversation.id", "conv_42"),
+        call("turn.index", 3),
+    ]
 
 
-def test_turn_links_to_previous_turn():
+def test_turn_links_to_previous_turn() -> None:
     """Test that a later turn links to the previous turn's root span and turn 0 links nothing.
 
     **Why this test is important:**
@@ -77,7 +86,7 @@ def test_turn_links_to_previous_turn():
     assert conversation_links(first) == []
 
 
-def test_missing_conversation_context_degrades_to_unthreaded_trace():
+def test_missing_conversation_context_degrades_to_unthreaded_trace() -> None:
     """Test that a request with no conversation baggage yields no conversation (no error).
 
     **Why this test is important:**
@@ -90,11 +99,15 @@ def test_missing_conversation_context_degrades_to_unthreaded_trace():
     assert extract_conversation(Context()) is None
     assert extract_conversation(_ctx(vv_conversation_id="c1")) is None
     assert extract_conversation(
-        _ctx(vv_conversation_id="c1", vv_turn_index="2", vv_prev_traceparent="not-a-traceparent")
+        _ctx(
+            vv_conversation_id="c1",
+            vv_turn_index="2",
+            vv_prev_traceparent="not-a-traceparent",
+        )
     ) == ConversationContext(conversation_id="c1", turn_index=2, prev=None)
 
 
-def test_malformed_conversation_id_is_dropped():
+def test_malformed_conversation_id_is_dropped() -> None:
     """Test that an id outside ``^[A-Za-z0-9_-]{1,64}$`` or a bad turn index drops the conversation.
 
     **Why this test is important:**
@@ -106,6 +119,12 @@ def test_malformed_conversation_id_is_dropped():
         a non-ASCII digit, each return ``None``
     """
     for bad_id in ("has space", "a@b.com", "x" * 65, ""):
-        assert extract_conversation(_ctx(vv_conversation_id=bad_id, vv_turn_index="1")) is None
+        assert (
+            extract_conversation(_ctx(vv_conversation_id=bad_id, vv_turn_index="1"))
+            is None
+        )
     for bad_turn in ("-1", "x", "\u00b2"):
-        assert extract_conversation(_ctx(vv_conversation_id="c1", vv_turn_index=bad_turn)) is None
+        assert (
+            extract_conversation(_ctx(vv_conversation_id="c1", vv_turn_index=bad_turn))
+            is None
+        )

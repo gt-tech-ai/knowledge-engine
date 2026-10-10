@@ -5,13 +5,13 @@ Mirrors Go's ``repos/repository/repository.go``.
 
 from __future__ import annotations
 
-from typing import TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from techai_webutils.core.interfaces.repository import Repository
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.store import Store
     from techai_webutils.core.domain_types.types import Page, PageRequest
+    from techai_webutils.core.interfaces.store import Store
 
 T = TypeVar("T")
 P = TypeVar("P")

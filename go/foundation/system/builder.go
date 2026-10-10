@@ -283,7 +283,8 @@ func (d *dryRunRunner) RunBuffered(
 	return CmdResult{}
 }
 
-// RunBufferedWithEnv logs the command instead of executing it and returns a zero CmdResult.
+// RunBufferedWithEnv logs the command instead of executing it and returns a zero
+// CmdResult.
 func (d *dryRunRunner) RunBufferedWithEnv(
 	_ context.Context,
 	_ string,

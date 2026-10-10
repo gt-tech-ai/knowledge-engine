@@ -101,7 +101,11 @@ from techai_webutils.core.interfaces.metrics import (
 )
 from techai_webutils.core.interfaces.pipeline import AsyncPipeline, Pipeline
 from techai_webutils.core.interfaces.rate_limiter import RateLimiter
-from techai_webutils.core.interfaces.repository import Repository, Transaction, TransactionManager
+from techai_webutils.core.interfaces.repository import (
+    Repository,
+    Transaction,
+    TransactionManager,
+)
 from techai_webutils.core.interfaces.retrier import Retrier
 from techai_webutils.core.interfaces.retrieval import (
     CitationExtractor,

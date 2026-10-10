@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Self
 
-import aiobotocore.session  # type: ignore[import-untyped]
+import aiobotocore.session
+
+from techai_webutils.core.errors import AppRuntimeError
 from techai_webutils.core.interfaces.storage import StorageClient, StorageObject
 
 _DOWNLOAD_CHUNK_SIZE = 1024 * 1024
@@ -20,7 +22,23 @@ _COPY_PART_SIZE = 100 * 1024 * 1024
 if TYPE_CHECKING:
     from types import TracebackType
 
+    from aiobotocore.session import AioSession
+    from types_aiobotocore_s3 import S3Client
+    from types_aiobotocore_s3.type_defs import CompletedPartTypeDef, CopySourceTypeDef
+
     from techai_webutils.clients.storage.config import S3Config
+
+
+def _required(value: str | None, field: str) -> str:
+    """Return a response field S3 always sets but the SDK types mark optional.
+
+    A missing or empty value means a malformed response, so it raises a coded
+    ``AppRuntimeError`` naming the field instead of passing an empty string on.
+    """
+    if not value:
+        msg = f"S3 response is missing {field}"
+        raise AppRuntimeError(msg)
+    return value
 
 
 class S3StorageClient(StorageClient):
@@ -35,13 +53,13 @@ class S3StorageClient(StorageClient):
     def __init__(self, config: S3Config) -> None:
         """Store the S3 connection config; the client is created on context entry."""
         self._config = config
-        self._client: object | None = None
-        self._session: object | None = None
+        self._client: S3Client | None = None
+        self._session: AioSession | None = None
 
     async def __aenter__(self) -> Self:
         """Open the underlying aiobotocore S3 client and return self."""
         self._session = aiobotocore.session.get_session()
-        self._client = await self._session.create_client(  # type: ignore[union-attr]
+        self._client = await self._session.create_client(
             "s3",
             **self._config.client_kwargs(),
         ).__aenter__()
@@ -55,14 +73,14 @@ class S3StorageClient(StorageClient):
     ) -> None:
         """Close the underlying aiobotocore S3 client on context exit."""
         if self._client is not None:
-            await self._client.__aexit__(exc_type, exc_val, exc_tb)  # type: ignore[union-attr]
+            await self._client.__aexit__(exc_type, exc_val, exc_tb)
 
     async def upload(self, bucket: str, key: str, body: bytes, content_type: str) -> None:
         """Upload an object to S3."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        await self._client.put_object(  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        await self._client.put_object(
             Bucket=bucket,
             Key=key,
             Body=body,
@@ -73,17 +91,17 @@ class S3StorageClient(StorageClient):
         """Download an object from S3."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        resp = await self._client.get_object(Bucket=bucket, Key=key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        resp = await self._client.get_object(Bucket=bucket, Key=key)
         async with resp["Body"] as stream:
-            return await stream.read()  # type: ignore[no-any-return]
+            return await stream.read()
 
     async def delete(self, bucket: str, key: str) -> None:
         """Delete an object from S3."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        await self._client.delete_object(Bucket=bucket, Key=key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        await self._client.delete_object(Bucket=bucket, Key=key)
 
     async def copy(self, bucket: str, src_key: str, dst_key: str) -> None:
         """Copy an object within the bucket server-side (no data through this process).
@@ -96,27 +114,29 @@ class S3StorageClient(StorageClient):
         """
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        head = await self._client.head_object(Bucket=bucket, Key=src_key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        head = await self._client.head_object(Bucket=bucket, Key=src_key)
         size = int(head["ContentLength"])
-        source = {"Bucket": bucket, "Key": src_key}
+        source: CopySourceTypeDef = {"Bucket": bucket, "Key": src_key}
         if size <= _MULTIPART_COPY_THRESHOLD:
-            await self._client.copy_object(Bucket=bucket, CopySource=source, Key=dst_key)  # type: ignore[union-attr]
+            await self._client.copy_object(Bucket=bucket, CopySource=source, Key=dst_key)
             return
         await self._multipart_copy(bucket, source, dst_key, size)
 
-    async def _multipart_copy(self, bucket: str, source: dict[str, str], dst_key: str, size: int) -> None:
+    async def _multipart_copy(
+        self, bucket: str, source: CopySourceTypeDef, dst_key: str, size: int
+    ) -> None:
         """Server-side copy a large object via multipart UploadPartCopy, aborting on any failure."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        created = await self._client.create_multipart_upload(Bucket=bucket, Key=dst_key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        created = await self._client.create_multipart_upload(Bucket=bucket, Key=dst_key)
         upload_id = created["UploadId"]
         try:
-            parts: list[dict[str, object]] = []
+            parts: list[CompletedPartTypeDef] = []
             for part_number, start in enumerate(range(0, size, _COPY_PART_SIZE), start=1):
                 end = min(start + _COPY_PART_SIZE, size) - 1
-                part = await self._client.upload_part_copy(  # type: ignore[union-attr]
+                part = await self._client.upload_part_copy(
                     Bucket=bucket,
                     Key=dst_key,
                     UploadId=upload_id,
@@ -124,15 +144,18 @@ class S3StorageClient(StorageClient):
                     CopySource=source,
                     CopySourceRange=f"bytes={start}-{end}",
                 )
-                parts.append({"ETag": part["CopyPartResult"]["ETag"], "PartNumber": part_number})
-            await self._client.complete_multipart_upload(  # type: ignore[union-attr]
+                parts.append({
+                    "ETag": _required(part["CopyPartResult"].get("ETag"), "ETag"),
+                    "PartNumber": part_number,
+                })
+            await self._client.complete_multipart_upload(
                 Bucket=bucket,
                 Key=dst_key,
                 UploadId=upload_id,
                 MultipartUpload={"Parts": parts},
             )
         except Exception:
-            await self._client.abort_multipart_upload(  # type: ignore[union-attr]
+            await self._client.abort_multipart_upload(
                 Bucket=bucket, Key=dst_key, UploadId=upload_id
             )
             raise
@@ -141,9 +164,9 @@ class S3StorageClient(StorageClient):
         """Check if an object exists in S3."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
+            raise AppRuntimeError(msg)
         try:
-            await self._client.head_object(Bucket=bucket, Key=key)  # type: ignore[union-attr]
+            await self._client.head_object(Bucket=bucket, Key=key)
             return True
         except Exception:
             return False
@@ -152,8 +175,8 @@ class S3StorageClient(StorageClient):
         """Generate a pre-signed URL for temporary access."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        url: str = await self._client.generate_presigned_url(  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        url: str = await self._client.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket, "Key": key},
             ExpiresIn=expiry_seconds,
@@ -164,14 +187,12 @@ class S3StorageClient(StorageClient):
         """List objects in a bucket with the given prefix."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        resp = await self._client.list_objects_v2(  # type: ignore[union-attr]
-            Bucket=bucket, Prefix=prefix
-        )
+            raise AppRuntimeError(msg)
+        resp = await self._client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         objects: list[StorageObject] = [
             StorageObject(
-                key=item["Key"],
-                size=item["Size"],
+                key=_required(item.get("Key"), "Key"),
+                size=item.get("Size", 0),
                 content_type="",
                 last_modified=str(item.get("LastModified", "")),
                 etag=item.get("ETag", ""),
@@ -184,8 +205,8 @@ class S3StorageClient(StorageClient):
         """HEAD an object and map its metadata; ``size`` is the real ``ContentLength``."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        resp = await self._client.head_object(Bucket=bucket, Key=key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        resp = await self._client.head_object(Bucket=bucket, Key=key)
         return StorageObject(
             key=key,
             size=int(resp["ContentLength"]),
@@ -198,8 +219,8 @@ class S3StorageClient(StorageClient):
         """Stream an object's body to ``path`` chunk-by-chunk (never materialized as one bytes)."""
         if self._client is None:
             msg = "S3StorageClient not initialized. Use as async context manager."
-            raise RuntimeError(msg)
-        resp = await self._client.get_object(Bucket=bucket, Key=key)  # type: ignore[union-attr]
+            raise AppRuntimeError(msg)
+        resp = await self._client.get_object(Bucket=bucket, Key=key)
         # Offload the blocking file open/write/close to a thread so the streamed download never
         # blocks the event loop (writes are sequential — awaited one at a time — so the file
         # handle is only ever touched by one pool thread at a time).

@@ -1,16 +1,22 @@
 """Tests for the env-aware knowledge-base client factory (stub <-> bedrock)."""
 
 import pytest
-from techai_webutils.core.interfaces.kb_ingestion import IngestionJobState
 
 # Imported eagerly (unlike the factory, which lazy-imports it) so the bedrock-selection test can
 # isinstance-check the concrete type; the test venv has aiobotocore, so this load is harmless here.
 from techai_webutils.clients.kb_ingestion.bedrock import BedrockKnowledgeBaseIngestor
-from techai_webutils.clients.kb_ingestion.builder import KbConfig, KbKind, new_kb_ingestor_from_config
+from techai_webutils.clients.kb_ingestion.builder import (
+    KbConfig,
+    KbKind,
+    new_kb_ingestor_from_config,
+)
 from techai_webutils.clients.kb_ingestion.noop import StubKnowledgeBaseIngestor
+from techai_webutils.core.interfaces.kb_ingestion import IngestionJobState
 
 
 class TestKnowledgeBaseFactory:
+    """Tests for the knowledge base factory."""
+
     def test_stub_kind_selects_stub_client(self) -> None:
         """Test that kind=stub builds the no-op ingestor (dev, no Bedrock emulator).
 
@@ -34,7 +40,9 @@ class TestKnowledgeBaseFactory:
         **What it tests:**
           - new_kb_ingestor_from_config(kind=BEDROCK) returns a BedrockKnowledgeBaseIngestor.
         """
-        ingestor = new_kb_ingestor_from_config(KbConfig(kind=KbKind.BEDROCK, region="us-east-1"))
+        ingestor = new_kb_ingestor_from_config(
+            KbConfig(kind=KbKind.BEDROCK, region="us-east-1")
+        )
         assert isinstance(ingestor, BedrockKnowledgeBaseIngestor)
 
     def test_unknown_kind_raises(self) -> None:
@@ -61,6 +69,8 @@ class TestKnowledgeBaseFactory:
           - start_ingestion_job returns a COMPLETE, terminal job.
         """
         ingestor = StubKnowledgeBaseIngestor()
-        job = await ingestor.start_ingestion_job(knowledge_base_id="kb", data_source_id="ds")
+        job = await ingestor.start_ingestion_job(
+            knowledge_base_id="kb", data_source_id="ds"
+        )
         assert job.state is IngestionJobState.COMPLETE
         assert job.is_terminal

@@ -8,12 +8,13 @@ package suite
 import (
 	"context"
 
+	"go.uber.org/mock/gomock"
+
 	cassandradb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/cassandra"
 	elasticmqdb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/elasticmq"
 	miniodb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/minio"
 	redisdb "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/dbtest/redis"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite/base"
-	"go.uber.org/mock/gomock"
 )
 
 // UnitSuite provides a test suite for unit tests with a gomock controller.

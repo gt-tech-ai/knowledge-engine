@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
-from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
-from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import CircuitBreakerInterceptor
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
 import grpc
 import pytest
+
+from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
+from techai_webutils.clients.rpc.grpc.interceptors.circuit_breaker import (
+    CircuitBreakerInterceptor,
+)
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -26,6 +33,7 @@ class _Call:
         """Resolve to the configured response."""
 
         async def _resolve() -> object:
+            await asyncio.sleep(0)
             return self._response
 
         return _resolve().__await__()
@@ -46,15 +54,17 @@ class TestCircuitBreakerInterceptor:
         """
         # A closed breaker: entering its `with` context is a no-op that lets the call through.
         cb = MagicMock(spec=CircuitBreaker)
-        interceptor = CircuitBreakerInterceptor(cb)  # type: ignore[arg-type]
+        interceptor = CircuitBreakerInterceptor(cb)
 
         sentinel = object()
         continuation = AsyncMock(return_value=_Call(sentinel))
         call_details = MagicMock()
         request = MagicMock()
 
-        result = await interceptor.intercept_unary_unary(continuation, call_details, request)
-        assert await result is sentinel
+        result = await interceptor.intercept_unary_unary(
+            continuation, call_details, request
+        )
+        assert await cast("_Call", result) is sentinel
         continuation.assert_awaited_once_with(call_details, request)
 
     @pytest.mark.asyncio
@@ -70,7 +80,7 @@ class TestCircuitBreakerInterceptor:
         # An open breaker: entering its `with` context raises CircuitOpenError before the call runs.
         cb = MagicMock(spec=CircuitBreaker)
         cb.__enter__.side_effect = CircuitOpenError()
-        interceptor = CircuitBreakerInterceptor(cb)  # type: ignore[arg-type]
+        interceptor = CircuitBreakerInterceptor(cb)
 
         continuation = AsyncMock()
         call_details = MagicMock()
@@ -116,7 +126,11 @@ class TestCircuitBreakerInterceptor:
         """
         cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
         interceptors = (
-            InterceptorBuilder().with_logging("test").with_circuit_breaker(cb).with_timeout(10.0).build()
+            InterceptorBuilder()
+            .with_logging("test")
+            .with_circuit_breaker(cb)
+            .with_timeout(10.0)
+            .build()
         )
 
         assert len(interceptors) == 3

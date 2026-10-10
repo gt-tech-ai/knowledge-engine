@@ -10,17 +10,18 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// TestConnectorSeams_MocksSatisfyContracts tests that the generated mocks for the connector-family
-// read seam and its builder satisfy their core contracts.
+// TestConnectorSeams_MocksSatisfyContracts tests that the generated mocks for the
+// connector-family read seam and its builder satisfy their core contracts.
 //
 // Why this test is important:
-//   - ConnectorSource + SourceBuilder are the AWS-free, dependency-free core seams the pkg connector
-//     family (S3 now; Salesforce/GDrive later) and the app connector service depend on; their shape and
-//     their generated mocks must stay in lockstep so a consumer can be unit-tested against the mock.
+//   - ConnectorSource + SourceBuilder are the AWS-free, dependency-free core seams the
+//     pkg connector family (S3 now; Salesforce/GDrive later) and the app connector
+//     service depend on; their shape and their generated mocks must stay in lockstep so a
+//     consumer can be unit-tested against the mock.
 //
 // What it tests:
-//   - The mockgen-generated MockConnectorSource / MockSourceBuilder are assignable to their core
-//     interfaces and construct without panic.
+//   - The mockgen-generated MockConnectorSource / MockSourceBuilder are assignable to
+//     their core interfaces and construct without panic.
 func TestConnectorSeams_MocksSatisfyContracts(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)

@@ -7,11 +7,14 @@ calls fail fast with UNAVAILABLE status.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import grpc
 
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitBreaker,
+    CircuitOpenError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -24,10 +27,12 @@ class _CircuitOpenRpcError(grpc.RpcError):
     the retry interceptor's ``e.code()`` transient check — hence this minimal typed error.
     """
 
+    @override
     def code(self) -> grpc.StatusCode:
         """Return ``UNAVAILABLE`` — the circuit is open, so the call was not attempted."""
         return grpc.StatusCode.UNAVAILABLE
 
+    @override
     def details(self) -> str:
         """Return a human-readable reason."""
         return "circuit breaker open"
@@ -46,7 +51,7 @@ class CircuitBreakerInterceptor(grpc.aio.UnaryUnaryClientInterceptor):  # type: 
 
     async def intercept_unary_unary(  # type: ignore[override]
         self,
-        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall]],
+        continuation: Callable[..., Awaitable[grpc.aio.UnaryUnaryCall[object, object]]],
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:

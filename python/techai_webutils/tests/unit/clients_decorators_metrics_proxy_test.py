@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -10,7 +10,10 @@ from structlog.testing import capture_logs
 
 from techai_webutils.clients.decorators.ai_enricher import AiSpanEnricher
 from techai_webutils.clients.decorators.metrics_proxy import MetricsProxy
-from techai_webutils.clients.decorators.proxy import ClientStackConfig, new_client_stack_from_config
+from techai_webutils.clients.decorators.proxy import (
+    ClientStackConfig,
+    new_client_stack_from_config,
+)
 from techai_webutils.core.errors import AppError, ErrorCode
 from techai_webutils.core.interfaces.llm import LLMMessage, LLMProvider, LLMResponse
 from techai_webutils.core.interfaces.metrics import MetricCounter
@@ -33,7 +36,7 @@ class _KbClient(Protocol):
 
 
 def _client() -> MagicMock:
-    """A spec'd client mock: ``fetch`` returns ``"payload"``, the other two raise."""
+    """Return a spec'd client mock: ``fetch`` returns ``"payload"``, the other two raise."""
     client = MagicMock(spec=_KbClient)
     client.fetch = AsyncMock(return_value="payload")
     client.missing = AsyncMock(side_effect=AppError(ErrorCode.NOT_FOUND, "gone"))
@@ -42,7 +45,9 @@ def _client() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_client_stack_emits_red_metrics(metrics_mock: tuple[MagicMock, dict[str, MagicMock]]):
+async def test_client_stack_emits_red_metrics(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+) -> None:
     """Test that the composed client stack records rate, errors and duration per client and method.
 
     **Why this test is important:**
@@ -82,14 +87,14 @@ async def test_client_stack_emits_red_metrics(metrics_mock: tuple[MagicMock, dic
         call(client="kb", method="missing", code="NOT_FOUND"),
         call(client="kb", method="broken", code="UNKNOWN"),
     ]
-    assert instruments["client_operation_duration_seconds"].observe.call_args_list[0] == call(
-        0.25, client="kb", method="fetch"
-    )
+    assert instruments["client_operation_duration_seconds"].observe.call_args_list[
+        0
+    ] == call(0.25, client="kb", method="fetch")
 
 
 def test_metrics_proxy_declares_instruments_once_with_contract_labels(
     metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
-):
+) -> None:
     """Test that ``MetricsProxy`` declares the three RED instruments once, with the contract labels.
 
     **Why this test is important:**
@@ -115,13 +120,18 @@ def test_metrics_proxy_declares_instruments_once_with_contract_labels(
     ]
     assert provider.counter.call_args_list[0].args[2] == ["client", "method", "outcome"]
     assert provider.counter.call_args_list[1].args[2] == ["client", "method", "code"]
-    assert provider.histogram.call_args_list[0].args[0] == "client_operation_duration_seconds"
+    assert (
+        provider.histogram.call_args_list[0].args[0]
+        == "client_operation_duration_seconds"
+    )
     assert provider.histogram.call_args_list[0].args[2] == ["client", "method"]
     assert proxy.endpoint == "http://x"
 
 
 @pytest.mark.asyncio
-async def test_metrics_emit_failure_does_not_propagate(metrics_mock: tuple[MagicMock, dict[str, MagicMock]]):
+async def test_metrics_emit_failure_does_not_propagate(
+    metrics_mock: tuple[MagicMock, dict[str, MagicMock]],
+) -> None:
     """Test that a failing metrics backend never changes a call's result, for both emitters.
 
     **Why this test is important:**
@@ -138,7 +148,9 @@ async def test_metrics_emit_failure_does_not_propagate(metrics_mock: tuple[Magic
     failing.inc.side_effect = RuntimeError("duplicate timeseries")
     provider.counter.side_effect = None
     provider.counter.return_value = failing
-    response = LLMResponse(content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop")
+    response = LLMResponse(
+        content="ok", model="m", input_tokens=1, output_tokens=1, finish_reason="stop"
+    )
     llm = MagicMock(spec=LLMProvider)
     llm.complete = AsyncMock(return_value=response)
 
@@ -146,12 +158,18 @@ async def test_metrics_emit_failure_does_not_propagate(metrics_mock: tuple[Magic
         capture_logs() as logs,
         patch("techai_webutils.clients.decorators.ai_enricher.trace.get_current_span"),
     ):
-        client_result = await MetricsProxy(_client(), "kb", provider).fetch()
-        llm_result = await AiSpanEnricher(
-            llm, step="generate", capture_content=False, metrics=provider
-        ).complete([LLMMessage(role="user", content="hi")])
+        client = cast("_KbClient", MetricsProxy(_client(), "kb", provider))
+        enricher = cast(
+            "LLMProvider",
+            AiSpanEnricher(llm, step="generate", capture_content=False, metrics=provider),
+        )
+        client_result = await client.fetch()
+        llm_result = await enricher.complete([LLMMessage(role="user", content="hi")])
 
     assert client_result == "payload"
     assert llm_result is response
     warnings = [(e["event"], e["log_level"]) for e in logs if e["log_level"] == "warning"]
-    assert warnings == [("client metrics emit failed", "warning"), ("ai span enrichment failed", "warning")]
+    assert warnings == [
+        ("client metrics emit failed", "warning"),
+        ("ai span enrichment failed", "warning"),
+    ]

@@ -6,8 +6,9 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
-// JoinTarget is a re-export of core/types.JoinTarget, so the generated listqueryschema tier
-// can construct a field's join with only the foundation/listquery import (no direct core/types import).
+// JoinTarget is a re-export of core/types.JoinTarget, so the generated listqueryschema
+// tier can construct a field's join with only the foundation/listquery import (no direct
+// core/types import).
 type JoinTarget = types.JoinTarget
 
 // FieldType is the value type of an allow-listed filter field. It gates which JSON
@@ -65,18 +66,20 @@ const (
 )
 
 // Field is one allow-listed filterable field: the DTO Name a client may filter on, the
-// storage Column it maps to (defaults to Name), and its value Type. A field whose Join is set
-// filters a JOINED table's column via a correlated EXISTS rather than the same-table Column.
+// storage Column it maps to (defaults to Name), and its value Type. A field whose Join is
+// set filters a JOINED table's column via a correlated EXISTS rather than the same-table
+// Column.
 type Field struct {
-	// Join, when non-nil, resolves this field to a correlated-EXISTS predicate on a joined table
-	// instead of the same-table Column. Filter-only.
+	// Join, when non-nil, resolves this field to a correlated-EXISTS predicate on a
+	// joined table instead of the same-table Column. Filter-only.
 	Join *types.JoinTarget
 	// Name is the DTO field name a client uses in the filter JSON.
 	Name string
 	// Column is the storage column the filter compiles against (defaults to Name).
 	Column string
-	// Ordinal, when non-empty, is the Column's DB values in ascending sort order: sorting the
-	// field orders by this value ordinal (a CASE) instead of lexically. Sort-only (does not affect filtering).
+	// Ordinal, when non-empty, is the Column's DB values in ascending sort order: sorting
+	// the field orders by this value ordinal (a CASE) instead of lexically. Sort-only
+	// (does not affect filtering).
 	Ordinal []string
 	// Aggregates are the aggregations an analytics query may apply to a RoleMeasure field.
 	Aggregates []types.Aggregate
@@ -112,8 +115,8 @@ func (f Field) WithColumn(column string) Field {
 	return f
 }
 
-// WithJoin returns a copy of the field that filters a JOINED table's column via a correlated EXISTS
-// — set by the generator from a `(listquery.field).join` annotation.
+// WithJoin returns a copy of the field that filters a JOINED table's column via a
+// correlated EXISTS — set by the generator from a `(listquery.field).join` annotation.
 func (f Field) WithJoin(join types.JoinTarget) Field {
 	f.Join = &join
 	return f
@@ -151,7 +154,8 @@ func ID(name string) Field { return Field{Name: name, Column: name, Type: FieldI
 
 // Map is a per-resource allow-list of filterable fields, keyed by DTO Name. Only fields
 // added to the Map may be filtered; a filter on any other field is rejected — the
-// SQL-safety boundary. Build it fluently: NewMap().Add(String("name"), ID("owner_id"), …).
+// SQL-safety boundary. Build it fluently: NewMap().Add(String("name"), ID("owner_id"),
+// …).
 type Map struct {
 	// fields is the allow-list of filterable fields, keyed by DTO name.
 	fields map[string]Field
@@ -175,9 +179,9 @@ func (m *Map) Lookup(name string) (Field, bool) {
 }
 
 // Column returns the storage column an allow-listed DTO field maps to, or the field name
-// itself when it is not allow-listed — a safe fallback, since the compiler only ever receives
-// fields the parser already validated against this Map. It adapts a Map into the fold's
-// ColumnFn: Compile(backend, m.Column, filter).
+// itself when it is not allow-listed — a safe fallback, since the compiler only ever
+// receives fields the parser already validated against this Map. It adapts a Map into the
+// fold's ColumnFn: Compile(backend, m.Column, filter).
 func (m *Map) Column(field string) string {
 	if f, ok := m.fields[field]; ok {
 		return f.Column
@@ -185,9 +189,10 @@ func (m *Map) Column(field string) string {
 	return field
 }
 
-// Join returns the joined-table target for an allow-listed field that filters a joined column
-// or nil for a same-table field (or an unknown field). It adapts a Map into the join
-// resolver ResolveFilter uses to stamp a clause's JoinTarget: ResolveFilter(m.Column, m.Join, filter).
+// Join returns the joined-table target for an allow-listed field that filters a joined
+// column or nil for a same-table field (or an unknown field). It adapts a Map into the
+// join resolver ResolveFilter uses to stamp a clause's JoinTarget:
+// ResolveFilter(m.Column, m.Join, filter).
 func (m *Map) Join(field string) *types.JoinTarget {
 	if f, ok := m.fields[field]; ok {
 		return f.Join
@@ -195,9 +200,9 @@ func (m *Map) Join(field string) *types.JoinTarget {
 	return nil
 }
 
-// Ordinal returns the value-ordinal sort order for an allow-listed field, or nil for a field
-// with no ordinal (or an unknown field). It adapts a Map into the OrdinalFn the ORDER BY path uses:
-// KeysetColumns(m.Column, m.Join, m.Ordinal, sort, tiebreaker).
+// Ordinal returns the value-ordinal sort order for an allow-listed field, or nil for a
+// field with no ordinal (or an unknown field). It adapts a Map into the OrdinalFn the
+// ORDER BY path uses: KeysetColumns(m.Column, m.Join, m.Ordinal, sort, tiebreaker).
 func (m *Map) Ordinal(field string) []string {
 	if f, ok := m.fields[field]; ok {
 		return f.Ordinal

@@ -7,12 +7,15 @@ import (
 
 	"github.com/spf13/viper"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
-// envReplacer maps a mapstructure dotted path to the <PREFIX>_<PATH> env-var form
-// (dots and dashes → underscores), matching the loader's SetEnvKeyReplacer.
-var envReplacer = strings.NewReplacer(".", "_", "-", "_")
+// envReplacer returns the replacer that maps a mapstructure dotted path to the
+// <PREFIX>_<PATH> env-var form (dots and dashes → underscores); the loader's
+// SetEnvKeyReplacer uses the same one.
+func envReplacer() *strings.Replacer {
+	return strings.NewReplacer(".", "_", "-", "_")
+}
 
 // checkSchema returns a CodeInvalidInput error unless schema is nil, a struct, or a
 // pointer to a struct — the only shapes deriveEnvBindings can walk.
@@ -25,7 +28,7 @@ func checkSchema(schema any) error {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		return coreerr.InvalidInput(fmt.Sprintf(
+		return apperr.InvalidInput(fmt.Sprintf(
 			"config schema must be a struct or a pointer to one, got %T", schema,
 		))
 	}
@@ -123,7 +126,7 @@ func fieldKey(f reflect.StructField) (name string, squash, ok bool) {
 // comma-separated aliases. Passing explicit names disables Viper's auto-prefix for
 // the binding, so the prefixed name is listed explicitly.
 func bindLeaf(v *viper.Viper, path, envPrefix, aliases string) {
-	envName := strings.ToUpper(envReplacer.Replace(path))
+	envName := strings.ToUpper(envReplacer().Replace(path))
 	if envPrefix != "" {
 		envName = strings.ToUpper(envPrefix) + "_" + envName
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/awssm"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/env"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/file"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -81,8 +81,8 @@ func NewFromConfig(ctx context.Context, cfg Config) (interfaces.Source, error) {
 		return env.New(cfg.EnvVars), nil
 	case KindFile:
 		if cfg.Runner == nil {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"file credential source requires a CommandRunner for the git-ignore write guard",
 			)
 		}
@@ -90,8 +90,8 @@ func NewFromConfig(ctx context.Context, cfg Config) (interfaces.Source, error) {
 	case KindAWSSM:
 		return awssm.NewClient(ctx, cfg.Region, cfg.Secrets)
 	default:
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown secrets kind: %v", cfg.Kind),
 		)
 	}

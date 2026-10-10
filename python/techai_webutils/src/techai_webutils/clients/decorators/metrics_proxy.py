@@ -27,24 +27,42 @@ from techai_webutils.foundation.logger.logger import get_logger
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.metrics import MetricsProvider
 
-CLIENT_DURATION_BUCKETS: tuple[float, ...] = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
+CLIENT_DURATION_BUCKETS: tuple[float, ...] = (
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+)
 """``client_operation_duration_seconds`` buckets, in seconds (the Go client stack's defaults)."""
 
 
 class MetricsProxy:
     """Proxy that records rate, errors and duration for each call on the wrapped client."""
 
-    def __init__(self, wrapped: object, client_name: str, metrics: MetricsProvider) -> None:
+    def __init__(
+        self, wrapped: object, client_name: str, metrics: MetricsProvider
+    ) -> None:
         """Wrap ``wrapped``, labelling its series ``client=client_name`` on instruments from ``metrics``."""
         self._wrapped = wrapped
         self._client = client_name
         # Resolved by name like LoggingProxy: structlog is configured once at the process root.
         self._logger = get_logger("client_metrics")
         self._ops = metrics.counter(
-            "client_operations_total", "Client operations by outcome.", ["client", "method", "outcome"]
+            "client_operations_total",
+            "Client operations by outcome.",
+            ["client", "method", "outcome"],
         )
         self._errors = metrics.counter(
-            "client_errors_total", "Client operation errors by error code.", ["client", "method", "code"]
+            "client_errors_total",
+            "Client operation errors by error code.",
+            ["client", "method", "code"],
         )
         self._duration = metrics.histogram(
             "client_operation_duration_seconds",
@@ -59,7 +77,10 @@ class MetricsProxy:
             self._emit(method, start, error)
         except Exception:
             self._logger.warning(
-                "client metrics emit failed", client=self._client, method=method, exc_info=True
+                "client metrics emit failed",
+                client=self._client,
+                method=method,
+                exc_info=True,
             )
 
     def _emit(self, method: str, start: float, error: BaseException | None) -> None:

@@ -9,7 +9,7 @@ Why this suite matters:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pytest
@@ -19,29 +19,33 @@ from techai_webutils.clients.decorators.proxy import (
     RateLimitProxy,
     new_client_stack_from_config,
 )
-from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.core.errors.errors import AppError, ErrorCode
+from techai_webutils.core.interfaces.rate_limiter import RateLimiter
 from techai_webutils.foundation.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
 )
 from techai_webutils.foundation.resilience.classify import is_transient
 
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
 
 def _client(**do_config: object) -> MagicMock:
-    """A mock client whose async ``do`` is an ``AsyncMock`` configured with ``do_config``.
+    """Return a mock client whose async ``do`` is an ``AsyncMock`` configured with ``do_config``.
 
     The resilience proxies forward ``getattr(client, "do")`` and branch on
     ``inspect.iscoroutinefunction`` (True for ``AsyncMock``), so this stands in for the direct-SDK
     client the stack wraps. ``do.await_count`` gives the invocation count the old fake tracked by hand.
     """
     client = MagicMock()
-    client.do = AsyncMock(**do_config)
+    client.do = AsyncMock()
+    client.do.configure_mock(**do_config)
     return client
 
 
 def _sleeping_do(seconds: float) -> Callable[..., Awaitable[str]]:
-    """An async ``do`` side effect that sleeps ``seconds`` then returns ``"ok"``."""
+    """Return an async ``do`` side effect that sleeps ``seconds`` then returns ``"ok"``."""
 
     async def _do(*_args: object, **_kwargs: object) -> str:
         await asyncio.sleep(seconds)
@@ -72,7 +76,10 @@ async def test_client_stack_retries_transient_then_succeeds() -> None:
     """
     fake = _client(side_effect=[AppError(ErrorCode.UNAVAILABLE, "transient"), "ok"])
     cfg = ClientStackConfig(
-        retry_enabled=True, retry_max_attempts=3, bulkhead_max_concurrent=None, timeout_seconds=None
+        retry_enabled=True,
+        retry_max_attempts=3,
+        bulkhead_max_concurrent=None,
+        timeout_seconds=None,
     )
     stacked = new_client_stack_from_config(fake, "t", cfg)
     assert await stacked.do() == "ok"
@@ -86,7 +93,9 @@ async def test_client_stack_circuit_opens_after_threshold() -> None:
     What it tests: once the breaker opens, a call raises CircuitOpenError without invoking the
     wrapped method.
     """
-    fake = _client(side_effect=AppError(ErrorCode.UNAVAILABLE, "transient"))  # always fails
+    fake = _client(
+        side_effect=AppError(ErrorCode.UNAVAILABLE, "transient")
+    )  # always fails
     cb = CircuitBreaker(failure_threshold=2)
     cfg = ClientStackConfig(bulkhead_max_concurrent=None, timeout_seconds=None)
     stacked = new_client_stack_from_config(fake, "t", cfg, circuit_breaker=cb)
@@ -105,7 +114,9 @@ async def test_client_stack_circuit_opens_after_threshold() -> None:
     calls_at_open = fake.do.await_count
     with pytest.raises(CircuitOpenError):
         await stacked.do()
-    assert fake.do.await_count == calls_at_open, "open breaker must not invoke the wrapped method"
+    assert fake.do.await_count == calls_at_open, (
+        "open breaker must not invoke the wrapped method"
+    )
 
 
 @pytest.mark.asyncio
@@ -213,12 +224,18 @@ def test_client_stack_wrap_order_tracing_outermost_logging_innermost() -> None:
     stacked = new_client_stack_from_config(
         target,
         "t",
-        ClientStackConfig(timeout_seconds=None, retry_enabled=False, bulkhead_max_concurrent=None),
+        ClientStackConfig(
+            timeout_seconds=None, retry_enabled=False, bulkhead_max_concurrent=None
+        ),
     )
 
-    assert type(stacked).__name__ == "TracingProxy", "Tracing must be outermost of the trio"
+    assert type(stacked).__name__ == "TracingProxy", (
+        "Tracing must be outermost of the trio"
+    )
     inner = stacked._wrapped  # noqa: SLF001 — structural assertion of the composed nesting
-    assert type(inner).__name__ == "LoggingProxy", "Logging must sit inside Tracing (innermost)"
+    assert type(inner).__name__ == "LoggingProxy", (
+        "Logging must sit inside Tracing (innermost)"
+    )
     assert inner._wrapped is target  # noqa: SLF001 — LoggingProxy wraps the target directly
 
 
@@ -245,7 +262,7 @@ async def test_rate_limit_proxy_gates_each_call_through_the_limiter() -> None:
     limiter = create_autospec(RateLimiter, instance=True)
     limiter.allow.return_value = True
     target = _Target()
-    proxied = RateLimitProxy(target, limiter)
+    proxied = cast("_Target", RateLimitProxy(target, limiter))
 
     assert await proxied.do() == "ok"
     assert await proxied.do() == "ok"

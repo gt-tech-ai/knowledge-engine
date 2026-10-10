@@ -2,8 +2,12 @@
 
 import asyncio
 
-from techai_webutils.foundation.resilience.bulkhead import BulkheadFullError, SemaphoreBulkhead
 import pytest
+
+from techai_webutils.foundation.resilience.bulkhead import (
+    BulkheadFullError,
+    SemaphoreBulkhead,
+)
 
 
 class TestSemaphoreBulkhead:

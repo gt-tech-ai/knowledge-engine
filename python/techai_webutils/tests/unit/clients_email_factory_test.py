@@ -29,6 +29,8 @@ def _sender(kind: EmailKind) -> EmailSender:
 
 
 class TestEmailFactory:
+    """Tests for the email factory."""
+
     def test_noop_kind_selects_noop_backend(self) -> None:
         """Test that an unrecognised/noop kind builds the logging noop sender (the dev default).
 
@@ -107,4 +109,6 @@ class TestEmailFactory:
         **What it tests:**
           - NoopEmailSender.send returns without raising.
         """
-        await _sender(EmailKind.NOOP).send(to="user@example.com", subject="hi", html_body="<p>hi</p>")
+        await _sender(EmailKind.NOOP).send(
+            to="user@example.com", subject="hi", html_body="<p>hi</p>"
+        )

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
 )
@@ -24,7 +24,7 @@ const tier = "workflow"
 // carries the panic value. The recovery decorator logs the value and stack; this
 // returned error preserves the historical workflow-tier message.
 func onPanic(_ string, r any) error {
-	return coreerr.New(coreerr.CodeInternal, fmt.Sprintf("panic recovered: %v", r))
+	return apperr.New(apperr.CodeInternal, fmt.Sprintf("panic recovered: %v", r))
 }
 
 // Builder constructs a decorated workflow using the fluent API pattern. Each
@@ -108,7 +108,7 @@ func (b *Builder[In, Out]) Build() interfaces.Workflow[In, Out] {
 		w = decorator.Timeout(w, b.timeout)
 	}
 	if b.metrics != nil {
-		w = decorator.Metrics(w, tier, b.name, b.metrics, decorator.DefaultBuckets)
+		w = decorator.Metrics(w, tier, b.name, b.metrics, decorator.DefaultBuckets())
 	}
 	if b.tracer != nil {
 		w = decorator.Tracing(w, b.tracer, tier, b.name)

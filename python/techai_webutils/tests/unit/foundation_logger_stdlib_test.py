@@ -10,8 +10,8 @@ Run with: pytest tests/python/test_foundation/test_logger_stdlib.py -v
 
 from __future__ import annotations
 
-from io import StringIO
 import json
+from io import StringIO
 
 from techai_webutils.foundation.logger.stdlib_logger import StdlibLogger
 

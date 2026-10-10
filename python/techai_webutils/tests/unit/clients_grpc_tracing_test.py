@@ -2,28 +2,41 @@
 
 from __future__ import annotations
 
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from techai_webutils.clients.rpc.grpc.interceptors.builder import InterceptorBuilder
 from techai_webutils.clients.rpc.grpc.interceptors.tracing import TracingInterceptor
-from unittest.mock import MagicMock
 
 
 class TestTracingInterceptor:
     """Test suite for the tracing client interceptor."""
 
-    def test_interceptor_creation(self) -> None:
-        """Test that the tracing interceptor retains the tracer it was constructed with.
+    @pytest.mark.asyncio
+    async def test_interceptor_creation(self) -> None:
+        """Test that the tracing interceptor opens its span through the tracer it was given.
 
         **Why this test is important:**
           - The interceptor must emit spans through the exact tracer the app configured
           - If it dropped or replaced the tracer, distributed traces would vanish or split across exporters
-          - Confirms the dependency is stored, the precondition for any span emission
+          - Confirms the injected tracer is the one that emits the per-call span
 
         **What it tests:**
-          - The constructed interceptor holds the injected tracer instance
+          - A unary call returns the call and opens one client-kind span on the injected tracer
         """
         tracer = MagicMock()
-        interceptor = TracingInterceptor(tracer)
-        assert interceptor._tracer is tracer
+        call = asyncio.get_running_loop().create_future()
+        call.set_result("reply")
+        continuation = AsyncMock(return_value=call)
+
+        result = await TracingInterceptor(tracer).intercept_unary_unary(
+            continuation, MagicMock(method="/svc/M"), "req"
+        )
+
+        assert result is call
+        tracer.span.assert_called_once_with("grpc.client//svc/M", kind="client")
 
 
 class TestInterceptorBuilderTracing:
@@ -60,7 +73,11 @@ class TestInterceptorBuilderTracing:
         """
         tracer = MagicMock()
         interceptors = (
-            InterceptorBuilder().with_logging("test").with_tracing(tracer).with_timeout(5.0).build()
+            InterceptorBuilder()
+            .with_logging("test")
+            .with_tracing(tracer)
+            .with_timeout(5.0)
+            .build()
         )
         assert len(interceptors) == 3
         # Tracing interceptor should be present

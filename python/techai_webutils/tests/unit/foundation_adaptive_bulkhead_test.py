@@ -8,8 +8,10 @@ selects the adaptive backend by kind.
 from __future__ import annotations
 
 import asyncio
+from typing import cast
 
 import pytest
+
 from techai_webutils.foundation.resilience.bulkhead import (
     AdaptiveBulkhead,
     BulkheadConfig,
@@ -87,8 +89,7 @@ async def test_adaptive_try_execute_rejects_when_full() -> None:
     await task
 
 
-@pytest.mark.asyncio
-async def test_bulkhead_from_config_selects_adaptive() -> None:
+def test_bulkhead_from_config_selects_adaptive() -> None:
     """The factory selects the adaptive backend for ADAPTIVE (config-selects-impl contract).
 
     Why this test is important:
@@ -112,8 +113,7 @@ def test_bulkhead_from_config_unknown_kind_raises() -> None:
     What it tests:
         - ``bulkhead_from_config`` raises ``ValueError`` for a kind outside the enum.
     """
-    bad = BulkheadConfig.__new__(BulkheadConfig)
-    object.__setattr__(bad, "kind", "bogus")  # the unknown-kind path reads only .kind
+    bad = BulkheadConfig(kind=cast("BulkheadKind", "bogus"))
 
     with pytest.raises(ValueError, match="unknown bulkhead kind"):
         bulkhead_from_config(bad)

@@ -47,7 +47,7 @@ class StubVectorStore(NoOpAsyncResource, VectorStore):
 
     @property
     def dimension(self) -> int:
-        """Return the configured vector dimension."""
+        """The configured vector dimension."""
         return self._dimension
 
     async def upsert(self, collection: str, entries: list[VectorEntry]) -> None:
@@ -90,10 +90,23 @@ class StubVectorStore(NoOpAsyncResource, VectorStore):
     async def delete_by_document(self, collection: str, document_id: str) -> None:
         """Delete every entry belonging to ``document_id`` in ``collection``."""
         store = self._collections.get(collection, {})
-        for entry_id in [eid for eid, entry in store.items() if entry.document_id == document_id]:
+        for entry_id in [
+            eid for eid, entry in store.items() if entry.document_id == document_id
+        ]:
             del store[entry_id]
 
     async def count_by_document(self, collection: str, document_id: str) -> int:
         """Count the entries belonging to ``document_id`` in ``collection``."""
         store = self._collections.get(collection, {})
         return sum(1 for entry in store.values() if entry.document_id == document_id)
+
+    async def stored_metadata(
+        self, collection: str, ids: list[str]
+    ) -> dict[str, dict[str, str]]:
+        """Return ``{id: metadata}`` for the ``ids`` already stored in ``collection``."""
+        store = self._collections.get(collection, {})
+        return {
+            entry_id: dict(store[entry_id].metadata)
+            for entry_id in ids
+            if entry_id in store
+        }

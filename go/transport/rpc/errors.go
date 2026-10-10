@@ -6,11 +6,15 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/errctx"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
+
+// msgInternal is the client-safe message every internal failure is reduced to.
+const msgInternal = "internal server error"
 
 // Sanitize maps a domain AppError to a client-safe Connect code and a generic
 // message, stripping any implementation detail (stack traces, SQL, upstream
@@ -43,8 +47,13 @@ func Sanitize(err error) (code connect.Code, message string) {
 		return connect.CodeDeadlineExceeded, "deadline exceeded"
 	case apperr.CodeResourceExhausted:
 		return connect.CodeResourceExhausted, "resource exhausted"
+	case apperr.CodeUnknown,
+		apperr.CodeInternal,
+		apperr.CodeIngestion,
+		apperr.CodeQualityFailed:
+		return connect.CodeInternal, msgInternal
 	default:
-		return connect.CodeInternal, "internal server error"
+		return connect.CodeInternal, msgInternal
 	}
 }
 
@@ -73,18 +82,32 @@ type wireMapping struct {
 }
 
 // fromWire maps each recognized Connect/gRPC status to its domain code — the
-// inverse of Sanitize. A status absent here maps to CodeUnknown.
-var fromWire = map[connect.Code]wireMapping{
-	connect.CodeNotFound:          {apperr.CodeNotFound, "resource not found"},
-	connect.CodeInvalidArgument:   {apperr.CodeInvalidInput, "invalid input"},
-	connect.CodeAlreadyExists:     {apperr.CodeConflict, "resource already exists"},
-	connect.CodeUnauthenticated:   {apperr.CodeUnauthorized, "unauthenticated"},
-	connect.CodePermissionDenied:  {apperr.CodeForbidden, "permission denied"},
-	connect.CodeUnavailable:       {apperr.CodeUpstream, "upstream service unavailable"},
-	connect.CodeDeadlineExceeded:  {apperr.CodeTimeout, "deadline exceeded"},
-	connect.CodeCanceled:          {apperr.CodeCanceled, "request canceled"},
-	connect.CodeResourceExhausted: {apperr.CodeResourceExhausted, "resource exhausted"},
-	connect.CodeInternal:          {apperr.CodeInternal, "internal server error"},
+// inverse of Sanitize. An unrecognized status maps to CodeUnknown.
+func fromWire(wire connect.Code) wireMapping {
+	switch wire {
+	case connect.CodeNotFound:
+		return wireMapping{apperr.CodeNotFound, "resource not found"}
+	case connect.CodeInvalidArgument:
+		return wireMapping{apperr.CodeInvalidInput, "invalid input"}
+	case connect.CodeAlreadyExists:
+		return wireMapping{apperr.CodeConflict, "resource already exists"}
+	case connect.CodeUnauthenticated:
+		return wireMapping{apperr.CodeUnauthorized, "unauthenticated"}
+	case connect.CodePermissionDenied:
+		return wireMapping{apperr.CodeForbidden, "permission denied"}
+	case connect.CodeUnavailable:
+		return wireMapping{apperr.CodeUpstream, "upstream service unavailable"}
+	case connect.CodeDeadlineExceeded:
+		return wireMapping{apperr.CodeTimeout, "deadline exceeded"}
+	case connect.CodeCanceled:
+		return wireMapping{apperr.CodeCanceled, "request canceled"}
+	case connect.CodeResourceExhausted:
+		return wireMapping{apperr.CodeResourceExhausted, "resource exhausted"}
+	case connect.CodeInternal:
+		return wireMapping{apperr.CodeInternal, msgInternal}
+	default:
+		return wireMapping{apperr.CodeUnknown, "unknown error"}
+	}
 }
 
 // FromRPCError maps a Connect or gRPC status error to a domain AppError.
@@ -108,9 +131,6 @@ func FromRPCError(err error) error {
 		}
 	}
 
-	m, ok := fromWire[wire]
-	if !ok {
-		m = wireMapping{code: apperr.CodeUnknown, msg: "unknown error"}
-	}
+	m := fromWire(wire)
 	return apperr.Wrap(err, m.code, m.msg)
 }

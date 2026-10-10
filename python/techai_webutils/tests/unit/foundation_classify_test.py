@@ -7,6 +7,7 @@ import grpc.aio
 import httpx
 from botocore.exceptions import ClientError, EndpointConnectionError
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+
 from techai_webutils.core.errors.errors import InvalidInputError, UnavailableError
 from techai_webutils.foundation.resilience.classify import is_permanent, is_transient
 
@@ -21,7 +22,16 @@ def _http_status_error(status: int) -> httpx.HTTPStatusError:
 def _client_error(code: str, status: int) -> ClientError:
     """Build a botocore ClientError with the given error code + HTTP status."""
     return ClientError(
-        {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}},
+        {
+            "Error": {"Code": code},
+            "ResponseMetadata": {
+                "RequestId": "",
+                "HostId": "",
+                "HTTPStatusCode": status,
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
+        },
         "SendMessage",
     )
 
@@ -40,6 +50,8 @@ def _rpc_error(code: grpc.StatusCode) -> MagicMock:
 
 
 class TestClassify:
+    """Tests for transient/permanent error classification."""
+
     def test_apperror_transient_vs_permanent(self) -> None:
         """Test that AppError classification delegates to its is_transient flag.
 
@@ -137,8 +149,14 @@ class TestClassify:
         """
         headers = httpx.Headers()
         assert is_transient(ResponseHandlingException(source=OSError("connect"))) is True
-        assert is_transient(UnexpectedResponse(503, "Service Unavailable", b"", headers)) is True
-        assert is_transient(UnexpectedResponse(429, "Too Many Requests", b"", headers)) is True
+        assert (
+            is_transient(UnexpectedResponse(503, "Service Unavailable", b"", headers))
+            is True
+        )
+        assert (
+            is_transient(UnexpectedResponse(429, "Too Many Requests", b"", headers))
+            is True
+        )
         assert is_permanent(UnexpectedResponse(400, "Bad Request", b"", headers)) is True
 
     def test_plain_exception_is_permanent(self) -> None:

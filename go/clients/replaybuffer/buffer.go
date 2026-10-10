@@ -1,8 +1,8 @@
-// Package replaybuffer selects and builds a ReplayBuffer backend from configuration and wraps it in
-// the resilience + observability decorator stack, mirroring clients/lock. Callers depend
-// on core/interfaces.ReplayBuffer; NewFromConfig chooses the memory (single-pod) or redis (cross-pod)
-// backend by Kind and injects it at the composition root — swapping one for the other is a config
-// change, never a logic edit.
+// Package replaybuffer selects and builds a ReplayBuffer backend from configuration and
+// wraps it in the resilience + observability decorator stack, mirroring clients/lock.
+// Callers depend on core/interfaces.ReplayBuffer; NewFromConfig chooses the memory
+// (single-pod) or redis (cross-pod) backend by Kind and injects it at the composition
+// root — swapping one for the other is a config change, never a logic edit.
 package replaybuffer
 
 import (
@@ -13,7 +13,7 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/memory"
 	bufredis "github.com/gt-tech-ai/knowledge-engine/go/clients/replaybuffer/redis"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -21,10 +21,11 @@ import (
 type Kind int
 
 const (
-	// KindMemory is the in-process backend: correct for a single replica (dev / replica=1), where a
-	// reconnect lands on the same pod — no external dependency.
+	// KindMemory is the in-process backend: correct for a single replica (dev /
+	// replica=1), where a reconnect lands on the same pod — no external dependency.
 	KindMemory Kind = iota
-	// KindRedis is the cross-pod backend over a shared Redis client (staging/prod, multi-replica).
+	// KindRedis is the cross-pod backend over a shared Redis client (staging/prod,
+	// multi-replica).
 	KindRedis
 )
 
@@ -40,9 +41,10 @@ func (k Kind) String() string {
 	}
 }
 
-// Config selects and tunes the replay buffer. Kind picks the backend; MaxSize bounds the retained
-// tail per key; TTL expires an idle key's buffer; OpTimeout bounds each backend op (zero skips the
-// timeout decorator). Logger/Metrics/Tracer drive the observability decorators (each nil-safe).
+// Config selects and tunes the replay buffer. Kind picks the backend; MaxSize bounds the
+// retained tail per key; TTL expires an idle key's buffer; OpTimeout bounds each backend
+// op (zero skips the timeout decorator). Logger/Metrics/Tracer drive the observability
+// decorators (each nil-safe).
 type Config struct {
 	// Logger drives the logging decorator; nil skips it.
 	Logger interfaces.Logger
@@ -53,8 +55,8 @@ type Config struct {
 
 	// Name labels the buffer in metrics, spans, and logs (default "replaybuffer").
 	Name string
-	// KeyPrefix namespaces the redis backend's keys (empty uses redis.DefaultKeyPrefix, "replay:");
-	// ignored for KindMemory.
+	// KeyPrefix namespaces the redis backend's keys (empty uses redis.DefaultKeyPrefix,
+	// "replay:"); ignored for KindMemory.
 	KeyPrefix string
 
 	// Kind selects the backend (memory | redis).
@@ -67,20 +69,21 @@ type Config struct {
 	OpTimeout time.Duration
 }
 
-// NewFromConfig builds the configured ReplayBuffer: it selects a backend by Kind, wraps it in the
-// timeout + observability decorator stack (each collaborator optional/nil-safe), and returns the
-// decorated buffer. The client is required only for KindRedis (the shared go-redis client reused from
-// the lock/backplane); it is ignored for KindMemory. It fails loudly on a non-positive MaxSize/TTL,
-// an unknown kind, or a redis kind with no client.
+// NewFromConfig builds the configured ReplayBuffer: it selects a backend by Kind, wraps
+// it in the timeout + observability decorator stack (each collaborator
+// optional/nil-safe), and returns the decorated buffer. The client is required only for
+// KindRedis (the shared go-redis client reused from the lock/backplane); it is ignored
+// for KindMemory. It fails loudly on a non-positive MaxSize/TTL, an unknown kind, or a
+// redis kind with no client.
 func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer, error) {
 	if cfg.MaxSize <= 0 {
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"replay max_size must be positive",
 		)
 	}
 	if cfg.TTL <= 0 {
-		return nil, errors.New(errors.CodeInvalidInput, "replay ttl must be positive")
+		return nil, apperr.New(apperr.CodeInvalidInput, "replay ttl must be positive")
 	}
 
 	var base interfaces.ReplayBuffer
@@ -89,8 +92,8 @@ func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer
 		base = memory.New(cfg.MaxSize, cfg.TTL)
 	case KindRedis:
 		if client == nil {
-			return nil, errors.New(
-				errors.CodeInvalidInput,
+			return nil, apperr.New(
+				apperr.CodeInvalidInput,
 				"replay redis kind requires a redis client",
 			)
 		}
@@ -100,8 +103,8 @@ func NewFromConfig(cfg *Config, client *goredis.Client) (interfaces.ReplayBuffer
 			KeyPrefix: cfg.KeyPrefix,
 		})
 	default:
-		return nil, errors.New(
-			errors.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			"unknown replay buffer kind: "+cfg.Kind.String(),
 		)
 	}

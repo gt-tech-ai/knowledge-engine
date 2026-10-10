@@ -11,10 +11,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 )
 
-// stringBackend is a QueryBackend[string, string] that renders the list-query IR to a readable
-// SQL-ish string. It lets the shared fold (Compile / CompileOrder) be exercised with NO datastore
-// dependency — the payoff of the algebra design: the tree-walk, boolean composition,
-// column resolution, no-op handling, and tiebreaker logic are all backend-independent.
+// stringBackend is a QueryBackend[string, string] that renders the list-query IR to a
+// readable SQL-ish string. It lets the shared fold (Compile / CompileOrder) be exercised
+// with NO datastore dependency — the payoff of the algebra design: the tree-walk, boolean
+// composition, column resolution, no-op handling, and tiebreaker logic are all
+// backend-independent.
 type stringBackend struct{}
 
 func (stringBackend) Clause(col string, op types.FilterOperator, v any) string {
@@ -22,7 +23,8 @@ func (stringBackend) Clause(col string, op types.FilterOperator, v any) string {
 }
 
 // ExistsClause renders a joined-column predicate as a readable correlated-EXISTS string,
-// mirroring what the Ent backend compiles to SQL — so the fold's join branch is exercised without a DB.
+// mirroring what the Ent backend compiles to SQL — so the fold's join branch is exercised
+// without a DB.
 func (stringBackend) ExistsClause(
 	join types.JoinTarget,
 	op types.FilterOperator,
@@ -62,8 +64,8 @@ func (stringBackend) Order(col string, desc bool) string {
 	return col + " ASC"
 }
 
-// OrderJoin renders a joined ORDER BY as a readable correlated-subquery string, one term per
-// join column, so CompileOrder's joined branch is exercised backend-agnostically.
+// OrderJoin renders a joined ORDER BY as a readable correlated-subquery string, one term
+// per join column, so CompileOrder's joined branch is exercised backend-agnostically.
 func (stringBackend) OrderJoin(join types.JoinTarget, desc bool) string {
 	dir := "ASC NULLS LAST"
 	if desc {
@@ -77,8 +79,8 @@ func (stringBackend) OrderJoin(join types.JoinTarget, desc bool) string {
 	return strings.Join(terms, ", ")
 }
 
-// OrderOrdinal renders a value-ordinal ORDER BY as a readable CASE string, so CompileOrder's
-// ordinal branch is exercised backend-agnostically.
+// OrderOrdinal renders a value-ordinal ORDER BY as a readable CASE string, so
+// CompileOrder's ordinal branch is exercised backend-agnostically.
 func (stringBackend) OrderOrdinal(col string, values []string, desc bool) string {
 	dir := "ASC"
 	if desc {
@@ -88,8 +90,9 @@ func (stringBackend) OrderOrdinal(col string, values []string, desc bool) string
 }
 
 // OrderDerived renders a computed/correlated ORDER BY — a correlated aggregate or a
-// timestamp-plus-interval — as a readable string, so CompileOrder's derived branch is exercised
-// backend-agnostically (a nil-armed spec degrades to a no-op, mirroring the Ent backend).
+// timestamp-plus-interval — as a readable string, so CompileOrder's derived branch is
+// exercised backend-agnostically (a nil-armed spec degrades to a no-op, mirroring the Ent
+// backend).
 func (stringBackend) OrderDerived(d types.DerivedSort, desc bool) string {
 	dir := "ASC NULLS LAST"
 	if desc {
@@ -132,8 +135,8 @@ func (stringBackend) OrderDerived(d types.DerivedSort, desc bool) string {
 	}
 }
 
-// resolveNameToTitle maps the Document DTO field "name" to its storage column "title" (the real
-// gen/go/listquery mapping); every other field resolves to itself.
+// resolveNameToTitle maps the Document DTO field "name" to its storage column "title"
+// (the real gen/go/listquery mapping); every other field resolves to itself.
 func resolveNameToTitle(field string) string {
 	if field == "name" {
 		return "title"
@@ -141,21 +144,25 @@ func resolveNameToTitle(field string) string {
 	return field
 }
 
-// TestCompile_FoldViaStringAlgebra tests the shared Compile/CompileOrder fold backend-agnostically.
+// TestCompile_FoldViaStringAlgebra tests the shared Compile/CompileOrder fold
+// backend-agnostically.
 //
 // Why this test is important:
 //   - The fold is the one piece of the multi-target compiler every backend reuses; a bug
-//     in the tree-walk, boolean composition, column resolution, no-op, or tiebreaker logic would
-//     corrupt every datastore's query. Testing it through a trivial string algebra proves that logic
-//     independently of Ent, exactly as the SDK's isomorphism claims it can be.
+//     in the tree-walk, boolean composition, column resolution, no-op, or tiebreaker
+//     logic would corrupt every datastore's query. Testing it through a trivial string
+//     algebra proves that logic independently of Ent, exactly as the SDK's isomorphism
+//     claims it can be.
 //
 // What it tests:
-//   - A nil filter and an empty composite both fold to the backend's Empty() (no-op / match-all).
-//   - A leaf clause resolves its DTO field to the storage column ("name" -> "title") and renders the operator+value.
+//   - A nil filter and an empty composite both fold to the backend's Empty() (no-op /
+//     match-all).
+//   - A leaf clause resolves its DTO field to the storage column ("name" -> "title") and
+//     renders the operator+value.
 //   - $and / $or composites (incl. nesting) fold to And()/Or() preserving member order.
-//   - CompileOrder resolves columns, appends the resource keyset column DESC + id DESC tiebreakers
-//     (created_at by default, or a passed keyset column such as joined_at), and dedups either
-//     tiebreaker symmetrically when the caller already sorts by it.
+//   - CompileOrder resolves columns, appends the resource keyset column DESC + id DESC
+//     tiebreakers (created_at by default, or a passed keyset column such as joined_at),
+//     and dedups either tiebreaker symmetrically when the caller already sorts by it.
 func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 	t.Parallel()
 	b := stringBackend{}
@@ -209,8 +216,9 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		"joined clause compiles to a correlated EXISTS (multi-column ORs)",
 		func(t *testing.T) {
 			t.Parallel()
-			// A member "name" filter joins users and ORs first_name/last_name — one EXISTS, one join.
-			// The clause carries the JoinTarget ResolveFilter would stamp in production.
+			// A member "name" filter joins users and ORs first_name/last_name — one
+			// EXISTS, one join. The clause carries the JoinTarget ResolveFilter would
+			// stamp in production.
 			clause := types.FilterClause{
 				Field: "name", Operator: types.OpLike, Value: "smith",
 				Join: &types.JoinTarget{
@@ -229,8 +237,9 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		"two joined clauses fold to two INDEPENDENT EXISTS (no dedup)",
 		func(t *testing.T) {
 			t.Parallel()
-			// Filtering by member name AND email — both on the users join — yields two independent EXISTS,
-			// never a duplicate JOIN (the payoff of the EXISTS mechanism).
+			// Filtering by member name AND email — both on the users join — yields two
+			// independent EXISTS, never a duplicate JOIN (the payoff of the EXISTS
+			// mechanism).
 			f := types.CompositeFilter{And: []types.Filter{
 				types.FilterClause{
 					Field:    "name",
@@ -266,8 +275,9 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 
 	t.Run("ResolveFilter stamps the join target from the JoinFn", func(t *testing.T) {
 		t.Parallel()
-		// ResolveFilter carries a field's JoinTarget onto the resolved clause so the runner (folding with
-		// an identity resolver) still compiles it to an EXISTS; a same-table field gets no join.
+		// ResolveFilter carries a field's JoinTarget onto the resolved clause so the
+		// runner (folding with an identity resolver) still compiles it to an EXISTS; a
+		// same-table field gets no join.
 		joinOf := func(field string) *types.JoinTarget {
 			if field == "name" {
 				return &types.JoinTarget{
@@ -280,12 +290,16 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 			return nil
 		}
 		joined := listquery.ResolveFilter(resolveNameToTitle, joinOf,
-			types.FilterClause{Field: "name", Operator: types.OpLike, Value: "smith"}).(types.FilterClause)
+			types.FilterClause{
+				Field: "name", Operator: types.OpLike, Value: "smith",
+			}).(types.FilterClause)
 		assert.NotNil(t, joined.Join)
 		assert.Equal(t, "users", joined.Join.Table)
 
 		plain := listquery.ResolveFilter(resolveNameToTitle, joinOf,
-			types.FilterClause{Field: "status", Operator: types.OpEq, Value: "indexed"}).(types.FilterClause)
+			types.FilterClause{
+				Field: "status", Operator: types.OpEq, Value: "indexed",
+			}).(types.FilterClause)
 		assert.Nil(t, plain.Join)
 		assert.Equal(t, "status", plain.Field)
 	})
@@ -353,8 +367,9 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		"join-table keyset column overrides the created_at tiebreaker",
 		func(t *testing.T) {
 			t.Parallel()
-			// A membership join table keyed on joined_at (not created_at) passes its keyset column, so
-			// the compiled ORDER BY never references a non-existent created_at column.
+			// A membership join table keyed on joined_at (not created_at) passes its
+			// keyset column, so the compiled ORDER BY never references a non-existent
+			// created_at column.
 			got := listquery.CompileOrder[string, string](
 				b,
 				resolveNameToTitle,
@@ -382,9 +397,10 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		assert.Equal(t, []string{"joined_at ASC", "id DESC"}, got)
 	})
 
-	// A joined sort field resolves via joinOf to a correlated-subquery ORDER BY term (one per
-	// join column), placed before the same-table tiebreaker + id — proving the compiler branches to
-	// OrderJoin for a joined field and still appends the deterministic tiebreakers.
+	// A joined sort field resolves via joinOf to a correlated-subquery ORDER BY term (one
+	// per join column), placed before the same-table tiebreaker + id — proving the
+	// compiler branches to OrderJoin for a joined field and still appends the
+	// deterministic tiebreakers.
 	t.Run(
 		"joined sort field renders OrderJoin before the tiebreakers",
 		func(t *testing.T) {
@@ -416,9 +432,9 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		},
 	)
 
-	// A value-ordinal sort field resolves via ordinalOf to a CASE ORDER BY over its column's
-	// values, placed before the same-table tiebreaker + id — proving the compiler branches to
-	// OrderOrdinal for an ordinal field.
+	// A value-ordinal sort field resolves via ordinalOf to a CASE ORDER BY over its
+	// column's values, placed before the same-table tiebreaker + id — proving the
+	// compiler branches to OrderOrdinal for an ordinal field.
 	t.Run(
 		"ordinal sort field renders OrderOrdinal before the tiebreakers",
 		func(t *testing.T) {
@@ -446,9 +462,10 @@ func TestCompile_FoldViaStringAlgebra(t *testing.T) {
 		},
 	)
 
-	// A derived sort field resolves via derivedOf to a correlated-aggregate / interval ORDER
-	// BY, placed before the same-table tiebreaker + id — proving the compiler branches to OrderDerived
-	// for a computed count (Documents/Members) and a timestamp-plus-interval (Next Sync).
+	// A derived sort field resolves via derivedOf to a correlated-aggregate / interval
+	// ORDER BY, placed before the same-table tiebreaker + id — proving the compiler
+	// branches to OrderDerived for a computed count (Documents/Members) and a
+	// timestamp-plus-interval (Next Sync).
 	t.Run(
 		"derived sort field renders OrderDerived before the tiebreakers",
 		func(t *testing.T) {

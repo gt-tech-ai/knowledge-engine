@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import time
 
-from techai_webutils.clients.cache.envelope import CacheEnvelope, decode, encode
 import pytest
+
+from techai_webutils.clients.cache.envelope import CacheEnvelope, decode, encode
 
 
 class TestEncode:

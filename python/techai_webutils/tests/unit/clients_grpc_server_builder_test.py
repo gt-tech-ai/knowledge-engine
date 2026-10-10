@@ -2,25 +2,68 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
 import pytest
 
-from techai_webutils.clients.rpc.grpc.interceptors.auth import AuthServerInterceptor, HeaderClaimMapping
+from techai_webutils.clients.rpc.grpc.interceptors.auth import (
+    AuthServerInterceptor,
+    HeaderClaimMapping,
+)
 from techai_webutils.clients.rpc.grpc.interceptors.server_builder import (
     ServerInterceptorBuilder,
-    _LoggingServerInterceptor,
-    _MetricsServerInterceptor,
-    _RecoveryServerInterceptor,
-    _ServiceAuthServerInterceptor,
 )
-from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import TracingServerInterceptor
+from techai_webutils.clients.rpc.grpc.interceptors.tracing_server import (
+    TracingServerInterceptor,
+)
 from techai_webutils.clients.transport.grpc.server import GracefulServer, ServerConfig
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Awaitable, Callable
 
-_HEADERS = HeaderClaimMapping(user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles")
+_HEADERS = HeaderClaimMapping(
+    user_id="x-user-id", tenant_id="x-tenant-id", roles="x-roles"
+)
 """The gateway header contract these tests configure."""
+
+
+async def _call_unary(
+    handler: grpc.RpcMethodHandler[object, object] | None,
+    request: object,
+    context: object,
+) -> object:
+    """Invoke an aio unary-unary handler; grpc's stubs type the behavior as synchronous."""
+    assert handler is not None
+    behavior = cast("Callable[[object, object], Awaitable[object]]", handler.unary_unary)
+    return await behavior(request, context)
+
+
+def _call_stream(
+    handler: grpc.RpcMethodHandler[object, object] | None,
+    request: object,
+    context: object,
+) -> AsyncIterator[object]:
+    """Invoke an aio unary-stream handler; grpc's stubs type the behavior as synchronous."""
+    assert handler is not None
+    behavior = cast(
+        "Callable[[object, object], AsyncIterator[object]]", handler.unary_stream
+    )
+    return behavior(request, context)
+
+
+def _names(interceptors: list[grpc.aio.ServerInterceptor]) -> list[str]:
+    """Return the class names of a built chain, outermost first."""
+    return [type(i).__name__ for i in interceptors]
+
+
+def _only(builder: ServerInterceptorBuilder) -> grpc.aio.ServerInterceptor:
+    """Build ``builder`` and return its single interceptor."""
+    [interceptor] = builder.build()
+    return interceptor
 
 
 class TestServerInterceptorBuilder:
@@ -71,26 +114,36 @@ class TestServerInterceptorBuilder:
         """
         from techai_webutils.clients.rpc.grpc.interceptors.auth import (
             AuthClaims,
-            _auth_claims_var,
             get_auth_claims,
         )
 
         [interceptor] = (
             ServerInterceptorBuilder()
-            .with_auth(HeaderClaimMapping(user_id="x-sub", tenant_id="x-tenant", roles="x-groups"))
+            .with_auth(
+                HeaderClaimMapping(
+                    user_id="x-sub", tenant_id="x-tenant", roles="x-groups"
+                )
+            )
             .build()
         )
-        token = _auth_claims_var.set(None)
-        try:
+
+        async def run() -> AuthClaims | None:
             await interceptor.intercept_service(
                 AsyncMock(return_value="handler"),
-                MagicMock(invocation_metadata=[("x-sub", "u-1"), ("x-tenant", "t-1"), ("x-groups", "a,b")]),
+                MagicMock(
+                    invocation_metadata=[
+                        ("x-sub", "u-1"),
+                        ("x-tenant", "t-1"),
+                        ("x-groups", "a,b"),
+                    ]
+                ),
             )
-            assert get_auth_claims() == AuthClaims(
-                user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
-            )
-        finally:
-            _auth_claims_var.reset(token)
+            return get_auth_claims()
+
+        claims = await asyncio.create_task(run(), context=contextvars.Context())
+        assert claims == AuthClaims(
+            user_id="u-1", tenant_id="t-1", roles=frozenset({"a", "b"})
+        )
 
     def test_with_logging(self) -> None:
         """Test that with_logging adds a logging interceptor bound to the given logger.
@@ -102,12 +155,11 @@ class TestServerInterceptorBuilder:
 
         **What it tests:**
           - build() returns exactly one interceptor
-          - It is a _LoggingServerInterceptor instance
+          - It is the builder's logging interceptor
         """
         logger = MagicMock()
         interceptors = ServerInterceptorBuilder().with_logging(logger).build()  # type: ignore[arg-type]
-        assert len(interceptors) == 1
-        assert isinstance(interceptors[0], _LoggingServerInterceptor)
+        assert _names(interceptors) == ["_LoggingServerInterceptor"]
 
     def test_with_recovery(self) -> None:
         """Test that with_recovery adds the panic-recovery interceptor.
@@ -119,11 +171,10 @@ class TestServerInterceptorBuilder:
 
         **What it tests:**
           - build() returns exactly one interceptor
-          - It is a _RecoveryServerInterceptor instance
+          - It is the builder's recovery interceptor
         """
         interceptors = ServerInterceptorBuilder().with_recovery().build()
-        assert len(interceptors) == 1
-        assert isinstance(interceptors[0], _RecoveryServerInterceptor)
+        assert _names(interceptors) == ["_RecoveryServerInterceptor"]
 
     def test_full_chain_ordering(self) -> None:
         """Test that a full chain is ordered recovery (outermost) → logging → auth (innermost).
@@ -146,17 +197,18 @@ class TestServerInterceptorBuilder:
             .with_auth(_HEADERS)
             .build()
         )
-        assert len(interceptors) == 3
-        assert isinstance(interceptors[0], _RecoveryServerInterceptor)
-        assert isinstance(interceptors[1], _LoggingServerInterceptor)
-        assert isinstance(interceptors[2], AuthServerInterceptor)
+        assert _names(interceptors) == [
+            "_RecoveryServerInterceptor",
+            "_LoggingServerInterceptor",
+            "AuthServerInterceptor",
+        ]
 
 
 class TestMetricsServerInterceptor:
     """Behaviour of the metrics interceptor: per-RPC execution count, duration, and errors."""
 
     @staticmethod
-    def _details(method: str = "/svc/M") -> object:
+    def _details(method: str = "/svc/M") -> grpc.HandlerCallDetails:
         """Handler-call-details carrying the RPC method name (the metric label)."""
         return MagicMock(method=method)
 
@@ -174,15 +226,20 @@ class TestMetricsServerInterceptor:
             observes ``histogram`` exactly once, and never touches ``errors``.
         """
         histogram, executions, errors = MagicMock(), MagicMock(), MagicMock()
-        interceptor = _MetricsServerInterceptor(histogram, executions, errors)
+        interceptor = _only(
+            ServerInterceptorBuilder().with_metrics(histogram, executions, errors)
+        )
 
         async def _ok(_req: object, _ctx: object) -> str:
+            await asyncio.sleep(0)
             return "ok"
 
         real = grpc.unary_unary_rpc_method_handler(_ok)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
-        assert await wrapped.unary_unary("req", MagicMock()) == "ok"
+        assert await _call_unary(wrapped, "req", MagicMock()) == "ok"
         executions.inc.assert_called_once()
         histogram.observe.assert_called_once()
         errors.inc.assert_not_called()
@@ -200,16 +257,22 @@ class TestMetricsServerInterceptor:
             observed (finally-block timing).
         """
         histogram, executions, errors = MagicMock(), MagicMock(), MagicMock()
-        interceptor = _MetricsServerInterceptor(histogram, executions, errors)
+        interceptor = _only(
+            ServerInterceptorBuilder().with_metrics(histogram, executions, errors)
+        )
 
         async def _boom(_req: object, _ctx: object) -> str:
-            raise RuntimeError("boom")
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         real = grpc.unary_unary_rpc_method_handler(_boom)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
         with pytest.raises(RuntimeError):
-            await wrapped.unary_unary("req", MagicMock())
+            await _call_unary(wrapped, "req", MagicMock())
         errors.inc.assert_called_once()
         histogram.observe.assert_called_once()
 
@@ -227,30 +290,37 @@ class TestMetricsServerInterceptor:
             incremented once, and ``histogram`` is observed once (duration across the whole stream).
         """
         histogram, executions, errors = MagicMock(), MagicMock(), MagicMock()
-        interceptor = _MetricsServerInterceptor(histogram, executions, errors)
+        interceptor = _only(
+            ServerInterceptorBuilder().with_metrics(histogram, executions, errors)
+        )
 
         async def _gen(_req: object, _ctx: object):  # noqa: ANN202
+            await asyncio.sleep(0)
             yield "a"
-            raise RuntimeError("mid-stream boom")
+            msg = "mid-stream boom"
+            raise RuntimeError(msg)
 
         real = grpc.unary_stream_rpc_method_handler(_gen)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
 
-        collected = []
+        stream = _call_stream(wrapped, "req", MagicMock())
+        assert await anext(stream) == "a"
         with pytest.raises(RuntimeError):
-            async for item in wrapped.unary_stream("req", MagicMock()):
-                collected.append(item)
-        assert collected == ["a"]
+            await anext(stream)
         errors.inc.assert_called_once()
         histogram.observe.assert_called_once()
 
 
 class TestRecoveryServerInterceptor:
-    """The recovery interceptor converts an uncaught handler exception to INTERNAL, without masking
-    an intentional ``context.abort`` (which raises ``grpc.aio.AbortError``)."""
+    """The recovery interceptor converts an uncaught handler exception to INTERNAL.
+
+    It does not mask an intentional ``context.abort`` (which raises ``grpc.aio.AbortError``).
+    """
 
     @staticmethod
-    def _details(method: str = "/svc/M") -> object:
+    def _details(method: str = "/svc/M") -> grpc.HandlerCallDetails:
         """Handler-call-details carrying the RPC method name."""
         return MagicMock(method=method)
 
@@ -266,17 +336,21 @@ class TestRecoveryServerInterceptor:
         **What it tests:**
           - The wrapped handler calls ``context.abort`` once with ``StatusCode.INTERNAL``.
         """
-        interceptor = _RecoveryServerInterceptor()
+        interceptor = _only(ServerInterceptorBuilder().with_recovery())
 
         async def _boom(_req: object, _ctx: object) -> str:
-            raise RuntimeError("boom")
+            await asyncio.sleep(0)
+            msg = "boom"
+            raise RuntimeError(msg)
 
         real = grpc.unary_unary_rpc_method_handler(_boom)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
-        await wrapped.unary_unary("req", context)
+        await _call_unary(wrapped, "req", context)
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.INTERNAL
 
@@ -293,18 +367,22 @@ class TestRecoveryServerInterceptor:
           - The handler's ``AbortError`` propagates and the recovery interceptor does NOT call
             ``context.abort`` (it never converts an intentional abort to INTERNAL).
         """
-        interceptor = _RecoveryServerInterceptor()
+        interceptor = _only(ServerInterceptorBuilder().with_recovery())
 
         async def _aborter(_req: object, _ctx: object) -> str:
-            raise grpc.aio.AbortError("intended")
+            await asyncio.sleep(0)
+            msg = "intended"
+            raise grpc.aio.AbortError(msg)
 
         real = grpc.unary_unary_rpc_method_handler(_aborter)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
         with pytest.raises(grpc.aio.AbortError):
-            await wrapped.unary_unary("req", context)
+            await _call_unary(wrapped, "req", context)
         context.abort.assert_not_called()
 
     @pytest.mark.asyncio
@@ -319,18 +397,22 @@ class TestRecoveryServerInterceptor:
         **What it tests:**
           - The already-yielded item is delivered, then ``context.abort`` is called once with INTERNAL.
         """
-        interceptor = _RecoveryServerInterceptor()
+        interceptor = _only(ServerInterceptorBuilder().with_recovery())
 
         async def _gen(_req: object, _ctx: object):  # noqa: ANN202
+            await asyncio.sleep(0)
             yield "a"
-            raise RuntimeError("mid-stream boom")
+            msg = "mid-stream boom"
+            raise RuntimeError(msg)
 
         real = grpc.unary_stream_rpc_method_handler(_gen)
-        wrapped = await interceptor.intercept_service(AsyncMock(return_value=real), self._details())
+        wrapped = await interceptor.intercept_service(
+            AsyncMock(return_value=real), self._details()
+        )
         context = MagicMock()
         context.abort = AsyncMock()
 
-        collected = [item async for item in wrapped.unary_stream("req", context)]
+        collected = [item async for item in _call_stream(wrapped, "req", context)]
         assert collected == ["a"]
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.INTERNAL
@@ -350,7 +432,7 @@ class TestGracefulServer:
         """
         cfg = ServerConfig()
         assert cfg.port == 50051
-        assert cfg.shutdown_timeout == 30.0
+        assert cfg.shutdown_timeout == pytest.approx(30.0)
 
     def test_custom_config(self) -> None:
         """Test that an explicit ServerConfig retains its overrides.
@@ -401,31 +483,30 @@ class TestServiceAuthInterceptor:
     """Test suite for the s2s service-token validation interceptor."""
 
     @staticmethod
-    def _details(metadata: list[tuple[str, str]]) -> object:
+    def _details(metadata: list[tuple[str, str]]) -> grpc.HandlerCallDetails:
         """Build handler-call-details carrying the given invocation metadata."""
         return MagicMock(invocation_metadata=metadata)
 
     @staticmethod
-    def _handler() -> grpc.RpcMethodHandler:
-        """A real unary-unary handler so the deny path can inspect its streaming shape."""
+    def _handler() -> grpc.RpcMethodHandler[object, object]:
+        """Return a real unary-unary handler so the deny path can inspect its streaming shape."""
         return grpc.unary_unary_rpc_method_handler(lambda _req, _ctx: "ok")
 
     @pytest.mark.asyncio
-    async def test_bypasses_when_no_token_configured(self) -> None:
-        """Test that an empty expected token disables the check (dev bypass).
+    async def test_passes_through_an_unknown_method(self) -> None:
+        """Test that a method with no handler is left for gRPC to reject as UNIMPLEMENTED.
 
         **Why this test is important:**
-          - Local/dev runs have no service token; the interceptor must let every call through
-            rather than lock the service out entirely.
+          - Substituting a deny handler for a ``None`` handler would turn an unknown method into
+            UNAUTHENTICATED and hide the real routing error from the caller.
 
         **What it tests:**
-          - With an empty token, intercept_service returns the real handler unchanged.
+          - With no credentials and a ``None`` handler, intercept_service returns ``None``.
         """
-        interceptor = _ServiceAuthServerInterceptor("")
-        handler = self._handler()
-        continuation = AsyncMock(return_value=handler)
+        interceptor = _only(ServerInterceptorBuilder().with_service_auth("secret"))
+        continuation = AsyncMock(return_value=None)
         result = await interceptor.intercept_service(continuation, self._details([]))
-        assert result is handler
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_allows_valid_bearer_token(self) -> None:
@@ -438,7 +519,7 @@ class TestServiceAuthInterceptor:
         **What it tests:**
           - With a matching token, intercept_service returns the real handler.
         """
-        interceptor = _ServiceAuthServerInterceptor("secret")
+        interceptor = _only(ServerInterceptorBuilder().with_service_auth("secret"))
         handler = self._handler()
         continuation = AsyncMock(return_value=handler)
         details = self._details([("authorization", "Bearer secret")])
@@ -457,7 +538,7 @@ class TestServiceAuthInterceptor:
           - A wrong token yields a substitute handler (not the real one), and invoking it aborts
             with UNAUTHENTICATED.
         """
-        interceptor = _ServiceAuthServerInterceptor("secret")
+        interceptor = _only(ServerInterceptorBuilder().with_service_auth("secret"))
         handler = self._handler()
         continuation = AsyncMock(return_value=handler)
         details = self._details([("authorization", "Bearer wrong")])
@@ -466,7 +547,7 @@ class TestServiceAuthInterceptor:
         assert result is not handler  # a deny handler was substituted
         context = MagicMock()
         context.abort = AsyncMock()
-        await result.unary_unary("req", context)
+        await _call_unary(result, "req", context)
         context.abort.assert_awaited_once()
         assert context.abort.call_args.args[0] == grpc.StatusCode.UNAUTHENTICATED
 
@@ -479,19 +560,25 @@ class TestServiceAuthInterceptor:
             dev-only choice, not a side effect of a blank setting.
 
         **What it tests:**
-          - with_service_auth("secret") includes a _ServiceAuthServerInterceptor.
+          - with_service_auth("secret") includes the service-auth interceptor.
           - with_service_auth("") raises ValueError at wiring time.
           - with_service_auth("", allow_unauthenticated=True) builds without the interceptor.
         """
         with_token = ServerInterceptorBuilder().with_service_auth("secret").build()
-        assert any(isinstance(i, _ServiceAuthServerInterceptor) for i in with_token)
+        assert "_ServiceAuthServerInterceptor" in _names(with_token)
         with pytest.raises(ValueError, match="service token"):
             ServerInterceptorBuilder().with_service_auth("")
-        bypass = ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).build()
-        assert not any(isinstance(i, _ServiceAuthServerInterceptor) for i in bypass)
+        bypass = (
+            ServerInterceptorBuilder()
+            .with_service_auth("", allow_unauthenticated=True)
+            .build()
+        )
+        assert "_ServiceAuthServerInterceptor" not in _names(bypass)
 
     @pytest.mark.asyncio
-    async def test_accepts_the_current_and_previous_token_of_a_rotation_pair(self) -> None:
+    async def test_accepts_the_current_and_previous_token_of_a_rotation_pair(
+        self,
+    ) -> None:
         """A comma-separated {current,previous} expected token admits both during a rotation window.
 
         **Why this test is important:**
@@ -504,7 +591,9 @@ class TestServiceAuthInterceptor:
             denies a wrong token, the whole comma string and a missing header; with_service_auth(" , ")
             raises ValueError like an empty token.
         """
-        [interceptor] = ServerInterceptorBuilder().with_service_auth("new-token, old-token").build()
+        [interceptor] = (
+            ServerInterceptorBuilder().with_service_auth("new-token, old-token").build()
+        )
         handler = self._handler()
 
         async def outcome(metadata: list[tuple[str, str]]) -> bool:
@@ -521,7 +610,9 @@ class TestServiceAuthInterceptor:
         with pytest.raises(ValueError, match="service token"):
             ServerInterceptorBuilder().with_service_auth(" , ")
 
-    def test_build_warns_when_service_auth_is_bypassed_or_claims_are_unauthenticated(self) -> None:
+    def test_build_warns_when_service_auth_is_bypassed_or_claims_are_unauthenticated(
+        self,
+    ) -> None:
         """Building an open server, or claims readable by any caller, logs a warning.
 
         **Why this test is important:**
@@ -533,13 +624,17 @@ class TestServiceAuthInterceptor:
           - with_service_auth("", allow_unauthenticated=True) + with_auth warns about both; a server with
             a real token and with_auth warns about neither.
         """
-        with patch("techai_webutils.clients.rpc.grpc.interceptors.server_builder._logger") as mock_logger:
-            ServerInterceptorBuilder().with_service_auth("", allow_unauthenticated=True).with_auth(
-                _HEADERS
-            ).build()
+        with patch(
+            "techai_webutils.clients.rpc.grpc.interceptors.server_builder._logger"
+        ) as mock_logger:
+            ServerInterceptorBuilder().with_service_auth(
+                "", allow_unauthenticated=True
+            ).with_auth(_HEADERS).build()
             open_warnings = [c.args[0] for c in mock_logger.warning.call_args_list]
             mock_logger.reset_mock()
-            ServerInterceptorBuilder().with_service_auth("secret").with_auth(_HEADERS).build()
+            ServerInterceptorBuilder().with_service_auth("secret").with_auth(
+                _HEADERS
+            ).build()
 
         assert any("bypassed" in message for message in open_warnings)
         assert any("without service auth" in message for message in open_warnings)
@@ -550,8 +645,9 @@ class TestServerInterceptorBuilderFullStack:
     """Covers the with_rate_limit / with_metrics / with_tracing builder slots."""
 
     def test_all_slots_compose_into_the_chain(self) -> None:
-        """Every with_* slot (recovery, rate_limit, metrics, tracing, logging, auth)
-        contributes to the built interceptor chain.
+        """Every with_* slot contributes to the built interceptor chain.
+
+        The slots are recovery, rate_limit, metrics, tracing, logging and auth.
 
         **Why this test is important:**
           - A production server enables the full observability + resilience stack; a
@@ -586,7 +682,10 @@ class TestServerInterceptorBuilderFullStack:
         types = [type(i) for i in interceptors]
         assert TracingServerInterceptor in types, types
         # Tracing sits OUTSIDE logging so the span wraps the handler + request log.
-        assert types.index(TracingServerInterceptor) < types.index(_LoggingServerInterceptor)
+        names = _names(interceptors)
+        assert names.index("TracingServerInterceptor") < names.index(
+            "_LoggingServerInterceptor"
+        )
 
     def test_with_tracing_adds_tracing_interceptor(self) -> None:
         """with_tracing wires a TracingServerInterceptor; omitting it leaves the chain untraced.

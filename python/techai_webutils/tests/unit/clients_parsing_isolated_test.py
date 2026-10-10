@@ -1,6 +1,5 @@
 """Tests for process-isolated parsing (timeout-kill, worker-error, real parse)."""
 
-import multiprocessing as mp
 import os
 import resource
 import time
@@ -12,9 +11,6 @@ import pytest
 from techai_webutils.clients.parsing.isolated.isolated import (
     IsolatedParser,
     IsolationError,
-    _apply_memory_limit,
-    _parse_document,
-    _worker,
     run_isolated,
 )
 from techai_webutils.core.domain import DocumentFormat
@@ -46,7 +42,12 @@ def _large_result() -> str:
 
 def _exit_without_result() -> None:
     """Exit the worker abruptly without a queue put (simulates a segfault / OOM-kill)."""
-    os._exit(0)  # noqa: SLF001 - deliberate hard exit that bypasses the result put
+    os._exit(0)
+
+
+def _address_space_limit() -> tuple[int, int]:
+    """Return the worker's own RLIMIT_AS (soft, hard) pair."""
+    return resource.getrlimit(resource.RLIMIT_AS)
 
 
 def _make_pdf(text: str) -> bytes:
@@ -57,6 +58,8 @@ def _make_pdf(text: str) -> bytes:
 
 
 class TestRunIsolated:
+    """Tests for ``run_isolated``."""
+
     def test_returns_worker_result(self) -> None:
         """Test that a well-behaved task's result is returned from the subprocess.
 
@@ -97,6 +100,22 @@ class TestRunIsolated:
         with pytest.raises(IsolationError, match="kaboom"):
             run_isolated(_boom, timeout_seconds=30)
 
+    def test_worker_error_carries_child_traceback(self) -> None:
+        """Test that a task exception reaches the parent with the child's repr and traceback.
+
+        **Why this test is important:**
+          - The child's stack is otherwise invisible to the parent; without the traceback an
+            isolated parse failure cannot be diagnosed from the consumer's logs.
+
+        **What it tests:**
+          - The IsolationError message holds the exception repr and the child's traceback.
+        """
+        with pytest.raises(IsolationError) as exc_info:
+            run_isolated(_boom, timeout_seconds=30)
+        message = str(exc_info.value)
+        assert "ValueError('kaboom')" in message
+        assert "Traceback (most recent call last)" in message
+
     def test_large_result_round_trips(self) -> None:
         """Test that a result larger than the IPC pipe buffer returns intact, not as a false timeout.
 
@@ -131,95 +150,42 @@ class TestRunIsolated:
         assert time.monotonic() - start < 10.0
 
 
-class TestWorkerEntrypoints:
-    """Cover the child-process entry functions in-process (spawned code is invisible to coverage)."""
+class TestWorkerMemoryCap:
+    """The worker caps its own address space before running the task."""
 
-    def test_parse_document_entry_parses(self) -> None:
-        """Test the module-level parse entry produces a ParsedDocument.
-
-        **Why this test is important:**
-          - This is the function the subprocess runs; if it were wrong, every isolated parse would
-            fail — and subprocess code is not measured by coverage, so it needs a direct test.
-
-        **What it tests:**
-          - _parse_document parses HTML to ok Markdown.
-        """
-        result = _parse_document(b"<html><h1>Hi</h1></html>", "", "p.html")
-        assert result.ok
-        assert "# Hi" in result.markdown_content
-
-    def test_worker_puts_result_on_queue(self) -> None:
-        """Test that the worker puts a success tuple on the queue.
-
-        **What it tests:**
-          - _worker(_double, (5,)) enqueues ("ok", 10).
-        """
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_double, (5,), 0, queue)
-        assert queue.get(timeout=5) == ("ok", 10)
-
-    def test_worker_puts_error_on_queue(self) -> None:
-        """Test that a raising task is captured as an ("err", ...) tuple, not a crash.
-
-        **What it tests:**
-          - _worker(_boom) enqueues an error tuple carrying the message.
-        """
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_boom, (), 0, queue)
-        status, payload = queue.get(timeout=5)
-        assert status == "err"
-        assert "kaboom" in payload
-
-    def test_worker_applies_memory_limit_when_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that the worker applies the memory cap before running the task when one is set.
+    def test_memory_cap_applies_in_the_worker(self) -> None:
+        """Test that ``memory_bytes`` becomes the worker's RLIMIT_AS where the platform allows it.
 
         **Why this test is important:**
           - The RLIMIT_AS cap is what bounds a runaway parser's allocation to a single document; if
-            the worker skipped applying it, an OOM would take the pod, not one document.
+            the worker skipped it, an OOM would take the pod, not one document.
+          - Platforms that reject RLIMIT_AS (macOS) must degrade to no cap, never fail the task.
 
         **What it tests:**
-          - _worker with memory_bytes > 0 calls _apply_memory_limit with that value, then still
-            enqueues the result. (Patched so the test process isn't itself capped.)
+          - A task reading its own RLIMIT_AS under ``memory_bytes=cap`` sees ``(cap, cap)``, or the
+            inherited limit where the platform rejects the cap; either way the task completes.
         """
-        applied: list[int] = []
-        monkeypatch.setattr(
-            "techai_webutils.clients.parsing.isolated.isolated._apply_memory_limit",
-            applied.append,
-        )
-        queue: mp.Queue = mp.get_context("spawn").Queue()  # type: ignore[type-arg]
-        _worker(_double, (3,), 512, queue)
-        assert applied == [512]
-        assert queue.get(timeout=5) == ("ok", 6)
+        cap = 64 * 1024**3
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        limits = run_isolated(_address_space_limit, timeout_seconds=30, memory_bytes=cap)
+        assert limits in {(cap, cap), inherited}
 
-    def test_apply_memory_limit_sets_when_supported(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that the memory limit is applied as an (n, n) RLIMIT_AS when the platform allows.
-
-        **What it tests:**
-          - _apply_memory_limit(n) calls setrlimit with (n, n).
-        """
-        captured: dict[str, tuple[int, int]] = {}
-        monkeypatch.setattr(resource, "setrlimit", lambda _res, limits: captured.setdefault("l", limits))
-        _apply_memory_limit(456)
-        assert captured["l"] == (456, 456)
-
-    def test_apply_memory_limit_is_best_effort(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that a platform rejecting RLIMIT_AS is swallowed (best-effort).
+    def test_zero_memory_bytes_leaves_the_limit_alone(self) -> None:
+        """Test that memory_bytes=0 runs the task under the inherited RLIMIT_AS.
 
         **Why this test is important:**
-          - macOS rejects RLIMIT_AS; the cap must degrade to a no-op there, never crash the parse.
+          - Zero means "no cap"; applying a zero-byte limit would make every task fail to allocate.
 
         **What it tests:**
-          - A setrlimit that raises OSError does not propagate.
+          - A task reading its own RLIMIT_AS under memory_bytes=0 sees the parent's limit.
         """
-
-        def _raise(_res: int, _limits: tuple[int, int]) -> None:
-            raise OSError
-
-        monkeypatch.setattr(resource, "setrlimit", _raise)
-        _apply_memory_limit(456)  # must not raise
+        inherited = resource.getrlimit(resource.RLIMIT_AS)
+        assert run_isolated(_address_space_limit, timeout_seconds=30) == inherited
 
 
 class TestIsolatedParser:
+    """Tests for the isolated parser."""
+
     @pytest.mark.asyncio
     async def test_parses_pdf_in_subprocess(self) -> None:
         """Test that IsolatedParser parses a real document end-to-end in a subprocess.
@@ -238,7 +204,27 @@ class TestIsolatedParser:
         assert "Isolated" in result.markdown_content
 
     @pytest.mark.asyncio
-    async def test_parse_timeout_becomes_failed_document(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_parses_html_in_subprocess(self) -> None:
+        """Test that IsolatedParser parses HTML bytes to Markdown in a subprocess.
+
+        **Why this test is important:**
+          - HTML takes the MarkItDown conversion path, not the PDF page path, so it needs its own
+            end-to-end proof through the isolated worker.
+
+        **What it tests:**
+          - An HTML heading parses ok, as HTML, to a Markdown heading.
+        """
+        result = await IsolatedParser(timeout_seconds=60).parse(
+            b"<html><h1>Hi</h1></html>", filename="p.html"
+        )
+        assert result.ok
+        assert result.document_format is DocumentFormat.HTML
+        assert "# Hi" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parse_timeout_becomes_failed_document(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that a subprocess timeout maps to a failed ParsedDocument, not a raise.
 
         **Why this test is important:**
@@ -253,8 +239,12 @@ class TestIsolatedParser:
         def _timeout(*_args: object, **_kwargs: object) -> object:
             raise TimeoutError
 
-        monkeypatch.setattr("techai_webutils.clients.parsing.isolated.isolated.run_isolated", _timeout)
-        result = await IsolatedParser(timeout_seconds=1).parse(b"%PDF-1.7\n", filename="x.pdf")
+        monkeypatch.setattr(
+            "techai_webutils.clients.parsing.isolated.isolated.run_isolated", _timeout
+        )
+        result = await IsolatedParser(timeout_seconds=1).parse(
+            b"%PDF-1.7\n", filename="x.pdf"
+        )
         assert not result.ok
         assert result.error == "parse_timeout"
         assert result.document_format is DocumentFormat.PDF
@@ -275,9 +265,12 @@ class TestIsolatedParser:
         """
 
         def _iso(*_args: object, **_kwargs: object) -> object:
-            raise IsolationError("worker gone")
+            msg = "worker gone"
+            raise IsolationError(msg)
 
-        monkeypatch.setattr("techai_webutils.clients.parsing.isolated.isolated.run_isolated", _iso)
+        monkeypatch.setattr(
+            "techai_webutils.clients.parsing.isolated.isolated.run_isolated", _iso
+        )
         result = await IsolatedParser().parse(b"<html></html>", filename="x.html")
         assert not result.ok
         assert "parse_isolation_failed" in result.error
@@ -298,7 +291,51 @@ class TestIsolatedParser:
         """
         pdf = tmp_path / "doc.pdf"
         pdf.write_bytes(_make_pdf("Isolated path content"))
-        result = await IsolatedParser(timeout_seconds=60).parse_path(str(pdf), filename="doc.pdf")
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(pdf), filename="doc.pdf"
+        )
         assert result.ok
         assert result.document_format is DocumentFormat.PDF
         assert "Isolated" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parse_path_parses_html_in_subprocess(self, tmp_path: Path) -> None:
+        """Test that IsolatedParser.parse_path parses an HTML file from disk in a subprocess.
+
+        **Why this test is important:**
+          - The path lane streams non-PDF formats through MarkItDown from the open file; this
+            proves that branch works through the isolated worker.
+
+        **What it tests:**
+          - An HTML file on disk parses ok, as HTML, to a Markdown heading.
+        """
+        page = tmp_path / "p.html"
+        page.write_bytes(b"<html><h1>Hi</h1></html>")
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(page), filename="p.html"
+        )
+        assert result.ok
+        assert result.document_format is DocumentFormat.HTML
+        assert "# Hi" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_parse_path_worker_error_becomes_failed_document(
+        self, tmp_path: Path
+    ) -> None:
+        """Test that a real error raised in the worker becomes a failed ParsedDocument.
+
+        **Why this test is important:**
+          - A task that raises in the child must reach the parent as an error result and fail
+            that one document, not crash the consumer or report an empty success.
+
+        **What it tests:**
+          - parse_path on a missing file fails with parse_isolation_failed carrying the
+            child's FileNotFoundError.
+        """
+        missing = tmp_path / "missing.html"
+        result = await IsolatedParser(timeout_seconds=60).parse_path(
+            str(missing), filename="missing.html"
+        )
+        assert not result.ok
+        assert "parse_isolation_failed" in result.error
+        assert "FileNotFoundError" in result.error

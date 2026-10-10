@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import grpc
 import pytest
 from grpc.aio import AioRpcError, Metadata
@@ -13,12 +15,18 @@ from techai_webutils.foundation.resilience.grpc_boundary import (
 )
 
 
-def _rpc_error(code: grpc.StatusCode, detail: str = "boom", trailing: Metadata | None = None) -> AioRpcError:
+def _rpc_error(
+    code: grpc.StatusCode, detail: str = "boom", trailing: Metadata | None = None
+) -> AioRpcError:
     """Build a raw AioRpcError for a status code (matching the SDK's positional constructor)."""
-    return AioRpcError(code, Metadata(), trailing if trailing is not None else Metadata(), detail)
+    return AioRpcError(
+        code, Metadata(), trailing if trailing is not None else Metadata(), detail
+    )
 
 
 class TestGrpcErrorToAppError:
+    """Tests for ``grpc_error_to_app_error``."""
+
     def test_transient_codes_map_to_transient_app_error(self) -> None:
         """Test that UNAVAILABLE / DEADLINE_EXCEEDED become transient AppErrors.
 
@@ -92,7 +100,10 @@ class TestGrpcErrorToAppError:
             )
         )
         retry_after = grpc_error_to_app_error(
-            _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=Metadata(("retry-after", "2")))
+            _rpc_error(
+                grpc.StatusCode.RESOURCE_EXHAUSTED,
+                trailing=Metadata(("retry-after", "2")),
+            )
         )
 
         assert pushback.code is ErrorCode.UNAVAILABLE
@@ -114,11 +125,15 @@ class TestGrpcErrorToAppError:
             Metadata(("grpc-retry-pushback-ms", "soon")),
             Metadata(("retry-after", "-1")),
         ):
-            err = grpc_error_to_app_error(_rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=trailing))
+            err = grpc_error_to_app_error(
+                _rpc_error(grpc.StatusCode.RESOURCE_EXHAUSTED, trailing=trailing)
+            )
             assert err.code is ErrorCode.RESOURCE_EXHAUSTED
 
 
 class TestWrapGrpcErrors:
+    """Tests for ``wrap_grpc_errors``."""
+
     @pytest.mark.asyncio
     async def test_wraps_raw_rpc_error_into_app_error(self) -> None:
         """Test that the decorator translates a raised AioRpcError into a coded AppError.
@@ -135,6 +150,7 @@ class TestWrapGrpcErrors:
 
         @wrap_grpc_errors
         async def call() -> None:
+            await asyncio.sleep(0)
             raise _rpc_error(grpc.StatusCode.UNAVAILABLE)
 
         with pytest.raises(AppError) as excinfo:

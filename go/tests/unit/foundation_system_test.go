@@ -3,7 +3,6 @@ package unit_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -39,12 +39,12 @@ func TestRunner_RealCommands(t *testing.T) {
 	require.Error(t, r.Run(ctx, "", "definitely-not-a-real-binary-xyz"))
 
 	res := r.RunBuffered(ctx, "", "go", "version")
-	assert.NoError(t, res.Err)
+	require.NoError(t, res.Err)
 	assert.Equal(t, 0, res.ExitCode)
 	assert.Contains(t, string(res.Stdout), "go version")
 
 	bad := r.RunBuffered(ctx, "", "definitely-not-a-real-binary-xyz")
-	assert.Error(t, bad.Err)
+	require.Error(t, bad.Err)
 	assert.Equal(t, -1, bad.ExitCode, "missing binary never starts -> exit -1")
 
 	require.NoError(t, r.RunWithEnv(ctx, "", []string{"FOO=bar"}, "go", "version"))
@@ -132,13 +132,13 @@ func TestBufferingRunner(t *testing.T) {
 	assert.Equal(t, "out-errout-err", string(b.Captured()))
 
 	assert.True(t, b.Exists("anything"), "Exists delegates")
-	assert.NoError(t, b.RequireTool("x", ""), "RequireTool delegates")
+	require.NoError(t, b.RequireTool("x", ""), "RequireTool delegates")
 
 	// Run (no env) wraps a failing inner result and still captures its output.
 	failingInner := mocks.NewMockCommandRunner(ctrl)
 	failingInner.EXPECT().
 		RunBuffered(gomock.Any(), "", "tool", "arg").
-		Return(system.CmdResult{Stderr: []byte("boom"), Err: errors.New("exit 1")})
+		Return(system.CmdResult{Stderr: []byte("boom"), Err: apperr.Sentinel("exit 1")})
 	failing := system.NewQuietBufferingRunner(failingInner)
 	err := failing.Run(context.Background(), "", "tool", "arg")
 	require.Error(t, err)
@@ -175,7 +175,7 @@ func TestBufferingRunner(t *testing.T) {
 	replayFailInner := mocks.NewMockCommandRunner(ctrl)
 	replayFailInner.EXPECT().
 		RunBuffered(gomock.Any(), "", "x").
-		Return(system.CmdResult{Err: errors.New("x")})
+		Return(system.CmdResult{Err: apperr.Sentinel("x")})
 	replayFail := system.NewBufferingRunner(replayFailInner)
 	require.Error(t, replayFail.Run(context.Background(), "", "x"))
 
@@ -248,7 +248,12 @@ func TestRunner_WritesChildOutputToInjectedWriters(t *testing.T) {
 	procOut, procErr := stop()
 
 	assert.Contains(t, direct, "go1.")
-	assert.Equal(t, 2, strings.Count(out.String(), "go1."), "decorated run reaches the injected stdout")
+	assert.Equal(
+		t,
+		2,
+		strings.Count(out.String(), "go1."),
+		"decorated run reaches the injected stdout",
+	)
 	assert.NotEmpty(t, errOut.String())
 	assert.Empty(t, procOut)
 	assert.Empty(t, procErr)

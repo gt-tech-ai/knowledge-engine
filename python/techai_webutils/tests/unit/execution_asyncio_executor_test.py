@@ -1,16 +1,22 @@
 """Tests for AsyncioExecutor (the in-process Executor backed by fan_out)."""
 
+import asyncio
+
 import pytest
+
 from techai_webutils.core.interfaces.execution import BatchResult, Executor, StepResult
 from techai_webutils.execution.executor.asyncio_executor import AsyncioExecutor
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing mapper."""
+    """Map ``item`` to a passing step (a trivial always-passing mapper)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
 class TestAsyncioExecutor:
+    """Tests for the asyncio executor."""
+
     @pytest.mark.asyncio
     async def test_runs_all_items_bounded(self) -> None:
         """Test that AsyncioExecutor.run fans every item out and returns a BatchResult.
@@ -41,6 +47,7 @@ class TestAsyncioExecutor:
         """
 
         async def fn(item: int) -> StepResult:
+            await asyncio.sleep(0)
             if item == 1:
                 msg = "x"
                 raise ValueError(msg)

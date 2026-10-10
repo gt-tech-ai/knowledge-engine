@@ -12,11 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // TestToHTTPStatusUpstream tests that the CodeUpstream error code maps to HTTP
@@ -73,7 +74,7 @@ func TestWrapPreservesOriginStack(t *testing.T) {
 	wrapped := apperr.Wrap(origin, apperr.CodeUnavailable, "wrapped")
 
 	var wrappedErr *apperr.AppError
-	require.True(t, errors.As(wrapped, &wrappedErr))
+	require.ErrorAs(t, wrapped, &wrappedErr)
 	assert.Equal(t, originStack, wrappedErr.StackTrace(),
 		"wrapping an AppError should preserve the origin stack")
 }
@@ -87,8 +88,8 @@ func TestWrapPreservesOriginStack(t *testing.T) {
 //
 // What it tests:
 //   - The first frame of the trace is this test function for New, for a helper
-//     constructor that calls New internally (InvalidInput, Unavailable), and for Wrap of a
-//     plain error — each adds errors-package frames the trace must skip.
+//     constructor that calls New internally (InvalidInput, Unavailable), and for Wrap of
+//     a plain error — each adds errors-package frames the trace must skip.
 func TestStackTraceStartsAtCaller(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +104,11 @@ func TestStackTraceStartsAtCaller(t *testing.T) {
 	}
 
 	var wrapped *apperr.AppError
-	require.True(t, errors.As(
-		apperr.Wrap(errors.New("cause"), apperr.CodeInternal, "origin"), &wrapped))
+	require.ErrorAs(
+		t,
+		apperr.Wrap(apperr.Sentinel("cause"), apperr.CodeInternal, "origin"),
+		&wrapped,
+	)
 	first, _, _ := strings.Cut(wrapped.StackTrace(), "\n")
 	assert.True(t, strings.HasSuffix(first, ".TestStackTraceStartsAtCaller"),
 		"Wrap: first frame = %q, want the calling test function", first)
@@ -124,11 +128,12 @@ func TestMarshalLogObjectWithCause(t *testing.T) {
 	t.Parallel()
 
 	wrapped := apperr.Wrap(
-		errors.New("connection refused"),
+		apperr.Sentinel("connection refused"),
 		apperr.CodeUnavailable,
 		"db down",
 	)
-	appErr, ok := wrapped.(*apperr.AppError)
+	appErr := &apperr.AppError{}
+	ok := errors.As(wrapped, &appErr)
 	require.True(t, ok)
 
 	enc := zapcore.NewMapObjectEncoder()
@@ -150,8 +155,9 @@ func TestMarshalLogObjectWithCause(t *testing.T) {
 func TestZapFieldsWithCause(t *testing.T) {
 	t.Parallel()
 
-	wrapped := apperr.Wrap(errors.New("boom"), apperr.CodeInternal, "op failed")
-	appErr, ok := wrapped.(*apperr.AppError)
+	wrapped := apperr.Wrap(apperr.Sentinel("boom"), apperr.CodeInternal, "op failed")
+	appErr := &apperr.AppError{}
+	ok := errors.As(wrapped, &appErr)
 	require.True(t, ok)
 
 	keys := fieldKeySet(apperr.ZapFields(appErr))

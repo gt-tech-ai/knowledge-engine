@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from techai_webutils.core.domain_types.types import Page, PageRequest
 from techai_webutils.core.errors.errors import NotFoundError
 from techai_webutils.core.interfaces.circuit_breaker import CircuitBreakerInterface
@@ -44,7 +45,8 @@ def _store_mock(
     makes every op raise ``RuntimeError`` (drives the error/tracing/logging/metrics
     branches).
     """
-    data: dict[object, object] = dict(seed or {})
+    data: dict[object, object] = {}
+    data.update((seed or {}).items())
     counter = {"n": 0}
     mock = AsyncMock(spec=Store)
 
@@ -126,7 +128,9 @@ def _retrier_mock() -> AsyncMock:
     return mock
 
 
-def _cb_mock(*, is_open: bool = False, enter_error: BaseException | None = None) -> MagicMock:
+def _cb_mock(
+    *, is_open: bool = False, enter_error: BaseException | None = None
+) -> MagicMock:
     """Build a ``MagicMock(spec=CircuitBreakerInterface)`` usable as a ``with`` context.
 
     A closed breaker (default) enters and exits without suppressing exceptions. An
@@ -135,7 +139,11 @@ def _cb_mock(*, is_open: bool = False, enter_error: BaseException | None = None)
     proving non-circuit errors propagate unchanged.
     """
     mock = MagicMock(spec=CircuitBreakerInterface)
-    error = enter_error if enter_error is not None else (CircuitOpenError() if is_open else None)
+    error = (
+        enter_error
+        if enter_error is not None
+        else (CircuitOpenError() if is_open else None)
+    )
     if error is not None:
         mock.__enter__.side_effect = error
     else:
@@ -160,7 +168,7 @@ class TestRepositoryBuilder:
           - get operation returns the seeded entity unmodified
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").build()
 
         assert await repo.get("1") == "entity"
@@ -178,7 +186,7 @@ class TestRepositoryBuilder:
           - Logger receives a 'repo.get' message after a get call
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -199,7 +207,7 @@ class TestRepositoryBuilder:
           - Histogram observe is called exactly once after a get call
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -220,7 +228,7 @@ class TestRepositoryBuilder:
           - Histogram observe is called at least once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         histogram = MagicMock()
         repo = (
@@ -256,7 +264,7 @@ class TestRepositoryResilienceDecorators:
           - get operation returns the seeded entity when completing before the deadline
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         result = await repo.get("1")
@@ -277,7 +285,7 @@ class TestRepositoryResilienceDecorators:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         store = _store_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(0.01).build()
 
         with pytest.raises(AppTimeoutError):
@@ -297,7 +305,7 @@ class TestRepositoryResilienceDecorators:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -318,7 +326,7 @@ class TestRepositoryResilienceDecorators:
           - Entity is returned successfully when circuit breaker is closed
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -340,7 +348,7 @@ class TestRepositoryResilienceDecorators:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -363,7 +371,7 @@ class TestRepositoryResilienceDecorators:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         histogram = MagicMock()
         retrier = _retrier_mock()
@@ -408,7 +416,7 @@ class TestTimeoutRepositoryDecoratorExtended:
           - Page items contain the seeded entity
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         from techai_webutils.core.domain_types.types import PageRequest
@@ -432,7 +440,7 @@ class TestTimeoutRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import AppTimeoutError
 
         store = _store_mock(seed={"1": "entity"}, delay=2.0)
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(0.01).build()
 
         from techai_webutils.core.domain_types.types import PageRequest
@@ -453,7 +461,7 @@ class TestTimeoutRepositoryDecoratorExtended:
           - Created entity is returned successfully
         """
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         result = await repo.create("new-entity")
@@ -472,7 +480,7 @@ class TestTimeoutRepositoryDecoratorExtended:
           - Updated entity value is returned successfully
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         result = await repo.update("1", "updated")
@@ -491,7 +499,7 @@ class TestTimeoutRepositoryDecoratorExtended:
           - Entity no longer exists in the store after deletion
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         await repo.delete("1")
@@ -511,7 +519,7 @@ class TestTimeoutRepositoryDecoratorExtended:
           - Returns False for a missing entity
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         repo = RepositoryBuilder(base, "test").with_timeout(5.0).build()
 
         assert await repo.exists("1") is True
@@ -535,7 +543,7 @@ class TestRetryRepositoryDecoratorExtended:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -559,7 +567,7 @@ class TestRetryRepositoryDecoratorExtended:
           - Retrier is awaited exactly once
         """
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -581,7 +589,7 @@ class TestRetryRepositoryDecoratorExtended:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -603,7 +611,7 @@ class TestRetryRepositoryDecoratorExtended:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -624,7 +632,7 @@ class TestRetryRepositoryDecoratorExtended:
           - Retrier is awaited exactly once
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         retrier = _retrier_mock()
         repo = RepositoryBuilder(base, "test").with_retry(retrier).build()  # type: ignore[arg-type]
 
@@ -648,7 +656,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - Page total matches seeded entity count
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -672,7 +680,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -694,7 +702,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - Created entity is returned successfully
         """
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -716,7 +724,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -736,7 +744,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - Updated entity value is returned successfully
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -758,7 +766,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -778,7 +786,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - Delete completes without raising an error
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -800,7 +808,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -820,7 +828,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - Returns True for an existing entity
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=False)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -842,7 +850,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
         from techai_webutils.core.errors.errors import UnavailableError
 
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(is_open=True)
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -862,7 +870,7 @@ class TestCircuitBreakerRepositoryDecoratorExtended:
           - ValueError from a failing circuit breaker is re-raised as-is
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         cb = _cb_mock(enter_error=ValueError("unexpected CB error"))
         repo = RepositoryBuilder(base, "test").with_circuit_breaker(cb).build()  # type: ignore[arg-type]
 
@@ -886,7 +894,7 @@ class TestLoggingRepositoryDecoratorExtended:
           - Logger captures a 'repo.list' message
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -909,7 +917,7 @@ class TestLoggingRepositoryDecoratorExtended:
           - Logger captures a 'repo.create' message
         """
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -930,7 +938,7 @@ class TestLoggingRepositoryDecoratorExtended:
           - Logger captures a 'repo.update' message
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -951,7 +959,7 @@ class TestLoggingRepositoryDecoratorExtended:
           - Logger captures a 'repo.delete' message
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -972,7 +980,7 @@ class TestLoggingRepositoryDecoratorExtended:
           - Returns True for an existing entity
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -997,7 +1005,7 @@ class TestMetricsRepositoryDecoratorExtended:
           - Operation label is 'list'
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -1022,7 +1030,7 @@ class TestMetricsRepositoryDecoratorExtended:
           - Operation label is 'create'
         """
         store = _store_mock()
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -1045,7 +1053,7 @@ class TestMetricsRepositoryDecoratorExtended:
           - Operation label is 'update'
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -1068,7 +1076,7 @@ class TestMetricsRepositoryDecoratorExtended:
           - Operation label is 'delete'
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -1091,7 +1099,7 @@ class TestMetricsRepositoryDecoratorExtended:
           - Operation label is 'exists'
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         histogram = MagicMock()
         repo = RepositoryBuilder(base, "users").with_metrics(histogram).build()
 
@@ -1107,7 +1115,7 @@ class TestMetricsRepositoryDecoratorExtended:
 
 
 def _page_request():  # noqa: ANN202
-    """A first-page request (imported here to keep the module import list stable)."""
+    """Return a first-page request (imported here to keep the module import list stable)."""
     from techai_webutils.core.domain_types.types import PageRequest
 
     return PageRequest(page_size=10, page_number=1)
@@ -1128,7 +1136,7 @@ class TestTracingRepositoryDecorator:
           - Each of get/list/create/update/delete/exists opens the matching span.
         """
         store = _store_mock(seed={"1": "entity"})
-        base: BaseRepository[str, dict, str] = BaseRepository(store)
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(store)
         tracer = MagicMock()
         repo = RepositoryBuilder(base, "users").with_tracing(tracer).build()
 
@@ -1160,7 +1168,9 @@ class TestTracingRepositoryDecorator:
         **What it tests:**
           - A raising inner op calls span.record_error and the exception propagates.
         """
-        base: BaseRepository[str, dict, str] = BaseRepository(_store_mock(failing=True))
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(
+            _store_mock(failing=True)
+        )
         tracer = MagicMock()
         span = tracer.span.return_value.__enter__.return_value
         repo = RepositoryBuilder(base, "users").with_tracing(tracer).build()
@@ -1184,7 +1194,9 @@ class TestLoggingRepositoryDecoratorFailurePaths:
         **What it tests:**
           - get/list/create/update/delete each emit their ``failed`` log and re-raise.
         """
-        base: BaseRepository[str, dict, str] = BaseRepository(_store_mock(failing=True))
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(
+            _store_mock(failing=True)
+        )
         logger = MagicMock()
         repo = RepositoryBuilder(base, "users").with_logging(logger).build()  # type: ignore[arg-type]
 
@@ -1223,9 +1235,15 @@ class TestMetricsRepositoryDecoratorErrorCounter:
         **What it tests:**
           - A raising op increments the errors counter and observes duration once.
         """
-        base: BaseRepository[str, dict, str] = BaseRepository(_store_mock(failing=True))
+        base: BaseRepository[str, dict[str, object], str] = BaseRepository(
+            _store_mock(failing=True)
+        )
         histogram, executions, errors = MagicMock(), MagicMock(), MagicMock()
-        repo = RepositoryBuilder(base, "users").with_metrics(histogram, executions, errors).build()
+        repo = (
+            RepositoryBuilder(base, "users")
+            .with_metrics(histogram, executions, errors)
+            .build()
+        )
 
         with pytest.raises(RuntimeError):
             await repo.get("1")

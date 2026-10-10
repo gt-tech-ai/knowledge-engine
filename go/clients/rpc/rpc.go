@@ -1,9 +1,9 @@
-// Package rpc is the RPC client tier: it selects an RPC transport backend — gRPC
-// today (grpc/) — by Kind and returns the RPCClient contract, so switching RPC
-// frameworks is a config change, not a caller edit. RPCClient is defined here
-// rather than in core because it exposes grpc.ClientConnInterface — an SDK seam
-// (ARCHITECTURE.md#interface-composition) — which keeps the gRPC dependency out of the dependency-free core
-// layer. It mirrors the cache/storage NewFromConfig factory shape.
+// Package rpc is the RPC client tier: it selects an RPC transport backend — gRPC today
+// (grpc/) — by Kind and returns the RPCClient contract, so switching RPC frameworks is a
+// config change, not a caller edit. RPCClient is defined here rather than in core because
+// it exposes grpc.ClientConnInterface — an SDK seam
+// (ARCHITECTURE.md#interface-composition) — which keeps the gRPC dependency out of the
+// dependency-free core layer. It mirrors the cache/storage NewFromConfig factory shape.
 package rpc
 
 import (
@@ -12,14 +12,15 @@ import (
 	"google.golang.org/grpc"
 
 	grpcbackend "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// RPCClient is the RPC client contract: a lifecycle-managed, health-checkable
-// client (interfaces.Client) that exposes the connection generated stubs are built
-// on. It is an SDK seam (ARCHITECTURE.md#interface-composition) — Conn returns grpc.ClientConnInterface — so
-// the contract lives in this tier, not core, to keep gRPC out of the core layer.
+// RPCClient is the RPC client contract: a lifecycle-managed, health-checkable client
+// (interfaces.Client) that exposes the connection generated stubs are built on. It is an
+// SDK seam (ARCHITECTURE.md#interface-composition) — Conn returns
+// grpc.ClientConnInterface — so the contract lives in this tier, not core, to keep gRPC
+// out of the core layer.
 type RPCClient interface {
 	// Client contributes the lifecycle-managed, health-checkable client surface.
 	interfaces.Client
@@ -65,8 +66,8 @@ func NewFromConfig(cfg Config) (RPCClient, error) {
 	case KindGRPC:
 		return grpcbackend.NewLifecycleClient(cfg.GRPC), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown rpc kind: %v", cfg.Kind),
 		)
 	}

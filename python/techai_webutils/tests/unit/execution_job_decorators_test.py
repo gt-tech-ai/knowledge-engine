@@ -36,7 +36,9 @@ class _Job:
         group: str = "g",
         ran: list[str] | None = None,
     ) -> None:
-        self._result = result if result is not None else BatchResult(results=[StepResult(name="x")])
+        self._result = (
+            result if result is not None else BatchResult(results=[StepResult(name="x")])
+        )
         self._raises = raises
         self._name = name
         self._group = group
@@ -66,24 +68,24 @@ def _recording_metrics() -> tuple[MagicMock, SimpleNamespace]:
     counter_cache: dict[str, MagicMock] = {}
     hist_cache: dict[str, MagicMock] = {}
 
-    def _counter(name: str, help_text: str, labels: list[str] | None = None) -> MagicMock:
+    def _counter(
+        name: str, _help_text: str, _labels: list[str] | None = None
+    ) -> MagicMock:
         if name not in counter_cache:
             calls = counter_calls.setdefault(name, [])
             mock = MagicMock(spec=MetricCounter)
-            mock.inc.side_effect = lambda value=1.0, **labels: calls.append((value, labels))
+            mock.inc.side_effect = lambda value=1.0, **labels: calls.append((
+                value,
+                labels,
+            ))
             counter_cache[name] = mock
         return counter_cache[name]
 
-    def _histogram(
-        name: str,
-        help_text: str,
-        labels: list[str] | None = None,
-        buckets: list[float] | None = None,
-    ) -> MagicMock:
+    def _histogram(name: str, *_args: object, **_kwargs: object) -> MagicMock:
         if name not in hist_cache:
             obs = hist_obs.setdefault(name, [])
             mock = MagicMock(spec=MetricHistogram)
-            mock.observe.side_effect = lambda value, **labels: obs.append(value)
+            mock.observe.side_effect = lambda value, **_labels: obs.append(value)
             hist_cache[name] = mock
         return hist_cache[name]
 
@@ -98,7 +100,9 @@ def _recording_logger() -> tuple[MagicMock, list[tuple[str, str]]]:
     msgs: list[tuple[str, str]] = []
     logger = MagicMock(spec=Logger)
     for level in ("info", "warning", "error", "exception"):
-        getattr(logger, level).side_effect = lambda msg, _level=level, **kwargs: msgs.append((_level, msg))
+        getattr(logger, level).side_effect = lambda msg, _level=level, **_kwargs: (
+            msgs.append((_level, msg))
+        )
     return logger, msgs
 
 
@@ -111,16 +115,20 @@ def _recording_tracer() -> tuple[MagicMock, SimpleNamespace]:
     """
     acc = SimpleNamespace(spans=[], errors=[])
     span = MagicMock(spec=TracerSpan)
-    span.record_error.side_effect = lambda error: acc.errors.append(error)
+    span.record_error.side_effect = acc.errors.append
     span_cm = MagicMock()
     span_cm.__enter__.return_value = span
     span_cm.__exit__.return_value = False
     tracer = MagicMock(spec=TracerProvider)
-    tracer.span.side_effect = lambda name, **attributes: acc.spans.append(name) or span_cm
+    tracer.span.side_effect = lambda name, **_attributes: (
+        acc.spans.append(name) or span_cm
+    )
     return tracer, acc
 
 
 class TestJobDecorators:
+    """Tests for the job decorators."""
+
     @pytest.mark.asyncio
     async def test_no_decorators_returns_inner_unchanged(self) -> None:
         """Test that a chain with no decorators returns the inner job unchanged.
@@ -165,20 +173,29 @@ class TestJobDecorators:
         """
         metrics, acc = _recording_metrics()
         ok = (
-            wrap(_Job(BatchResult(results=[StepResult(name="x", status=StepStatus.PASS)])))
+            wrap(
+                _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.PASS)]))
+            )
             .with_metrics(metrics)
             .build()
         )
         await ok.execute()
         bad = (
             wrap(
-                _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")])),
+                _Job(
+                    BatchResult(
+                        results=[StepResult(name="x", status=StepStatus.FAIL, error="e")]
+                    )
+                ),
             )
             .with_metrics(metrics)
             .build()
         )
         await bad.execute()
-        outcomes = [labels["outcome"] for _, labels in acc.counter_calls["execution_job_runs_total"]]
+        outcomes = [
+            labels["outcome"]
+            for _, labels in acc.counter_calls["execution_job_runs_total"]
+        ]
         assert outcomes == ["ok", "failed"]
         assert len(acc.hist_obs["execution_job_duration_seconds"]) == 2
 
@@ -209,7 +226,9 @@ class TestJobDecorators:
           - A job returning a FAIL result logs a start (info) then a finished-with-failures (warning).
         """
         logger, msgs = _recording_logger()
-        failing = _Job(BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")]))
+        failing = _Job(
+            BatchResult(results=[StepResult(name="x", status=StepStatus.FAIL, error="e")])
+        )
         await wrap(failing).with_logger(logger).build().execute()
         assert [level for level, _ in msgs] == ["info", "warning"]
 
@@ -250,6 +269,8 @@ class TestJobDecorators:
 
 
 class TestConditional:
+    """Tests for the conditional ``when`` job."""
+
     @pytest.mark.asyncio
     async def test_when_false_skips_inner(self) -> None:
         """Test that a false condition skips the inner job with a SKIP result.

@@ -67,7 +67,9 @@ class MessagingFactPublisher(FactPublisher):
         self._dropped: MetricCounter | None = None
         if metrics is not None:
             self._dropped = metrics.counter(
-                "gen_ai_fact_dropped_total", "Analytics facts dropped before publish, by reason.", ["reason"]
+                "gen_ai_fact_dropped_total",
+                "Analytics facts dropped before publish, by reason.",
+                ["reason"],
             )
 
     def _drop(self, count: int, reason: str) -> None:
@@ -110,7 +112,9 @@ class MessagingFactPublisher(FactPublisher):
             return
         self._closing.set()
         self._logger.error(
-            "fact sender stopped; later facts are dropped", queue=self._queue_name, exc_info=exc
+            "fact sender stopped; later facts are dropped",
+            queue=self._queue_name,
+            exc_info=exc,
         )
 
     async def __aexit__(
@@ -159,7 +163,9 @@ class MessagingFactPublisher(FactPublisher):
             if self._closing.is_set() or remaining <= 0:
                 break
             try:
-                batch.append(await asyncio.wait_for(self._buffer.get(), timeout=remaining))
+                batch.append(
+                    await asyncio.wait_for(self._buffer.get(), timeout=remaining)
+                )
             except TimeoutError:
                 break
         return batch
@@ -173,7 +179,10 @@ class MessagingFactPublisher(FactPublisher):
             except Exception:
                 self._drop(len(batch), "publish_error")
                 self._logger.warning(
-                    "fact batch publish failed", queue=self._queue_name, size=len(batch), exc_info=True
+                    "fact batch publish failed",
+                    queue=self._queue_name,
+                    size=len(batch),
+                    exc_info=True,
                 )
             finally:
                 for _ in batch:

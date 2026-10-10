@@ -52,7 +52,10 @@ _TRANSIENT_BOTOCORE = (
 """botocore connection-level exception types that are always retriable."""
 
 # gRPC status codes treated as transient (peer briefly down / deadline hit).
-_TRANSIENT_GRPC = frozenset({grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED})
+_TRANSIENT_GRPC = frozenset({
+    grpc.StatusCode.UNAVAILABLE,
+    grpc.StatusCode.DEADLINE_EXCEEDED,
+})
 """gRPC status codes treated as transient (peer briefly down / deadline hit)."""
 
 # HTTP 5xx codes that are genuinely retriable (transient server/gateway faults). 501
@@ -75,7 +78,9 @@ def _botocore_transient(err: BaseException) -> bool:
         response = err.response or {}
         code = response.get("Error", {}).get("Code", "")
         status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
-        return code in _THROTTLE_CODES or (isinstance(status, int) and status in _TRANSIENT_HTTP_STATUS)
+        return code in _THROTTLE_CODES or (
+            isinstance(status, int) and status in _TRANSIENT_HTTP_STATUS
+        )
     # A bare BotoCoreError with no more specific type is treated as transient (I/O layer).
     return isinstance(err, BotoCoreError)
 
@@ -132,7 +137,12 @@ def is_transient(err: BaseException) -> bool:
     """
     if isinstance(err, AppError):
         return err.is_transient
-    return _botocore_transient(err) or _grpc_transient(err) or _httpx_transient(err) or _qdrant_transient(err)
+    return (
+        _botocore_transient(err)
+        or _grpc_transient(err)
+        or _httpx_transient(err)
+        or _qdrant_transient(err)
+    )
 
 
 def is_permanent(err: BaseException) -> bool:

@@ -3,7 +3,6 @@ package unit_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,8 @@ import (
 // SpecHandler
 // ---------------------------------------------------------------------------
 
-// TestSpecHandler_ServesJSONSpec tests that the spec handler serves the OpenAPI bytes verbatim with cacheable JSON headers.
+// TestSpecHandler_ServesJSONSpec tests that the spec handler serves the OpenAPI bytes
+// verbatim with cacheable JSON headers.
 //
 // Why this test is important:
 //   - This endpoint is what Redoc and external API tooling fetch to render the
@@ -33,7 +33,12 @@ func TestSpecHandler_ServesJSONSpec(t *testing.T) {
 	handler := docs.SpecHandler(spec)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/openapi.json",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -43,7 +48,8 @@ func TestSpecHandler_ServesJSONSpec(t *testing.T) {
 	assert.Equal(t, string(spec), rec.Body.String())
 }
 
-// TestSpecHandler_EmptySpec tests that an empty spec still produces a well-formed JSON response rather than failing.
+// TestSpecHandler_EmptySpec tests that an empty spec still produces a well-formed JSON
+// response rather than failing.
 //
 // Why this test is important:
 //   - During bootstrap or a misconfigured build the embedded spec may be empty;
@@ -59,7 +65,12 @@ func TestSpecHandler_EmptySpec(t *testing.T) {
 	handler := docs.SpecHandler([]byte{})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/openapi.json",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -72,7 +83,8 @@ func TestSpecHandler_EmptySpec(t *testing.T) {
 // RedocHandler
 // ---------------------------------------------------------------------------
 
-// TestRedocHandler_RendersHTML tests that the Redoc page renders HTML wired to the spec URL and configured title.
+// TestRedocHandler_RendersHTML tests that the Redoc page renders HTML wired to the spec
+// URL and configured title.
 //
 // Why this test is important:
 //   - This is the human-facing API docs page; if the rendered HTML omits the
@@ -88,7 +100,12 @@ func TestRedocHandler_RendersHTML(t *testing.T) {
 	handler := docs.RedocHandler("/openapi.json", "My API")
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/docs",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -97,20 +114,21 @@ func TestRedocHandler_RendersHTML(t *testing.T) {
 	assert.Equal(t, "public, max-age=3600", rec.Header().Get("Cache-Control"))
 
 	body := rec.Body.String()
-	assert.True(
+	assert.Contains(
 		t,
-		strings.Contains(body, `spec-url="/openapi.json"`),
+		body, `spec-url="/openapi.json"`,
 		"should contain spec URL",
 	)
-	assert.True(t, strings.Contains(body, "My API — API Docs"), "should contain title")
-	assert.True(
+	assert.Contains(t, body, "My API — API Docs", "should contain title")
+	assert.Contains(
 		t,
-		strings.Contains(body, "redoc.standalone.js"),
+		body, "redoc.standalone.js",
 		"should include Redoc script",
 	)
 }
 
-// TestRedocHandler_EscapesTitle tests that a caller-supplied title is HTML-escaped, closing an XSS hole.
+// TestRedocHandler_EscapesTitle tests that a caller-supplied title is HTML-escaped,
+// closing an XSS hole.
 //
 // Why this test is important:
 //   - The title is interpolated into the docs HTML; if a service passed an
@@ -126,21 +144,26 @@ func TestRedocHandler_EscapesTitle(t *testing.T) {
 	handler := docs.RedocHandler("/spec.json", `<script>alert("xss")</script>`)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/docs",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	// html/template auto-escapes, so the script tag should be escaped.
-	assert.False(
+	assert.NotContains(
 		t,
-		strings.Contains(body, "<script>alert"),
+		body, "<script>alert",
 		"title should be HTML-escaped",
 	)
-	assert.True(
+	assert.Contains(
 		t,
-		strings.Contains(body, "&lt;script&gt;"),
+		body, "&lt;script&gt;",
 		"should contain escaped script tag",
 	)
 }

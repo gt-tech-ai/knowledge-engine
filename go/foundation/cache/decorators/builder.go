@@ -11,9 +11,11 @@ import (
 // Compile-time interface assertion.
 var _ interfaces.ByteCache = (*metricsDecorator)(nil)
 
-// defaultBuckets are the default histogram bucket boundaries for cache
+// defaultBuckets returns the default histogram bucket boundaries for cache
 // operation durations (in seconds). Matches Prometheus DefBuckets.
-var defaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+func defaultBuckets() []float64 {
+	return []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+}
 
 // Builder composes decorators around a base ByteCache.
 type Builder struct {
@@ -58,7 +60,7 @@ func (b *Builder) Build() interfaces.ByteCache {
 			duration: b.metrics.Histogram(
 				"cache_operation_duration_seconds",
 				"Cache operation duration",
-				defaultBuckets,
+				defaultBuckets(),
 				"cache",
 			),
 		}

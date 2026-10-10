@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from techai_webutils.clients.email.noop import NoopEmailSender
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.email import EmailSender
@@ -63,8 +64,10 @@ def new_email_from_config(config: EmailConfig) -> EmailSender:
         # Lazy import: skip aiosmtplib off the SMTP path.
         from techai_webutils.clients.email.smtp import SmtpEmailSender  # noqa: PLC0415
 
-        return SmtpEmailSender(host=config.smtp_host, port=config.smtp_port, from_address=config.from_address)
+        return SmtpEmailSender(
+            host=config.smtp_host, port=config.smtp_port, from_address=config.from_address
+        )
     if config.kind is EmailKind.NOOP:
         return NoopEmailSender()
     msg = f"unknown email kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

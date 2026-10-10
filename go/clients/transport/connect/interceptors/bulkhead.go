@@ -9,10 +9,10 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// Default internal load-shedding limits — safety-net ceilings for the internal
-// RPC surface (service-to-service calls) that no gateway fronts. Sized generously so normal service-to-service
-// load is never shed; they only engage under a genuine burst. Tune per service
-// as load data warrants (a follow-up may lift these into config).
+// Default internal load-shedding limits — safety-net ceilings for the internal RPC
+// surface (service-to-service calls) that no gateway fronts. Sized generously so normal
+// service-to-service load is never shed; they only engage under a genuine burst. Tune per
+// service as load data warrants (a follow-up may lift these into config).
 //
 // NOTE: the bulkhead now also gates server-streaming RPCs, and a
 // stream holds its concurrency slot for the whole stream lifetime (unlike a short unary

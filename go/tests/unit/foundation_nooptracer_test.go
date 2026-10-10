@@ -2,12 +2,12 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/nooptracer"
@@ -31,7 +31,7 @@ func TestNoopTracer_SpanIsInert(t *testing.T) {
 
 	_, span := tr.Start(context.Background(), "op")
 	span.SetAttribute("key", "value")
-	span.RecordError(errors.New("boom"))
+	span.RecordError(apperr.Sentinel("boom"))
 	span.SetStatus(interfaces.SpanStatusError, "failed")
 	span.End()
 

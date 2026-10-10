@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -84,6 +84,6 @@ func (d *recoveryDecorator[T, P, ID]) recoverPanic(
 				"stack", string(stack),
 			)
 		}
-		*err = errors.Internal("internal service error: panic recovered")
+		*err = apperr.Internal("internal service error: panic recovered")
 	}
 }

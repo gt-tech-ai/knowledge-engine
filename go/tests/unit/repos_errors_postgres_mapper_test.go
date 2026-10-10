@@ -5,8 +5,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/repos/errors/postgres"
 )
 
@@ -33,26 +34,26 @@ func TestPostgresMapDBError_Classifies(t *testing.T) {
 	cases := []struct {
 		name string
 		code string
-		want coreerr.ErrorCode
+		want apperr.ErrorCode
 	}{
-		{"serialization failure is a retryable conflict", "40001", coreerr.CodeConflict},
-		{"deadlock detected is a retryable conflict", "40P01", coreerr.CodeConflict},
-		{"unique violation is a conflict", "23505", coreerr.CodeConflict},
-		{"foreign key violation is invalid input", "23503", coreerr.CodeInvalidInput},
-		{"undefined table is internal", "42P01", coreerr.CodeInternal},
+		{"serialization failure is a retryable conflict", "40001", apperr.CodeConflict},
+		{"deadlock detected is a retryable conflict", "40P01", apperr.CodeConflict},
+		{"unique violation is a conflict", "23505", apperr.CodeConflict},
+		{"foreign key violation is invalid input", "23503", apperr.CodeInvalidInput},
+		{"undefined table is internal", "42P01", apperr.CodeInternal},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := postgres.MapDBError(&pgconn.PgError{Code: tc.code, Message: "x"})
-			assert.Equal(t, tc.want, coreerr.Code(got))
+			assert.Equal(t, tc.want, apperr.Code(got))
 		})
 	}
 
-	assert.Nil(t, postgres.MapDBError(nil), "nil in → nil out")
+	require.NoError(t, postgres.MapDBError(nil), "nil in → nil out")
 
 	// An already-coded error passes through unchanged (no re-wrap to Internal).
-	coded := coreerr.New(coreerr.CodeNotFound, "already classified")
+	coded := apperr.New(apperr.CodeNotFound, "already classified")
 	assert.Same(t, error(coded), postgres.MapDBError(coded),
 		"an already-coded AppError must be returned unchanged")
 }

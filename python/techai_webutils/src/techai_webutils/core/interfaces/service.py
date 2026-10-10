@@ -24,12 +24,12 @@ class BaseService(ABC):
 
     @property
     def name(self) -> str:
-        """Return the service name."""
+        """The service name."""
         return self._name
 
     @property
     def is_healthy(self) -> bool:
-        """Return whether the service is healthy."""
+        """Whether the service is healthy."""
         return self._healthy
 
     @abstractmethod

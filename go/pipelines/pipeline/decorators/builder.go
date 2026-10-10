@@ -10,7 +10,7 @@ package decorators
 import (
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
 )
@@ -23,7 +23,7 @@ const tier = "pipeline"
 // (ARCHITECTURE.md#error-codes). The panic value is logged by the recovery decorator; the
 // returned error is deliberately generic so it never leaks internals to callers.
 func onPanic(_ string, _ any) error {
-	return errors.Internal("internal pipeline error: panic recovered")
+	return apperr.Internal("internal pipeline error: panic recovered")
 }
 
 // Builder constructs a decorated pipeline using the fluent API pattern.
@@ -107,7 +107,7 @@ func (b *Builder[In, Out]) Build() interfaces.Pipeline[In, Out] {
 		p = decorator.Timeout(p, b.timeout)
 	}
 	if b.metrics != nil {
-		p = decorator.Metrics(p, tier, b.name, b.metrics, decorator.DefaultBuckets)
+		p = decorator.Metrics(p, tier, b.name, b.metrics, decorator.DefaultBuckets())
 	}
 	if b.tracer != nil {
 		p = decorator.Tracing(p, b.tracer, tier, b.name)

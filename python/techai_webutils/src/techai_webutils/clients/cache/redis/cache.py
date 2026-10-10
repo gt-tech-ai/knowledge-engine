@@ -10,9 +10,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from techai_webutils.core.interfaces.cache import Cache
-
 from techai_webutils.clients.cache.types import FailureMode
+from techai_webutils.core.interfaces.cache import Cache
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
@@ -29,7 +28,9 @@ class RedisCache(Cache):
 
     """
 
-    def __init__(self, client: Redis, failure_mode: FailureMode = FailureMode.BYPASS) -> None:  # type: ignore[type-arg]
+    def __init__(
+        self, client: Redis, failure_mode: FailureMode = FailureMode.BYPASS
+    ) -> None:  # type: ignore[type-arg]
         """Initialize the Redis cache wrapper.
 
         Args:
@@ -54,7 +55,9 @@ class RedisCache(Cache):
         except (ConnectionError, OSError) as e:
             if self._failure_mode == FailureMode.ERROR:
                 raise
-            logger.warning("redis get failed (bypass mode)", extra={"key": key, "error": str(e)})
+            logger.warning(
+                "redis get failed (bypass mode)", extra={"key": key, "error": str(e)}
+            )
             return None
 
     async def set(self, key: str, value: bytes, ttl_seconds: int = 300) -> None:
@@ -64,7 +67,9 @@ class RedisCache(Cache):
         except (ConnectionError, OSError) as e:
             if self._failure_mode == FailureMode.ERROR:
                 raise
-            logger.warning("redis set failed (bypass mode)", extra={"key": key, "error": str(e)})
+            logger.warning(
+                "redis set failed (bypass mode)", extra={"key": key, "error": str(e)}
+            )
 
     async def delete(self, key: str) -> None:
         """Delete a key from cache."""
@@ -73,7 +78,9 @@ class RedisCache(Cache):
         except (ConnectionError, OSError) as e:
             if self._failure_mode == FailureMode.ERROR:
                 raise
-            logger.warning("redis delete failed (bypass mode)", extra={"key": key, "error": str(e)})
+            logger.warning(
+                "redis delete failed (bypass mode)", extra={"key": key, "error": str(e)}
+            )
 
     async def exists(self, key: str) -> bool:
         """Check if a key exists in Redis."""
@@ -82,5 +89,7 @@ class RedisCache(Cache):
         except (ConnectionError, OSError) as e:
             if self._failure_mode == FailureMode.ERROR:
                 raise
-            logger.warning("redis exists failed (bypass mode)", extra={"key": key, "error": str(e)})
+            logger.warning(
+                "redis exists failed (bypass mode)", extra={"key": key, "error": str(e)}
+            )
             return False

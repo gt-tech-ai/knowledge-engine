@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -12,7 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/secrets/awssm"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -60,7 +59,12 @@ func TestAWSSMSource_MissingFieldIsNotFound(t *testing.T) {
 	api := mocks.NewMockSecretsManagerAPI(ctrl)
 	api.EXPECT().
 		GetSecretValue(gomock.Any(), gomock.Any()).
-		Return(&secretsmanager.GetSecretValueOutput{SecretString: aws.String(`{"client_id":"cid"}`)}, nil)
+		Return(
+			&secretsmanager.GetSecretValueOutput{
+				SecretString: aws.String(`{"client_id":"cid"}`),
+			},
+			nil,
+		)
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
@@ -68,15 +72,16 @@ func TestAWSSMSource_MissingFieldIsNotFound(t *testing.T) {
 	})
 
 	_, err := src.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeNotFound))
+	require.True(t, apperr.Is(err, apperr.CodeNotFound))
 }
 
 // TestAWSSMSource_SDKErrorIsUpstream tests that an SDK failure is surfaced as a coded
 // upstream error.
 //
 // Why this test is important:
-//   - A throttled/unavailable Secrets Manager is a transient upstream failure; classifying
-//     it correctly lets resilience decorators retry rather than treating it as fatal.
+//   - A throttled/unavailable Secrets Manager is a transient upstream failure;
+//     classifying it correctly lets resilience decorators retry rather than treating it
+//     as fatal.
 //
 // What it tests:
 //   - Get wraps a GetSecretValue error as CodeUpstream.
@@ -85,7 +90,7 @@ func TestAWSSMSource_SDKErrorIsUpstream(t *testing.T) {
 	api := mocks.NewMockSecretsManagerAPI(ctrl)
 	api.EXPECT().
 		GetSecretValue(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("throttled"))
+		Return(nil, apperr.Sentinel("throttled"))
 
 	ref := types.Ref{Env: "staging", Class: "e2e", Field: "client_secret"}
 	src := awssm.New(api, map[types.Ref]awssm.Location{
@@ -93,7 +98,7 @@ func TestAWSSMSource_SDKErrorIsUpstream(t *testing.T) {
 	})
 
 	_, err := src.Get(context.Background(), ref)
-	require.True(t, coreerr.Is(err, coreerr.CodeUpstream))
+	require.True(t, apperr.Is(err, apperr.CodeUpstream))
 }
 
 // TestAWSSMSource_PutIsUnsupported tests that writing to the Secrets Manager Source fails
@@ -115,5 +120,5 @@ func TestAWSSMSource_PutIsUnsupported(t *testing.T) {
 	})
 
 	err := src.Put(context.Background(), ref, types.NewSecret("v"))
-	require.True(t, coreerr.Is(err, coreerr.CodeInvalidInput))
+	require.True(t, apperr.Is(err, apperr.CodeInvalidInput))
 }

@@ -6,7 +6,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
@@ -163,7 +163,7 @@ func (s *RecordingStore[T, P, ID]) Exists(ctx context.Context, id ID) (bool, err
 func (s *RecordingStore[T, P, ID]) beforeCall(ctx context.Context) error {
 	if s.requireDeadline {
 		if _, ok := ctx.Deadline(); !ok {
-			return errors.Internal("missing deadline")
+			return apperr.Internal("missing deadline")
 		}
 	}
 

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from techai_webutils.core.types.aws_client import AwsClientKwargs
 
 
 @dataclass(frozen=True)
@@ -22,7 +26,7 @@ class S3Config:
     session_token: str = ""
     """STS session token for temporary credentials; empty for static/IRSA credentials."""
 
-    def client_kwargs(self) -> dict[str, str | None]:
+    def client_kwargs(self) -> AwsClientKwargs:
         """Keyword args for ``aiobotocore``'s ``create_client("s3", ...)``.
 
         Empty ``endpoint``/``access_key``/``secret_key`` collapse to ``None`` so the SDK

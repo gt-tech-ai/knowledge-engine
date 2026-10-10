@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 )
 
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS outbox (
 	created_at      timestamptz NOT NULL DEFAULT now(),
 	next_attempt_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS outbox_due ON outbox (lane, next_attempt_at) WHERE state = 'pending';`
+CREATE INDEX IF NOT EXISTS outbox_due ON outbox (lane, next_attempt_at)
+	WHERE state = 'pending';`
 
 // claimSQL leases up to $2 due pending rows of lane $1 for $3 seconds, bumping
 // each row's attempt count; SKIP LOCKED keeps concurrent claims disjoint.
@@ -64,7 +65,7 @@ func NewSQLStore(db *sql.DB, lease time.Duration) *SQLStore {
 // Migrate creates the reference table.
 func (s *SQLStore) Migrate(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, Schema); err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: migrate")
+		return apperr.Wrap(err, apperr.CodeInternal, "outboxtest: migrate")
 	}
 	return nil
 }
@@ -74,64 +75,115 @@ func (s *SQLStore) Migrate(ctx context.Context) error {
 func (s *SQLStore) Enqueue(ctx context.Context, rec *types.OutboxRecord) error {
 	attrs, err := json.Marshal(rec.Attributes)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInvalidInput, "outboxtest: encode attributes")
+		return apperr.Wrap(
+			err,
+			apperr.CodeInvalidInput,
+			"outboxtest: encode attributes",
+		)
 	}
 	created := rec.CreatedAt
 	if created.IsZero() {
 		created = time.Now()
 	}
-	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO outbox (id, lane, tenant, key, payload, attributes, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		rec.ID, rec.Lane, rec.Tenant, rec.Key, rec.Payload, attrs, created)
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO outbox (id, lane, tenant, key, payload, attributes, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		rec.ID,
+		rec.Lane,
+		rec.Tenant,
+		rec.Key,
+		rec.Payload,
+		attrs,
+		created,
+	)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: enqueue")
+		return apperr.Wrap(err, apperr.CodeInternal, "outboxtest: enqueue")
 	}
 	return nil
 }
 
 // Claim leases up to limit due pending rows of lane.
-func (s *SQLStore) Claim(ctx context.Context, lane string, limit int) ([]types.OutboxRecord, error) {
+func (s *SQLStore) Claim(
+	ctx context.Context,
+	lane string,
+	limit int,
+) ([]types.OutboxRecord, error) {
 	rows, err := s.db.QueryContext(ctx, claimSQL, lane, limit, s.lease.Seconds())
 	if err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: claim")
+		return nil, apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: claim")
 	}
-	defer rows.Close() //nolint:errcheck // read-only cursor
+	defer rows.Close()
 	var out []types.OutboxRecord
 	for rows.Next() {
 		var (
 			rec   types.OutboxRecord
 			attrs []byte
 		)
-		if err := rows.Scan(&rec.ID, &rec.Lane, &rec.Tenant, &rec.Key, &rec.Payload, &attrs,
-			&rec.Attempts, &rec.CreatedAt); err != nil {
-			return nil, coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: scan claim")
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.Lane,
+			&rec.Tenant,
+			&rec.Key,
+			&rec.Payload,
+			&attrs,
+			&rec.Attempts,
+			&rec.CreatedAt,
+		); err != nil {
+			return nil, apperr.Wrap(err, apperr.CodeInternal, "outboxtest: scan claim")
 		}
 		if err := json.Unmarshal(attrs, &rec.Attributes); err != nil {
-			return nil, coreerr.Wrap(err, coreerr.CodeInternal, "outboxtest: decode attributes")
+			return nil, apperr.Wrap(
+				err,
+				apperr.CodeInternal,
+				"outboxtest: decode attributes",
+			)
 		}
 		out = append(out, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: claim rows")
+		return nil, apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: claim rows")
 	}
 	return out, nil
 }
 
 // MarkSent records a delivered row.
 func (s *SQLStore) MarkSent(ctx context.Context, id uuid.UUID) error {
-	return s.exec(ctx, "mark sent", `UPDATE outbox SET state = 'sent', last_error = '' WHERE id = $1`, id)
+	return s.exec(
+		ctx,
+		"mark sent",
+		`UPDATE outbox SET state = 'sent', last_error = '' WHERE id = $1`,
+		id,
+	)
 }
 
 // Retry reschedules a pending row for next with its last error.
-func (s *SQLStore) Retry(ctx context.Context, id uuid.UUID, next time.Time, lastErr string) error {
-	return s.exec(ctx, "retry",
-		`UPDATE outbox SET next_attempt_at = $2, last_error = $3 WHERE id = $1 AND state = 'pending'`,
-		id, next, lastErr)
+func (s *SQLStore) Retry(
+	ctx context.Context,
+	id uuid.UUID,
+	next time.Time,
+	lastErr string,
+) error {
+	return s.exec(
+		ctx,
+		"retry",
+		`UPDATE outbox SET next_attempt_at = $2, last_error = $3
+		WHERE id = $1 AND state = 'pending'`,
+		id,
+		next,
+		lastErr,
+	)
 }
 
 // Park removes a row from delivery, keeping its last error.
 func (s *SQLStore) Park(ctx context.Context, id uuid.UUID, lastErr string) error {
-	return s.exec(ctx, "park", `UPDATE outbox SET state = 'parked', last_error = $2 WHERE id = $1`, id, lastErr)
+	return s.exec(
+		ctx,
+		"park",
+		`UPDATE outbox SET state = 'parked', last_error = $2 WHERE id = $1`,
+		id,
+		lastErr,
+	)
 }
 
 // Stats counts lane's pending and parked rows and the oldest pending row's age.
@@ -146,7 +198,11 @@ SELECT count(*) FILTER (WHERE state = 'pending'),
        min(created_at) FILTER (WHERE state = 'pending')
 FROM outbox WHERE lane = $1`, lane).Scan(&stats.Pending, &stats.Parked, &oldest)
 	if err != nil {
-		return types.OutboxStats{}, coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: stats")
+		return types.OutboxStats{}, apperr.Wrap(
+			err,
+			apperr.CodeUnavailable,
+			"outboxtest: stats",
+		)
 	}
 	if oldest.Valid {
 		stats.OldestPending = oldest.Time
@@ -155,10 +211,16 @@ FROM outbox WHERE lane = $1`, lane).Scan(&stats.Pending, &stats.Parked, &oldest)
 }
 
 // LastError returns a row's state and last error (for assertions).
-func (s *SQLStore) LastError(ctx context.Context, id uuid.UUID) (state, lastErr string, err error) {
-	err = s.db.QueryRowContext(ctx, `SELECT state, last_error FROM outbox WHERE id = $1`, id).Scan(&state, &lastErr)
+func (s *SQLStore) LastError(
+	ctx context.Context,
+	id uuid.UUID,
+) (state, lastErr string, err error) {
+	err = s.db.QueryRowContext(
+		ctx, `SELECT state, last_error FROM outbox WHERE id = $1`, id,
+	).
+		Scan(&state, &lastErr)
 	if err != nil {
-		return "", "", coreerr.Wrap(err, coreerr.CodeNotFound, "outboxtest: row")
+		return "", "", apperr.Wrap(err, apperr.CodeNotFound, "outboxtest: row")
 	}
 	return state, lastErr, nil
 }
@@ -167,10 +229,13 @@ func (s *SQLStore) LastError(ctx context.Context, id uuid.UUID) (state, lastErr 
 func (s *SQLStore) exec(ctx context.Context, op, query string, args ...any) error {
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeUnavailable, "outboxtest: "+op)
+		return apperr.Wrap(err, apperr.CodeUnavailable, "outboxtest: "+op)
 	}
 	if n, err := res.RowsAffected(); err == nil && n == 0 {
-		return coreerr.New(coreerr.CodeNotFound, "outboxtest: "+op+": no such pending row")
+		return apperr.New(
+			apperr.CodeNotFound,
+			"outboxtest: "+op+": no such pending row",
+		)
 	}
 	return nil
 }

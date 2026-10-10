@@ -34,7 +34,7 @@ func TestListqueryFacetConfig(t *testing.T) {
 
 	badThreshold := listquerycfg.DefaultConfig()
 	badThreshold.Facet.RowThreshold = 0
-	assert.Error(
+	require.Error(
 		t,
 		badThreshold.Validate(),
 		"a non-positive row_threshold must be rejected",

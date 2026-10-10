@@ -17,7 +17,11 @@ from techai_webutils.foundation.tracer.conversation import (
     stamp_conversation,
 )
 from techai_webutils.foundation.tracer.null_tracer import NullTracerProvider
-from techai_webutils.foundation.tracer.tracer import OTelTracerProvider, configure_tracer, new_tracer
+from techai_webutils.foundation.tracer.tracer import (
+    OTelTracerProvider,
+    configure_tracer,
+    new_tracer,
+)
 
 __all__ = [
     "ConversationContext",

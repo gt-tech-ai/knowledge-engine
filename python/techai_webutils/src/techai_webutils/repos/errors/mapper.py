@@ -43,7 +43,7 @@ def map_db_error(err: Exception) -> AppError:
     if sqlstate == _FOREIGN_KEY_VIOLATION:
         return InvalidInputError(f"foreign key violation: {err_str}")
 
-    if sqlstate in (_NOT_NULL_VIOLATION, _CHECK_VIOLATION):
+    if sqlstate in {_NOT_NULL_VIOLATION, _CHECK_VIOLATION}:
         return InvalidInputError(f"constraint violation: {err_str}")
 
     # Check for common not-found patterns

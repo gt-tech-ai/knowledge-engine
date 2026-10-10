@@ -9,7 +9,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	rediscache "github.com/gt-tech-ai/knowledge-engine/go/clients/cache/redis"
-	coreerrors "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	testsuite "github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures/suite"
@@ -26,8 +25,8 @@ import (
 
 // RedisCacheSuite holds a real Redis container and a fresh Cache client per test.
 type RedisCacheSuite struct {
-	testsuite.RedisIntegrationSuite
 	cache *rediscache.Cache
+	testsuite.RedisIntegrationSuite
 }
 
 // TestRedisCacheSuite runs all Redis cache integration tests.
@@ -67,8 +66,10 @@ func (s *RedisCacheSuite) newCache(mutate func(*rediscache.Config)) *rediscache.
 
 // unreachableCache builds a cache whose address refuses connections (a port reserved
 // and released), with mutate adjusting the config first.
-func (s *RedisCacheSuite) unreachableCache(mutate func(*rediscache.Config)) *rediscache.Cache {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+func (s *RedisCacheSuite) unreachableCache(
+	mutate func(*rediscache.Config),
+) *rediscache.Cache {
+	lis, err := (&net.ListenConfig{}).Listen(s.T().Context(), "tcp", "127.0.0.1:0")
 	s.Require().NoError(err)
 	addr := lis.Addr().String()
 	s.Require().NoError(lis.Close())
@@ -207,7 +208,7 @@ func (s *RedisCacheSuite) TestGetOrLoad_PopulatesOnMiss() {
 //   - A loader returning (nil, nil) makes GetOrLoad return (nil, nil).
 func (s *RedisCacheSuite) TestGetOrLoad_LoaderErrorAndNilValue() {
 	ctx := context.Background()
-	errLoad := errors.New("db connection failed")
+	errLoad := apperr.Sentinel("db connection failed")
 
 	val, err := s.cache.GetOrLoad(ctx, s.uniqueKey("err"), func() ([]byte, error) {
 		return nil, errLoad
@@ -274,7 +275,9 @@ func (s *RedisCacheSuite) TestTTLSelection() {
 	s.LessOrEqual(ttlOf(s.cache, explicit), 60*time.Second)
 	s.Greater(ttlOf(s.cache, explicit), 50*time.Second, "TTL should be close to 60s")
 
-	short := s.newCache(func(cfg *rediscache.Config) { cfg.DefaultTTL = 30 * time.Second })
+	short := s.newCache(
+		func(cfg *rediscache.Config) { cfg.DefaultTTL = 30 * time.Second },
+	)
 	configured := s.uniqueKey("configured")
 	short.Set(ctx, configured, []byte("v"), 0)
 	s.Greater(ttlOf(short, configured), time.Duration(0), "a zero TTL takes the default")
@@ -373,7 +376,9 @@ func (s *RedisCacheSuite) TestInvalidatePrefix() {
 //     after it.
 func (s *RedisCacheSuite) TestInvalidateAll() {
 	ctx := context.Background()
-	c := s.newCache(func(cfg *rediscache.Config) { cfg.DB = 15 }) // FLUSHDB stays in DB 15
+	c := s.newCache(
+		func(cfg *rediscache.Config) { cfg.DB = 15 },
+	) // FLUSHDB stays in DB 15
 	c.Set(ctx, "k1", []byte("v1"), time.Minute)
 	c.Set(ctx, "k2", []byte("v2"), time.Minute)
 
@@ -462,11 +467,11 @@ func (s *RedisCacheSuite) TestUnreachable_InvalidationSurfacesErrors() {
 
 	prefixErr := c.InvalidatePrefix(ctx, "tenant:42:")
 	s.Require().Error(prefixErr, "a scan failure must surface, not be swallowed")
-	s.Equal(coreerrors.CodeUnavailable, coreerrors.Code(prefixErr))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(prefixErr))
 
 	allErr := c.InvalidateAll(ctx)
 	s.Require().Error(allErr, "a flushdb failure must surface")
-	s.Equal(coreerrors.CodeUnavailable, coreerrors.Code(allErr))
+	s.Equal(apperr.CodeUnavailable, apperr.Code(allErr))
 }
 
 // TestUnreachable_Lifecycle tests the cache's lifecycle contract: the pool is
@@ -485,8 +490,8 @@ func (s *RedisCacheSuite) TestUnreachable_Lifecycle() {
 	lc, ok := any(s.unreachableCache(nil)).(interfaces.Client)
 	s.Require().True(ok)
 
-	s.NoError(lc.Liveness(ctx), "the pool is constructed by New")
-	s.Error(lc.Start(ctx), "a refused address fails the Ping")
-	s.Error(lc.Readiness(ctx))
+	s.Require().NoError(lc.Liveness(ctx), "the pool is constructed by New")
+	s.Require().Error(lc.Start(ctx), "a refused address fails the Ping")
+	s.Require().Error(lc.Readiness(ctx))
 	s.NoError(lc.Stop(ctx))
 }

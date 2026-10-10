@@ -115,7 +115,7 @@ func (d *Runner) runBuffered(
 		ctx,
 		name,
 		args...,
-	) //nolint:gosec // caller-controlled args
+	)
 	cmd.Dir = dir
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -157,7 +157,7 @@ func (d *Runner) RequireTool(name, installHint string) error {
 	if d.Exists(name) {
 		return nil
 	}
-	msg := fmt.Sprintf("%s not found on PATH", name)
+	msg := name + " not found on PATH"
 	if installHint != "" {
 		msg = fmt.Sprintf("%s not found on PATH; install: %s", name, installHint)
 	}
@@ -194,7 +194,7 @@ func (d *Runner) runWithEnv(
 		ctx,
 		name,
 		args...,
-	) //nolint:gosec // caller-controlled args
+	)
 	cmd.Dir = dir
 	cmd.Stdout = d.stdoutWriter()
 	cmd.Stderr = d.stderrWriter()

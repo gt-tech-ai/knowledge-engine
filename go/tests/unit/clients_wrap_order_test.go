@@ -19,11 +19,11 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// obsOrder records the observability call sequence ("trace" / "metric" / "log") in
-// the order the client stack invokes each collaborator, so a test can assert the
-// composed order (ARCHITECTURE.md#decorator-order). It is plain test data — it implements no production
-// interface; the generated metrics/logger mocks and the orderTracer below append to
-// it as the stack drives them.
+// obsOrder records the observability call sequence ("trace" / "metric" / "log") in the
+// order the client stack invokes each collaborator, so a test can assert the composed
+// order (ARCHITECTURE.md#decorator-order). It is plain test data — it implements no
+// production interface; the generated metrics/logger mocks and the orderTracer below
+// append to it as the stack drives them.
 type obsOrder struct {
 	tags []string
 	mu   sync.Mutex
@@ -85,7 +85,9 @@ func orderedMetrics(ctrl *gomock.Controller, order *obsOrder) *mocks.MockMetrics
 		Counter("client_errors_total", gomock.Any(), gomock.Any()).
 		Return(errs).AnyTimes()
 	metrics.EXPECT().
-		Histogram("client_operation_duration_seconds", gomock.Any(), gomock.Any(), gomock.Any()).
+		Histogram(
+			"client_operation_duration_seconds", gomock.Any(), gomock.Any(), gomock.Any(),
+		).
 		Return(dur).AnyTimes()
 	ops.EXPECT().Inc(gomock.Any()).Do(func(...string) { order.add("metric") }).AnyTimes()
 	errs.EXPECT().Inc(gomock.Any()).Do(func(...string) { order.add("metric") }).AnyTimes()
@@ -273,10 +275,22 @@ func TestEventAndJobStacks_WrapOrder(t *testing.T) {
 			"a dead-lettered message is acked",
 		)
 		require.Equal(t, []string{
-			"dedup", "retry", "cb", "timeout", "trace", "handler", "metric", "log", "deadletter",
+			"dedup",
+			"retry",
+			"cb",
+			"timeout",
+			"trace",
+			"handler",
+			"metric",
+			"log",
+			"deadletter",
 		}, collapseRuns(order.snapshot()))
 		require.False(t, retryCtxDeadline, "the timeout is applied inside retry")
-		require.True(t, handlerCtxDeadline, "the handler runs under the per-attempt timeout")
+		require.True(
+			t,
+			handlerCtxDeadline,
+			"the handler runs under the per-attempt timeout",
+		)
 	})
 
 	t.Run("Job", func(t *testing.T) {
@@ -285,10 +299,12 @@ func TestEventAndJobStacks_WrapOrder(t *testing.T) {
 		order := &obsOrder{}
 
 		leader := mocks.NewMockLeaderElector(ctrl)
-		leader.EXPECT().IsLeader(gomock.Any()).DoAndReturn(func(context.Context) (bool, error) {
-			order.add("leader")
-			return true, nil
-		})
+		leader.EXPECT().
+			IsLeader(gomock.Any()).
+			DoAndReturn(func(context.Context) (bool, error) {
+				order.add("leader")
+				return true, nil
+			})
 		limiter := mocks.NewMockRateLimiter(ctrl)
 		limiter.EXPECT().Wait(gomock.Any()).DoAndReturn(func(context.Context) error {
 			order.add("ratelimit")

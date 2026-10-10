@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -26,7 +26,8 @@ var (
 
 // Metrics implements interfaces.Metrics backed by Prometheus.
 type Metrics struct {
-	// reg is the Prometheus registry that all counters, histograms, and gauges register with.
+	// reg is the Prometheus registry that all counters, histograms, and gauges register
+	// with.
 	reg *prometheus.Registry
 }
 
@@ -63,7 +64,7 @@ func (m *Metrics) Counter(name, help string, labels ...string) interfaces.Counte
 	}, labels)
 	if err := m.reg.Register(c); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &counter{inner: are.ExistingCollector.(*prometheus.CounterVec)}
 		}
 		panic(err)
@@ -86,7 +87,7 @@ func (m *Metrics) Histogram(
 	}, labels)
 	if err := m.reg.Register(h); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &histogram{inner: are.ExistingCollector.(*prometheus.HistogramVec)}
 		}
 		panic(err)
@@ -104,7 +105,7 @@ func (m *Metrics) Gauge(name, help string, labels ...string) interfaces.Gauge {
 	}, labels)
 	if err := m.reg.Register(g); err != nil {
 		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if apperr.As(err, &are) {
 			return &gauge{inner: are.ExistingCollector.(*prometheus.GaugeVec)}
 		}
 		panic(err)
@@ -195,23 +196,31 @@ type HTTPServerMetrics struct {
 	ResponseSize *prometheus.HistogramVec
 }
 
+// The HTTP server metrics' shared label names.
+const (
+	// labelMethod is the HTTP request method label.
+	labelMethod = "method"
+	// labelPath is the request path label.
+	labelPath = "path"
+)
+
 // NewHTTPServerMetrics creates and registers HTTP server metrics.
 func NewHTTPServerMetrics(reg prometheus.Registerer) *HTTPServerMetrics {
 	m := &HTTPServerMetrics{
 		RequestsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "http_server_requests_total",
 			Help: "Total HTTP requests processed",
-		}, []string{"method", "path", "status"}),
+		}, []string{labelMethod, labelPath, "status"}),
 		RequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "http_server_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
 			Buckets: prometheus.DefBuckets,
-		}, []string{"method", "path"}),
+		}, []string{labelMethod, labelPath}),
 		ResponseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "http_server_response_size_bytes",
 			Help:    "HTTP response size in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 6),
-		}, []string{"method", "path"}),
+		}, []string{labelMethod, labelPath}),
 	}
 
 	reg.MustRegister(m.RequestsTotal, m.RequestDuration, m.ResponseSize)

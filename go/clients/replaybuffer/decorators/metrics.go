@@ -10,8 +10,8 @@ import (
 // compile-time assertion that *metricsDecorator satisfies the seam.
 var _ interfaces.ReplayBuffer = (*metricsDecorator)(nil)
 
-// metricsDecorator records per-operation counts (labelled by outcome) and latency via the core
-// interfaces.Counter and interfaces.Histogram abstractions.
+// metricsDecorator records per-operation counts (labelled by outcome) and latency via the
+// core interfaces.Counter and interfaces.Histogram abstractions.
 type metricsDecorator struct {
 	// inner is the next buffer in the decorator chain.
 	inner interfaces.ReplayBuffer
@@ -40,7 +40,7 @@ func newMetricsDecorator(
 		duration: m.Histogram(
 			"replaybuffer_operation_duration_seconds",
 			"Replay-buffer operation duration in seconds",
-			bufferDurationBuckets,
+			bufferDurationBuckets(),
 			"buffer", "operation",
 		),
 	}

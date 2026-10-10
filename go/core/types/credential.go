@@ -53,7 +53,8 @@ func (s Secret) IsZero() bool {
 	return s.value == ""
 }
 
-// String returns the mask so a Secret printed through its Stringer never reveals its value.
+// String returns the mask so a Secret printed through its Stringer never reveals its
+// value.
 func (s Secret) String() string {
 	return secretMask
 }

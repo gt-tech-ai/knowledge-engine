@@ -7,17 +7,20 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorate"
 )
 
-// repoMetricsSpec names the repository custom-op metrics — identical to the CRUD
-// metric decorator's names/labels, so the get-or-create registry shares one set of
-// collectors between the CRUD and custom-op paths (no double-registration).
-var repoMetricsSpec = decorate.MetricsSpec{
-	OperationsName: "repository_operations_total",
-	OperationsHelp: "Total repository operations",
-	ErrorsName:     "repository_errors_total",
-	ErrorsHelp:     "Total repository errors",
-	DurationName:   "repository_operation_duration_seconds",
-	DurationHelp:   "Repository operation duration",
-	SubjectLabel:   "repo",
+// repoMetricsSpec returns the spec naming the repository custom-op metrics —
+// identical to the CRUD metric decorator's names/labels, so the get-or-create
+// registry shares one set of collectors between the CRUD and custom-op paths (no
+// double-registration).
+func repoMetricsSpec() decorate.MetricsSpec {
+	return decorate.MetricsSpec{
+		OperationsName: "repository_operations_total",
+		OperationsHelp: "Total repository operations",
+		ErrorsName:     "repository_errors_total",
+		ErrorsHelp:     "Total repository errors",
+		DurationName:   "repository_operation_duration_seconds",
+		DurationHelp:   "Repository operation duration",
+		SubjectLabel:   "repo",
+	}
 }
 
 // OpChain builds the custom-operation decoration chain for a repository named name,
@@ -44,7 +47,7 @@ func OpChain(
 		)
 	}
 	if metrics != nil {
-		mws = append(mws, decorate.NewMetrics(metrics, name, repoMetricsSpec))
+		mws = append(mws, decorate.NewMetrics(metrics, name, repoMetricsSpec()))
 	}
 	if logger != nil {
 		mws = append(mws, decorate.NewLogging(logger, name, "repo", "repository"))

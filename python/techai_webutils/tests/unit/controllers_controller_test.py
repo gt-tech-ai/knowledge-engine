@@ -2,22 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from unittest.mock import MagicMock
+
+import pytest
 
 from techai_webutils.controllers.base import BaseController
 from techai_webutils.controllers.decorators import HandlerBuilder
 from techai_webutils.core.interfaces.rate_limiter import RateLimiter
-import pytest
 
 
 @dataclass
 class SampleRequest:
+    """A request DTO the handler-builder tests decode."""
+
     input: str
 
 
 @dataclass
 class SampleResponse:
+    """A response DTO the handler-builder tests encode."""
+
     output: str
 
 
@@ -74,6 +80,7 @@ class TestHandlerExecution:
         """
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="processed-" + req.input)
 
         built = HandlerBuilder(handler, "test-handler").build()
@@ -93,7 +100,8 @@ class TestHandlerExecution:
           - ValueError raised by the handler is re-raised from the built handler
         """
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             msg = "handler failed"
             raise ValueError(msg)
 
@@ -121,6 +129,7 @@ class TestLoggingDecorator:
         logger = MagicMock()
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="output-" + req.input)
 
         built = HandlerBuilder(handler, "test-handler").with_logging(logger).build()
@@ -147,7 +156,8 @@ class TestLoggingDecorator:
         """
         logger = MagicMock()
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             msg = "handler error"
             raise ValueError(msg)
 
@@ -179,7 +189,8 @@ class TestRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import InternalError
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             msg = "unexpected error"
             raise RuntimeError(msg)
 
@@ -203,8 +214,10 @@ class TestRecoveryDecorator:
         """
         from techai_webutils.core.errors.errors import NotFoundError
 
-        async def handler(req: SampleRequest) -> SampleResponse:
-            raise NotFoundError("resource missing")
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
+            msg = "resource missing"
+            raise NotFoundError(msg)
 
         built = HandlerBuilder(handler, "notfound-handler").with_recovery().build()
 
@@ -231,6 +244,7 @@ class TestMetricsDecorator:
         histogram = MagicMock()
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="metrics-" + req.input)
 
         built = HandlerBuilder(handler, "metrics-handler").with_metrics(histogram).build()
@@ -256,7 +270,8 @@ class TestMetricsDecorator:
         """
         histogram = MagicMock()
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             msg = "metrics error"
             raise ValueError(msg)
 
@@ -287,9 +302,15 @@ class TestHandlerBuilder:
         logger = MagicMock()
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="composed-" + req.input)
 
-        built = HandlerBuilder(handler, "composed-handler").with_logging(logger).with_recovery().build()
+        built = (
+            HandlerBuilder(handler, "composed-handler")
+            .with_logging(logger)
+            .with_recovery()
+            .build()
+        )
 
         result = await built(SampleRequest(input="test"))
         assert result.output == "composed-test"
@@ -312,11 +333,17 @@ class TestHandlerBuilder:
 
         logger = MagicMock()
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             msg = "boom"
             raise RuntimeError(msg)
 
-        built = HandlerBuilder(handler, "error-composed").with_logging(logger).with_recovery().build()
+        built = (
+            HandlerBuilder(handler, "error-composed")
+            .with_logging(logger)
+            .with_recovery()
+            .build()
+        )
 
         with pytest.raises(InternalError):
             await built(SampleRequest(input="test"))
@@ -340,6 +367,7 @@ class TestHandlerBuilder:
         histogram = MagicMock()
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="full-" + req.input)
 
         built = (
@@ -362,7 +390,7 @@ class TestHandlerBuilder:
 
 
 def _rate_limiter(*, allow: bool) -> MagicMock:
-    """A mock RateLimiter whose non-blocking ``allow()`` reports the given gate decision."""
+    """Return a mock RateLimiter whose non-blocking ``allow()`` reports the given gate decision."""
     limiter = MagicMock(spec=RateLimiter)
     limiter.allow.return_value = allow
     return limiter
@@ -385,6 +413,7 @@ class TestHandlerTimeoutDecorator:
         """
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="fast-" + req.input)
 
         built = HandlerBuilder(handler, "fast-handler").with_timeout(5.0).build()
@@ -434,6 +463,7 @@ class TestHandlerRateLimitDecorator:
         """
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="allowed-" + req.input)
 
         limiter = _rate_limiter(allow=True)
@@ -455,7 +485,8 @@ class TestHandlerRateLimitDecorator:
         """
         from techai_webutils.core.errors.errors import UnavailableError
 
-        async def handler(req: SampleRequest) -> SampleResponse:
+        async def handler(_req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="should-not-reach")
 
         limiter = _rate_limiter(allow=False)
@@ -487,6 +518,7 @@ class TestHandlerFullResilienceChain:
         limiter = _rate_limiter(allow=True)
 
         async def handler(req: SampleRequest) -> SampleResponse:
+            await asyncio.sleep(0)
             return SampleResponse(output="resilient-" + req.input)
 
         built = (

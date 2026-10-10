@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from techai_webutils.core.errors import AppValueError
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -36,7 +38,7 @@ def _rfc3339_nano(ts: datetime) -> str:
     """Render ``ts`` in UTC as Go's ``time.RFC3339Nano``: fractional zeros trimmed, ``Z`` suffix."""
     if ts.tzinfo is None:
         msg = "fact ts must be timezone-aware"
-        raise ValueError(msg)
+        raise AppValueError(msg)
     utc = ts.astimezone(UTC)
     fraction = f"{utc.microsecond:06d}".rstrip("0")
     return utc.strftime("%Y-%m-%dT%H:%M:%S") + (f".{fraction}" if fraction else "") + "Z"
@@ -50,7 +52,11 @@ def _number(value: float) -> float | int:
     """
     if isinstance(value, bool):
         return int(value)
-    if isinstance(value, float) and value.is_integer() and abs(value) < _MAX_INTEGRAL_FLOAT:
+    if (
+        isinstance(value, float)
+        and value.is_integer()
+        and abs(value) < _MAX_INTEGRAL_FLOAT
+    ):
         return int(value)
     return value
 

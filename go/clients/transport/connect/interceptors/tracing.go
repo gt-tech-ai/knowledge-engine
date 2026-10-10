@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // TraceResponseHeader is the response header carrying the active span's W3C trace
@@ -121,8 +122,8 @@ func (i tracingInterceptor) WrapStreamingHandler(
 	}
 }
 
-// ClientTracingInterceptor creates a client-side interceptor that traces Connect RPC calls
-// with SpanKindClient and injects W3C Trace Context into outgoing request headers.
+// ClientTracingInterceptor creates a client-side interceptor that traces Connect RPC
+// calls with SpanKindClient and injects W3C Trace Context into outgoing request headers.
 func ClientTracingInterceptor(tracer interfaces.Tracer) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {

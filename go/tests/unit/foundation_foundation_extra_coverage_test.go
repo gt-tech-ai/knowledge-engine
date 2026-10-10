@@ -2,18 +2,19 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	schemares "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/reswire"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry/exponential"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestReswire_NewRetrier_ErrorPaths tests that NewRetrier surfaces both a config
@@ -40,7 +41,7 @@ func TestReswire_NewRetrier_ErrorPaths(t *testing.T) {
 		loader.EXPECT().Get("resilience.retry").Return(map[string]any{"max_retries": 5})
 		loader.EXPECT().
 			UnmarshalKey("resilience.retry", gomock.Any()).
-			Return(errors.New("decode failure"))
+			Return(apperr.Sentinel("decode failure"))
 
 		_, err := reswire.NewRetrier(loader)
 		require.Error(t, err, "an unmarshal failure must be surfaced")
@@ -91,7 +92,7 @@ func TestReswire_NewBreaker_ErrorPaths(t *testing.T) {
 			Return(map[string]any{"failure_ratio": 0.5})
 		loader.EXPECT().
 			UnmarshalKey("resilience.circuit_breaker", gomock.Any()).
-			Return(errors.New("decode failure"))
+			Return(apperr.Sentinel("decode failure"))
 
 		_, err := reswire.NewBreaker(loader, "test.breaker")
 		require.Error(t, err, "an unmarshal failure must be surfaced")
@@ -134,7 +135,7 @@ func TestReswire_NewBreaker_ErrorPaths(t *testing.T) {
 func TestExponentialRetry_CustomIsRetryable(t *testing.T) {
 	t.Parallel()
 
-	terminal := errors.New("terminal")
+	terminal := apperr.Sentinel("terminal")
 	r := exponential.New(exponential.Config{
 		MaxRetries:      5,
 		InitialInterval: time.Millisecond,

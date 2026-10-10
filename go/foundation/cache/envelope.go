@@ -4,6 +4,8 @@ package cache
 import (
 	"encoding/json"
 	"time"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // Envelope wraps a cached value with metadata for version-aware caching.
@@ -37,7 +39,11 @@ func Encode[T any](value T, version int) ([]byte, error) {
 		CachedAt: time.Now(),
 		Version:  version,
 	}
-	return json.Marshal(env)
+	b, err := json.Marshal(env)
+	if err != nil {
+		return nil, apperr.Wrap(err, apperr.CodeInternal, "encode cache envelope")
+	}
+	return b, nil
 }
 
 // Decode deserializes bytes into a versioned envelope. Returns (value, true, nil)
@@ -47,7 +53,7 @@ func Decode[T any](data []byte, version int) (val T, ok bool, err error) {
 	var env Envelope[T]
 	if err := json.Unmarshal(data, &env); err != nil {
 		var zero T
-		return zero, false, err
+		return zero, false, apperr.Wrap(err, apperr.CodeInternal, "decode cache envelope")
 	}
 	if env.Version != version {
 		var zero T

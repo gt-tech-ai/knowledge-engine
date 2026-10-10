@@ -7,6 +7,7 @@ no Ollama — the stub-first property (ARCHITECTURE.md#stub-first-backends).
 from __future__ import annotations
 
 import pytest
+
 from techai_webutils.clients.embedding.builder import (
     EmbeddingConfig,
     EmbeddingKind,
@@ -36,7 +37,9 @@ async def test_embedding_stub_returns_deterministic_vector() -> None:
 
     assert len(first.embedding) == 8
     assert first.embedding == second.embedding, "same text embeds to the same vector"
-    assert first.embedding != other.embedding, "different text embeds to a different vector"
+    assert first.embedding != other.embedding, (
+        "different text embeds to a different vector"
+    )
     assert stub.dimension() == 8
     assert stub.model_name() == "stub"
 
@@ -55,6 +58,8 @@ def test_new_embedding_from_config_selects_stub() -> None:
         - ``new_embedding_from_config`` with ``kind=STUB`` returns a ``StubEmbeddingProvider`` of the
           configured dimension.
     """
-    provider = new_embedding_from_config(EmbeddingConfig(kind=EmbeddingKind.STUB, dimension=16))
+    provider = new_embedding_from_config(
+        EmbeddingConfig(kind=EmbeddingKind.STUB, dimension=16)
+    )
     assert isinstance(provider, StubEmbeddingProvider)
     assert provider.dimension() == 16

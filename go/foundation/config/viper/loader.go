@@ -10,9 +10,10 @@ import (
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/spf13/viper"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // Compile-time interface assertion.
@@ -106,13 +107,13 @@ func (l *Loader) Load() error {
 	l.v.SetConfigType("yaml")
 	l.v.AutomaticEnv()
 	l.v.SetEnvPrefix(l.prefix)
-	l.v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	l.v.SetEnvKeyReplacer(envReplacer())
 
 	// Layer 1: Base config
-	l.v.SetConfigFile(fmt.Sprintf("%s/base.yaml", l.baseDir))
+	l.v.SetConfigFile(l.baseDir + "/base.yaml")
 	if err := l.v.ReadInConfig(); err != nil {
 		if !os.IsNotExist(err) {
-			return coreerr.Wrap(err, coreerr.CodeInternal, "read base config")
+			return apperr.Wrap(err, apperr.CodeInternal, "read base config")
 		}
 	}
 
@@ -122,21 +123,21 @@ func (l *Loader) Load() error {
 		if _, err := os.Stat(envFile); err == nil {
 			l.v.SetConfigFile(envFile)
 			if err := l.v.MergeInConfig(); err != nil {
-				return coreerr.Wrap(
+				return apperr.Wrap(
 					err,
-					coreerr.CodeInternal,
-					fmt.Sprintf("merge env config %s", l.env),
+					apperr.CodeInternal,
+					"merge env config "+l.env,
 				)
 			}
 		}
 	}
 
 	// Layer 3: Secrets file
-	secretsFile := fmt.Sprintf("%s/secrets.yaml", l.baseDir)
+	secretsFile := l.baseDir + "/secrets.yaml"
 	if _, err := os.Stat(secretsFile); err == nil {
 		l.v.SetConfigFile(secretsFile)
 		if err := l.v.MergeInConfig(); err != nil {
-			return coreerr.Wrap(err, coreerr.CodeInternal, "merge secrets")
+			return apperr.Wrap(err, apperr.CodeInternal, "merge secrets")
 		}
 	}
 
@@ -175,7 +176,14 @@ func (l *Loader) GetBool(key string) bool {
 
 // Unmarshal decodes the full configuration into the target struct.
 func (l *Loader) Unmarshal(target any) error {
-	return l.v.Unmarshal(target)
+	if err := l.v.Unmarshal(target); err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.CodeOr(err, apperr.CodeInvalidInput),
+			"unmarshal config",
+		)
+	}
+	return nil
 }
 
 // UnmarshalKey decodes a specific configuration section into the target struct.
@@ -184,8 +192,8 @@ func (l *Loader) Unmarshal(target any) error {
 // built-in UnmarshalKey ignores for nested keys.
 func (l *Loader) UnmarshalKey(key string, target any) error {
 	if !l.v.IsSet(key) {
-		return coreerr.New(
-			coreerr.CodeNotFound,
+		return apperr.New(
+			apperr.CodeNotFound,
 			fmt.Sprintf("config key %q not found", key),
 		)
 	}
@@ -213,10 +221,17 @@ func (l *Loader) UnmarshalKey(key string, target any) error {
 		WeaklyTypedInput: true,
 	})
 	if err != nil {
-		return coreerr.Wrap(err, coreerr.CodeInternal, "create decoder")
+		return apperr.Wrap(err, apperr.CodeInternal, "create decoder")
 	}
 
-	return decoder.Decode(resolved)
+	if err := decoder.Decode(resolved); err != nil {
+		return apperr.Wrap(
+			err,
+			apperr.CodeOr(err, apperr.CodeInvalidInput),
+			"decode config",
+		)
+	}
+	return nil
 }
 
 // setNested expands a dotted key (e.g., "server.port") into nested maps.

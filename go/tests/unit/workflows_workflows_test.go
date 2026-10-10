@@ -2,16 +2,17 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/workflows/workflow"
 	"github.com/gt-tech-ai/knowledge-engine/go/workflows/workflow/decorators"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestBaseWorkflow tests that BaseWorkflow wraps an orchestration function
@@ -30,7 +31,7 @@ func TestBaseWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a simple orchestration function: append "-processed" to input
-	orchestrateFn := func(ctx context.Context, input string) (string, error) {
+	orchestrateFn := func(_ context.Context, input string) (string, error) {
 		return input + "-processed", nil
 	}
 
@@ -56,10 +57,10 @@ func TestBaseWorkflow(t *testing.T) {
 func TestBaseWorkflow_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	expectedErr := errors.New("orchestration failed")
+	expectedErr := apperr.Sentinel("orchestration failed")
 
 	// Create a function that returns an error
-	orchestrateFn := func(ctx context.Context, input string) (string, error) {
+	orchestrateFn := func(_ context.Context, _ string) (string, error) {
 		return "", expectedErr
 	}
 
@@ -85,7 +86,7 @@ func TestWorkflowsLoggingDecorator(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "workflow-output-" + input, nil
 		},
 	)
@@ -114,7 +115,7 @@ func TestWorkflowsLoggingDecorator_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("workflow failed")
+	expectedErr := apperr.Sentinel("workflow failed")
 	mock := fixtures.ErrWorkflow(expectedErr)
 
 	w := decorators.NewBuilder[string, string](mock, "error-workflow").
@@ -141,7 +142,7 @@ func TestWorkflowsMetricsDecorator(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, _ string) (string, error) {
 			return "output", nil
 		},
 	)
@@ -171,7 +172,7 @@ func TestWorkflowsBuilderComposition(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "composed-" + input, nil
 		},
 	)
@@ -202,7 +203,7 @@ func TestWorkflowsBuilderComposition_ErrorFlow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("composed error")
+	expectedErr := apperr.Sentinel("composed error")
 	mock := fixtures.ErrWorkflow(expectedErr)
 
 	w := decorators.NewBuilder[string, string](mock, "error-composed").
@@ -228,7 +229,7 @@ func TestWorkflowsBuilderComposition_ErrorFlow(t *testing.T) {
 //   - A logging-decorated workflow is usable without type assertion failure
 func TestWorkflowsInterfaceCompliance(t *testing.T) {
 	t.Parallel()
-	orchestrateFn := func(ctx context.Context, input string) (string, error) {
+	orchestrateFn := func(_ context.Context, input string) (string, error) {
 		return input, nil
 	}
 
@@ -261,7 +262,7 @@ func TestWorkflowsTimeoutDecorator_PassesThrough(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "fast-" + input, nil
 		},
 	)
@@ -290,7 +291,7 @@ func TestWorkflowsTimeoutDecorator_CancelsSlowOp(t *testing.T) {
 	t.Parallel()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(ctx context.Context, _ string) (string, error) {
 			<-ctx.Done()
 			return "", ctx.Err()
 		},
@@ -350,7 +351,7 @@ func TestWorkflowsRecoveryDecorator_PassesThroughNormal(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "recovered-" + input, nil
 		},
 	)
@@ -378,7 +379,7 @@ func TestWorkflowsRecoveryDecorator_PropagatesError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("workflow error")
+	expectedErr := apperr.Sentinel("workflow error")
 	mock := fixtures.ErrWorkflow(expectedErr)
 
 	w := decorators.NewBuilder[string, string](mock, "error-recovery-workflow").
@@ -409,7 +410,7 @@ func TestFullDecoratorChain(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubWorkflow(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "full-" + input, nil
 		},
 	)
@@ -440,7 +441,7 @@ func TestMetricsDecorator_ErrorFlow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("metrics error")
+	expectedErr := apperr.Sentinel("metrics error")
 	mock := fixtures.ErrWorkflow(expectedErr)
 
 	w := decorators.NewBuilder[string, string](mock, "metrics-error-workflow").
@@ -508,7 +509,7 @@ func TestWorkflowDecorator_WithTracing_HappyPath(t *testing.T) {
 func TestWorkflowDecorator_WithTracing_ErrorPath(t *testing.T) {
 	t.Parallel()
 
-	expectedErr := errors.New("workflow failure")
+	expectedErr := apperr.Sentinel("workflow failure")
 	base := fixtures.ErrWorkflow(expectedErr)
 	w := decorators.NewBuilder[string, string](base, "test-workflow").
 		WithTracing(fixtures.NopTracer()).

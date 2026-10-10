@@ -3,12 +3,13 @@ package unit_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/listquery"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/vizql"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // vizCube is the genai_calls test cube: its allow-list, the team → workspace
@@ -44,15 +45,43 @@ func TestCompile_InfersMarkPerPaneKind(t *testing.T) {
 		name       string
 		want       types.Mark
 	}{
-		{name: "O×O", rows: leaf("team", ""), cols: leaf("model", ""), want: types.MarkText},
-		{name: "O×Q", rows: leaf("team", ""), cols: leaf("tokens_in", types.AggSum), want: types.MarkBar},
-		{name: "Q×O", rows: leaf("tokens_in", types.AggSum), cols: leaf("team", ""), want: types.MarkBar},
-		{name: "T×Q", rows: leaf("ts", ""), cols: leaf("duration_s", types.AggP95), want: types.MarkLine},
-		{name: "Q×Q", rows: leaf("tokens_in", types.AggAvg), cols: leaf("duration_s", types.AggAvg), want: types.MarkPoint},
+		{
+			name: "O×O",
+			rows: leaf("team", ""),
+			cols: leaf("model", ""),
+			want: types.MarkText,
+		},
+		{
+			name: "O×Q",
+			rows: leaf("team", ""),
+			cols: leaf("tokens_in", types.AggSum),
+			want: types.MarkBar,
+		},
+		{
+			name: "Q×O",
+			rows: leaf("tokens_in", types.AggSum),
+			cols: leaf("team", ""),
+			want: types.MarkBar,
+		},
+		{
+			name: "T×Q",
+			rows: leaf("ts", ""),
+			cols: leaf("duration_s", types.AggP95),
+			want: types.MarkLine,
+		},
+		{
+			name: "Q×Q",
+			rows: leaf("tokens_in", types.AggAvg),
+			cols: leaf("duration_s", types.AggAvg),
+			want: types.MarkPoint,
+		},
 		{name: "Q alone", rows: leaf("tokens_in", types.AggSum), want: types.MarkBar},
 	}
 	for _, tc := range cases {
-		plan, err := vizql.Compile(types.VizSpec{Cube: "genai_calls", Rows: tc.rows, Columns: tc.cols}, vizCube())
+		plan, err := vizql.Compile(
+			types.VizSpec{Cube: "genai_calls", Rows: tc.rows, Columns: tc.cols},
+			vizCube(),
+		)
 		require.NoError(t, err, tc.name)
 		require.Len(t, plan.Panes, 1, tc.name)
 		assert.Equal(t, tc.want, plan.Marks[plan.Panes[0]], tc.name)
@@ -71,11 +100,20 @@ func TestCompile_ExplicitMarkOverridesInference(t *testing.T) {
 	t.Parallel()
 
 	plan, err := vizql.Compile(types.VizSpec{
-		Cube: "genai_calls", Rows: leaf("team", ""), Columns: leaf("tokens_in", types.AggSum), Mark: types.MarkLine,
+		Cube:    "genai_calls",
+		Rows:    leaf("team", ""),
+		Columns: leaf("tokens_in", types.AggSum),
+		Mark:    types.MarkLine,
 	}, vizCube())
 	require.NoError(t, err)
 
-	assert.Equal(t, map[vizql.PaneKey]types.Mark{{Row: "team", Column: "sum(tokens_in)"}: types.MarkLine}, plan.Marks)
+	assert.Equal(
+		t,
+		map[vizql.PaneKey]types.Mark{
+			{Row: "team", Column: "sum(tokens_in)"}: types.MarkLine,
+		},
+		plan.Marks,
+	)
 }
 
 // TestCompile_DerivesOneAggregateQuery tests the single store query a multi-pane
@@ -118,8 +156,19 @@ func TestCompile_DerivesOneAggregateQuery(t *testing.T) {
 		Grain:     types.GrainDay,
 		Sort:      spec.Sort,
 	}, plan.Query)
-	assert.Equal(t, []vizql.PaneKey{{Row: "team", Column: "sum(tokens_in)"}, {Row: "model", Column: "sum(tokens_in)"}}, plan.Panes)
-	assert.Equal(t, types.MarkBar, plan.Marks[vizql.PaneKey{Row: "model", Column: "sum(tokens_in)"}])
+	assert.Equal(
+		t,
+		[]vizql.PaneKey{
+			{Row: "team", Column: "sum(tokens_in)"},
+			{Row: "model", Column: "sum(tokens_in)"},
+		},
+		plan.Panes,
+	)
+	assert.Equal(
+		t,
+		types.MarkBar,
+		plan.Marks[vizql.PaneKey{Row: "model", Column: "sum(tokens_in)"}],
+	)
 }
 
 // TestCompile_RejectsWithCodedInvalidInput tests the compile-time rejections.
@@ -138,11 +187,15 @@ func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 	cube := vizCube()
 	cube.Fields.Add(listquery.String("user_id").AsMeasure(types.AggCountDistinct))
 	for name, spec := range map[string]types.VizSpec{
-		"cube mismatch":  {Cube: "other", Rows: leaf("team", "")},
-		"grain":          {Cube: "genai_calls", Rows: leaf("team", ""), Grain: types.GrainMonth},
+		"cube mismatch": {Cube: "other", Rows: leaf("team", "")},
+		"grain": {
+			Cube: "genai_calls", Rows: leaf("team", ""), Grain: types.GrainMonth,
+		},
 		"count_distinct": {Cube: "genai_calls", Rows: leaf("user_id", types.AggCountDistinct)},
 		"sort off the query": {
-			Cube: "genai_calls", Rows: leaf("team", ""), Sort: []types.OrderField{{Field: "model"}},
+			Cube: "genai_calls",
+			Rows: leaf("team", ""),
+			Sort: []types.OrderField{{Field: "model"}},
 		},
 	} {
 		_, err := vizql.Compile(spec, cube)
@@ -150,7 +203,10 @@ func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), name)
 	}
 
-	_, err := vizql.Compile(types.VizSpec{Cube: "genai_calls", Rows: leaf("team", "")}, vizql.CubeSchema{Name: "genai_calls"})
+	_, err := vizql.Compile(
+		types.VizSpec{Cube: "genai_calls", Rows: leaf("team", "")},
+		vizql.CubeSchema{Name: "genai_calls"},
+	)
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")
 }
 
@@ -162,32 +218,57 @@ func TestCompile_RejectsWithCodedInvalidInput(t *testing.T) {
 //
 // What it tests:
 //   - drilling "team" in team × model (detail team, sorted by team desc then
-//     sum(tokens_in)) yields workspace × model (detail workspace, sorted by
-//     workspace desc then sum(tokens_in)); the input spec is unchanged
+//     sum(tokens_in)) yields workspace × model (detail workspace, sorted by workspace
+//     desc then sum(tokens_in)); the input spec is unchanged
 //   - drilling with a cube that has no allow-list is CodeInvalidInput
-//   - drilling the hierarchy's last level, or a field in no hierarchy, is CodeInvalidInput
+//   - drilling the hierarchy's last level, or a field in no hierarchy, is
+//     CodeInvalidInput
 func TestDrill_TeamToWorkspace(t *testing.T) {
 	t.Parallel()
 
 	spec := types.VizSpec{
-		Cube:   "genai_calls",
-		Rows:   &types.AlgebraExpr{Op: types.AlgebraCross, Args: []*types.AlgebraExpr{leaf("team", ""), leaf("model", "")}},
+		Cube: "genai_calls",
+		Rows: &types.AlgebraExpr{
+			Op:   types.AlgebraCross,
+			Args: []*types.AlgebraExpr{leaf("team", ""), leaf("model", "")},
+		},
 		Detail: []types.FieldRef{{Name: "team"}},
-		Sort:   []types.OrderField{{Field: "team", Desc: true}, {Field: "sum(tokens_in)"}},
+		Sort: []types.OrderField{
+			{Field: "team", Desc: true},
+			{Field: "sum(tokens_in)"},
+		},
 	}
 
 	drilled, err := vizql.Drill(spec, vizCube(), "team")
 	require.NoError(t, err)
-	assert.Equal(t, []types.OrderField{{Field: "workspace", Desc: true}, {Field: "sum(tokens_in)"}}, drilled.Sort)
+	assert.Equal(
+		t,
+		[]types.OrderField{{Field: "workspace", Desc: true}, {Field: "sum(tokens_in)"}},
+		drilled.Sort,
+	)
 	assert.Equal(t, "team", spec.Sort[0].Field, "input sort unchanged")
-	_, err = vizql.Drill(spec, vizql.CubeSchema{Hierarchies: vizCube().Hierarchies}, "team")
+	_, err = vizql.Drill(
+		spec,
+		vizql.CubeSchema{Hierarchies: vizCube().Hierarchies},
+		"team",
+	)
 	assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), "nil allow-list")
 
 	assert.Equal(t, &types.FieldRef{Name: "workspace"}, drilled.Rows.Args[0].Field)
 	assert.Equal(t, &types.FieldRef{Name: "model"}, drilled.Rows.Args[1].Field)
 	assert.Equal(t, []types.FieldRef{{Name: "workspace"}}, drilled.Detail)
-	assert.Equal(t, &types.FieldRef{Name: "team"}, spec.Rows.Args[0].Field, "input spec unchanged")
-	assert.Equal(t, []types.FieldRef{{Name: "team"}}, spec.Detail, "input detail unchanged")
+	assert.Equal(
+		t,
+		&types.FieldRef{Name: "team"},
+		spec.Rows.Args[0].Field,
+		"input spec unchanged",
+	)
+	assert.Equal(
+		t,
+		[]types.FieldRef{{Name: "team"}},
+		spec.Detail,
+		"input detail unchanged",
+	)
 	for _, field := range []string{"workspace", "model"} {
 		_, err := vizql.Drill(drilled, vizCube(), field)
 		assert.Equal(t, apperr.CodeInvalidInput, apperr.Code(err), field)

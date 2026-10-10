@@ -11,7 +11,8 @@ coverage; exercised against a real Knowledge Base.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Any, Protocol, Self, cast
+from contextlib import AsyncExitStack
+from typing import Protocol, Self, cast
 
 import aiobotocore.session  # type: ignore[import-untyped]
 from botocore.exceptions import BotoCoreError, ClientError
@@ -85,26 +86,29 @@ class BedrockRetrievalEngine(RetrievalEngine):
         self._build_filter = filter_builder
         self._resolve_document_id = document_id_resolver or metadata_document_id
         self._session = aiobotocore.session.get_session()
-        # The client's async context manager + the entered client (typed ``Any`` — aiobotocore is unstubbed).
-        self._client_cm: Any = None
+        # The exit stack that owns the opened client's async context (entered on first use).
+        self._stack: AsyncExitStack | None = None
         self._client: _BedrockAgentRuntimeClient | None = None
 
     async def _runtime_client(self) -> _BedrockAgentRuntimeClient:
         """Return the shared bedrock-agent-runtime client, opening (and caching) it on first use."""
         if self._client is None:
-            self._client_cm = self._session.create_client(
+            self._stack = stack = AsyncExitStack()
+            client_cm = self._session.create_client(
                 "bedrock-agent-runtime",
                 region_name=self._region,
                 endpoint_url=self._endpoint,
             )
-            self._client = cast("_BedrockAgentRuntimeClient", await self._client_cm.__aenter__())
+            self._client = cast(
+                "_BedrockAgentRuntimeClient", await stack.enter_async_context(client_cm)
+            )
         return self._client
 
     async def aclose(self) -> None:
         """Close the shared client if one was opened (idempotent)."""
-        if self._client_cm is not None:
-            await self._client_cm.__aexit__(None, None, None)
-            self._client_cm = None
+        if self._stack is not None:
+            await self._stack.aclose()
+            self._stack = None
             self._client = None
 
     async def __aenter__(self) -> Self:
@@ -136,8 +140,10 @@ class BedrockRetrievalEngine(RetrievalEngine):
         hybrid search, and a Cohere rerankingConfiguration when a reranker is configured. A botocore
         failure raises a coded ``AppError`` (throttling / 5xx → transient ``UNAVAILABLE``).
         """
-        if index_id == "":
-            msg = "empty per-call knowledge base id (pass None to use the engine's default)"
+        if index_id is not None and not index_id:
+            msg = (
+                "empty per-call knowledge base id (pass None to use the engine's default)"
+            )
             raise InternalError(msg)
         kb_id = index_id if index_id is not None else self._kb_id
         if not kb_id:
@@ -146,7 +152,10 @@ class BedrockRetrievalEngine(RetrievalEngine):
         client = await self._runtime_client()
         request = filters or {}
         vector_config: dict[str, object] = {"numberOfResults": top_k}
-        if self._build_filter is not None and (kb_filter := self._build_filter(request)) is not None:
+        if (
+            self._build_filter is not None
+            and (kb_filter := self._build_filter(request)) is not None
+        ):
             vector_config["filter"] = kb_filter
         if self._search_type == "hybrid":
             vector_config["overrideSearchType"] = "HYBRID"
@@ -199,9 +208,17 @@ def _to_result(
     ``MetadataEquals`` policy drops it (fail closed) instead of trusting the request for it.
     """
     metadata_raw = item.get("metadata", {})
-    metadata = {str(k): str(v) for k, v in metadata_raw.items()} if isinstance(metadata_raw, dict) else {}
+    metadata = (
+        {str(k): str(v) for k, v in cast("dict[object, object]", metadata_raw).items()}
+        if isinstance(metadata_raw, dict)
+        else {}
+    )
     content = item.get("content", {})
-    text = content.get("text", "") if isinstance(content, dict) else ""
+    text = (
+        cast("dict[str, object]", content).get("text", "")
+        if isinstance(content, dict)
+        else ""
+    )
     page = metadata.get("page_number")
     return RetrievalResult(
         document_id=resolve_document_id(metadata, filters),

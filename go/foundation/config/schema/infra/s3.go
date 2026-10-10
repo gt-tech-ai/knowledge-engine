@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // S3Config holds S3-compatible storage configuration, including the backend
@@ -85,20 +85,20 @@ func (c S3Config) Validate() error {
 	switch c.Kind {
 	case "s3", "minio":
 	default:
-		return coreerr.New(
-			coreerr.CodeInvalidInput,
+		return apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("invalid s3 kind %q: must be \"s3\" or \"minio\"", c.Kind),
 		)
 	}
 	if c.Bucket == "" {
-		return coreerr.InvalidInput("s3 bucket must not be empty")
+		return apperr.InvalidInput("s3 bucket must not be empty")
 	}
 	// A multipart part-URL must live at least as long as a single-part PUT URL:
 	// EffectiveMultipartPresignExpiry is what the reaper TTL and cleanup grace are
 	// sized above, so a shorter value would let a live multipart upload be reaped
 	// mid-flight (the exact race MultipartPresignExpiry's doc warns about).
 	if c.MultipartPresignExpiry != 0 && c.MultipartPresignExpiry < c.PresignExpiry {
-		return coreerr.New(coreerr.CodeInvalidInput, fmt.Sprintf(
+		return apperr.New(apperr.CodeInvalidInput, fmt.Sprintf(
 			"s3 multipart_presign_expiry (%s) must be >= presign_expiry (%s)",
 			c.MultipartPresignExpiry, c.PresignExpiry,
 		))

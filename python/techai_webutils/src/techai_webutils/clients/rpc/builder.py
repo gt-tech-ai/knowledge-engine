@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from techai_webutils.clients.rpc.grpc.client import ChannelConfig, create_channel
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     import grpc
@@ -39,4 +40,4 @@ def new_rpc_channel_from_config(config: RpcConfig) -> grpc.aio.Channel:
     if config.kind is RpcKind.GRPC:
         return create_channel(config=config.channel)
     msg = f"unknown rpc kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

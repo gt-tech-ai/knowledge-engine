@@ -62,11 +62,21 @@ class DatabaseSettings(BaseAppSettings):
     database_host: str = Field(default="localhost", description="PostgreSQL host.")
     database_port: int = Field(default=5432, description="PostgreSQL port.")
     database_user: str = Field(default="app", description="PostgreSQL user.")
-    database_password: str = Field(default="dev_password", description="PostgreSQL password.")
-    database_database: str = Field(default="knowledge_engine", description="PostgreSQL database name.")
-    database_sslmode: str = Field(default="disable", description="libpq sslmode (disable/require/…).")
-    database_max_connections: int = Field(default=25, description="Max open pool connections.")
-    database_max_idle_connections: int = Field(default=5, description="Max idle pool connections.")
+    database_password: str = Field(
+        default="dev_password", description="PostgreSQL password."
+    )
+    database_database: str = Field(
+        default="knowledge_engine", description="PostgreSQL database name."
+    )
+    database_sslmode: str = Field(
+        default="disable", description="libpq sslmode (disable/require/…)."
+    )
+    database_max_connections: int = Field(
+        default=25, description="Max open pool connections."
+    )
+    database_max_idle_connections: int = Field(
+        default=5, description="Max idle pool connections."
+    )
     database_connection_max_lifetime: str = Field(
         default="5m", description="Max connection lifetime (Go duration string)."
     )
@@ -96,9 +106,15 @@ class ServerSettings(BaseAppSettings):
         default="0.0.0.0",  # noqa: S104  # nosec B104 - containerized services must bind all interfaces
         description="Bind address (0.0.0.0 in containers).",
     )
-    server_read_timeout: str = Field(default="30s", description="HTTP read timeout (duration string).")
-    server_write_timeout: str = Field(default="30s", description="HTTP write timeout (duration string).")
-    server_idle_timeout: str = Field(default="120s", description="HTTP idle timeout (duration string).")
+    server_read_timeout: str = Field(
+        default="30s", description="HTTP read timeout (duration string)."
+    )
+    server_write_timeout: str = Field(
+        default="30s", description="HTTP write timeout (duration string)."
+    )
+    server_idle_timeout: str = Field(
+        default="120s", description="HTTP idle timeout (duration string)."
+    )
 
 
 class LoggingSettings(BaseAppSettings):
@@ -107,9 +123,13 @@ class LoggingSettings(BaseAppSettings):
     Fields are prefixed with 'logging_'.
     """
 
-    logging_level: str = Field(default="info", description="Log level (debug/info/warn/error).")
+    logging_level: str = Field(
+        default="info", description="Log level (debug/info/warn/error)."
+    )
     logging_format: str = Field(default="json", description="Log format (json/console).")
-    logging_redact_pii: bool = Field(default=True, description="Redact PII fields from logs.")
+    logging_redact_pii: bool = Field(
+        default=True, description="Redact PII fields from logs."
+    )
 
 
 class S3Settings(BaseAppSettings):
@@ -118,11 +138,19 @@ class S3Settings(BaseAppSettings):
     Fields are prefixed with 'storage_s3_' to match YAML structure.
     """
 
-    storage_s3_endpoint: str = Field(default="http://localhost:9000", description="S3/MinIO endpoint URL.")
-    storage_s3_bucket: str = Field(default="documents", description="Document bucket name.")
+    storage_s3_endpoint: str = Field(
+        default="http://localhost:9000", description="S3/MinIO endpoint URL."
+    )
+    storage_s3_bucket: str = Field(
+        default="documents", description="Document bucket name."
+    )
     storage_s3_region: str = Field(default="us-east-1", description="S3 region.")
-    storage_s3_access_key_id: str = Field(default="minioadmin", description="S3 access key id.")
-    storage_s3_secret_access_key: str = Field(default="minioadmin", description="S3 secret access key.")
+    storage_s3_access_key_id: str = Field(
+        default="minioadmin", description="S3 access key id."
+    )
+    storage_s3_secret_access_key: str = Field(
+        default="minioadmin", description="S3 secret access key."
+    )
 
 
 class SQSSettings(BaseAppSettings):
@@ -135,8 +163,12 @@ class SQSSettings(BaseAppSettings):
         default="http://localhost:9324", description="SQS/ElasticMQ endpoint URL."
     )
     messaging_sqs_region: str = Field(default="us-east-1", description="SQS region.")
-    messaging_sqs_access_key_id: str = Field(default="local", description="SQS access key id.")
-    messaging_sqs_secret_access_key: str = Field(default="local", description="SQS secret access key.")
+    messaging_sqs_access_key_id: str = Field(
+        default="local", description="SQS access key id."
+    )
+    messaging_sqs_secret_access_key: str = Field(
+        default="local", description="SQS secret access key."
+    )
 
 
 class ObservabilitySettings(BaseAppSettings):
@@ -145,9 +177,15 @@ class ObservabilitySettings(BaseAppSettings):
     Fields are prefixed with 'observability_'.
     """
 
-    observability_otel_endpoint: str = Field(default="localhost:4317", description="OTLP collector endpoint.")
+    observability_otel_endpoint: str = Field(
+        default="localhost:4317", description="OTLP collector endpoint."
+    )
     observability_service_name: str = Field(
         default="platform", description="Service name for traces/metrics."
     )
-    observability_traces_enabled: bool = Field(default=True, description="Emit OpenTelemetry traces.")
-    observability_metrics_enabled: bool = Field(default=True, description="Emit Prometheus metrics.")
+    observability_traces_enabled: bool = Field(
+        default=True, description="Emit OpenTelemetry traces."
+    )
+    observability_metrics_enabled: bool = Field(
+        default=True, description="Emit Prometheus metrics."
+    )

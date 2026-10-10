@@ -39,7 +39,11 @@ func Load(loader interfaces.ConfigLoader) (Config, error) {
 	cfg := DefaultConfig()
 	if loader.Get(SectionKey) != nil {
 		if err := loader.UnmarshalKey(SectionKey, &cfg); err != nil {
-			return Config{}, apperr.Wrap(err, apperr.CodeInvalidInput, "load workflows config")
+			return Config{}, apperr.Wrap(
+				err,
+				apperr.CodeInvalidInput,
+				"load workflows config",
+			)
 		}
 	}
 	if err := cfg.Validate(); err != nil {

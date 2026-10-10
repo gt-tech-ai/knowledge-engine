@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gt-tech-ai/knowledge-engine/go/foundation/options"
 )
 
 // testConfig is a sample configuration struct for testing options.
@@ -17,9 +18,9 @@ type testConfig struct {
 }
 
 // withMaxRetries is a sample option function.
-func withMaxRetries(max int) options.Option[testConfig] {
+func withMaxRetries(n int) options.Option[testConfig] {
 	return func(c *testConfig) {
-		c.MaxRetries = max
+		c.MaxRetries = n
 	}
 }
 
@@ -108,12 +109,13 @@ func TestApplyOptions(t *testing.T) {
 	t.Run("handles nil options in list", func(t *testing.T) {
 		t.Parallel()
 		cfg := &testConfig{}
+		var trailing options.Option[testConfig]
 		options.ApplyOptions(
 			cfg,
 			withMaxRetries(3),
 			nil,
 			withTimeout(30*time.Second),
-			nil,
+			trailing,
 		)
 		assert.Equal(t, 3, cfg.MaxRetries)
 		assert.Equal(t, 30*time.Second, cfg.Timeout)

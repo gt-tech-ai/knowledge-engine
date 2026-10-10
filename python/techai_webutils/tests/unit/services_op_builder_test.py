@@ -11,20 +11,32 @@ import asyncio
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
-from techai_webutils.core.errors.errors import AppTimeoutError, InternalError, InvalidInputError
+
+from techai_webutils.core.errors.errors import (
+    AppTimeoutError,
+    InternalError,
+    InvalidInputError,
+)
 from techai_webutils.core.interfaces.logger import Logger
-from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram, MetricsProvider
+from techai_webutils.core.interfaces.metrics import (
+    MetricCounter,
+    MetricHistogram,
+    MetricsProvider,
+)
 from techai_webutils.core.interfaces.op_service import OpService
 from techai_webutils.core.interfaces.tracer import TracerProvider, TracerSpan
 from techai_webutils.services.op_builder import build
 
 
 async def _echo(args: str) -> str:
-    """A trivial operation that echoes its args."""
+    """Echo the args (a trivial operation)."""
+    await asyncio.sleep(0)
     return f"result:{args}"
 
 
 class TestOpServiceBuilder:
+    """Tests for the op service builder."""
+
     @pytest.mark.asyncio
     async def test_builds_named_runnable_service(self) -> None:
         """Test that the builder produces a named OpService whose run executes the operation.
@@ -55,7 +67,9 @@ class TestOpServiceBuilder:
         logger = create_autospec(Logger, instance=True)
 
         async def boom(_args: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         svc = build(boom).named("op").with_log(logger).service()
         with pytest.raises(InvalidInputError):
@@ -76,6 +90,7 @@ class TestOpServiceBuilder:
         """
 
         async def boom(_args: str) -> str:
+            await asyncio.sleep(0)
             msg = "unexpected"
             raise ValueError(msg)
 
@@ -92,7 +107,9 @@ class TestOpServiceBuilder:
         """
 
         async def boom(_args: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         svc = build(boom).named("op").service()
         with pytest.raises(InvalidInputError):
@@ -142,7 +159,9 @@ class TestOpServiceBuilder:
         hist.observe.assert_called()
 
         async def boom(_args: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         svc_err = build(boom).named("op").with_metrics(metrics).service()
         with pytest.raises(InvalidInputError):
@@ -172,7 +191,9 @@ class TestOpServiceBuilder:
         tracer.span.assert_called()
 
         async def boom(_args: str) -> str:
-            raise InvalidInputError("bad")
+            await asyncio.sleep(0)
+            msg = "bad"
+            raise InvalidInputError(msg)
 
         svc_err = build(boom).named("op").with_tracing(tracer).service()
         with pytest.raises(InvalidInputError):

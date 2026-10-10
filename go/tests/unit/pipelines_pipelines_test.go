@@ -2,17 +2,18 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/pipelines/pipeline"
 	"github.com/gt-tech-ai/knowledge-engine/go/pipelines/pipeline/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestBasePipeline tests that BasePipeline wraps a transform function and
@@ -31,7 +32,7 @@ func TestBasePipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a simple transform function: uppercase the input
-	transformFn := func(ctx context.Context, input string) (string, error) {
+	transformFn := func(_ context.Context, input string) (string, error) {
 		return strings.ToUpper(input), nil
 	}
 
@@ -58,10 +59,10 @@ func TestBasePipeline(t *testing.T) {
 func TestBasePipeline_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	expectedErr := errors.New("transform failed")
+	expectedErr := apperr.Sentinel("transform failed")
 
 	// Create a function that returns an error
-	transformFn := func(ctx context.Context, input string) (string, error) {
+	transformFn := func(_ context.Context, _ string) (string, error) {
 		return "", expectedErr
 	}
 
@@ -87,7 +88,7 @@ func TestPipelinesLoggingDecorator(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "output-" + input, nil
 		},
 	)
@@ -116,7 +117,7 @@ func TestPipelinesLoggingDecorator_ErrorPropagation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("pipeline failed")
+	expectedErr := apperr.Sentinel("pipeline failed")
 	mock := fixtures.ErrPipeline(expectedErr)
 
 	p := decorators.NewBuilder[string, string](mock, "error-pipeline").
@@ -143,7 +144,7 @@ func TestPipelinesMetricsDecorator(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, _ string) (string, error) {
 			return "output", nil
 		},
 	)
@@ -173,7 +174,7 @@ func TestPipelinesBuilderComposition(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "composed-" + input, nil
 		},
 	)
@@ -204,7 +205,7 @@ func TestPipelinesBuilderComposition_ErrorFlow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("composed error")
+	expectedErr := apperr.Sentinel("composed error")
 	mock := fixtures.ErrPipeline(expectedErr)
 
 	p := decorators.NewBuilder[string, string](mock, "error-composed").
@@ -230,7 +231,7 @@ func TestPipelinesBuilderComposition_ErrorFlow(t *testing.T) {
 //   - A logging-decorated pipeline is usable without type assertion failure
 func TestPipelinesInterfaceCompliance(t *testing.T) {
 	t.Parallel()
-	transformFn := func(ctx context.Context, input string) (string, error) {
+	transformFn := func(_ context.Context, input string) (string, error) {
 		return input, nil
 	}
 
@@ -263,7 +264,7 @@ func TestPipelinesTimeoutDecorator_PassesThrough(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "fast-" + input, nil
 		},
 	)
@@ -292,7 +293,7 @@ func TestPipelinesTimeoutDecorator_CancelsSlowOp(t *testing.T) {
 	t.Parallel()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(ctx context.Context, _ string) (string, error) {
 			<-ctx.Done()
 			return "", ctx.Err()
 		},
@@ -353,7 +354,7 @@ func TestPipelinesRecoveryDecorator_PassesThroughNormal(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "recovered-" + input, nil
 		},
 	)
@@ -381,7 +382,7 @@ func TestPipelinesRecoveryDecorator_PropagatesError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	expectedErr := errors.New("pipeline error")
+	expectedErr := apperr.Sentinel("pipeline error")
 	mock := fixtures.ErrPipeline(expectedErr)
 
 	p := decorators.NewBuilder[string, string](mock, "error-recovery-pipeline").
@@ -435,7 +436,7 @@ func TestPipelinesFullResilienceChain(t *testing.T) {
 	ctx := context.Background()
 
 	mock := fixtures.StubPipeline(
-		func(ctx context.Context, input string) (string, error) {
+		func(_ context.Context, input string) (string, error) {
 			return "full-" + input, nil
 		},
 	)
@@ -508,7 +509,7 @@ func TestPipelineDecorator_WithTracing_HappyPath(t *testing.T) {
 func TestPipelineDecorator_WithTracing_ErrorPath(t *testing.T) {
 	t.Parallel()
 
-	expectedErr := errors.New("pipeline failure")
+	expectedErr := apperr.Sentinel("pipeline failure")
 	base := fixtures.ErrPipeline(expectedErr)
 	p := decorators.NewBuilder[string, string](base, "test-pipeline").
 		WithTracing(fixtures.NopTracer()).

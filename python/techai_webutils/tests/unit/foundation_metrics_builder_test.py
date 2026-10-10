@@ -10,6 +10,9 @@ Run with: pytest tests/python/test_foundation/test_metrics_builder.py -v
 
 from __future__ import annotations
 
+import pytest
+from prometheus_client import CollectorRegistry
+
 from techai_webutils.foundation.metrics.builder import (
     MetricsConfig,
     MetricsKind,
@@ -18,8 +21,6 @@ from techai_webutils.foundation.metrics.builder import (
 )
 from techai_webutils.foundation.metrics.metrics import PrometheusMetricsProvider
 from techai_webutils.foundation.metrics.null_metrics import NullMetricsProvider
-from prometheus_client import CollectorRegistry
-import pytest
 
 
 class TestMetricsBuilder:
@@ -98,7 +99,9 @@ class TestPrometheusMetricsLabels:
         """
         registry = CollectorRegistry()
         provider = PrometheusMetricsProvider(registry)
-        counter = provider.counter("test_counter_labels", "A test counter", labels=["method"])
+        counter = provider.counter(
+            "test_counter_labels", "A test counter", labels=["method"]
+        )
         counter.inc(1.0, method="GET")
         counter.inc(1.0, method="POST")
 

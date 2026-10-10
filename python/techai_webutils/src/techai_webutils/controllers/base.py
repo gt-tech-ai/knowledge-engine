@@ -52,7 +52,8 @@ class BaseController:
     on FastAPI, gRPC, or any specific framework.
     """
 
-    def handle_error(self, exc: Exception) -> dict[str, str]:
+    @staticmethod
+    def handle_error(exc: Exception) -> dict[str, str]:
         """Format an exception into a structured error response dict.
 
         Args:
@@ -67,14 +68,16 @@ class BaseController:
             "type": type(exc).__name__,
         }
 
-    def write_json(self, status: int, data: object) -> dict[str, object]:
+    @staticmethod
+    def write_json(status: int, data: object) -> dict[str, object]:
         """Format a JSON response with status code.
 
         Returns a dict with 'status' and 'data' for framework-agnostic use.
         """
         return {"status": status, "data": data}
 
-    def write_error(self, exc: Exception) -> dict[str, object]:
+    @staticmethod
+    def write_error(exc: Exception) -> dict[str, object]:
         """Format an error response.
 
         AppError instances use their error code and message.
@@ -106,6 +109,7 @@ class BaseController:
         """Format a 201 Created response."""
         return self.write_json(201, data)
 
-    def write_no_content(self) -> dict[str, object]:
+    @staticmethod
+    def write_no_content() -> dict[str, object]:
         """Format a 204 No Content response."""
         return {"status": 204, "data": None}

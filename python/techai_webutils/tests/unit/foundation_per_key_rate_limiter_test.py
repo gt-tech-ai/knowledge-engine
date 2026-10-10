@@ -1,10 +1,13 @@
 """Tests for the process-local per-key fixed-window rate limiter (InMemoryRateLimiter)."""
 
 import pytest
+
 from techai_webutils.foundation.resilience.per_key_rate_limiter import InMemoryRateLimiter
 
 
 class TestPerKeyRateLimiter:
+    """Tests for the per-key rate limiter."""
+
     @pytest.mark.asyncio
     async def test_allows_up_to_limit_then_blocks(self) -> None:
         """Test that the limiter allows up to the per-key limit per window, then blocks.

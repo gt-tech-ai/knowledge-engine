@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/singleflight"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
 // Compile-time interface assertions.
@@ -23,17 +24,19 @@ var (
 	_ interfaces.CacheInvalidator = (*Cache)(nil)
 )
 
-// globEscaper escapes the Redis glob metacharacters so a key prefix is matched
+// escapeGlob escapes the Redis glob metacharacters so a key prefix is matched
 // literally by SCAN's MATCH pattern. Without this, a prefix segment containing
 // "*"/"?"/"["/"]"/"\" (e.g. an unusual or hostile org id) would silently widen
 // the match and delete unrelated keys. Backslash must be escaped first.
-var globEscaper = strings.NewReplacer(
-	`\`, `\\`,
-	`*`, `\*`,
-	`?`, `\?`,
-	`[`, `\[`,
-	`]`, `\]`,
-)
+func escapeGlob(s string) string {
+	return strings.NewReplacer(
+		`\`, `\\`,
+		`*`, `\*`,
+		`?`, `\?`,
+		`[`, `\[`,
+		`]`, `\]`,
+	).Replace(s)
+}
 
 // scanCount is the modest SCAN batch size used by InvalidatePrefix so a sweep
 // over a large keyspace does not block Redis on a single call.
@@ -188,7 +191,7 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
 
 	val, err := c.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if errors.StdIs(err, redis.Nil) {
+		if apperr.StdIs(err, redis.Nil) {
 			// Cache miss (key doesn't exist) - not an error
 			return nil, false
 		}
@@ -240,22 +243,22 @@ func (c *Cache) InvalidatePrefix(ctx context.Context, prefix string) error {
 		return nil
 	}
 
-	pattern := globEscaper.Replace(prefix) + "*"
+	pattern := escapeGlob(prefix) + "*"
 	var cursor uint64
 	for {
 		keys, next, err := c.client.Scan(ctx, cursor, pattern, scanCount).Result()
 		if err != nil {
-			return errors.Wrap(
+			return apperr.Wrap(
 				err,
-				errors.CodeUnavailable,
+				apperr.CodeUnavailable,
 				"redis scan for prefix invalidation",
 			)
 		}
 		if len(keys) > 0 {
 			if err := c.client.Unlink(ctx, keys...).Err(); err != nil {
-				return errors.Wrap(
+				return apperr.Wrap(
 					err,
-					errors.CodeUnavailable,
+					apperr.CodeUnavailable,
 					"redis unlink for prefix invalidation",
 				)
 			}
@@ -272,9 +275,9 @@ func (c *Cache) InvalidatePrefix(ctx context.Context, prefix string) error {
 // it (it would clear unrelated keys on a shared Redis).
 func (c *Cache) InvalidateAll(ctx context.Context) error {
 	if err := c.client.FlushDB(ctx).Err(); err != nil {
-		return errors.Wrap(
+		return apperr.Wrap(
 			err,
-			errors.CodeUnavailable,
+			apperr.CodeUnavailable,
 			"redis flushdb for full invalidation",
 		)
 	}
@@ -320,13 +323,13 @@ func (c *Cache) GetOrLoad(
 // Ping checks the Redis connection. This is an extended method available only
 // on the concrete *Cache type.
 func (c *Cache) Ping(ctx context.Context) error {
-	return c.client.Ping(ctx).Err()
+	return apperr.Wrap(c.client.Ping(ctx).Err(), apperr.CodeUnavailable, "redis ping")
 }
 
 // Close closes the Redis client connection. Implements io.Closer for resource
 // cleanup.
 func (c *Cache) Close() error {
-	return c.client.Close()
+	return apperr.Wrap(c.client.Close(), apperr.CodeInternal, "close redis client")
 }
 
 // Client returns the underlying Redis client for metrics/health checks. This

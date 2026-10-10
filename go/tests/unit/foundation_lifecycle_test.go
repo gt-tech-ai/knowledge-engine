@@ -2,13 +2,13 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/lifecycle"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -84,7 +84,7 @@ func TestLifecycleManager_RollsBackOnStartFailure(t *testing.T) {
 	var log []string
 	m := lifecycle.New()
 	m.Register("a", newRecordingLifecycle(ctrl, "a", &log, nil, nil))
-	m.Register("b", newRecordingLifecycle(ctrl, "b", &log, errors.New("boom"), nil))
+	m.Register("b", newRecordingLifecycle(ctrl, "b", &log, apperr.Sentinel("boom"), nil))
 	m.Register("c", newRecordingLifecycle(ctrl, "c", &log, nil, nil))
 
 	err := m.Start(context.Background())
@@ -109,7 +109,7 @@ func TestLifecycleManager_StopContinuesPastFailure(t *testing.T) {
 	var log []string
 	m := lifecycle.New()
 	m.Register("a", newRecordingLifecycle(ctrl, "a", &log, nil, nil))
-	m.Register("b", newRecordingLifecycle(ctrl, "b", &log, nil, errors.New("boom")))
+	m.Register("b", newRecordingLifecycle(ctrl, "b", &log, nil, apperr.Sentinel("boom")))
 	m.Register("c", newRecordingLifecycle(ctrl, "c", &log, nil, nil))
 
 	require.NoError(t, m.Start(context.Background()))

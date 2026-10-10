@@ -11,8 +11,18 @@ Cross-cutting concerns (logging, tracing, retry, circuit breaking) are layered o
 inside the backends themselves.
 """
 
-from techai_webutils.clients.lock.builder import LockConfig, LockKind, new_lock_from_config
+from techai_webutils.clients.lock.builder import (
+    LockConfig,
+    LockKind,
+    new_lock_from_config,
+)
 from techai_webutils.clients.lock.memory import InMemoryLock
 from techai_webutils.clients.lock.runner import SingleWriterRunner
 
-__all__ = ["InMemoryLock", "LockConfig", "LockKind", "SingleWriterRunner", "new_lock_from_config"]
+__all__ = [
+    "InMemoryLock",
+    "LockConfig",
+    "LockKind",
+    "SingleWriterRunner",
+    "new_lock_from_config",
+]

@@ -1,10 +1,12 @@
-// Package memory provides an in-memory StorageClient backend for no-infra builds and tests.
+// Package memory provides an in-memory StorageClient backend for no-infra builds and
+// tests.
 //
-// Client keeps objects in a process-local per-bucket map so a service can build and unit-test the
-// object-storage path with no S3/MinIO — the stub-first property (ARCHITECTURE.md#stub-first-backends). Selected by the
+// Client keeps objects in a process-local per-bucket map so a service can build and
+// unit-test the object-storage path with no S3/MinIO — the stub-first property
+// (ARCHITECTURE.md#stub-first-backends). Selected by the
 // storage tier Kind. The presign methods return a synthetic memory:// URL: a memory
-// backend issues no real signed URLs, so it is confined to test/CI/all-stubs config and is never
-// reachable from a real client-facing upload flow.
+// backend issues no real signed URLs, so it is confined to test/CI/all-stubs config and
+// is never reachable from a real client-facing upload flow.
 package memory
 
 import (
@@ -34,10 +36,10 @@ type object struct {
 	meta interfaces.StorageObject
 }
 
-// multipart is an in-progress multipart upload. A memory backend has no presigned-part-PUT path
-// (PresignUploadPart returns a synthetic URL nothing writes to), so it carries no part bytes;
-// CompleteMultipartUpload just materializes the (empty) object so a caller's multipart lifecycle
-// builds and runs with no S3.
+// multipart is an in-progress multipart upload. A memory backend has no
+// presigned-part-PUT path (PresignUploadPart returns a synthetic URL nothing writes to),
+// so it carries no part bytes; CompleteMultipartUpload just materializes the (empty)
+// object so a caller's multipart lifecycle builds and runs with no S3.
 type multipart struct {
 	// bucket is the destination bucket for the completed object.
 	bucket string
@@ -143,7 +145,8 @@ func (c *Client) Stat(
 	return obj.meta, nil
 }
 
-// PresignURL returns a synthetic memory:// GET URL (no real signing; expiry/filename ignored).
+// PresignURL returns a synthetic memory:// GET URL (no real signing; expiry/filename
+// ignored).
 func (c *Client) PresignURL(
 	_ context.Context,
 	bucket, key string,
@@ -153,7 +156,8 @@ func (c *Client) PresignURL(
 	return memoryURL(bucket, key), nil
 }
 
-// PresignPutURL returns a synthetic memory:// PUT URL (no real signing; expiry/content-type ignored).
+// PresignPutURL returns a synthetic memory:// PUT URL (no real signing;
+// expiry/content-type ignored).
 func (c *Client) PresignPutURL(
 	_ context.Context,
 	bucket, key string,
@@ -192,9 +196,10 @@ func (c *Client) PresignUploadPart(
 }
 
 // CompleteMultipartUpload finalizes the upload by writing an EMPTY object at the upload's
-// bucket/key with its content type: a memory backend receives no part bytes, so parts is ignored
-// and nothing is assembled. Like S3's NoSuchUpload, an unknown upload id — or a bucket/key other
-// than the one the upload was created for — is CodeNotFound and writes nothing.
+// bucket/key with its content type: a memory backend receives no part bytes, so parts is
+// ignored and nothing is assembled. Like S3's NoSuchUpload, an unknown upload id — or a
+// bucket/key other than the one the upload was created for — is CodeNotFound and writes
+// nothing.
 func (c *Client) CompleteMultipartUpload(
 	_ context.Context,
 	bucket, key, uploadID string,
@@ -214,8 +219,9 @@ func (c *Client) CompleteMultipartUpload(
 			),
 		)
 	}
-	// No part bytes exist (a memory backend has no part-PUT path); materialize the empty object so
-	// the multipart lifecycle completes. The client's ETags (the parts arg) are irrelevant to memory.
+	// No part bytes exist (a memory backend has no part-PUT path); materialize the empty
+	// object so the multipart lifecycle completes. The client's ETags (the parts arg) are
+	// irrelevant to memory.
 	c.put(bucket, key, nil, up.contentType)
 	delete(c.uploads, uploadID)
 	return nil
@@ -264,8 +270,9 @@ func (c *Client) ListObjects(
 	return objects, nil
 }
 
-// ListObjectsPage lists at most limit objects whose key starts with prefix — the bounded counterpart
-// of ListObjects. A non-positive limit returns all matches (the memory backend has no page boundary).
+// ListObjectsPage lists at most limit objects whose key starts with prefix — the bounded
+// counterpart of ListObjects. A non-positive limit returns all matches (the memory
+// backend has no page boundary).
 func (c *Client) ListObjectsPage(
 	_ context.Context,
 	bucket, prefix string,
@@ -285,10 +292,11 @@ func (c *Client) ListObjectsPage(
 	return objects, nil
 }
 
-// ListObjectsPageToken lists at most limit prefix-matching objects in key order starting AFTER
-// continuationToken, returning the page plus the token to resume from ("" when exhausted). It sorts the
-// matching keys so the in-memory store paginates deterministically like a real object store (a map has
-// no stable iteration order), letting a test drive the streaming, resumable listing path.
+// ListObjectsPageToken lists at most limit prefix-matching objects in key order starting
+// AFTER continuationToken, returning the page plus the token to resume from ("" when
+// exhausted). It sorts the matching keys so the in-memory store paginates
+// deterministically like a real object store (a map has no stable iteration order),
+// letting a test drive the streaming, resumable listing path.
 func (c *Client) ListObjectsPageToken(
 	_ context.Context,
 	bucket, prefix, continuationToken string,
@@ -352,7 +360,8 @@ func (c *Client) get(bucket, key string) (object, error) {
 	return obj, nil
 }
 
-// memoryURL is the synthetic, unsigned URL a memory backend returns for a presign request.
+// memoryURL is the synthetic, unsigned URL a memory backend returns for a presign
+// request.
 func memoryURL(bucket, key string) string {
 	return fmt.Sprintf("memory://%s/%s", bucket, key)
 }

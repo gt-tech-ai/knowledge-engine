@@ -37,7 +37,11 @@ var _ interfaces.QueryBackend[predicate, struct{}] = residual{}
 
 // compileResidual folds f into a predicate (match-all for an empty filter).
 func compileResidual(f types.Filter) predicate {
-	return listquery.Compile[predicate, struct{}](residual{}, func(field string) string { return field }, f)
+	return listquery.Compile[predicate, struct{}](
+		residual{},
+		func(field string) string { return field },
+		f,
+	)
 }
 
 // Clause matches one comparison against the row's time or dimension value.
@@ -146,6 +150,9 @@ func compareTime(got time.Time, op types.FilterOperator, v any) bool {
 		return got.Before(want)
 	case types.OpLte:
 		return !got.After(want)
+	case types.OpIn, types.OpNotIn, types.OpLike:
+		// A set or pattern operator has no meaning against one timestamp.
+		return false
 	default:
 		return false
 	}
@@ -181,7 +188,15 @@ func pushdown(f types.Filter, lo, hi time.Time) (from, to time.Time) {
 				hi = up
 			}
 		case types.OpEq:
-			lo, hi = maxTime(lo, at.Truncate(time.Millisecond)), minTime(hi, at.Truncate(time.Millisecond).Add(time.Millisecond))
+			lo, hi = maxTime(
+				lo,
+				at.Truncate(time.Millisecond),
+			), minTime(
+				hi,
+				at.Truncate(time.Millisecond).Add(time.Millisecond),
+			)
+		case types.OpNe, types.OpIn, types.OpNotIn, types.OpLike:
+			// These do not bound the range; the residual predicate applies them.
 		}
 	}
 	return lo, hi

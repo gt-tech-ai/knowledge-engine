@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.execution import BatchResult, Executor, StepResult
 from techai_webutils.execution.executor.asyncio_executor import AsyncioExecutor
 from techai_webutils.execution.executor.factory import (
@@ -23,7 +24,8 @@ from techai_webutils.execution.executor.ray_runtime import RayRuntime
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing mapper."""
+    """Map ``item`` to a passing step (a trivial always-passing mapper)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
@@ -39,6 +41,8 @@ def _local_runtime() -> RayRuntime:
 
 
 class TestRayExecutor:
+    """Tests for the Ray executor."""
+
     @pytest.mark.asyncio
     async def test_dispatches_every_item(self) -> None:
         """Test that RayExecutor.run submits every item and aggregates a BatchResult.
@@ -71,7 +75,9 @@ class TestRayExecutor:
         """
         runtime = create_autospec(RayRuntime, instance=True)
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             if item == 1:
                 msg = "ray task died"
                 raise RuntimeError(msg)
@@ -97,7 +103,9 @@ class TestRayExecutor:
         in_flight = 0
         peak = 0
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             nonlocal in_flight, peak
             in_flight += 1
             peak = max(peak, in_flight)
@@ -131,6 +139,8 @@ class TestRayExecutor:
 
 
 class TestExecutorFromConfig:
+    """Tests for ``executor_from_config``."""
+
     def test_asyncio_kind_builds_in_process_executor(self) -> None:
         """Test that the asyncio kind selects the in-process AsyncioExecutor.
 

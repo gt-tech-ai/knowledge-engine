@@ -41,5 +41,11 @@ type RowStream interface {
 type AnalyticsCompactor interface {
 	// Compact merges the per-fact rows of org's cube at grain in the bucket that
 	// starts at bucket.
-	Compact(ctx context.Context, cube string, grain types.Grain, org string, bucket time.Time) error
+	Compact(
+		ctx context.Context,
+		cube string,
+		grain types.Grain,
+		org string,
+		bucket time.Time,
+	) error
 }

@@ -42,9 +42,9 @@ from __future__ import annotations
 import functools
 import inspect
 import uuid
-from time import perf_counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import perf_counter
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
@@ -57,23 +57,21 @@ from techai_webutils.foundation.logger.logger import get_logger
 from techai_webutils.foundation.logger.redact import redact_pii
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Mapping
+    from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 
     from opentelemetry.trace import Span
 
-    from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMResponse
     from techai_webutils.core.interfaces.fact_publisher import FactPublisher
+    from techai_webutils.core.interfaces.llm import LLMConfig, LLMMessage, LLMResponse
     from techai_webutils.core.interfaces.metrics import MetricsProvider
     from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
-GEN_AI_SYSTEM_BY_PROVIDER: Mapping[str, str] = MappingProxyType(
-    {
-        "BedrockLlmProvider": "aws.bedrock",
-        "FallbackLlmProvider": "aws.bedrock",
-        "OllamaLlmProvider": "ollama",
-        "StubLlmProvider": "stub",
-    }
-)
+GEN_AI_SYSTEM_BY_PROVIDER: Mapping[str, str] = MappingProxyType({
+    "BedrockLlmProvider": "aws.bedrock",
+    "FallbackLlmProvider": "aws.bedrock",
+    "OllamaLlmProvider": "ollama",
+    "StubLlmProvider": "stub",
+})
 """``gen_ai.system`` value per provider class name.
 
 ``FallbackLlmProvider`` maps to ``aws.bedrock`` because its built-in members are Bedrock models; it
@@ -89,7 +87,19 @@ _MAX_DOCUMENT_IDS = 20
 _MAX_CONTENT_BYTES = 4096
 """Cap, in UTF-8 bytes, on a captured prompt or completion event attribute."""
 
-DURATION_BUCKETS: tuple[float, ...] = (0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0, 30.0, 60.0)
+DURATION_BUCKETS: tuple[float, ...] = (
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    20.0,
+    30.0,
+    60.0,
+)
 """``gen_ai_request_duration_seconds`` buckets, in seconds: 50 ms up to a 60 s generation."""
 
 GEN_AI_CALLS_CUBE = "genai_calls"
@@ -118,7 +128,9 @@ def _idempotency_key(span: Span, step: str) -> str:
     return f"{ctx.trace_id:032x}:{ctx.span_id:016x}:{step}"
 
 
-def _messages_arg(args: tuple[object, ...], kwargs: dict[str, object]) -> list[LLMMessage]:
+def _messages_arg(
+    args: tuple[object, ...], kwargs: dict[str, object]
+) -> list[LLMMessage]:
     """Return the ``messages`` argument of an ``LLMProvider`` call (positional or keyword)."""
     return cast("list[LLMMessage]", args[0] if args else kwargs.get("messages", []))
 
@@ -196,7 +208,9 @@ class AiSpanEnricher:
         self._inner = inner
         self._step = step
         self._capture_content = capture_content
-        self._system = GEN_AI_SYSTEM_BY_PROVIDER.get(type(inner).__name__, _UNKNOWN_SYSTEM)
+        self._system = GEN_AI_SYSTEM_BY_PROVIDER.get(
+            type(inner).__name__, _UNKNOWN_SYSTEM
+        )
         self._facts = facts
         self._fact_dimensions = fact_dimensions
         # Resolved by name like LoggingProxy: structlog is configured once at the process root.
@@ -205,7 +219,9 @@ class AiSpanEnricher:
         self._duration = None
         if metrics is not None:
             self._tokens = metrics.counter(
-                "gen_ai_tokens_total", "GenAI tokens by step, model and type.", ["step", "model", "type"]
+                "gen_ai_tokens_total",
+                "GenAI tokens by step, model and type.",
+                ["step", "model", "type"],
             )
             self._duration = metrics.histogram(
                 "gen_ai_request_duration_seconds",
@@ -232,7 +248,9 @@ class AiSpanEnricher:
         try:
             enrich(*args)
         except Exception:
-            self._logger.warning("ai span enrichment failed", step=self._step, exc_info=True)
+            self._logger.warning(
+                "ai span enrichment failed", step=self._step, exc_info=True
+            )
 
     def _finish_llm(
         self, span: Span, llm_call: _LlmCall, messages: list[LLMMessage], completion: str
@@ -258,17 +276,29 @@ class AiSpanEnricher:
         if not self._capture_content:
             return
         span.add_event(
-            "gen_ai.content.prompt", {"gen_ai.prompt": _cap("\n".join(m.content for m in messages))}
+            "gen_ai.content.prompt",
+            {"gen_ai.prompt": _cap("\n".join(m.content for m in messages))},
         )
-        span.add_event("gen_ai.content.completion", {"gen_ai.completion": _cap(completion)})
+        span.add_event(
+            "gen_ai.content.completion", {"gen_ai.completion": _cap(completion)}
+        )
 
     def _emit_metrics(self, llm_call: _LlmCall) -> None:
         """Increment the token counter per type and observe the call duration (no-op without metrics)."""
         if self._tokens is not None:
-            self._tokens.inc(llm_call.input_tokens, step=self._step, model=llm_call.model, type="input")
-            self._tokens.inc(llm_call.output_tokens, step=self._step, model=llm_call.model, type="output")
+            self._tokens.inc(
+                llm_call.input_tokens, step=self._step, model=llm_call.model, type="input"
+            )
+            self._tokens.inc(
+                llm_call.output_tokens,
+                step=self._step,
+                model=llm_call.model,
+                type="output",
+            )
         if self._duration is not None:
-            self._duration.observe(llm_call.duration_s, step=self._step, model=llm_call.model)
+            self._duration.observe(
+                llm_call.duration_s, step=self._step, model=llm_call.model
+            )
 
     def _publish_fact(self, span: Span, llm_call: _LlmCall) -> None:
         """Publish this call's ``genai_calls`` fact (no-op without a publisher or an ``org_id`` dim)."""
@@ -282,7 +312,12 @@ class AiSpanEnricher:
             cube=GEN_AI_CALLS_CUBE,
             org_id=org_id,
             ts=llm_call.started_at,
-            dims={"provider": self._system, "model": llm_call.model, "step": self._step, **dims},
+            dims={
+                "provider": self._system,
+                "model": llm_call.model,
+                "step": self._step,
+                **dims,
+            },
             measures={
                 "duration_s": llm_call.duration_s,
                 "tokens_in": llm_call.input_tokens,
@@ -300,7 +335,9 @@ class AiSpanEnricher:
             span = trace.get_current_span()
             started_at = _utcnow()
             start = perf_counter()
-            response: LLMResponse = await attr(*args, **kwargs)  # type: ignore[misc]
+            response = await cast("Callable[..., Awaitable[LLMResponse]]", attr)(
+                *args, **kwargs
+            )
             duration = perf_counter() - start
             requested = _requested_model(args, kwargs)
             served = response.model or requested
@@ -313,14 +350,18 @@ class AiSpanEnricher:
                 duration_s=duration,
                 started_at=started_at,
             )
-            self._finish_llm(span, llm_call, _messages_arg(args, kwargs), response.content)
+            self._finish_llm(
+                span, llm_call, _messages_arg(args, kwargs), response.content
+            )
             return response
 
         return complete
 
     def _wrap_stream(self, attr: Callable[..., object]) -> object:
         """Wrap ``stream``: consume ``stream_with_usage``, re-yield text, report usage at exhaustion."""
-        source = cast("Callable[..., object]", getattr(self._inner, "stream_with_usage", attr))
+        source = cast(
+            "Callable[..., object]", getattr(self._inner, "stream_with_usage", attr)
+        )
         return self._wrap_streamed(attr, source, keep_usage=False)
 
     def _wrap_stream_with_usage(self, attr: Callable[..., object]) -> object:
@@ -328,18 +369,29 @@ class AiSpanEnricher:
         return self._wrap_streamed(attr, attr, keep_usage=True)
 
     def _wrap_streamed(
-        self, attr: Callable[..., object], source: Callable[..., object], *, keep_usage: bool
+        self,
+        attr: Callable[..., object],
+        source: Callable[..., object],
+        *,
+        keep_usage: bool,
     ) -> object:
         """Wrap a streamed call: open ``source`` now, relay its items and report at exhaustion."""
 
         @functools.wraps(attr)
-        async def stream(*args: object, **kwargs: object) -> AsyncIterator[str | StreamUsage]:
+        async def stream(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[str | StreamUsage]:
             # The span current when the stream is OPENED is the step's span; it is captured now and
             # stamped later, because by exhaustion another span may be current.
             span = trace.get_current_span()
             opened = _Opened(_utcnow(), perf_counter(), _requested_model(args, kwargs))
-            items: AsyncIterator[str | StreamUsage] = await source(*args, **kwargs)  # type: ignore[misc]
-            return self._relay(items, span, _messages_arg(args, kwargs), opened, keep_usage=keep_usage)
+            opener = cast(
+                "Callable[..., Awaitable[AsyncIterator[str | StreamUsage]]]", source
+            )
+            items = await opener(*args, **kwargs)
+            return self._relay(
+                items, span, _messages_arg(args, kwargs), opened, keep_usage=keep_usage
+            )
 
         return stream
 
@@ -391,14 +443,20 @@ class AiSpanEnricher:
         @functools.wraps(attr)
         async def retrieve(*args: object, **kwargs: object) -> list[RetrievalResult]:
             span = trace.get_current_span()
-            results: list[RetrievalResult] = await attr(*args, **kwargs)  # type: ignore[misc]
+            results = await cast("Callable[..., Awaitable[list[RetrievalResult]]]", attr)(
+                *args, **kwargs
+            )
             self._safely(self._stamp_retrieval, span, args, kwargs, results)
             return results
 
         return retrieve
 
     def _stamp_retrieval(
-        self, span: Span, args: tuple[object, ...], kwargs: dict[str, object], results: list[RetrievalResult]
+        self,
+        span: Span,
+        args: tuple[object, ...],
+        kwargs: dict[str, object],
+        results: list[RetrievalResult],
     ) -> None:
         """Stamp the step, the effective top_k, the result count and the first 20 document ids."""
         # Bind against the contract (not the wrapped callable) so the default top_k is resolved the
@@ -409,5 +467,6 @@ class AiSpanEnricher:
         span.set_attribute("retrieval.top_k", int(cast("int", bound.arguments["top_k"])))
         span.set_attribute("retrieval.result_count", len(results))
         span.set_attribute(
-            "retrieval.document_ids", ",".join(r.document_id for r in results[:_MAX_DOCUMENT_IDS])
+            "retrieval.document_ids",
+            ",".join(r.document_id for r in results[:_MAX_DOCUMENT_IDS]),
         )

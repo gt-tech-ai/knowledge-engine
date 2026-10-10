@@ -4,9 +4,10 @@
 package postgres
 
 import (
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // PostgreSQL error codes (Class 23 — Integrity Constraint Violation).
@@ -53,20 +54,20 @@ func MapDBError(err error) error {
 	// unchanged — re-wrapping it as Internal below would bury its code. Raw driver
 	// errors are CodeUnknown here and still flow to the classification below. A
 	// consumer's own ORM mapper (a DBMapperFunc) should keep the same rule.
-	if errors.Code(err) != errors.CodeUnknown {
+	if apperr.Code(err) != apperr.CodeUnknown {
 		return err
 	}
 
-	if errors.StdIs(err, pgx.ErrNoRows) {
-		return errors.Wrap(err, errors.CodeNotFound, "record not found")
+	if apperr.StdIs(err, pgx.ErrNoRows) {
+		return apperr.Wrap(err, apperr.CodeNotFound, "record not found")
 	}
 
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
+	if apperr.As(err, &pgErr) {
 		return mapPgError(pgErr)
 	}
 
-	return errors.Wrap(err, errors.CodeInternal, "database error")
+	return apperr.Wrap(err, apperr.CodeInternal, "database error")
 }
 
 // mapPgError translates a pgconn.PgError to an AppError based on the
@@ -74,43 +75,43 @@ func MapDBError(err error) error {
 func mapPgError(pgErr *pgconn.PgError) error {
 	switch pgErr.Code {
 	case codeUniqueViolation:
-		return errors.Wrap(pgErr, errors.CodeConflict, pgErr.Message)
+		return apperr.Wrap(pgErr, apperr.CodeConflict, pgErr.Message)
 	case codeForeignKeyViolation:
-		return errors.Wrap(
+		return apperr.Wrap(
 			pgErr,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"foreign key violation: "+pgErr.Message,
 		)
 	case codeCheckViolation:
-		return errors.Wrap(
+		return apperr.Wrap(
 			pgErr,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"check violation: "+pgErr.Message,
 		)
 	case codeNotNullViolation:
-		return errors.Wrap(
+		return apperr.Wrap(
 			pgErr,
-			errors.CodeInvalidInput,
+			apperr.CodeInvalidInput,
 			"not-null violation: "+pgErr.Message,
 		)
 	case codeExclusionViolation:
-		return errors.Wrap(
+		return apperr.Wrap(
 			pgErr,
-			errors.CodeConflict,
+			apperr.CodeConflict,
 			"exclusion violation: "+pgErr.Message,
 		)
 	case codeUndefinedTable, codeUndefinedColumn:
-		return errors.Wrap(pgErr, errors.CodeInternal, "schema error: "+pgErr.Message)
+		return apperr.Wrap(pgErr, apperr.CodeInternal, "schema error: "+pgErr.Message)
 	case codeSerializationFailure, codeDeadlockDetected:
 		// Transient transaction rollback — the caller can retry the transaction.
 		// Coded Conflict (not Internal) so a client sees a retryable 409 instead of a
 		// terminal 500 on a serialization failure / deadlock under FOR UPDATE.
-		return errors.Wrap(
+		return apperr.Wrap(
 			pgErr,
-			errors.CodeConflict,
+			apperr.CodeConflict,
 			"transaction conflict (retryable): "+pgErr.Message,
 		)
 	default:
-		return errors.Wrap(pgErr, errors.CodeInternal, "database error: "+pgErr.Message)
+		return apperr.Wrap(pgErr, apperr.CodeInternal, "database error: "+pgErr.Message)
 	}
 }

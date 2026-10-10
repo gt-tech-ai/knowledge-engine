@@ -10,6 +10,8 @@ Run with: pytest tests/python/test_foundation/test_logger_builder.py -v
 
 from __future__ import annotations
 
+import pytest
+
 from techai_webutils.foundation.logger.builder import (
     LoggerConfig,
     LoggerKind,
@@ -18,7 +20,6 @@ from techai_webutils.foundation.logger.builder import (
 )
 from techai_webutils.foundation.logger.logger import StructlogLogger
 from techai_webutils.foundation.logger.stdlib_logger import StdlibLogger
-import pytest
 
 
 class TestLoggerBuilder:

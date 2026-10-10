@@ -6,17 +6,18 @@ Permanent errors are not retried.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import functools
+from collections.abc import Callable
 from typing import TypeVar
 
-from techai_webutils.core.errors.errors import AppError
 from tenacity import (
     retry,
     retry_if_exception,
     stop_after_attempt,
     wait_exponential_jitter,
 )
+
+from techai_webutils.core.errors.errors import AppError
 
 F = TypeVar("F", bound=Callable[..., object])
 
@@ -56,7 +57,9 @@ def retry_transient(
         @retry(
             retry=retry_if_exception(_is_transient),
             stop=stop_after_attempt(max_attempts),
-            wait=wait_exponential_jitter(initial=base_delay, max=max_delay, jitter=base_delay),
+            wait=wait_exponential_jitter(
+                initial=base_delay, max=max_delay, jitter=base_delay
+            ),
             reraise=True,
         )
         @functools.wraps(func)

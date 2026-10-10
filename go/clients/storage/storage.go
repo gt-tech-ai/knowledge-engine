@@ -11,16 +11,18 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/decorators"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/memory"
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/storage/s3"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/infra"
 )
 
-// Kind selects the storage-tier backend: the real S3-compatible client or an in-memory stub.
+// Kind selects the storage-tier backend: the real S3-compatible client or an in-memory
+// stub.
 //
-// This is distinct from infra.S3Config.Kind, which selects the S3 *flavor* (AWS "s3" vs local
-// "minio") WITHIN the S3 backend. KindS3 uses the S3 backend (flavor picked by S3Config.Kind);
-// KindMemory uses the in-memory backend and ignores the S3 settings entirely.
+// This is distinct from infra.S3Config.Kind, which selects the S3 *flavor* (AWS "s3" vs
+// local "minio") WITHIN the S3 backend. KindS3 uses the S3 backend (flavor picked by
+// S3Config.Kind); KindMemory uses the in-memory backend and ignores the S3 settings
+// entirely.
 type Kind int
 
 const (
@@ -78,7 +80,7 @@ func New(ctx context.Context, cfg Config) (interfaces.StorageClient, error) {
 		return s3.NewClientFromAPI(cfg.API, cfg.MultipartThreshold), nil
 	}
 	if err := cfg.S3.Validate(); err != nil {
-		return nil, coreerr.Wrap(err, coreerr.CodeInvalidInput, "invalid s3 config")
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "invalid s3 config")
 	}
 	client, err := s3.NewAWSClient(ctx, cfg.S3)
 	if err != nil {
@@ -87,11 +89,11 @@ func New(ctx context.Context, cfg Config) (interfaces.StorageClient, error) {
 	return s3.NewClient(client, cfg.S3.PublicEndpoint), nil
 }
 
-// NewFromConfig constructs the storage-tier StorageClient selected by kind — the real S3 backend
-// (KindS3, built from cfg) or the in-memory stub (KindMemory, ignoring cfg) — and wraps it with the
-// shared client resilience stack (production defaults). It is the app-wiring entrypoint; New is the
-// seam-injectable form used by unit tests (which returns the bare client so a mock API can be
-// driven without resilience layers).
+// NewFromConfig constructs the storage-tier StorageClient selected by kind — the real S3
+// backend (KindS3, built from cfg) or the in-memory stub (KindMemory, ignoring cfg) — and
+// wraps it with the shared client resilience stack (production defaults). It is the
+// app-wiring entrypoint; New is the seam-injectable form used by unit tests (which
+// returns the bare client so a mock API can be driven without resilience layers).
 func NewFromConfig(
 	ctx context.Context,
 	kind Kind,

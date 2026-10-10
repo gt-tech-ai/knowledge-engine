@@ -35,7 +35,9 @@ class GenerationPrompt(Protocol):
 class ResponseGenerator(AnswerGenerator):
     """Generates a cited answer from a query + retrieved passages via an LLM + an injected prompt."""
 
-    def __init__(self, llm: LLMProvider, prompt: GenerationPrompt, config: LLMConfig | None = None) -> None:
+    def __init__(
+        self, llm: LLMProvider, prompt: GenerationPrompt, config: LLMConfig | None = None
+    ) -> None:
         """Bind the LLM provider, the consumer-supplied generation prompt, and the per-call decoding config.
 
         ``config`` carries the max_tokens/temperature/top_p the composition root resolves from the
@@ -52,7 +54,9 @@ class ResponseGenerator(AnswerGenerator):
         history: Sequence[HistoryTurn] | None = None,
     ) -> AsyncIterator[str]:
         """Stream the generated answer token-by-token (history reaches the prompt as non-citable context)."""
-        iterator = await self._llm.stream(self._prompt.messages(query, passages, history or ()), self._config)
+        iterator = await self._llm.stream(
+            self._prompt.messages(query, passages, history or ()), self._config
+        )
         async for delta in iterator:
             yield delta
 

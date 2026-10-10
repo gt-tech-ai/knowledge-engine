@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"encoding/json"
-	stderrors "errors"
 	"io"
 	"os"
 	"strings"
@@ -88,7 +87,7 @@ func TestZapLogger_CallerIsCallSite(t *testing.T) {
 //     caller (this test file), not the logging call site (logger/zap/logger.go).
 func TestZapLogger_AppErrorSurfacesCauseAndStack(t *testing.T) {
 	out := zapCaptureStdout(t, func() {
-		underlying := stderrors.New(
+		underlying := apperr.Sentinel(
 			`ERROR: column "deleted_at" does not exist (SQLSTATE 42703)`,
 		)
 		err := apperr.Wrap(underlying, apperr.CodeInternal, "failed to query database")

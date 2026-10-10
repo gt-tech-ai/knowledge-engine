@@ -9,7 +9,7 @@ package reswire
 import (
 	"fmt"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	schemares "github.com/gt-tech-ai/knowledge-engine/go/foundation/config/schema/resilience"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/adaptivethrottle"
@@ -26,9 +26,9 @@ func NewRetrier(loader interfaces.ConfigLoader) (interfaces.Retrier, error) {
 	c := schemares.DefaultRetryConfig()
 	if loader.Get("resilience.retry") != nil {
 		if err := loader.UnmarshalKey("resilience.retry", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.retry",
 			)
 		}
@@ -56,9 +56,9 @@ func NewBreaker(
 	c := schemares.DefaultBreakerConfig()
 	if loader.Get("resilience.circuit_breaker") != nil {
 		if err := loader.UnmarshalKey("resilience.circuit_breaker", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.circuit_breaker",
 			)
 		}
@@ -78,12 +78,13 @@ func NewBreaker(
 	})
 }
 
-// NewBulkhead builds a concurrency-limiting bulkhead tuned from the resilience.adaptive_limit
-// config section, overlaid on the caller's fallback (defaultMaxConcurrent — the value the call
-// site used to hardcode, so an absent overlay is behavior-preserving). An overlay overrides
-// per-field; the kind string ("channel"/"adaptive") is mapped to a bulkhead.Kind and fails loudly
-// on an unknown value (ARCHITECTURE.md#swappable-components). This brings the previously-inert resilience.adaptive_limit
-// sub-tier into use.
+// NewBulkhead builds a concurrency-limiting bulkhead tuned from the
+// resilience.adaptive_limit config section, overlaid on the caller's fallback
+// (defaultMaxConcurrent — the value the call site used to hardcode, so an absent overlay
+// is behavior-preserving). An overlay overrides per-field; the kind string
+// ("channel"/"adaptive") is mapped to a bulkhead.Kind and fails loudly on an unknown
+// value (ARCHITECTURE.md#swappable-components). This brings the previously-inert
+// resilience.adaptive_limit sub-tier into use.
 func NewBulkhead(
 	loader interfaces.ConfigLoader,
 	defaultMaxConcurrent int,
@@ -92,9 +93,9 @@ func NewBulkhead(
 	c.MaxConcurrent = defaultMaxConcurrent
 	if loader.Get("resilience.adaptive_limit") != nil {
 		if err := loader.UnmarshalKey("resilience.adaptive_limit", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.adaptive_limit",
 			)
 		}
@@ -116,8 +117,8 @@ func NewBulkhead(
 	})
 }
 
-// bulkheadKind maps the resilience.adaptive_limit kind string to a bulkhead.Kind, failing loudly
-// on an unknown value. Empty defaults to channel (the primitive default).
+// bulkheadKind maps the resilience.adaptive_limit kind string to a bulkhead.Kind, failing
+// loudly on an unknown value. Empty defaults to channel (the primitive default).
 func bulkheadKind(s string) (bulkhead.Kind, error) {
 	switch s {
 	case "", "channel":
@@ -125,8 +126,8 @@ func bulkheadKind(s string) (bulkhead.Kind, error) {
 	case "adaptive":
 		return bulkhead.KindAdaptive, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf(
 				"unknown resilience.adaptive_limit kind: %q (want channel|adaptive)",
 				s,
@@ -135,17 +136,18 @@ func bulkheadKind(s string) (bulkhead.Kind, error) {
 	}
 }
 
-// NewHedge builds a tail-latency hedger tuned from the resilience.hedge config section, overlaid on
-// the behavior-preserving default (disabled — hedging is opt-in per idempotent path). An absent
-// section keeps the default; the kind string ("disabled"/"delay") is mapped to a hedge.Kind and
-// fails loudly on an unknown value. Brings the previously-inert resilience.hedge sub-tier into use
+// NewHedge builds a tail-latency hedger tuned from the resilience.hedge config section,
+// overlaid on the behavior-preserving default (disabled — hedging is opt-in per
+// idempotent path). An absent section keeps the default; the kind string
+// ("disabled"/"delay") is mapped to a hedge.Kind and fails loudly on an unknown value.
+// Brings the previously-inert resilience.hedge sub-tier into use
 func NewHedge(loader interfaces.ConfigLoader) (interfaces.Hedger, error) {
 	c := schemares.DefaultHedgeConfig()
 	if loader.Get("resilience.hedge") != nil {
 		if err := loader.UnmarshalKey("resilience.hedge", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.hedge",
 			)
 		}
@@ -160,8 +162,8 @@ func NewHedge(loader interfaces.ConfigLoader) (interfaces.Hedger, error) {
 	return hedge.NewFromConfig(hedge.Config{Kind: kind, Delay: c.Delay})
 }
 
-// hedgeKind maps the resilience.hedge kind string to a hedge.Kind, failing loudly on an unknown
-// value. Empty defaults to disabled (the safe primitive default).
+// hedgeKind maps the resilience.hedge kind string to a hedge.Kind, failing loudly on an
+// unknown value. Empty defaults to disabled (the safe primitive default).
 func hedgeKind(s string) (hedge.Kind, error) {
 	switch s {
 	case "", "disabled":
@@ -169,28 +171,28 @@ func hedgeKind(s string) (hedge.Kind, error) {
 	case "delay":
 		return hedge.KindDelay, nil
 	default:
-		return 0, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return 0, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf("unknown resilience.hedge kind: %q (want disabled|delay)", s),
 		)
 	}
 }
 
 // NewAdaptiveThrottle builds a client-side SRE load-shedding throttler tuned from the
-// resilience.adaptive_throttle config section, overlaid on the behavior-preserving default
-// (disabled — a no-op pass-through). Compose it OUTERMOST of a retry budget so a local shed returns
-// before the retrier runs. An absent section keeps the default; the kind string ("disabled"/"enabled")
-// is validated and fails loudly on an unknown value. Brings the previously-inert
-// resilience.adaptive_throttle sub-tier into use.
+// resilience.adaptive_throttle config section, overlaid on the behavior-preserving
+// default (disabled — a no-op pass-through). Compose it OUTERMOST of a retry budget so a
+// local shed returns before the retrier runs. An absent section keeps the default; the
+// kind string ("disabled"/"enabled") is validated and fails loudly on an unknown value.
+// Brings the previously-inert resilience.adaptive_throttle sub-tier into use.
 func NewAdaptiveThrottle(
 	loader interfaces.ConfigLoader,
 ) (interfaces.AdaptiveThrottler, error) {
 	c := schemares.DefaultAdaptiveThrottleConfig()
 	if loader.Get("resilience.adaptive_throttle") != nil {
 		if err := loader.UnmarshalKey("resilience.adaptive_throttle", &c); err != nil {
-			return nil, coreerr.Wrap(
+			return nil, apperr.Wrap(
 				err,
-				coreerr.CodeInvalidInput,
+				apperr.CodeInvalidInput,
 				"load resilience.adaptive_throttle",
 			)
 		}
@@ -204,8 +206,8 @@ func NewAdaptiveThrottle(
 	case "enabled":
 		return adaptivethrottle.New(adaptivethrottle.Config{K: c.K, Decay: c.Decay}), nil
 	default:
-		return nil, coreerr.New(
-			coreerr.CodeInvalidInput,
+		return nil, apperr.New(
+			apperr.CodeInvalidInput,
 			fmt.Sprintf(
 				"unknown resilience.adaptive_throttle kind: %q (want disabled|enabled)",
 				c.Kind,

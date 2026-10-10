@@ -14,17 +14,18 @@ import (
 // testKey is a fixed 32-byte AES-256 key for the crypto unit tests.
 func testKey() []byte { return bytes.Repeat([]byte{0x2b}, crypto.KeySize) }
 
-// TestEncryptor_RoundTrip tests that AES-GCM Encrypt/Decrypt round-trips a payload and that the
-// ciphertext both hides the plaintext and differs across calls (random nonce).
+// TestEncryptor_RoundTrip tests that AES-GCM Encrypt/Decrypt round-trips a payload and
+// that the ciphertext both hides the plaintext and differs across calls (random nonce).
 //
 // Why this test is important:
-//   - This is the data-at-rest guarantee connector credentials rely on: whatever is sealed must open
-//     back to the exact bytes, the stored ciphertext must not leak the plaintext, and a deterministic
-//     ciphertext (reused nonce) would be a real cryptographic weakness.
+//   - This is the data-at-rest guarantee connector credentials rely on: whatever is
+//     sealed must open back to the exact bytes, the stored ciphertext must not leak the
+//     plaintext, and a deterministic ciphertext (reused nonce) would be a real
+//     cryptographic weakness.
 //
 // What it tests:
-//   - Decrypt(Encrypt(p)) == p; the ciphertext != p and is longer (nonce + tag); two encryptions of the
-//     same plaintext produce different ciphertexts.
+//   - Decrypt(Encrypt(p)) == p; the ciphertext != p and is longer (nonce + tag); two
+//     encryptions of the same plaintext produce different ciphertexts.
 func TestEncryptor_RoundTrip(t *testing.T) {
 	t.Parallel()
 	enc, err := crypto.New(testKey())
@@ -45,12 +46,12 @@ func TestEncryptor_RoundTrip(t *testing.T) {
 	assert.NotEqual(t, ct1, ct2, "a random nonce makes each ciphertext unique")
 }
 
-// TestEncryptor_WrongKeyFailsToDecrypt tests that a ciphertext sealed under one key cannot be opened
-// with a different key.
+// TestEncryptor_WrongKeyFailsToDecrypt tests that a ciphertext sealed under one key
+// cannot be opened with a different key.
 //
 // Why this test is important:
-//   - Key confidentiality is the whole point: an attacker (or a misconfigured key rotation) with the
-//     ciphertext but not the key must not recover the credentials.
+//   - Key confidentiality is the whole point: an attacker (or a misconfigured key
+//     rotation) with the ciphertext but not the key must not recover the credentials.
 //
 // What it tests:
 //   - Decrypt with a different key returns an error and no plaintext.
@@ -68,12 +69,12 @@ func TestEncryptor_WrongKeyFailsToDecrypt(t *testing.T) {
 	require.Error(t, err, "a wrong key must not decrypt")
 }
 
-// TestEncryptor_TamperedCiphertextFails tests that flipping any byte of the ciphertext makes Decrypt
-// fail (the GCM authentication tag).
+// TestEncryptor_TamperedCiphertextFails tests that flipping any byte of the ciphertext
+// makes Decrypt fail (the GCM authentication tag).
 //
 // Why this test is important:
-//   - Authenticated encryption is what protects stored credentials from silent tampering; a decrypt
-//     that ignored the tag would return attacker-controlled bytes.
+//   - Authenticated encryption is what protects stored credentials from silent tampering;
+//     a decrypt that ignored the tag would return attacker-controlled bytes.
 //
 // What it tests:
 //   - A single flipped byte in the ciphertext causes Decrypt to error.
@@ -89,17 +90,17 @@ func TestEncryptor_TamperedCiphertextFails(t *testing.T) {
 	require.Error(t, err, "tampered ciphertext must fail authentication")
 }
 
-// TestNewFromConfig tests the config-driven constructor: it accepts a base64 32-byte key and fails
-// loudly on a missing, malformed, or wrong-length key.
+// TestNewFromConfig tests the config-driven constructor: it accepts a base64 32-byte key
+// and fails loudly on a missing, malformed, or wrong-length key.
 //
 // Why this test is important:
-//   - The key is injected from secrets config; a silent acceptance of an empty/short key would produce
-//     a weak or all-zero cipher, so the constructor must reject bad key material at startup, not at
-//     first use.
+//   - The key is injected from secrets config; a silent acceptance of an empty/short key
+//     would produce a weak or all-zero cipher, so the constructor must reject bad key
+//     material at startup, not at first use.
 //
 // What it tests:
-//   - A valid base64 32-byte key builds a working Encryptor; an empty key, non-base64, and a decoded
-//     length != 32 each return an error.
+//   - A valid base64 32-byte key builds a working Encryptor; an empty key, non-base64,
+//     and a decoded length != 32 each return an error.
 func TestNewFromConfig(t *testing.T) {
 	t.Parallel()
 	validKey := base64.StdEncoding.EncodeToString(testKey())
@@ -115,18 +116,19 @@ func TestNewFromConfig(t *testing.T) {
 		"zero-len key": base64.StdEncoding.EncodeToString([]byte{}),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			_, err := crypto.NewFromConfig(crypto.Config{Key: key})
 			require.Error(t, err)
 		})
 	}
 }
 
-// TestNew_RejectsWrongKeyLength tests that New fails loudly on a non-32-byte key rather than
-// truncating/padding.
+// TestNew_RejectsWrongKeyLength tests that New fails loudly on a non-32-byte key rather
+// than truncating/padding.
 //
 // Why this test is important:
-//   - Silently accepting a wrong-length key is a classic footgun (weak key); AES-256 requires exactly
-//     32 bytes and the constructor must enforce it.
+//   - Silently accepting a wrong-length key is a classic footgun (weak key); AES-256
+//     requires exactly 32 bytes and the constructor must enforce it.
 //
 // What it tests:
 //   - A 16-byte and a 0-byte key each return an error.
@@ -141,15 +143,15 @@ func TestNew_RejectsWrongKeyLength(t *testing.T) {
 // FuzzEncryptRoundtrip fuzzes the encrypt→decrypt roundtrip over arbitrary plaintext.
 //
 // Why this test is important:
-//   - Credentials are arbitrary bytes (empty, binary, large); the roundtrip invariant must hold for
-//     every input, not just the hand-picked examples above.
+//   - Credentials are arbitrary bytes (empty, binary, large); the roundtrip invariant
+//     must hold for every input, not just the hand-picked examples above.
 //
 // What it tests:
 //   - For any plaintext, Decrypt(Encrypt(p)) == p.
 func FuzzEncryptRoundtrip(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("access_key_id=AKIA...;secret=...."))
-	f.Add(bytes.Repeat([]byte{0}, 1024))
+	f.Add(make([]byte, 1024))
 	enc, err := crypto.New(testKey())
 	require.NoError(f, err)
 

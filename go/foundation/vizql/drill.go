@@ -17,10 +17,14 @@ func Drill(spec types.VizSpec, cube CubeSchema, field string) (types.VizSpec, er
 	}
 	child, ok := childOf(cube.Hierarchies, field)
 	if !ok {
-		return types.VizSpec{}, invalid("field " + field + " has no child level to drill into")
+		return types.VizSpec{}, invalid(
+			"field " + field + " has no child level to drill into",
+		)
 	}
 	if _, declared := cube.Fields.Lookup(child); !declared {
-		return types.VizSpec{}, invalid("drill child " + child + " is not declared by the cube")
+		return types.VizSpec{}, invalid(
+			"drill child " + child + " is not declared by the cube",
+		)
 	}
 	swap := func(ref types.FieldRef) types.FieldRef {
 		if ref.Name == field && ref.Agg == types.AggNone {
@@ -45,7 +49,12 @@ func Drill(spec types.VizSpec, cube CubeSchema, field string) (types.VizSpec, er
 			}
 		}
 	}
-	enc := []**types.FieldRef{&out.Encodings.Color, &out.Encodings.Size, &out.Encodings.Shape, &out.Encodings.Label}
+	enc := []**types.FieldRef{
+		&out.Encodings.Color,
+		&out.Encodings.Size,
+		&out.Encodings.Shape,
+		&out.Encodings.Label,
+	}
 	for _, slot := range enc {
 		if *slot != nil {
 			swapped := swap(**slot)
@@ -68,7 +77,10 @@ func childOf(hierarchies [][]string, field string) (string, bool) {
 }
 
 // drillShelf deep-copies a shelf expression, applying swap to every leaf.
-func drillShelf(e *types.AlgebraExpr, swap func(types.FieldRef) types.FieldRef) *types.AlgebraExpr {
+func drillShelf(
+	e *types.AlgebraExpr,
+	swap func(types.FieldRef) types.FieldRef,
+) *types.AlgebraExpr {
 	if e == nil {
 		return nil
 	}

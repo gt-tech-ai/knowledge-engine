@@ -6,6 +6,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // ClientConfig holds configuration for a gRPC client.
@@ -16,10 +18,12 @@ type ClientConfig struct {
 	// MaxMessageSize is the maximum allowed size in bytes for sent and received messages.
 	MaxMessageSize int
 
-	// KeepaliveTime is the interval between client keepalive pings to detect dead connections.
+	// KeepaliveTime is the interval between client keepalive pings to detect dead
+	// connections.
 	KeepaliveTime time.Duration
 
-	// KeepaliveTimeout is the duration the client waits for a keepalive ping acknowledgement.
+	// KeepaliveTimeout is the duration the client waits for a keepalive ping
+	// acknowledgement.
 	KeepaliveTimeout time.Duration
 
 	// UseTLS enables TLS transport credentials; when false, insecure credentials are used.
@@ -61,5 +65,9 @@ func NewClient(cfg ClientConfig, opts ...grpc.DialOption) (*grpc.ClientConn, err
 
 	dialOpts = append(dialOpts, opts...)
 
-	return grpc.NewClient(cfg.Target, dialOpts...)
+	conn, err := grpc.NewClient(cfg.Target, dialOpts...)
+	if err != nil {
+		return nil, apperr.Wrap(err, apperr.CodeInvalidInput, "create grpc client")
+	}
+	return conn, nil
 }

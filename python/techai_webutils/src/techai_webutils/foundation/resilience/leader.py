@@ -8,10 +8,15 @@ single-writer election is needed.
 
 from __future__ import annotations
 
+from typing import override
 
-class AlwaysLeader:
+from techai_webutils.core.interfaces.leader import LeaderElector
+
+
+class AlwaysLeader(LeaderElector):
     """A ``LeaderElector`` that always holds leadership (single-process / dev)."""
 
+    @override
     async def is_leader(self) -> bool:
         """Return True unconditionally: a single process is always its own leader."""
         return True

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/clients/interceptorcore"
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/bulkhead"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 )
@@ -29,9 +29,9 @@ import (
 //     an always-failing transient error → returned as `exhausted`, permanent nil.
 func TestInterceptorCoreRetry(t *testing.T) {
 	t.Parallel()
-	sentinelPermanent := errors.Sentinel("permanent")
-	sentinelTransient := errors.Sentinel("transient")
-	isPermanent := func(err error) bool { return errors.StdIs(err, sentinelPermanent) }
+	sentinelPermanent := apperr.Sentinel("permanent")
+	sentinelTransient := apperr.Sentinel("transient")
+	isPermanent := func(err error) bool { return apperr.StdIs(err, sentinelPermanent) }
 
 	t.Run("transient then success", func(t *testing.T) {
 		t.Parallel()
@@ -94,7 +94,7 @@ func TestInterceptorCoreRetry(t *testing.T) {
 //     rejected=false with the inner error; closed breaker + success → both zero.
 func TestInterceptorCoreCircuitBreak(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.Sentinel("inner failure")
+	sentinel := apperr.Sentinel("inner failure")
 
 	t.Run("open circuit rejects before running", func(t *testing.T) {
 		t.Parallel()
@@ -145,7 +145,7 @@ func TestInterceptorCoreCircuitBreak(t *testing.T) {
 //     slot held) → ran=false with the shed error and the call never invoked.
 func TestInterceptorCoreBulkhead(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.Sentinel("handler failure")
+	sentinel := apperr.Sentinel("handler failure")
 
 	t.Run("free slot runs the call", func(t *testing.T) {
 		t.Parallel()

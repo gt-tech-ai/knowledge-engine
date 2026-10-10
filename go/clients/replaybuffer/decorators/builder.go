@@ -1,10 +1,11 @@
-// Package decorators composes cross-cutting concerns — a per-op timeout and the observability trio
-// (logging, metrics, tracing) — around any core/interfaces.ReplayBuffer, without touching the
-// backend. It mirrors clients/lock/decorators and its ordering (ARCHITECTURE.md#decorator-order):
-// the timeout nests closest to the backend and the observability trio wraps it as Tracing →
-// Metrics → Logging (Tracing outermost, Logging innermost), so a span/metric covers the whole
-// bounded operation. Every With* is nil-safe: a nil collaborator skips that decorator, so dev/test
-// paths run undecorated.
+// Package decorators composes cross-cutting concerns — a per-op timeout and the
+// observability trio (logging, metrics, tracing) — around any
+// core/interfaces.ReplayBuffer, without touching the backend. It mirrors
+// clients/lock/decorators and its ordering (ARCHITECTURE.md#decorator-order): the timeout
+// nests closest to the backend and the observability trio wraps it as Tracing → Metrics →
+// Logging (Tracing outermost, Logging innermost), so a span/metric covers the whole
+// bounded operation. Every With* is nil-safe: a nil collaborator skips that decorator, so
+// dev/test paths run undecorated.
 package decorators
 
 import (
@@ -13,20 +14,23 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
-// bufferDurationBuckets are the histogram bucket boundaries (seconds) for replay-buffer op durations
-// — sub-millisecond (memory) to a few hundred ms (a slow Redis round-trip).
-var bufferDurationBuckets = []float64{
-	.0005,
-	.001,
-	.0025,
-	.005,
-	.01,
-	.025,
-	.05,
-	.1,
-	.25,
-	.5,
-	1,
+// bufferDurationBuckets returns the histogram bucket boundaries (seconds) for
+// replay-buffer op durations — sub-millisecond (memory) to a few hundred ms (a slow
+// Redis round-trip).
+func bufferDurationBuckets() []float64 {
+	return []float64{
+		.0005,
+		.001,
+		.0025,
+		.005,
+		.01,
+		.025,
+		.05,
+		.1,
+		.25,
+		.5,
+		1,
+	}
 }
 
 // Builder composes decorators around a base ReplayBuffer using a fluent API.
@@ -45,7 +49,8 @@ type Builder struct {
 	timeout time.Duration
 }
 
-// NewBuilder creates a decorator builder wrapping base. name labels the buffer in metrics/spans/logs.
+// NewBuilder creates a decorator builder wrapping base. name labels the buffer in
+// metrics/spans/logs.
 func NewBuilder(base interfaces.ReplayBuffer, name string) *Builder {
 	return &Builder{base: base, name: name}
 }
@@ -79,8 +84,8 @@ func (b *Builder) WithTracing(tracer interfaces.Tracer) *Builder {
 //	base → timeout → logging → metrics → tracing
 //
 // so the timeout nests closest to the backend and the observability trio wraps it as
-// Tracing → Metrics → Logging (Logging innermost) per ARCHITECTURE.md#decorator-order. A nil
-// collaborator skips its decorator, so an all-nil builder returns the base unchanged.
+// Tracing → Metrics → Logging (Logging innermost) per ARCHITECTURE.md#decorator-order. A
+// nil collaborator skips its decorator, so an all-nil builder returns the base unchanged.
 func (b *Builder) Build() interfaces.ReplayBuffer {
 	rb := b.base
 

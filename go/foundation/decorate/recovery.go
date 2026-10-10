@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -27,7 +27,7 @@ func NewRecovery(logger interfaces.Logger, name string) OpMiddleware {
 							"stack", string(debug.Stack()),
 						)
 					}
-					err = errors.Internal("internal service error: panic recovered")
+					err = apperr.Internal("internal service error: panic recovered")
 				}
 			}()
 			return next(ctx)

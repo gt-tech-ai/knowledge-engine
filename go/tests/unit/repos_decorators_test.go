@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	fcache "github.com/gt-tech-ai/knowledge-engine/go/foundation/cache"
@@ -96,7 +96,7 @@ func TestLoggingDecorator_LogsAndDelegates(t *testing.T) {
 	assert.NotContains(t, (*okSpy.ChildDebugCalls), "repository.Get failed")
 
 	errSpy := fixtures.NewSpyLogger()
-	sentinel := errors.New(errors.CodeInternal, "boom")
+	sentinel := apperr.New(apperr.CodeInternal, "boom")
 	errRepo := newBuilder(errStore(t, sentinel)).WithLogging(errSpy).Build()
 	driveAll(context.Background(), errRepo)
 
@@ -126,7 +126,7 @@ func TestMetricsDecorator_RecordsOpsAndErrors(t *testing.T) {
 	assert.Equal(t, 0, *okErrs, "no error counter ticks on success")
 
 	failMetrics, failOps, failErrs := recordingMetrics(t)
-	sentinel := errors.New(errors.CodeInternal, "boom")
+	sentinel := apperr.New(apperr.CodeInternal, "boom")
 	failRepo := newBuilder(errStore(t, sentinel)).WithMetrics(failMetrics).Build()
 	driveAll(context.Background(), failRepo)
 	assert.Equal(t, 6, *failOps)
@@ -202,7 +202,7 @@ func TestTracingDecorator_SpansEveryOperation(t *testing.T) {
 	)
 
 	errTracer, errOps := collect()
-	sentinel := errors.New(errors.CodeInternal, "boom")
+	sentinel := apperr.New(apperr.CodeInternal, "boom")
 	errRepo := newBuilder(errStore(t, sentinel)).WithTracing(errTracer).Build()
 	driveAll(context.Background(), errRepo)
 	assert.Len(t, *errOps, 6, "failures are still spanned")
@@ -228,7 +228,7 @@ func TestRetryDecorator_RetriesOutsideTransaction(t *testing.T) {
 	gomock.InOrder(
 		store.EXPECT().
 			Get(gomock.Any(), "id").
-			Return(nil, errors.New(errors.CodeInternal, "transient")),
+			Return(nil, apperr.New(apperr.CodeInternal, "transient")),
 		store.EXPECT().Get(gomock.Any(), "id").Return(&te{ID: "id"}, nil),
 	)
 	store.EXPECT().
@@ -309,14 +309,14 @@ func TestCircuitBreakerDecorator_OpenFailsFast(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := openRepo.Get(ctx, "id")
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = openRepo.List(ctx, tp{}, types.PageRequest{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = openRepo.Create(ctx, &te{ID: "id"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = openRepo.Update(ctx, "id", &te{ID: "id"})
-	assert.Error(t, err)
-	assert.Error(t, openRepo.Delete(ctx, "id"))
+	require.Error(t, err)
+	require.Error(t, openRepo.Delete(ctx, "id"))
 	_, err = openRepo.Exists(ctx, "id")
 	assert.Error(t, err)
 }
@@ -480,7 +480,7 @@ func TestCachingDecorator_Get(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		cache := mocks.NewMockByteCache(ctrl)
 		store := mocks.NewMockStore[te, tp, string](ctrl)
-		sentinel := errors.New(errors.CodeInternal, "backend down")
+		sentinel := apperr.New(apperr.CodeInternal, "backend down")
 		cache.EXPECT().Get(gomock.Any(), "repo:repo:id").Return(nil, false)
 		store.EXPECT().Get(gomock.Any(), "id").Return(nil, sentinel)
 
@@ -545,7 +545,7 @@ func TestCachingDecorator_Writes(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		cache := mocks.NewMockByteCache(ctrl) // no Set expectation
 		store := mocks.NewMockStore[te, tp, string](ctrl)
-		sentinel := errors.New(errors.CodeConflict, "dup")
+		sentinel := apperr.New(apperr.CodeConflict, "dup")
 		store.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, sentinel)
 
 		_, err := cachingRepo(store, cache, true).Create(ctx, &te{ID: "id"})
@@ -557,7 +557,7 @@ func TestCachingDecorator_Writes(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		cache := mocks.NewMockByteCache(ctrl)
 		store := mocks.NewMockStore[te, tp, string](ctrl)
-		sentinel := errors.New(errors.CodeInternal, "boom")
+		sentinel := apperr.New(apperr.CodeInternal, "boom")
 		gomock.InOrder(
 			store.EXPECT().
 				Update(gomock.Any(), "id", gomock.Any()).
@@ -578,7 +578,7 @@ func TestCachingDecorator_Writes(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		cache := mocks.NewMockByteCache(ctrl)
 		store := mocks.NewMockStore[te, tp, string](ctrl)
-		sentinel := errors.New(errors.CodeInternal, "boom")
+		sentinel := apperr.New(apperr.CodeInternal, "boom")
 		gomock.InOrder(
 			store.EXPECT().Delete(gomock.Any(), "id").Return(nil),
 			store.EXPECT().Delete(gomock.Any(), "id").Return(sentinel),

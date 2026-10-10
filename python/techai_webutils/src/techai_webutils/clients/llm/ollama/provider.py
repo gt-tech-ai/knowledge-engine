@@ -15,12 +15,20 @@ streaming.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from contextlib import AsyncExitStack
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from techai_webutils.core.errors import AppError, ErrorCode
-from techai_webutils.core.interfaces.llm import LLMConfig, LLMProvider, LLMResponse, StreamUsage, text_only
+from techai_webutils.core.interfaces.llm import (
+    LLMConfig,
+    LLMProvider,
+    LLMResponse,
+    StreamUsage,
+    text_only,
+)
 from techai_webutils.foundation.lifecycle import NoOpAsyncResource
 
 if TYPE_CHECKING:
@@ -51,11 +59,53 @@ def _to_app_error(exc: Exception) -> AppError:
         return AppError(ErrorCode.TIMEOUT, f"ollama chat timed out: {exc}", cause=exc)
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
-        code = ErrorCode.UNAVAILABLE if status >= 500 or status == 429 else ErrorCode.INTERNAL  # noqa: PLR2004
+        transient = (
+            status >= HTTPStatus.INTERNAL_SERVER_ERROR
+            or status == HTTPStatus.TOO_MANY_REQUESTS
+        )
+        code = ErrorCode.UNAVAILABLE if transient else ErrorCode.INTERNAL
         return AppError(code, f"ollama chat returned HTTP {status}", cause=exc)
     if isinstance(exc, httpx.RequestError):
-        return AppError(ErrorCode.UNAVAILABLE, f"ollama chat unreachable: {exc}", cause=exc)
+        return AppError(
+            ErrorCode.UNAVAILABLE, f"ollama chat unreachable: {exc}", cause=exc
+        )
     return AppError(ErrorCode.INTERNAL, f"ollama chat decode error: {exc}", cause=exc)
+
+
+async def _ndjson_chunks(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
+    """Decode each non-blank NDJSON line of a streamed /api/chat response.
+
+    A transport or decode failure mid-stream is wrapped in a coded ``AppError``
+    (``_to_app_error``).
+    """
+    try:
+        async for line in response.aiter_lines():
+            if line.strip():
+                yield json.loads(line)
+    except (httpx.HTTPError, ValueError) as exc:
+        raise _to_app_error(exc) from exc
+
+
+async def _tokens(
+    chunks: AsyncIterator[dict[str, Any]], model: str
+) -> AsyncIterator[str | StreamUsage]:
+    """Yield each chunk's content delta until ``done``, then the ``done`` chunk's usage.
+
+    ``model`` is the requested model, reported when the ``done`` chunk names none.
+    """
+    async for chunk in chunks:
+        message: dict[str, Any] = chunk.get("message") or {}
+        token = message.get("content", "")
+        if token:
+            yield token
+        if chunk.get("done"):
+            yield StreamUsage(
+                model=str(chunk.get("model") or model),
+                input_tokens=int(chunk.get("prompt_eval_count", 0)),
+                output_tokens=int(chunk.get("eval_count", 0)),
+                finish_reason=_finish_reason(chunk.get("done_reason")),
+            )
+            return
 
 
 class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
@@ -89,7 +139,9 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
             "options": options,
         }
 
-    async def complete(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> LLMResponse:
+    async def complete(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> LLMResponse:
         """Generate a single completion for the message history (one non-streaming /api/chat call).
 
         Transport/decode failures are wrapped in a coded ``AppError`` (``_to_app_error``) so a raw
@@ -103,7 +155,7 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
             body = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise _to_app_error(exc) from exc
-        message = body.get("message") or {}
+        message: dict[str, Any] = body.get("message") or {}
         return LLMResponse(
             content=message.get("content", ""),
             model=body.get("model", self._model),
@@ -112,7 +164,9 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
             finish_reason=_finish_reason(body.get("done_reason")),
         )
 
-    async def stream(self, messages: list[LLMMessage], config: LLMConfig | None = None) -> AsyncIterator[str]:
+    async def stream(
+        self, messages: list[LLMMessage], config: LLMConfig | None = None
+    ) -> AsyncIterator[str]:
         """Stream a completion token-by-token. Awaited to obtain the iterator, then ``async for``."""
         return text_only(await self.stream_with_usage(messages, config))
 
@@ -122,34 +176,33 @@ class OllamaLlmProvider(NoOpAsyncResource, LLMProvider):
         """Stream content deltas, then the ``done`` chunk's token counts as a ``StreamUsage``."""
         return self._stream_tokens(self._chat_payload(messages, config, stream=True))
 
-    async def _stream_tokens(self, payload: dict[str, object]) -> AsyncIterator[str | StreamUsage]:
+    async def _stream_tokens(
+        self, payload: dict[str, object]
+    ) -> AsyncIterator[str | StreamUsage]:
         """Yield content deltas from the streamed /api/chat NDJSON until ``done``, then its usage.
 
         The ``done`` chunk carries ``prompt_eval_count`` / ``eval_count`` / ``done_reason``, which
         become the final ``StreamUsage``. Transport/decode failures are wrapped in a coded
         ``AppError`` (``_to_app_error``); a ``GeneratorExit`` from client cancellation propagates
         untouched.
+
+        The streamed response stays open across the yields: the ``finally`` releases it when the
+        stream ends, fails, or the consumer closes this generator.
         """
+        stack = AsyncExitStack()
         try:
-            async with self._client.stream("POST", "/api/chat", json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    chunk = json.loads(line)
-                    token = (chunk.get("message") or {}).get("content", "")
-                    if token:
-                        yield token
-                    if chunk.get("done"):
-                        yield StreamUsage(
-                            model=str(chunk.get("model") or payload["model"]),
-                            input_tokens=int(chunk.get("prompt_eval_count", 0)),
-                            output_tokens=int(chunk.get("eval_count", 0)),
-                            finish_reason=_finish_reason(chunk.get("done_reason")),
-                        )
-                        return
+            response = await stack.enter_async_context(
+                self._client.stream("POST", "/api/chat", json=payload)
+            )
+            response.raise_for_status()
         except (httpx.HTTPError, ValueError) as exc:
+            await stack.aclose()
             raise _to_app_error(exc) from exc
+        try:
+            async for item in _tokens(_ndjson_chunks(response), str(payload["model"])):
+                yield item
+        finally:
+            await stack.aclose()
 
     def model_name(self) -> str:
         """Return the Ollama chat model identifier."""

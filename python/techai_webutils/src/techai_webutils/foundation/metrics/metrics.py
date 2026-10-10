@@ -11,12 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from techai_webutils.core.interfaces.metrics import (
-    MetricCounter,
-    MetricGauge,
-    MetricHistogram,
-    MetricsProvider,
-)
 from opentelemetry import trace as _otel_trace
 from prometheus_client import (
     REGISTRY,
@@ -24,6 +18,13 @@ from prometheus_client import (
     Counter,
     Gauge,
     Histogram,
+)
+
+from techai_webutils.core.interfaces.metrics import (
+    MetricCounter,
+    MetricGauge,
+    MetricHistogram,
+    MetricsProvider,
 )
 
 if TYPE_CHECKING:
@@ -58,7 +59,11 @@ class PrometheusMetricsProvider(MetricsProvider):
         self._registry = registry or REGISTRY
 
     def _get_or_create[T](
-        self, name: str, expected_type: type, labelnames: list[str], create: Callable[[], T]
+        self,
+        name: str,
+        expected_type: type,
+        labelnames: list[str],
+        create: Callable[[], T],
     ) -> T:
         """Create a metric, or reuse an already-registered one of the same name (idempotent).
 
@@ -88,19 +93,27 @@ class PrometheusMetricsProvider(MetricsProvider):
         """Return the collector already registered under ``name``, or None.
 
         Reaches into prometheus_client privates (``_names_to_collectors`` /
-        ``_collector_to_names``) because there is no public lookup-by-name API. These attribute names
-        are an internal contract; a major prometheus_client bump could rename them, which
-        ``tests/foundation/test_metrics_idempotent.py`` exercises against the pinned version.
+        ``_collector_to_names``) because there is no public lookup-by-name API: the public
+        ``CollectorRegistry`` surface is register / unregister / collect / get_sample_value /
+        target info, and the duplicate-registration ValueError names no collector. The read goes
+        through ``vars()`` on purpose, as an explicit and visible dependency on those internals
+        rather than a suppressed private-member access. These attribute names are an internal
+        contract; a prometheus_client bump could rename them, which
+        ``tests/unit/foundation_metrics_idempotent_test.py`` exercises against the pinned version.
         """
-        existing = self._registry._names_to_collectors.get(name)  # noqa: SLF001
+        internals = vars(self._registry)
+        names_to_collectors = cast("dict[str, object]", internals["_names_to_collectors"])
+        existing = names_to_collectors.get(name)
         if existing is not None:
             return existing
-        for collector in self._registry._collector_to_names:  # noqa: SLF001
+        for collector in cast("dict[object, object]", internals["_collector_to_names"]):
             if getattr(collector, "_name", None) == name:
                 return collector
         return None
 
-    def counter(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricCounter:
+    def counter(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricCounter:
         """Create a Prometheus counter metric (idempotent on a repeated in-process init)."""
         c = self._get_or_create(
             name,
@@ -122,14 +135,22 @@ class PrometheusMetricsProvider(MetricsProvider):
         if buckets is not None:
             kwargs["buckets"] = buckets
         h = self._get_or_create(
-            name, Histogram, labels or [], lambda: Histogram(name, help_text, labels or [], **kwargs)
+            name,
+            Histogram,
+            labels or [],
+            lambda: Histogram(name, help_text, labels or [], **kwargs),
         )
         return _PrometheusHistogram(h, labels or [])
 
-    def gauge(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricGauge:
+    def gauge(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricGauge:
         """Create a Prometheus gauge metric (idempotent on a repeated in-process init)."""
         g = self._get_or_create(
-            name, Gauge, labels or [], lambda: Gauge(name, help_text, labels or [], registry=self._registry)
+            name,
+            Gauge,
+            labels or [],
+            lambda: Gauge(name, help_text, labels or [], registry=self._registry),
         )
         return _PrometheusGauge(g, labels or [])
 

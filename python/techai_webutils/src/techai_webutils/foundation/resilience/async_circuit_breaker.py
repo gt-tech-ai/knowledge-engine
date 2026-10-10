@@ -11,7 +11,10 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Self
 
-from techai_webutils.foundation.resilience.circuit_breaker import CircuitOpenError, CircuitState
+from techai_webutils.foundation.resilience.circuit_breaker import (
+    CircuitOpenError,
+    CircuitState,
+)
 
 if TYPE_CHECKING:
     import types

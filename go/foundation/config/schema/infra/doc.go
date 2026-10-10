@@ -1,4 +1,5 @@
-// Package infra provides typed configuration structures for Tech AI Knowledge Engine services.
+// Package infra provides typed configuration structures for Tech AI Knowledge Engine
+// services.
 //
 // Each struct corresponds to a section of the base config file (base.yaml) and supports:
 //   - Default values via DefaultXConfig() factory functions

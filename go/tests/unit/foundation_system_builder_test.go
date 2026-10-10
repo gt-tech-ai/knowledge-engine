@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/system"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
@@ -97,7 +97,7 @@ func TestRunnerBuilder_DecoratesAndFiresHooks(t *testing.T) {
 	var failEvents []string
 	failHook := recordHooks(ctrl, &failEvents)
 	failInner := mocks.NewMockCommandRunner(ctrl)
-	boom := errors.New("boom")
+	boom := apperr.Sentinel("boom")
 	failInner.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(boom).AnyTimes()
 	failInner.EXPECT().RunWithEnv(
@@ -148,7 +148,12 @@ func TestRunnerBuilder_DryRunSkipsExecution(t *testing.T) {
 	inner.EXPECT().Exists(gomock.Any()).Return(true).AnyTimes()
 	inner.EXPECT().RequireTool(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	r := system.NewBuilder(inner).
-		WithLogging(func(format string, a ...any) { logs = append(logs, fmt.Sprintf(format, a...)) }).
+		WithLogging(func(
+			format string,
+			a ...any,
+		) {
+			logs = append(logs, fmt.Sprintf(format, a...))
+		}).
 		WithDryRun(true).
 		Build()
 

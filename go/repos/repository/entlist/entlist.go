@@ -1,8 +1,9 @@
 // Package entlist is the Ent glue shared by every app's ListRunner adapters: it folds a
-// resolved-column ListSpec's predicates and ORDER BY into Ent query-node functions through the
-// entcompiler QueryBackend. The per-entity adapters (which apply these to their typed *ent.XQuery and
-// execute) live in each app's stores package because Ent has no generic query interface; only this
-// backend-folding is app-agnostic, so it lives once here rather than duplicated per app module.
+// resolved-column ListSpec's predicates and ORDER BY into Ent query-node functions
+// through the entcompiler QueryBackend. The per-entity adapters (which apply these to
+// their typed *ent.XQuery and execute) live in each app's stores package because Ent has
+// no generic query interface; only this backend-folding is app-agnostic, so it lives once
+// here rather than duplicated per app module.
 package entlist
 
 import (
@@ -13,8 +14,9 @@ import (
 	entcompiler "github.com/gt-tech-ai/knowledge-engine/go/repos/repository/compiler/ent"
 )
 
-// FoldFilters folds resolved-column filters to Ent predicates with an identity resolver — a ListSpec's
-// filters (user filter + keyset seek) already carry resolved columns, so no allow-list is consulted.
+// FoldFilters folds resolved-column filters to Ent predicates with an identity resolver —
+// a ListSpec's filters (user filter + keyset seek) already carry resolved columns, so no
+// allow-list is consulted.
 func FoldFilters(filters []types.Filter) []func(*entsql.Selector) {
 	b := entcompiler.New()
 	out := make([]func(*entsql.Selector), len(filters))
@@ -24,11 +26,11 @@ func FoldFilters(filters []types.Filter) []func(*entsql.Selector) {
 	return out
 }
 
-// FoldOrder folds the resolved ORDER BY columns to Ent sort options via the same backend. A joined sort
-// field carries a JoinTarget instead of a base column, rendered as an ORDER BY over a
-// correlated subquery; a derived field carries an aggregate/interval spec, rendered as a computed
-// expression; an ordinal field renders as a CASE over its values; a same-table field renders as a plain
-// ORDER BY.
+// FoldOrder folds the resolved ORDER BY columns to Ent sort options via the same backend.
+// A joined sort field carries a JoinTarget instead of a base column, rendered as an ORDER
+// BY over a correlated subquery; a derived field carries an aggregate/interval spec,
+// rendered as a computed expression; an ordinal field renders as a CASE over its values;
+// a same-table field renders as a plain ORDER BY.
 func FoldOrder(order []types.OrderField) []func(*entsql.Selector) {
 	b := entcompiler.New()
 	out := make([]func(*entsql.Selector), len(order))

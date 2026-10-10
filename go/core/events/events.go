@@ -1,11 +1,12 @@
-// Package events is the generic event contract: the Event interface, the metadata every event
-// carries, and a Registry a consumer fills with its own event catalog to parse payloads.
+// Package events is the generic event contract: the Event interface, the metadata every
+// event carries, and a Registry a consumer fills with its own event catalog to parse
+// payloads.
 package events
 
 import "time"
 
-// EventType is an event's type discriminator (e.g. "widget.created"); the consumer defines its
-// own values.
+// EventType is an event's type discriminator (e.g. "widget.created"); the consumer
+// defines its own values.
 type EventType string
 
 // Event is the interface all events implement.

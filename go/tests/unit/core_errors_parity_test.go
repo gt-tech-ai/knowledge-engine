@@ -6,23 +6,39 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/transport/rpc"
-	"github.com/stretchr/testify/require"
 )
 
-// codesJSONPath is the committed cross-language parity table. The Python suite reads
-// the same file, so a Go mapping change that is not mirrored in Python fails there.
-var codesJSONPath = filepath.Join("..", "..", "core", "errors", "testdata", "codes.json")
+// codesJSONPath returns the path of the committed cross-language parity table. The
+// Python suite reads the same file, so a Go mapping change that is not mirrored in
+// Python fails there.
+func codesJSONPath() string {
+	return filepath.Join("..", "..", "core", "errors", "testdata", "codes.json")
+}
 
 // allErrorCodes lists every ErrorCode the Go errors package declares. The Python
 // parity test asserts its ErrorCode set equals this table's keys, so a code added
 // here without its Python counterpart (or the reverse) fails one side.
-var allErrorCodes = []apperr.ErrorCode{
-	apperr.CodeUnknown, apperr.CodeInternal, apperr.CodeNotFound, apperr.CodeUnauthorized,
-	apperr.CodeForbidden, apperr.CodeInvalidInput, apperr.CodeConflict, apperr.CodeTimeout,
-	apperr.CodeCanceled, apperr.CodeUnavailable, apperr.CodeIngestion, apperr.CodeQualityFailed,
-	apperr.CodeUpstream, apperr.CodeResourceExhausted,
+func allErrorCodes() []apperr.ErrorCode {
+	return []apperr.ErrorCode{
+		apperr.CodeUnknown,
+		apperr.CodeInternal,
+		apperr.CodeNotFound,
+		apperr.CodeUnauthorized,
+		apperr.CodeForbidden,
+		apperr.CodeInvalidInput,
+		apperr.CodeConflict,
+		apperr.CodeTimeout,
+		apperr.CodeCanceled,
+		apperr.CodeUnavailable,
+		apperr.CodeIngestion,
+		apperr.CodeQualityFailed,
+		apperr.CodeUpstream,
+		apperr.CodeResourceExhausted,
+	}
 }
 
 // codeRow is one code's transport mapping and retry classification.
@@ -50,8 +66,8 @@ type codeRow struct {
 func TestCodesJSON_MatchesClassifyMaps(t *testing.T) {
 	t.Parallel()
 
-	table := make(map[apperr.ErrorCode]codeRow, len(allErrorCodes))
-	for _, code := range allErrorCodes {
+	table := make(map[apperr.ErrorCode]codeRow, len(allErrorCodes()))
+	for _, code := range allErrorCodes() {
 		err := apperr.New(code, "parity")
 		grpc, _ := rpc.Sanitize(err)
 		table[code] = codeRow{
@@ -66,9 +82,9 @@ func TestCodesJSON_MatchesClassifyMaps(t *testing.T) {
 	got = append(got, '\n')
 
 	if os.Getenv("KE_UPDATE_GOLDEN") == "1" {
-		require.NoError(t, os.WriteFile(codesJSONPath, got, 0o600))
+		require.NoError(t, os.WriteFile(codesJSONPath(), got, 0o600))
 	}
-	want, err := os.ReadFile(codesJSONPath)
+	want, err := os.ReadFile(codesJSONPath())
 	require.NoError(t, err)
 	require.Equal(t, string(want), string(got))
 }

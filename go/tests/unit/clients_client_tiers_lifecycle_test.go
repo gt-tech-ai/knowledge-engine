@@ -44,16 +44,16 @@ func TestDatabaseTier_NewFromConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pool)
 	assert.Nil(t, pool.DB(), "pool is not opened until Start")
-	assert.Error(t, pool.Liveness(context.Background()))
-	assert.Error(t, pool.Readiness(context.Background()))
-	assert.NoError(
+	require.Error(t, pool.Liveness(context.Background()))
+	require.Error(t, pool.Readiness(context.Background()))
+	require.NoError(
 		t,
 		pool.Stop(context.Background()),
 		"Stop on an unopened pool is a no-op",
 	)
 
 	_, err = database.NewFromConfig(database.Config{Kind: database.Kind(99)})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "postgres", database.KindPostgres.String())
 }
 
@@ -80,8 +80,8 @@ func TestRPCTier_NewFromConfig(t *testing.T) {
 	require.NotNil(t, client)
 
 	assert.Nil(t, client.Conn(), "not dialed until Start")
-	assert.Error(t, client.Liveness(context.Background()))
-	assert.Error(t, client.Readiness(context.Background()))
+	require.Error(t, client.Liveness(context.Background()))
+	require.Error(t, client.Readiness(context.Background()))
 
 	require.NoError(t, client.Start(context.Background()))
 	assert.NotNil(t, client.Conn())
@@ -90,7 +90,7 @@ func TestRPCTier_NewFromConfig(t *testing.T) {
 	assert.NoError(t, client.Stop(context.Background()))
 
 	_, err = rpc.NewFromConfig(rpc.Config{Kind: rpc.Kind(99)})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "grpc", rpc.KindGRPC.String())
 }
 
@@ -115,16 +115,16 @@ func TestTransportTier_NewFromConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, srv)
-	assert.NoError(t, srv.Liveness(context.Background()))
-	assert.Error(
+	require.NoError(t, srv.Liveness(context.Background()))
+	require.Error(
 		t,
 		srv.Readiness(context.Background()),
 		"not ready until Start binds the listener",
 	)
-	assert.NoError(t, srv.Stop(context.Background()), "Stop before Start is a no-op")
+	require.NoError(t, srv.Stop(context.Background()), "Stop before Start is a no-op")
 
 	_, err = transport.NewFromConfig(transport.Config{Kind: transport.Kind(99)})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "connect", transport.KindConnect.String())
 }
 
@@ -158,6 +158,7 @@ func TestStatelessClients_LifecycleNoOps(t *testing.T) {
 	}
 	for name, lc := range lifecycles {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			assert.NoError(t, lc.Start(ctx))
 			assert.NoError(t, lc.Stop(ctx))
 		})
@@ -189,8 +190,8 @@ func TestPostgresBackend_NotStartedGuards(t *testing.T) {
 
 	c := dbpostgres.New(&infra.DatabaseConfig{})
 	assert.Nil(t, c.DB())
-	assert.Error(t, c.Liveness(context.Background()))
-	assert.Error(t, c.Readiness(context.Background()))
+	require.Error(t, c.Liveness(context.Background()))
+	require.Error(t, c.Readiness(context.Background()))
 	assert.NoError(t, c.Stop(context.Background()))
 }
 

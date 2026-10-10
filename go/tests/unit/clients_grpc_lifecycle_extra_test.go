@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	grpcclient "github.com/gt-tech-ai/knowledge-engine/go/clients/rpc/grpc"
@@ -41,7 +40,7 @@ func TestGRPCLifecycleClient_StartStopReadiness(t *testing.T) {
 	)
 
 	require.NoError(t, c.Stop(ctx), "Stop closes the connection")
-	assert.Error(
+	require.Error(
 		t,
 		c.Readiness(ctx),
 		"a shut-down connection is a terminal-failure state → not ready",

@@ -1,8 +1,10 @@
 """Tests for the Job[T] discover -> map -> fan-out builder."""
 
+import asyncio
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.interfaces.execution import (
     AnyJob,
     Discoverer,
@@ -14,7 +16,8 @@ from techai_webutils.execution.job.job import JobBuilder
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing processor."""
+    """Process ``item`` into a passing step (a trivial always-passing processor)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
@@ -30,6 +33,8 @@ def _discoverer(items: list[int]) -> Discoverer[int]:
 
 
 class TestJob:
+    """Tests for the job."""
+
     def test_built_job_is_anyjob_with_meta(self) -> None:
         """Test that a built, grouped Job satisfies AnyJob and reports its name + group via meta().
 
@@ -61,7 +66,12 @@ class TestJob:
         **What it tests:**
           - Empty discovery returns exactly one SKIP result named for the job.
         """
-        job = JobBuilder[int]("ingest").with_discoverer(_discoverer([])).with_processor(_ok).build()
+        job = (
+            JobBuilder[int]("ingest")
+            .with_discoverer(_discoverer([]))
+            .with_processor(_ok)
+            .build()
+        )
         batch = await job.execute()
         assert batch.total == 1
         assert batch.results[0].status is StepStatus.SKIP
@@ -102,6 +112,7 @@ class TestJob:
         calls: dict[int, int] = {}
 
         async def flaky(item: int) -> StepResult:
+            await asyncio.sleep(0)
             calls[item] = calls.get(item, 0) + 1
             if calls[item] < 2:
                 msg = "transient"
@@ -132,6 +143,7 @@ class TestJob:
         """
 
         async def boom(item: int) -> StepResult:  # noqa: ARG001
+            await asyncio.sleep(0)
             msg = "nope"
             raise ValueError(msg)
 

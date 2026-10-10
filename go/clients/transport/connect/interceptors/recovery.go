@@ -6,7 +6,8 @@ import (
 	"runtime/debug"
 
 	"connectrpc.com/connect"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -39,12 +40,15 @@ func (i recoveryInterceptor) logPanic(
 		"stack", string(debug.Stack()),
 		"procedure", procedure,
 	)
-	return connect.NewError(connect.CodeInternal, coreerr.Internal("internal error"))
+	return connect.NewError(connect.CodeInternal, apperr.Internal("internal error"))
 }
 
 // WrapUnary recovers a panic in a unary handler into a CodeInternal error.
 func (i recoveryInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
-	return func(ctx context.Context, req connect.AnyRequest) (resp connect.AnyResponse, err error) {
+	return func(
+		ctx context.Context,
+		req connect.AnyRequest,
+	) (resp connect.AnyResponse, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				resp, err = nil, i.logPanic(ctx, req.Spec().Procedure, r)

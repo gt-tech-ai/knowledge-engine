@@ -6,6 +6,8 @@ where Prometheus is not available.
 
 from __future__ import annotations
 
+from typing import override
+
 from techai_webutils.core.interfaces.metrics import (
     MetricCounter,
     MetricGauge,
@@ -17,21 +19,28 @@ from techai_webutils.core.interfaces.metrics import (
 class NullMetricsProvider(MetricsProvider):
     """No-op metrics provider that creates null metric objects."""
 
-    def counter(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricCounter:  # noqa: ARG002
+    @override
+    def counter(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricCounter:
         """Return a no-op counter."""
         return _NullCounter()
 
+    @override
     def histogram(
         self,
-        name: str,  # noqa: ARG002
-        help_text: str,  # noqa: ARG002
-        labels: list[str] | None = None,  # noqa: ARG002
-        buckets: list[float] | None = None,  # noqa: ARG002
+        name: str,
+        help_text: str,
+        labels: list[str] | None = None,
+        buckets: list[float] | None = None,
     ) -> MetricHistogram:
         """Return a no-op histogram."""
         return _NullHistogram()
 
-    def gauge(self, name: str, help_text: str, labels: list[str] | None = None) -> MetricGauge:  # noqa: ARG002
+    @override
+    def gauge(
+        self, name: str, help_text: str, labels: list[str] | None = None
+    ) -> MetricGauge:
         """Return a no-op gauge."""
         return _NullGauge()
 

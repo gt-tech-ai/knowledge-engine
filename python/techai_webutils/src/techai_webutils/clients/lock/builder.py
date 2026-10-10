@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from techai_webutils.clients.lock.memory import InMemoryLock
+from techai_webutils.core.errors import AppValueError
 
 if TYPE_CHECKING:
     from techai_webutils.core.interfaces.lock import ManagedLock
@@ -77,7 +78,7 @@ def new_lock_from_config(config: LockConfig) -> ManagedLock:
     if config.kind is LockKind.POSTGRES:
         if config.namespace is None:
             msg = "postgres lock kind requires LockConfig.namespace (it is half of the lock identity)"
-            raise ValueError(msg)
+            raise AppValueError(msg)
         # Lazy import: keep asyncpg off the dev/memory path (loaded only in stage/prod).
         from techai_webutils.clients.lock.postgres import PostgresAdvisoryLock  # noqa: PLC0415
 
@@ -88,4 +89,4 @@ def new_lock_from_config(config: LockConfig) -> ManagedLock:
             application_name=config.application_name,
         )
     msg = f"unknown lock kind: {config.kind!r}"
-    raise ValueError(msg)
+    raise AppValueError(msg)

@@ -7,25 +7,43 @@ untouched, so the tests assert exactly that: the connect retries, an exhausted c
 transient error, and ``submit`` connects-then-dispatches without retrying the task itself.
 """
 
+import asyncio
 from collections.abc import Awaitable, Callable
+from typing import TypedDict
 from unittest.mock import create_autospec
 
 import pytest
+
 from techai_webutils.core.errors.errors import ErrorCode, UnavailableError
 from techai_webutils.core.interfaces.execution import StepResult
 from techai_webutils.execution.executor.ray_runtime import RayRuntime
 from techai_webutils.execution.executor.resilient_ray_runtime import ResilientRayRuntime
 
+
 # Near-zero backoff so the retry tests do not actually sleep through the exponential waits.
-_FAST = {"max_attempts": 5, "base_delay": 0.0, "max_delay": 0.0}
+class _RetryOptions(TypedDict):
+    """The ResilientRayRuntime retry options the tests pass."""
+
+    max_attempts: int
+    """Connect attempts before giving up."""
+    base_delay: float
+    """First backoff delay in seconds."""
+    max_delay: float
+    """Backoff ceiling in seconds."""
+
+
+_FAST: _RetryOptions = {"max_attempts": 5, "base_delay": 0.0, "max_delay": 0.0}
 
 
 async def _ok(item: int) -> StepResult:
-    """A trivial always-passing mapper."""
+    """Map ``item`` to a passing step (a trivial always-passing mapper)."""
+    await asyncio.sleep(0)
     return StepResult(name=f"item-{item}")
 
 
 class TestResilientRayRuntime:
+    """Tests for the resilient Ray runtime."""
+
     @pytest.mark.asyncio
     async def test_warm_up_retries_a_flaky_cold_connect(self) -> None:
         """Test that warm_up retries a transient cold-connect failure until it succeeds.
@@ -66,7 +84,9 @@ class TestResilientRayRuntime:
         """
         inner = create_autospec(RayRuntime, instance=True)
         inner.warm_up.side_effect = RuntimeError("Starting Ray client server failed")
-        runtime = ResilientRayRuntime(inner, max_attempts=3, base_delay=0.0, max_delay=0.0)
+        runtime = ResilientRayRuntime(
+            inner, max_attempts=3, base_delay=0.0, max_delay=0.0
+        )
 
         with pytest.raises(UnavailableError) as excinfo:
             await runtime.warm_up()
@@ -76,7 +96,9 @@ class TestResilientRayRuntime:
         assert inner.warm_up.await_count == 3
 
     @pytest.mark.asyncio
-    async def test_submit_connects_then_dispatches_without_retrying_the_task(self) -> None:
+    async def test_submit_connects_then_dispatches_without_retrying_the_task(
+        self,
+    ) -> None:
         """Test that submit establishes the connection (retried) then dispatches, leaving the task alone.
 
         **Why this test is important:**
@@ -91,7 +113,9 @@ class TestResilientRayRuntime:
         inner = create_autospec(RayRuntime, instance=True)
         inner.warm_up.side_effect = [None]
 
-        async def submit(fn: Callable[[int], Awaitable[StepResult]], item: int) -> StepResult:
+        async def submit(
+            fn: Callable[[int], Awaitable[StepResult]], item: int
+        ) -> StepResult:
             return await fn(item)
 
         inner.submit.side_effect = submit

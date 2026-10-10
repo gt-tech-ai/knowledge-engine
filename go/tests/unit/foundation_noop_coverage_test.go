@@ -2,9 +2,12 @@ package unit_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
@@ -12,9 +15,6 @@ import (
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/metrics/noop"
 	nooptracer "github.com/gt-tech-ai/knowledge-engine/go/foundation/tracer/nooptracer"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ func TestNoopSpan_EndAndAttributes(t *testing.T) {
 	require.NotNil(t, ctx, "Start must return non-nil context")
 
 	span.SetAttribute("key", "value")
-	span.RecordError(fmt.Errorf("test error"))
+	span.RecordError(apperr.Sentinel("test error"))
 	span.SetStatus(interfaces.SpanStatusOK, "test status")
 	span.End()
 }
@@ -123,11 +123,11 @@ func TestNoopSpan_EndAndAttributes(t *testing.T) {
 func TestCoreErrors_Join(t *testing.T) {
 	t.Parallel()
 
-	e1 := fmt.Errorf("first")
-	e2 := fmt.Errorf("second")
+	e1 := apperr.Sentinel("first")
+	e2 := apperr.Sentinel("second")
 
 	joined := apperr.Join(e1, e2)
-	require.NotNil(t, joined, "Join of two errors must not return nil")
+	require.Error(t, joined, "Join of two errors must not return nil")
 }
 
 // TestCoreErrors_Unwrap tests that the apperr.Unwrap re-export correctly
@@ -139,16 +139,16 @@ func TestCoreErrors_Join(t *testing.T) {
 //     service error handlers
 //
 // What it tests:
-//   - Unwrap on a %w-wrapped error returns the inner error
+//   - Unwrap on a wrapped error returns the inner error
 //   - The inner error message matches the original
 func TestCoreErrors_Unwrap(t *testing.T) {
 	t.Parallel()
 
-	inner := fmt.Errorf("inner")
-	wrapped := fmt.Errorf("outer: %w", inner)
+	inner := apperr.Sentinel("inner")
+	wrapped := apperr.Wrap(inner, apperr.ErrInternal, "outer")
 
 	unwrapped := apperr.Unwrap(wrapped)
-	require.NotNil(t, unwrapped, "Unwrap must return non-nil for a wrapped error")
+	require.Error(t, unwrapped, "Unwrap must return non-nil for a wrapped error")
 	assert.Equal(t, "inner", unwrapped.Error())
 }
 

@@ -1,12 +1,14 @@
 """Tests for passage-based citation extraction (one citation per passage, positionally aligned)."""
 
 import pytest
-from techai_webutils.core.interfaces.retrieval import RetrievalResult
 
+from techai_webutils.core.interfaces.retrieval import RetrievalResult
 from techai_webutils.pipelines.citations import PassageCitationExtractor
 
 
-def _source(doc: str, page: int | None, score: float = 0.9, chunk: str = "chunk") -> RetrievalResult:
+def _source(
+    doc: str, page: int | None, score: float = 0.9, chunk: str = "chunk"
+) -> RetrievalResult:
     """Build a RetrievalResult for the given document/page/score/chunk text."""
     return RetrievalResult(
         document_id=doc,
@@ -19,6 +21,8 @@ def _source(doc: str, page: int | None, score: float = 0.9, chunk: str = "chunk"
 
 
 class TestPassageCitationExtractor:
+    """Tests for the passage citation extractor."""
+
     @pytest.mark.asyncio
     async def test_maps_passage_to_citation(self) -> None:
         """Test that a source passage maps to a Citation carrying its page + relevance.
@@ -30,11 +34,13 @@ class TestPassageCitationExtractor:
         **What it tests:**
           - A single source yields one Citation with the document id, page, and score.
         """
-        citations = await PassageCitationExtractor().extract("answer [1]", [_source("doc-1", 4, 0.92)])
+        citations = await PassageCitationExtractor().extract(
+            "answer [1]", [_source("doc-1", 4, 0.92)]
+        )
         assert len(citations) == 1
         assert citations[0].document_id == "doc-1"
         assert citations[0].page_number == 4
-        assert citations[0].confidence == 0.92
+        assert citations[0].confidence == pytest.approx(0.92)
 
     @pytest.mark.asyncio
     async def test_emits_one_citation_per_passage_in_order(self) -> None:
@@ -52,8 +58,15 @@ class TestPassageCitationExtractor:
             a (document, page) collapse would have discarded.
         """
         sources = [_source("doc-1", None, chunk=f"passage {n}") for n in range(1, 5)]
-        citations = await PassageCitationExtractor().extract("cites [1] [2] [3] [4]", sources)
-        assert [c.chunk for c in citations] == ["passage 1", "passage 2", "passage 3", "passage 4"]
+        citations = await PassageCitationExtractor().extract(
+            "cites [1] [2] [3] [4]", sources
+        )
+        assert [c.chunk for c in citations] == [
+            "passage 1",
+            "passage 2",
+            "passage 3",
+            "passage 4",
+        ]
 
     @pytest.mark.asyncio
     async def test_keeps_repeated_passages_distinct(self) -> None:
@@ -93,7 +106,9 @@ class TestPassageCitationExtractor:
             metadata={"color": "blue", "size": "L"},
         )
 
-        [cited] = await PassageCitationExtractor(attribute_keys=("color", "owner")).extract("", [source])
+        [cited] = await PassageCitationExtractor(
+            attribute_keys=("color", "owner")
+        ).extract("", [source])
         [plain] = await PassageCitationExtractor().extract("", [source])
 
         assert cited.attributes == {"color": "blue"}

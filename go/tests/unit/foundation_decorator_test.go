@@ -2,22 +2,22 @@ package unit_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/decorator"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
 )
 
-// foundFullStack composes all five generic decorators around base in the canonical
-// order (ARCHITECTURE.md#decorator-order; base → timeout → metrics → tracing → logging → recovery), the order
-// the pipeline/workflow builders apply. onPanic is the tier's recovery contract.
+// foundFullStack composes all five generic decorators around base in the canonical order
+// (ARCHITECTURE.md#decorator-order; base → timeout → metrics → tracing → logging →
+// recovery), the order the pipeline/workflow builders apply. onPanic is the tier's
+// recovery contract.
 func foundFullStack(
 	base decorator.Executor[string, string],
 	onPanic func(string, any) error,
@@ -29,7 +29,7 @@ func foundFullStack(
 		"test",
 		"svc",
 		fixtures.NopMetrics(),
-		decorator.DefaultBuckets,
+		decorator.DefaultBuckets(),
 	)
 	e = decorator.Tracing(e, fixtures.NopTracer(), "test", "svc")
 	e = decorator.Logging(e, fixtures.NopLogger(), "test", "svc")
@@ -55,7 +55,7 @@ func TestDecoratorUnwrapSeam(t *testing.T) {
 	top := foundFullStack(base, func(string, any) error { return nil })
 
 	hops := 0
-	cur := decorator.Executor[string, string](top)
+	cur := top
 	for {
 		u, ok := cur.(decorator.Unwrapper[string, string])
 		if !ok {
@@ -86,7 +86,7 @@ func TestDecoratorUnwrapSeam(t *testing.T) {
 //   - A panicking base wrapped by Recovery returns exactly the onPanic error.
 func TestDecoratorRecoveryUsesOnPanic(t *testing.T) {
 	t.Parallel()
-	sentinel := errors.New("recovered by contract")
+	sentinel := apperr.Sentinel("recovered by contract")
 	base := fixtures.PanicPipeline()
 
 	rec := decorator.Recovery[string, string](
@@ -168,7 +168,7 @@ func TestMetricsDecoratorLabelsByInstanceName(t *testing.T) {
 		inner,
 		"pipeline", "create-item",
 		metricsMock,
-		decorator.DefaultBuckets,
+		decorator.DefaultBuckets(),
 	)
 
 	_, err := m.Execute(context.Background(), "x")
@@ -201,17 +201,29 @@ func TestDecoratorCircuitBreakerCodesOnlyRejections(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	inner := mocks.NewMockPipeline[string, string](ctrl)
-	onOpen := func(err error) error { return coreerr.Wrap(err, coreerr.CodeUnavailable, "shed") }
+	onOpen := func(err error) error {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "shed")
+	}
 
 	open := mocks.NewMockCircuitBreaker(ctrl)
-	open.EXPECT().Execute(gomock.Any()).Return(coreerr.Sentinel("open"))
-	_, err := decorator.CircuitBreaker[string, string](inner, open, onOpen).Execute(context.Background(), "in")
-	require.Equal(t, coreerr.CodeUnavailable, coreerr.Code(err))
+	open.EXPECT().Execute(gomock.Any()).Return(apperr.Sentinel("open"))
+	_, err := decorator.CircuitBreaker[string, string](
+		inner,
+		open,
+		onOpen,
+	).Execute(context.Background(), "in")
+	require.Equal(t, apperr.CodeUnavailable, apperr.Code(err))
 
 	closed := mocks.NewMockCircuitBreaker(ctrl)
-	closed.EXPECT().Execute(gomock.Any()).DoAndReturn(func(fn func() error) error { return fn() })
+	closed.EXPECT().
+		Execute(gomock.Any()).
+		DoAndReturn(func(fn func() error) error { return fn() })
 	inner.EXPECT().Execute(gomock.Any(), "in").Return("in-out", nil)
-	out, err := decorator.CircuitBreaker[string, string](inner, closed, onOpen).Execute(context.Background(), "in")
+	out, err := decorator.CircuitBreaker[string, string](
+		inner,
+		closed,
+		onOpen,
+	).Execute(context.Background(), "in")
 	require.NoError(t, err)
 	require.Equal(t, "in-out", out)
 }

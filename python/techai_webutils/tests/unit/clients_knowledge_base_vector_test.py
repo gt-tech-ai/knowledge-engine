@@ -22,7 +22,8 @@ def _embedder(dimension: int = 3) -> EmbeddingProvider:
     embedder.dimension.return_value = dimension
     embedder.embed_batch = AsyncMock(
         side_effect=lambda texts: [
-            EmbeddingResult(embedding=[0.1, 0.2, 0.3], model="m", token_count=0) for _ in texts
+            EmbeddingResult(embedding=[0.1, 0.2, 0.3], model="m", token_count=0)
+            for _ in texts
         ],
     )
     return embedder
@@ -49,15 +50,23 @@ def _store(
     return store
 
 
-def _indexed(document_id: str, indexes: range, **attributes: str) -> dict[str, dict[str, str]]:
-    """The stored metadata of chunks ``indexes`` of a document indexed with ``attributes`` and no name."""
+def _indexed(
+    document_id: str, indexes: range, **attributes: str
+) -> dict[str, dict[str, str]]:
+    """Return the stored metadata of chunks ``indexes`` of a document indexed with ``attributes`` and no name."""
     return {
-        f"{document_id}:{i}": {**attributes, "document_name": document_id, "chunk_index": str(i)}
+        f"{document_id}:{i}": {
+            **attributes,
+            "document_name": document_id,
+            "chunk_index": str(i),
+        }
         for i in indexes
     }
 
 
 class TestVectorKnowledgeBase:
+    """Tests for the vector knowledge base."""
+
     @pytest.mark.asyncio
     async def test_index_document_embeds_and_upserts_with_metadata_schema(self) -> None:
         """index_document embeds each chunk and upserts points carrying the consumer's attributes.
@@ -74,7 +83,9 @@ class TestVectorKnowledgeBase:
         kb = VectorKnowledgeBase(embedder, store, collection="documents")
 
         await kb.index_document(
-            "doc-1", ["first chunk", "second chunk"], attributes={"tenant": "t1", "level": "mid"}
+            "doc-1",
+            ["first chunk", "second chunk"],
+            attributes={"tenant": "t1", "level": "mid"},
         )
 
         embedder.embed_batch.assert_awaited_once_with(["first chunk", "second chunk"])
@@ -169,7 +180,9 @@ class TestVectorKnowledgeBase:
 
         assert embedder.embed_batch.await_count == 2
         assert store.upsert.await_count == 2
-        upserted_ids = [e.id for call in store.upsert.call_args_list for e in call.args[1]]
+        upserted_ids = [
+            e.id for call in store.upsert.call_args_list for e in call.args[1]
+        ]
         assert upserted_ids == [f"doc-1:{i}" for i in range(150)]
 
     @pytest.mark.asyncio
@@ -203,8 +216,14 @@ class TestVectorKnowledgeBase:
     @pytest.mark.parametrize(
         ("stored", "reindex"),
         [
-            (_indexed("doc-1", range(150), level="public"), {"attributes": {"level": "restricted"}}),
-            (_indexed("doc-1", range(150), level="public", tenant="t1"), {"attributes": {"level": "public"}}),
+            (
+                _indexed("doc-1", range(150), level="public"),
+                {"attributes": {"level": "restricted"}},
+            ),
+            (
+                _indexed("doc-1", range(150), level="public", tenant="t1"),
+                {"attributes": {"level": "public"}},
+            ),
             (
                 _indexed("doc-1", range(150), level="public"),
                 {"attributes": {"level": "public"}, "document_name": "a.pdf"},
@@ -243,8 +262,12 @@ class TestVectorKnowledgeBase:
         }
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("key", ["document_id", "content", "entry_id", "document_name", "chunk_index"])
-    async def test_index_document_rejects_attributes_that_shadow_reserved_keys(self, key: str) -> None:
+    @pytest.mark.parametrize(
+        "key", ["document_id", "content", "entry_id", "document_name", "chunk_index"]
+    )
+    async def test_index_document_rejects_attributes_that_shadow_reserved_keys(
+        self, key: str
+    ) -> None:
         """An attribute named like a key the index writes itself is refused before anything is embedded.
 
         Why this test is important:
@@ -305,10 +328,14 @@ class TestVectorKnowledgeBase:
     def test_dimension_mismatch_fails_loudly(self) -> None:
         """A drifted embedder/store dimension raises at construction (single source of truth)."""
         with pytest.raises(ValueError, match="dimension"):
-            VectorKnowledgeBase(_embedder(dimension=768), _store(dimension=3), "documents")
+            VectorKnowledgeBase(
+                _embedder(dimension=768), _store(dimension=3), "documents"
+            )
 
 
 class TestKnowledgeBaseFactory:
+    """Tests for the knowledge base factory."""
+
     def test_from_config_builds_vector_kb(self) -> None:
         """new_knowledge_base_from_config(kind=vector) builds a VectorKnowledgeBase."""
         kb = new_knowledge_base_from_config(

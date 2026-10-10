@@ -44,7 +44,9 @@ async def run_job_group(jobs: Sequence[AnyJob], *, parallel: bool) -> BatchResul
 
     batches: list[BatchResult]
     if parallel:
-        settled = await asyncio.gather(*(job.execute() for job in jobs), return_exceptions=True)
+        settled = await asyncio.gather(
+            *(job.execute() for job in jobs), return_exceptions=True
+        )
         batches = []
         for outcome in settled:
             if isinstance(outcome, BaseException):

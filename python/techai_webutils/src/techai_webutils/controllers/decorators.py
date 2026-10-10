@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import TYPE_CHECKING
 
 from techai_webutils.core.errors.errors import (
     AppError,
@@ -17,13 +18,17 @@ from techai_webutils.core.errors.errors import (
     InternalError,
     UnavailableError,
 )
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from techai_webutils.core.interfaces.rate_limiter import RateLimiter
-    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
-    from techai_webutils.core.interfaces.logger import Logger
     from collections.abc import Awaitable, Callable
+
+    from techai_webutils.core.interfaces.logger import Logger
+    from techai_webutils.core.interfaces.metrics import MetricCounter, MetricHistogram
+    from techai_webutils.core.interfaces.rate_limiter import RateLimiter
+
+type HandlerFunc = Callable[..., Awaitable[object]]
+"""Named generic handler type, matching Go's ``HandlerFunc[Req, Resp]`` in
+``go/transport/handler.go``."""
 
 
 class HandlerBuilder[Req, Resp]:
@@ -80,7 +85,9 @@ class HandlerBuilder[Req, Resp]:
         self._recovery = True
         return self
 
-    def with_authorization(self, auth_fn: Callable[[], Awaitable[bool]]) -> HandlerBuilder[Req, Resp]:
+    def with_authorization(
+        self, auth_fn: Callable[[], Awaitable[bool]]
+    ) -> HandlerBuilder[Req, Resp]:
         """Add an authorization decorator that checks access before execution."""
         self._auth_fn = auth_fn
         return self
@@ -109,7 +116,9 @@ class HandlerBuilder[Req, Resp]:
             h = _wrap_rate_limit(h, self._rate_limiter)
 
         if self._histogram is not None:
-            h = _wrap_metrics(h, self._name, self._histogram, self._executions, self._errors)
+            h = _wrap_metrics(
+                h, self._name, self._histogram, self._executions, self._errors
+            )
 
         if self._logger is not None:
             h = _wrap_logging(h, self._name, self._logger)

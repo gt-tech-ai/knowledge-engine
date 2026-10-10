@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
-	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -27,7 +28,7 @@ func RateLimitInterceptor(limiter interfaces.RateLimiter) connect.Interceptor {
 func (i rateLimitInterceptor) rejected() error {
 	return connect.NewError(
 		connect.CodeResourceExhausted,
-		coreerr.New(coreerr.CodeUnavailable, "rate limit exceeded"),
+		apperr.New(apperr.CodeUnavailable, "rate limit exceeded"),
 	)
 }
 

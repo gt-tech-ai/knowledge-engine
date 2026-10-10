@@ -1,16 +1,15 @@
 package unit_test
 
 import (
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/logger"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestLoggerBuilder_KindZap tests that the logger factory produces a working
@@ -142,9 +141,9 @@ func TestLogger_SharedUtilitiesStillWork(t *testing.T) {
 
 	redacted := logger.RedactPII("my email is test@example.com")
 	assert.NotEqual(t, "my email is test@example.com", redacted, "PII must be redacted")
-	assert.True(
+	assert.Contains(
 		t,
-		strings.Contains(redacted, "[REDACTED]"),
+		redacted, "[REDACTED]",
 		"expected [REDACTED] in output, got %s",
 		redacted,
 	)
