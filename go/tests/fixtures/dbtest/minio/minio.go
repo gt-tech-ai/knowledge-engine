@@ -91,7 +91,7 @@ func NewTestMinIO(ctx context.Context, opts ...Option) (*TestMinIO, error) {
 		return nil, coreerr.Wrap(
 			err,
 			coreerr.CodeInternal,
-			fmt.Sprintf("failed to start MinIO container from %s", o.image),
+			"failed to start MinIO container from "+o.image,
 		)
 	}
 

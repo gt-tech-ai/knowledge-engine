@@ -211,9 +211,11 @@ func (s *StorageMinIOSuite) TestPresignedURL_PutGet() {
 		"My Report.md",
 	)
 	s.Require().NoError(err)
-	getResp, err := http.Get(
-		getURL,
-	) //nolint:noctx,gosec // presigned URL is test-generated
+	getReq, err := http.NewRequestWithContext(
+		s.T().Context(), http.MethodGet, getURL, http.NoBody,
+	)
+	s.Require().NoError(err)
+	getResp, err := http.DefaultClient.Do(getReq)
 	s.Require().NoError(err)
 	defer getResp.Body.Close() //nolint:errcheck // test cleanup
 	// The signed response-content-disposition override must round-trip: MinIO returns

@@ -593,7 +593,7 @@ func TestPromMetrics_Handler(t *testing.T) {
 	require.NotNil(t, handler, "expected non-nil handler")
 
 	// Issue a request to verify handler serves content
-	req := httptest.NewRequest("GET", "/metrics", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

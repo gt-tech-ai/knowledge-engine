@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -42,7 +43,11 @@ func (s *Subscriber) Subscribe(
 		case msg := <-ch:
 			_ = handler(ctx, msg)
 		case <-ctx.Done():
-			return ctx.Err()
+			return apperr.Wrap(
+				ctx.Err(),
+				apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+				"subscription canceled",
+			)
 		case <-s.done:
 			return nil
 		}

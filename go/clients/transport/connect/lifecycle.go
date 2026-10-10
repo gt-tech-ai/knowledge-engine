@@ -22,7 +22,14 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 	s.logger.Info("Connect server shutting down")
-	return srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		return coreerrors.Wrap(
+			err,
+			coreerrors.ContextCode(err, coreerrors.CodeInternal),
+			"shut down connect server",
+		)
+	}
+	return nil
 }
 
 // Liveness reports the server process is up — a lightweight self-check that does

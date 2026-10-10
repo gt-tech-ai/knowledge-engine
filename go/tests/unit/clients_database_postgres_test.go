@@ -52,8 +52,13 @@ func TestStartPoolStatsCollector_PublishesGauges(t *testing.T) {
 	) // publishes once synchronously
 
 	rec := httptest.NewRecorder()
-	m.Handler().
-		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/metrics",
+		http.NoBody,
+	)
+	m.Handler().ServeHTTP(rec, req)
 	body, err := io.ReadAll(rec.Result().Body)
 	require.NoError(t, err)
 	out := string(body)

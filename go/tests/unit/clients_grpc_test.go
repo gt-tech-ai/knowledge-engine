@@ -40,7 +40,7 @@ func TestGRPCServerFactory(t *testing.T) {
 	platformgrpc.RegisterHealthService(server)
 
 	// Start the server
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err, "failed to create listener")
 
 	go func() {
@@ -59,7 +59,7 @@ func TestGRPCServerFactory(t *testing.T) {
 	client := healthpb.NewHealthClient(conn)
 	resp, err := client.Check(context.Background(), &healthpb.HealthCheckRequest{})
 	require.NoError(t, err, "health check failed")
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.Status)
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 }
 
 // TestGRPCClientFactory tests that the client factory establishes a connection and can
@@ -83,7 +83,7 @@ func TestGRPCClientFactory(t *testing.T) {
 	server := platformgrpc.NewServer(cfg)
 	platformgrpc.RegisterHealthService(server)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err, "failed to create listener")
 
 	go func() {
@@ -101,5 +101,5 @@ func TestGRPCClientFactory(t *testing.T) {
 	client := healthpb.NewHealthClient(conn)
 	resp, err := client.Check(context.Background(), &healthpb.HealthCheckRequest{})
 	require.NoError(t, err, "health check via client factory failed")
-	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.Status)
+	assert.Equal(t, healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 }

@@ -455,7 +455,11 @@ func TestServerBuilder_CustomHeadersAndCallerInterceptors(t *testing.T) {
 		WithInterceptors(probe("third")).
 		Build()
 
-	status := serveProbe(opts, map[string]string{"X-Sub": "u1", "X-Tenant": "t1"})
+	status := serveProbe(
+		t.Context(),
+		opts,
+		map[string]string{"X-Sub": "u1", "X-Tenant": "t1"},
+	)
 	assert.NotEqual(
 		t,
 		http.StatusOK,
@@ -491,7 +495,11 @@ func (probeCodec) Unmarshal([]byte, any) error { return nil }
 // serveProbe serves one unary Connect call to /test.v1.Probe/Do through a handler built
 // with opts, in process through an httptest recorder (no socket), and returns the HTTP
 // status.
-func serveProbe(opts []connect.HandlerOption, headers map[string]string) int {
+func serveProbe(
+	ctx context.Context,
+	opts []connect.HandlerOption,
+	headers map[string]string,
+) int {
 	const procedure = "/test.v1.Probe/Do"
 	handler := connect.NewUnaryHandler(
 		procedure,
@@ -499,7 +507,7 @@ func serveProbe(opts []connect.HandlerOption, headers map[string]string) int {
 			return connect.NewResponse(&probeMsg{}), nil
 		},
 		append(opts, connect.WithCodec(probeCodec{}))...)
-	req := httptest.NewRequest(http.MethodPost, procedure, http.NoBody)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, procedure, http.NoBody)
 	req.Header.Set("Content-Type", "application/proto")
 	for k, v := range headers {
 		req.Header.Set(k, v)

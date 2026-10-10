@@ -49,22 +49,22 @@ func NewSlog(cfg Config) *slog.Logger {
 
 // Debug logs a message at debug level with the given key/value attribute pairs.
 func (l *Logger) Debug(msg string, keysAndValues ...any) {
-	l.inner.Debug(msg, keysAndValues...)
+	l.inner.Log(context.Background(), slog.LevelDebug, msg, keysAndValues...)
 }
 
 // Info logs a message at info level with the given key/value attribute pairs.
 func (l *Logger) Info(msg string, keysAndValues ...any) {
-	l.inner.Info(msg, keysAndValues...)
+	l.inner.Log(context.Background(), slog.LevelInfo, msg, keysAndValues...)
 }
 
 // Warn logs a message at warn level with the given key/value attribute pairs.
 func (l *Logger) Warn(msg string, keysAndValues ...any) {
-	l.inner.Warn(msg, keysAndValues...)
+	l.inner.Log(context.Background(), slog.LevelWarn, msg, keysAndValues...)
 }
 
 // Error logs a message at error level with the given key/value attribute pairs.
 func (l *Logger) Error(msg string, keysAndValues ...any) {
-	l.inner.Error(msg, keysAndValues...)
+	l.inner.Log(context.Background(), slog.LevelError, msg, keysAndValues...)
 }
 
 // With returns a child logger that includes the given key/value pairs on every

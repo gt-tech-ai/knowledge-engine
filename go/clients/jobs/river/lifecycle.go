@@ -37,5 +37,9 @@ func (r *Runtime) Readiness(ctx context.Context) error {
 	if r.pool == nil {
 		return coreerrors.Internal("river runtime not initialized")
 	}
-	return r.pool.Ping(ctx)
+	return coreerrors.Wrap(
+		r.pool.Ping(ctx),
+		coreerrors.CodeUnavailable,
+		"river pool ping",
+	)
 }

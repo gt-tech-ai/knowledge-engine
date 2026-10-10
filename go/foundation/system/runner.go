@@ -157,7 +157,7 @@ func (d *Runner) RequireTool(name, installHint string) error {
 	if d.Exists(name) {
 		return nil
 	}
-	msg := fmt.Sprintf("%s not found on PATH", name)
+	msg := name + " not found on PATH"
 	if installHint != "" {
 		msg = fmt.Sprintf("%s not found on PATH; install: %s", name, installHint)
 	}

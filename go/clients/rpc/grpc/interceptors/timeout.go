@@ -140,6 +140,9 @@ func classifyTimeoutErr(ctx context.Context, start time.Time, err error) error {
 		)
 	case interceptorcore.TimeoutCanceled:
 		return status.Error(codes.Canceled, "request canceled")
+	case interceptorcore.TimeoutNone:
+		// The context is still live: the error is the handler's own.
+		return err
 	default:
 		return err
 	}

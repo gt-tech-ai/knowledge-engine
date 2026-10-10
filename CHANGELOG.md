@@ -6,6 +6,19 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Go `errors.ContextCode(err, fallback)`: like `CodeOr`, but maps an uncoded
+  `context.DeadlineExceeded` to `CodeTimeout` and `context.Canceled` to `CodeCanceled`.
+
+### Changed
+
+- Go: errors that came back raw from a third-party SDK, the standard library or a context
+  (redis/postgres/gRPC/connect close and ping, cache envelope encode/decode, config
+  unmarshal, rate-limiter and bulkhead waits, hedged calls, memory messaging, and others)
+  now carry an `ErrorCode`. `errors.Is` / `errors.As` against the original error still
+  match; the `Error()` text gains the `CODE: message:` prefix.
+
 ## [0.3.2] - 2026-10-09
 
 ### Added

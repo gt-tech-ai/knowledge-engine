@@ -2,6 +2,7 @@
 package errors
 
 import (
+	"context"
 	stderrors "errors"
 	"fmt"
 	"maps"
@@ -210,6 +211,25 @@ func CodeOr(err error, fallback ErrorCode) ErrorCode {
 		return code
 	}
 	return fallback
+}
+
+// ContextCode extracts err's ErrorCode like CodeOr, but first maps an uncoded
+// context error in the chain: context.DeadlineExceeded to CodeTimeout and
+// context.Canceled to CodeCanceled. Use it to wrap the error of a wait that a
+// context ended (ctx.Err(), a library's deadline error) with the code that keeps
+// retry classification and the transport status right.
+func ContextCode(err error, fallback ErrorCode) ErrorCode {
+	if code := Code(err); code != CodeUnknown {
+		return code
+	}
+	switch {
+	case stderrors.Is(err, context.DeadlineExceeded):
+		return CodeTimeout
+	case stderrors.Is(err, context.Canceled):
+		return CodeCanceled
+	default:
+		return fallback
+	}
 }
 
 // WithDetails returns a copy of the error with additional details.

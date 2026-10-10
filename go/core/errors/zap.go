@@ -24,7 +24,7 @@ func (e *AppError) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	}
 	if len(e.Details) > 0 {
 		if err := enc.AddObject("details", zapMap(e.Details)); err != nil {
-			return err
+			return Wrap(err, CodeInternal, "encode error details")
 		}
 	}
 	return nil

@@ -64,6 +64,12 @@ func (c *BaseController) WriteError(w http.ResponseWriter, err error) {
 		switch appErr.Code {
 		case errors.CodeInternal, errors.CodeUnknown:
 			// Don't leak internal error details
+		case errors.CodeNotFound, errors.CodeUnauthorized, errors.CodeForbidden,
+			errors.CodeInvalidInput, errors.CodeConflict, errors.CodeTimeout,
+			errors.CodeCanceled, errors.CodeUnavailable, errors.CodeIngestion,
+			errors.CodeQualityFailed, errors.CodeUpstream, errors.CodeResourceExhausted:
+			response.Error = appErr.Message
+			response.Details = appErr.Message
 		default:
 			response.Error = appErr.Message
 			response.Details = appErr.Message

@@ -1,7 +1,6 @@
 package infra
 
 import (
-	"fmt"
 	"strings"
 
 	coreerr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
@@ -40,7 +39,7 @@ func (c LoggingConfig) Validate() error {
 	if kind != "zap" && kind != "stdlib" {
 		return coreerr.New(
 			coreerr.CodeInvalidInput,
-			fmt.Sprintf("unknown logger kind: %s", c.Kind),
+			"unknown logger kind: "+c.Kind,
 		)
 	}
 	return nil
@@ -56,7 +55,7 @@ func (c *LoggingConfig) GetKind() (logger.Kind, error) {
 	default:
 		return 0, coreerr.New(
 			coreerr.CodeInvalidInput,
-			fmt.Sprintf("unknown logger kind: %s", c.Kind),
+			"unknown logger kind: "+c.Kind,
 		)
 	}
 }

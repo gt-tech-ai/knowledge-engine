@@ -110,7 +110,7 @@ func (l *Loader) Load() error {
 	l.v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
 	// Layer 1: Base config
-	l.v.SetConfigFile(fmt.Sprintf("%s/base.yaml", l.baseDir))
+	l.v.SetConfigFile(l.baseDir + "/base.yaml")
 	if err := l.v.ReadInConfig(); err != nil {
 		if !os.IsNotExist(err) {
 			return coreerr.Wrap(err, coreerr.CodeInternal, "read base config")
@@ -126,14 +126,14 @@ func (l *Loader) Load() error {
 				return coreerr.Wrap(
 					err,
 					coreerr.CodeInternal,
-					fmt.Sprintf("merge env config %s", l.env),
+					"merge env config "+l.env,
 				)
 			}
 		}
 	}
 
 	// Layer 3: Secrets file
-	secretsFile := fmt.Sprintf("%s/secrets.yaml", l.baseDir)
+	secretsFile := l.baseDir + "/secrets.yaml"
 	if _, err := os.Stat(secretsFile); err == nil {
 		l.v.SetConfigFile(secretsFile)
 		if err := l.v.MergeInConfig(); err != nil {
@@ -176,7 +176,14 @@ func (l *Loader) GetBool(key string) bool {
 
 // Unmarshal decodes the full configuration into the target struct.
 func (l *Loader) Unmarshal(target any) error {
-	return l.v.Unmarshal(target)
+	if err := l.v.Unmarshal(target); err != nil {
+		return coreerr.Wrap(
+			err,
+			coreerr.CodeOr(err, coreerr.CodeInvalidInput),
+			"unmarshal config",
+		)
+	}
+	return nil
 }
 
 // UnmarshalKey decodes a specific configuration section into the target struct.
@@ -217,7 +224,14 @@ func (l *Loader) UnmarshalKey(key string, target any) error {
 		return coreerr.Wrap(err, coreerr.CodeInternal, "create decoder")
 	}
 
-	return decoder.Decode(resolved)
+	if err := decoder.Decode(resolved); err != nil {
+		return coreerr.Wrap(
+			err,
+			coreerr.CodeOr(err, coreerr.CodeInvalidInput),
+			"decode config",
+		)
+	}
+	return nil
 }
 
 // setNested expands a dotted key (e.g., "server.port") into nested maps.

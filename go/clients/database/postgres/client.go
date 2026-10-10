@@ -56,7 +56,11 @@ func (c *Client) Start(ctx context.Context) error {
 // Stop closes the pool and its connections.
 func (c *Client) Stop(_ context.Context) error {
 	if c.db != nil {
-		return c.db.Close()
+		return coreerrors.Wrap(
+			c.db.Close(),
+			coreerrors.CodeInternal,
+			"close postgres pool",
+		)
 	}
 	return nil
 }

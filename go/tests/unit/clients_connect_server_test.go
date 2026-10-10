@@ -139,7 +139,12 @@ func TestConnectServer_HealthzHandler(t *testing.T) {
 	srv := connectpkg.NewServer(cfg, logger)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/healthz",
+		http.NoBody,
+	)
 	srv.Mux().ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -165,7 +170,12 @@ func TestConnectServer_ReadyzHandler(t *testing.T) {
 	srv := connectpkg.NewServer(cfg, logger)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/readyz",
+		http.NoBody,
+	)
 	srv.Mux().ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)

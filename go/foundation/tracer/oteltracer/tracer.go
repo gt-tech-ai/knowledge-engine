@@ -223,6 +223,8 @@ func toOTelSpanKind(k interfaces.SpanKind) trace.SpanKind {
 		return trace.SpanKindProducer
 	case interfaces.SpanKindConsumer:
 		return trace.SpanKindConsumer
+	case interfaces.SpanKindInternal:
+		return trace.SpanKindInternal
 	default:
 		return trace.SpanKindInternal
 	}
@@ -236,6 +238,8 @@ func toOTelStatusCode(c interfaces.SpanStatusCode) codes.Code {
 		return codes.Ok
 	case interfaces.SpanStatusError:
 		return codes.Error
+	case interfaces.SpanStatusUnset:
+		return codes.Unset
 	default:
 		return codes.Unset
 	}

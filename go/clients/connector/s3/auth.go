@@ -142,7 +142,11 @@ func (p markedProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	}
 	if coreerr.StdIs(err, context.Canceled) ||
 		coreerr.StdIs(err, context.DeadlineExceeded) {
-		return creds, err
+		return creds, coreerr.Wrap(
+			err,
+			coreerr.ContextCode(err, coreerr.CodeCanceled),
+			"retrieve credentials",
+		)
 	}
 	return creds, &credentialsError{err: err}
 }

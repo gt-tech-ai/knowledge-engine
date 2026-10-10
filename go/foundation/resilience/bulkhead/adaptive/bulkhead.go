@@ -146,7 +146,11 @@ func (b *Bulkhead) acquire(ctx context.Context) error {
 		b.mu.Unlock()
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return apperr.Wrap(
+				ctx.Err(),
+				apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+				"bulkhead wait canceled",
+			)
 		case <-wait:
 			// A slot was released; re-check the (possibly changed) limit.
 		}

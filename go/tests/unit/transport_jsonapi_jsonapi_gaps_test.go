@@ -38,7 +38,12 @@ func TestMiddleware_LargeBodyPassthrough(t *testing.T) {
 	handler := jsonapi.Middleware(inner, docRoutes())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/v1/documents",
+		http.NoBody,
+	)
 	req.Header.Set("Accept", "application/json")
 	handler.ServeHTTP(rec, req)
 
@@ -85,7 +90,12 @@ func TestMiddleware_ReclassifiesVanguardBindingError(t *testing.T) {
 			handler := jsonapi.Middleware(inner, docRoutes())
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", http.NoBody)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/api/v1/documents",
+				http.NoBody,
+			)
 			handler.ServeHTTP(rec, req)
 
 			assert.Equal(t, tc.want, rec.Result().StatusCode)
@@ -114,7 +124,12 @@ func TestMiddleware_UnparseableBodyPassthrough(t *testing.T) {
 	handler := jsonapi.Middleware(inner, docRoutes())
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/api/v1/documents",
+		http.NoBody,
+	)
 	req.Header.Set("Accept", "application/json")
 	handler.ServeHTTP(rec, req)
 

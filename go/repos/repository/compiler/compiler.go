@@ -109,6 +109,10 @@ func New(
 	switch kind {
 	case KindEnt:
 		return entbackend.New(), nil
+	case KindMongo, KindElastic, KindGORM:
+		return nil, apperr.InvalidInput(
+			"query-compiler kind " + kind.String() + " is not implemented",
+		)
 	default:
 		return nil, apperr.InvalidInput(
 			"query-compiler kind " + kind.String() + " is not implemented",

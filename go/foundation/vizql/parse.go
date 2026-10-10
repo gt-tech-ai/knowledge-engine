@@ -50,14 +50,11 @@ func invalid(msg string) error {
 func Parse(b []byte, m *listquery.Map) (types.VizSpec, error) {
 	var spec types.VizSpec
 	if err := json.Unmarshal(b, &spec); err != nil {
-		if errors.Code(err) == errors.CodeUnknown {
-			return types.VizSpec{}, errors.Wrap(
-				err,
-				errors.CodeInvalidInput,
-				"vizspec: invalid JSON",
-			)
-		}
-		return types.VizSpec{}, err
+		return types.VizSpec{}, errors.Wrap(
+			err,
+			errors.CodeOr(err, errors.CodeInvalidInput),
+			"vizspec: invalid JSON",
+		)
 	}
 	if err := validate(&spec, m); err != nil {
 		return types.VizSpec{}, err

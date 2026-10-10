@@ -46,7 +46,11 @@ func (c *Client) Start(_ context.Context) error {
 // Stop closes the connection.
 func (c *Client) Stop(_ context.Context) error {
 	if c.conn != nil {
-		return c.conn.Close()
+		return coreerrors.Wrap(
+			c.conn.Close(),
+			coreerrors.CodeInternal,
+			"close grpc connection",
+		)
 	}
 	return nil
 }

@@ -46,7 +46,8 @@ func DefaultServerConfig() ServerConfig {
 // NewServer creates a configured gRPC server.
 // Interceptors should be provided via options.
 func NewServer(cfg ServerConfig, opts ...grpc.ServerOption) *grpc.Server {
-	serverOpts := []grpc.ServerOption{
+	serverOpts := make([]grpc.ServerOption, 0, 4+len(opts))
+	serverOpts = append(serverOpts,
 		grpc.MaxRecvMsgSize(cfg.MaxMessageSize),
 		grpc.MaxSendMsgSize(cfg.MaxMessageSize),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -59,7 +60,7 @@ func NewServer(cfg ServerConfig, opts ...grpc.ServerOption) *grpc.Server {
 			MinTime:             cfg.KeepaliveMinTime,
 			PermitWithoutStream: true,
 		}),
-	}
+	)
 
 	serverOpts = append(serverOpts, opts...)
 

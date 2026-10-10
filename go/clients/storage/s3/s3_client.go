@@ -250,7 +250,11 @@ func classifyBody(
 		// Body smaller than threshold+1 → single-part.
 		return buf.Bytes(), false, nil
 	case rerr != nil:
-		return nil, false, rerr
+		return nil, false, coreerrors.Wrap(
+			rerr,
+			coreerrors.CodeOr(rerr, coreerrors.CodeInternal),
+			"read upload body",
+		)
 	default:
 		// Copied threshold+1 bytes → body exceeds the threshold → multipart.
 		return buf.Bytes(), true, nil
@@ -745,7 +749,7 @@ func (c *s3Client) ListMultipartUploads(
 			return nil, coreerrors.Wrap(
 				err,
 				coreerrors.CodeInternal,
-				fmt.Sprintf("s3 list multipart uploads %s", bucket),
+				"s3 list multipart uploads "+bucket,
 			)
 		}
 		uploads = slices.Grow(uploads, len(page.Uploads))

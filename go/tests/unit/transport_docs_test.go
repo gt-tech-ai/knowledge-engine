@@ -33,7 +33,12 @@ func TestSpecHandler_ServesJSONSpec(t *testing.T) {
 	handler := docs.SpecHandler(spec)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/openapi.json",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -60,7 +65,12 @@ func TestSpecHandler_EmptySpec(t *testing.T) {
 	handler := docs.SpecHandler([]byte{})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/openapi.json",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -90,7 +100,12 @@ func TestRedocHandler_RendersHTML(t *testing.T) {
 	handler := docs.RedocHandler("/openapi.json", "My API")
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/docs", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/docs",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -129,7 +144,12 @@ func TestRedocHandler_EscapesTitle(t *testing.T) {
 	handler := docs.RedocHandler("/spec.json", `<script>alert("xss")</script>`)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/docs", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/docs",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 

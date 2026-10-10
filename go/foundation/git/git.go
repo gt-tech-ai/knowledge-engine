@@ -19,7 +19,8 @@ func StagedFiles(
 	root string,
 	patterns ...string,
 ) ([]string, error) {
-	args := []string{"diff", "--cached", "--name-only", "--diff-filter=ACM", "--"}
+	args := make([]string, 0, 5+len(patterns))
+	args = append(args, "diff", "--cached", "--name-only", "--diff-filter=ACM", "--")
 	args = append(args, patterns...)
 
 	result := r.RunBuffered(ctx, root, "git", args...)

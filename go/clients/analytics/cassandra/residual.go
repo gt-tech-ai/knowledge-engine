@@ -150,6 +150,9 @@ func compareTime(got time.Time, op types.FilterOperator, v any) bool {
 		return got.Before(want)
 	case types.OpLte:
 		return !got.After(want)
+	case types.OpIn, types.OpNotIn, types.OpLike:
+		// A set or pattern operator has no meaning against one timestamp.
+		return false
 	default:
 		return false
 	}
@@ -192,6 +195,8 @@ func pushdown(f types.Filter, lo, hi time.Time) (from, to time.Time) {
 				hi,
 				at.Truncate(time.Millisecond).Add(time.Millisecond),
 			)
+		case types.OpNe, types.OpIn, types.OpNotIn, types.OpLike:
+			// These do not bound the range; the residual predicate applies them.
 		}
 	}
 	return lo, hi

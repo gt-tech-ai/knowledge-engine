@@ -50,7 +50,11 @@ func pollEvery(
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return apperr.Wrap(
+				ctx.Err(),
+				apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+				"e2ekit: poll canceled",
+			)
 		case <-time.After(interval):
 		}
 	}

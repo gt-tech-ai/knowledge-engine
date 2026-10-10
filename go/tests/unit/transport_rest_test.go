@@ -50,7 +50,12 @@ func TestAdapt_Success(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/123", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -96,7 +101,12 @@ func TestAdapt_ParseError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -136,7 +146,12 @@ func TestAdapt_HandlerError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/users/123", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -175,7 +190,12 @@ func TestAdaptNoContent_Success(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/123", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -212,7 +232,12 @@ func TestAdaptNoContent_ParseError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 
@@ -247,7 +272,12 @@ func TestAdaptNoContent_HandlerError(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodDelete, "/users/123", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodDelete,
+		"/users/123",
+		http.NoBody,
+	)
 
 	handler.ServeHTTP(rec, req)
 

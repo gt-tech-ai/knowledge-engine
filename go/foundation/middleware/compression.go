@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // compressionThreshold is the minimum buffered response size (bytes) before
@@ -69,7 +71,8 @@ type compressWriter struct {
 func (cw *compressWriter) Write(b []byte) (int, error) {
 	if cw.gzWriter != nil {
 		// Already compressing — write directly to gzip
-		return cw.gzWriter.Write(b)
+		n, err := cw.gzWriter.Write(b)
+		return n, apperr.Wrap(err, apperr.CodeInternal, "gzip write")
 	}
 
 	cw.buf = append(cw.buf, b...)

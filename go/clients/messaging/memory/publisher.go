@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -38,7 +39,11 @@ func (p *Publisher) Publish(ctx context.Context, topic string, payload []byte) e
 	case p.broker.topic(topic) <- msg:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return apperr.Wrap(
+			ctx.Err(),
+			apperr.ContextCode(ctx.Err(), apperr.CodeCanceled),
+			"publish canceled",
+		)
 	}
 }
 

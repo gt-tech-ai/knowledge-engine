@@ -97,11 +97,12 @@ func NewFromConfig(
 	cfg infra.SQSConfig,
 	opts ...options.Option[Config],
 ) (interfaces.MessagePublisher, error) {
-	base := []options.Option[Config]{
+	base := make([]options.Option[Config], 0, 3+len(opts))
+	base = append(base,
 		WithAWSRegion(cfg.Region),
 		WithEndpoint(cfg.Endpoint),
 		WithStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey),
-	}
+	)
 	return NewPublisher(kind, append(base, opts...)...)
 }
 
@@ -194,6 +195,12 @@ func NewAdapter(kind Kind, opts ...options.Option[Config]) (*sqs.Adapter, error)
 	switch cfg.Kind {
 	case KindSQS:
 		return sqs.NewAdapter(cfg.SQS), nil
+
+	case KindMemory, KindRedis:
+		return nil, coreerr.New(
+			coreerr.CodeInvalidInput,
+			fmt.Sprintf("messaging kind %v has no adapter (only sqs does)", cfg.Kind),
+		)
 
 	default:
 		return nil, coreerr.New(

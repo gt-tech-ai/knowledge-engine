@@ -176,7 +176,7 @@ func TestZapLogger_WithAttrs_Redaction(t *testing.T) {
 	child := slogger.With("email", "user@example.com")
 	require.NotNil(t, child, "expected non-nil child logger")
 
-	child.Info("test message with pre-attached PII attr")
+	child.InfoContext(t.Context(), "test message with pre-attached PII attr")
 }
 
 // TestZapLogger_WithGroup tests that the zap PII-redacting handler's WithGroup
@@ -199,7 +199,7 @@ func TestZapLogger_WithGroup(t *testing.T) {
 	grouped := slogger.WithGroup("request")
 	require.NotNil(t, grouped, "expected non-nil grouped logger")
 
-	grouped.Info("grouped message", "method", "GET", "path", "/api")
+	grouped.InfoContext(t.Context(), "grouped message", "method", "GET", "path", "/api")
 }
 
 // TestZapLogger_RedactAttr_NonString tests that redactAttr passes through
@@ -217,7 +217,16 @@ func TestZapLogger_RedactAttr_NonString(t *testing.T) {
 	cfg := zaplogger.Config{Level: "debug", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Info("non-string attr", "count", 42, "ratio", 3.14, "ok", true)
+	slogger.InfoContext(
+		t.Context(),
+		"non-string attr",
+		"count",
+		42,
+		"ratio",
+		3.14,
+		"ok",
+		true,
+	)
 }
 
 // TestZapLogger_RedactAttr_SensitiveValues tests that PII patterns in string
@@ -237,7 +246,7 @@ func TestZapLogger_RedactAttr_SensitiveValues(t *testing.T) {
 	cfg := zaplogger.Config{Level: "debug", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Info(
+	slogger.InfoContext(t.Context(),
 		"user lookup",
 		"email", "admin@corp.com",
 		"phone", "555-123-4567",
@@ -268,7 +277,7 @@ func TestZapLogger_WithAttrs_MultipleAttrs(t *testing.T) {
 		"email", "test@test.com",
 		"count", 5,
 	)
-	child.Info("multi-attr test")
+	child.InfoContext(t.Context(), "multi-attr test")
 }
 
 // TestZapLogger_WithGroupThenAttrs tests that chaining WithGroup followed by
@@ -288,7 +297,7 @@ func TestZapLogger_WithGroupThenAttrs(t *testing.T) {
 	slogger := zaplogger.NewSlog(cfg)
 
 	child := slogger.WithGroup("http").With("method", "POST")
-	child.Info("grouped with attrs")
+	child.InfoContext(t.Context(), "grouped with attrs")
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +392,7 @@ func TestNoopMetrics_HandlerReturns404(t *testing.T) {
 	m := noop.New()
 	handler := m.Handler()
 
-	req := httptest.NewRequest("GET", "/metrics", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -424,7 +433,7 @@ func TestCORS_SpecificOrigin_Allowed(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -465,7 +474,7 @@ func TestCORS_SpecificOrigin_Disallowed(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	req.Header.Set("Origin", "https://evil.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -505,7 +514,7 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/data", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/data", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -549,7 +558,12 @@ func TestCORS_Preflight_SpecificOrigin(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("OPTIONS", "/api/data", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		"OPTIONS",
+		"/api/data",
+		http.NoBody,
+	)
 	req.Header.Set("Origin", "https://app.example.com")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -627,7 +641,7 @@ func TestCompression_MultipleWrites(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -669,7 +683,7 @@ func TestCompression_ExactThreshold(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1039,8 +1053,8 @@ func TestZapLogger_RedactingHandler_Enabled(t *testing.T) {
 	cfg := zaplogger.Config{Level: "warn", Format: "json", RedactPII: true}
 	slogger := zaplogger.NewSlog(cfg)
 
-	slogger.Debug("this should be filtered out")
-	slogger.Warn("this should pass through")
+	slogger.DebugContext(t.Context(), "this should be filtered out")
+	slogger.WarnContext(t.Context(), "this should pass through")
 }
 
 // TestZapLogger_RedactingHandler_Handle_WithCorrelation tests that the

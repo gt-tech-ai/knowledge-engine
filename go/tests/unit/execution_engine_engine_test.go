@@ -3,6 +3,7 @@ package unit_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -134,6 +135,8 @@ func TestFanOut_AllUnitsCollected(t *testing.T) {
 			failed++
 		case types.StatusPass:
 			passed++
+		case types.StatusSkip, types.StatusWarn:
+			t.Errorf("unexpected status %v", r.Status)
 		}
 	}
 	assert.Equal(t, 1, failed, "expected 1 failed result")
@@ -256,7 +259,7 @@ func TestFanOut_CtxCancelStopsFeeding(t *testing.T) {
 				close(started) // signal first item started
 				<-released     // hold semaphore until test releases
 			}
-			return types.StepResult{Name: fmt.Sprintf("%d", item), Status: types.StatusPass}
+			return types.StepResult{Name: strconv.Itoa(item), Status: types.StatusPass}
 		})
 	}()
 

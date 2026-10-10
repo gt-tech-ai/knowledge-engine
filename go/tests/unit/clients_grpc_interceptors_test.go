@@ -2149,7 +2149,7 @@ func TestGRPCStreamingClientBuilder_ComposesFullOrder(t *testing.T) {
 	// A listener closed before any dial arrives makes NewStream fail with an
 	// immediate, deterministic loopback connection error — every interceptor
 	// still runs synchronously to completion, without needing a real server.
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err, "failed to reserve a local port")
 	addr := lis.Addr().String()
 	require.NoError(t, lis.Close(), "failed to close listener before dial")

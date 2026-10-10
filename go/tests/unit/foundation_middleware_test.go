@@ -39,7 +39,7 @@ func TestRequestID_GeneratesWhenMissing(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -71,7 +71,7 @@ func TestRequestID_PreservesExisting(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("X-Request-ID", "existing-id")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -104,7 +104,7 @@ func TestRecovery_CatchesPanic(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -134,7 +134,7 @@ func TestRecovery_PassesThroughNormally(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -164,7 +164,7 @@ func TestCORS_SetsHeaders(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -210,7 +210,7 @@ func TestCORS_ExposesTraceResponseHeader(t *testing.T) {
 		),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -246,7 +246,7 @@ func TestCORS_PreflightReturns204(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("OPTIONS", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "OPTIONS", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -276,7 +276,7 @@ func TestCompression_CompressesLargeResponse(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -315,7 +315,7 @@ func TestCompression_SkipsSmallResponse(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -349,7 +349,7 @@ func TestCompression_SkipsWithoutAcceptEncoding(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	// No Accept-Encoding header
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -382,7 +382,12 @@ func TestHTTPMetrics_Records200(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/v1/things", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		"GET",
+		"/api/v1/things",
+		http.NoBody,
+	)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -408,7 +413,12 @@ func TestHTTPMetrics_Buckets404AsNotFound(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/unknown-path", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		"GET",
+		"/unknown-path",
+		http.NoBody,
+	)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -438,7 +448,12 @@ func TestHTTPMetrics_PatternUsedAsRouteLabel(t *testing.T) {
 		middleware.HTTPMetrics(fixtures.NopMetrics())(inner),
 	)
 
-	req := httptest.NewRequest("GET", "/api/v1/items", http.NoBody)
+	req := httptest.NewRequestWithContext(
+		t.Context(),
+		"GET",
+		"/api/v1/items",
+		http.NoBody,
+	)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -497,7 +512,12 @@ func TestHTTPMetrics_NormalizesIDSegmentsToOneRouteSeries(t *testing.T) {
 	} {
 		// No ServeMux: r.Pattern is "", so routeLabel falls back to the raw path,
 		// exercising the normalization branch.
-		req := httptest.NewRequest("GET", "/api/documents/"+id, http.NoBody)
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			"GET",
+			"/api/documents/"+id,
+			http.NoBody,
+		)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
 }
@@ -593,7 +613,12 @@ func TestHTTPMetrics_RouteLabelNormalizationCases(t *testing.T) {
 			})
 			handler := middleware.HTTPMetrics(m)(inner)
 
-			req := httptest.NewRequest("GET", tc.path, http.NoBody)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				"GET",
+				tc.path,
+				http.NoBody,
+			)
 			handler.ServeHTTP(httptest.NewRecorder(), req)
 
 			assert.Equal(t, tc.wantRoute, gotRoute, "route label for %s", tc.path)
@@ -640,7 +665,7 @@ func TestHTTPMetrics_EmptyPathRouteLabel(t *testing.T) {
 	})
 	handler := middleware.HTTPMetrics(m)(inner)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	req.URL.Path = "" // simulate a malformed request with no path
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -670,7 +695,7 @@ func TestHTTPMetrics_FlushesResponseWriter(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/stream", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/stream", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -697,7 +722,7 @@ func TestHTTPTracing_HandlerReceivesContext(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/api/traced", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/traced", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -745,7 +770,7 @@ func TestChain_AppliesInOrder(t *testing.T) {
 		}),
 	)
 
-	req := httptest.NewRequest("GET", "/", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

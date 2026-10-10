@@ -154,7 +154,7 @@ func TestSQSSink_MapsPartialBatchFailureToRecords(t *testing.T) {
 		).
 		Return(&awssqs.GetQueueUrlOutput{QueueUrl: aws.String(url)}, nil).
 		Times(1)
-	successful := []sqstypes.SendMessageBatchResultEntry{}
+	successful := make([]sqstypes.SendMessageBatchResultEntry, 0, 8)
 	for _, id := range []string{"0", "1", "2", "4", "5", "6", "8", "9"} {
 		successful = append(
 			successful,

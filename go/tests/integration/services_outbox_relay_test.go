@@ -23,6 +23,7 @@ import (
 
 	clientdecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
 	outboxclient "github.com/gt-tech-ai/knowledge-engine/go/clients/outbox"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/types"
 	"github.com/gt-tech-ai/knowledge-engine/go/services/outbox"
@@ -256,7 +257,7 @@ func TestRelay_EndToEnd_PostgresToS3ObjectLock(t *testing.T) {
 		&awss3.ListObjectsV2Input{Bucket: aws.String(bucket)},
 	)
 	require.NoError(t, err)
-	var keys []string
+	keys := make([]string, 0, len(listed.Contents))
 	for _, o := range listed.Contents {
 		keys = append(keys, aws.ToString(o.Key))
 	}
@@ -365,7 +366,11 @@ func TestRelay_EndToEnd_RoutesIsolateQueues(t *testing.T) {
 						WaitTimeSeconds:     1,
 					})
 					if err != nil || len(out.Messages) == 0 {
-						return got, err
+						return got, apperr.Wrap(
+							err,
+							apperr.CodeUnavailable,
+							"receive sqs messages",
+						)
 					}
 					for _, m := range out.Messages {
 						got = append(got, aws.ToString(m.Body))

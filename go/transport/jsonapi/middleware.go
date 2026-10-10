@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
+
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 )
 
 // contentTypeJSONAPI is the JSON:API media type set on all transformed
@@ -181,7 +183,16 @@ func transformByRole(
 		}
 		return result, http.StatusCreated, true
 
-	default: // RoleGetOne, RoleUpdate — require the declared single resource key.
+	case RoleGetOne, RoleUpdate, RoleDelete:
+		// Require the declared single resource key. (DELETE is answered with 204
+		// before the transform; it reaches here only if that changes.)
+		if !hasKey(parsed, rc.SingleKey) {
+			writeMissingResourceError(w, rc.SingleKey)
+			return nil, 0, false
+		}
+		return TransformSingleResource(parsed, rc, selfLink), http.StatusOK, true
+
+	default: // An undeclared role is treated as a single-resource read.
 		if !hasKey(parsed, rc.SingleKey) {
 			writeMissingResourceError(w, rc.SingleKey)
 			return nil, 0, false
@@ -326,7 +337,10 @@ func (c *captureWriter) Header() http.Header { return c.w.Header() }
 func (c *captureWriter) WriteHeader(code int) { c.status = code }
 
 // Write buffers the response body instead of sending it immediately.
-func (c *captureWriter) Write(b []byte) (int, error) { return c.body.Write(b) }
+func (c *captureWriter) Write(b []byte) (int, error) {
+	n, err := c.body.Write(b)
+	return n, apperr.Wrap(err, apperr.CodeInternal, "buffer response body")
+}
 
 // Flush is a no-op that prevents the inner handler from flushing the buffered
 // response before the middleware has transformed it.

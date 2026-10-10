@@ -104,7 +104,22 @@ func Finalize(p Partial, agg types.Aggregate) float64 {
 		return p.Sum
 	case types.AggCount:
 		return p.Count
+	case types.AggNone, types.AggCountDistinct:
+		return math.NaN()
+	case types.AggAvg,
+		types.AggMin,
+		types.AggMax,
+		types.AggP50,
+		types.AggP95,
+		types.AggP99:
+		return finalizeValue(p, agg)
+	default:
+		return math.NaN()
 	}
+}
+
+// finalizeValue finalizes a value-dependent aggregate, NaN for an empty summary.
+func finalizeValue(p Partial, agg types.Aggregate) float64 {
 	if p.Count == 0 {
 		return math.NaN()
 	}
@@ -121,6 +136,8 @@ func Finalize(p Partial, agg types.Aggregate) float64 {
 		return quantile(p.Sketch, 0.95)
 	case types.AggP99:
 		return quantile(p.Sketch, 0.99)
+	case types.AggNone, types.AggSum, types.AggCount, types.AggCountDistinct:
+		return math.NaN()
 	default:
 		return math.NaN()
 	}

@@ -56,9 +56,11 @@ linters:
     - revive
   settings:
     exhaustive:
-      # A switch with a default: case is treated as exhaustive — this codebase
-      # uses default: as the fail-loud catch-all for unknown Kind values.
-      default-signifies-exhaustive: true
+      # Closed enums this module owns must list every member (a `default` does not
+      # count). Enums the code only inspects and does not own, gRPC and Connect
+      # status codes and reflect.Kind, are wide, externally owned sets where a
+      # catch-all `default` is the right handling, so they are not checked.
+      ignore-enum-types: ^(google\.golang\.org/grpc/codes\.Code|connectrpc\.com/connect\.Code|reflect\.Kind)$
     gocritic:
       disabled-checks:
         - ifElseChain
@@ -114,6 +116,30 @@ linters:
     sloglint:
       context: all
       key-naming-case: snake
+    wrapcheck:
+      # Errors from this module's own packages already carry an ErrorCode (core/errors,
+      # enforced by enforce-core-errors); re-wrapping them at every hop only renames the
+      # code. wrapcheck guards the errors that do not: third-party SDK, stdlib and
+      # interface errors, which must be wrapped with one.
+      ignore-package-globs:
+        - github.com/gt-tech-ai/knowledge-engine/*
+      ignore-sig-regexps:
+        # Combinators that run the caller's function and return its error unchanged:
+        # that error is already coded where it was made, so wrapping it here would
+        # re-code it.
+        - \(\*golang\.org/x/sync/singleflight\.Group\)\.Do\(
+        - \(\*golang\.org/x/sync/errgroup\.Group\)\.Wait\(
+        - \(\*github\.com/sony/gobreaker/v2\.CircuitBreaker\[.*\]\)\.Execute\(
+        - github\.com/cenkalti/backoff/v5\.Retry\[
+        # A pass-through stream must return io.EOF itself: gRPC callers compare it
+        # with ==, which a wrapped error fails.
+        - \(google\.golang\.org/grpc\.ClientStream\)\.RecvMsg\(
+        # A decorating slog handler forwards to its sink, and slog.Logger discards
+        # whatever Handle returns, so a code on it would reach no one.
+        - \(log/slog\.Handler\)\.Handle\(
+        # A constructor of a gRPC status error, which carries its own code (the gRPC
+        # analogue of errors.New, which wrapcheck ignores by default).
+        - google\.golang\.org/grpc/status\.Error\(
     depguard:
       rules:
         # ── Layer 0: core/ must not import any higher layer ──
@@ -272,19 +298,18 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Pre-existing code: exclude the aggressive style/wrapping linters from the
-      # library tree. These are addressed incrementally, not in one sweep.
-      - path: ^go/
+      # OSFS is the one adapter from the FS interface onto package os, and its contract
+      # is os's errors verbatim: a caller may test them with os.IsNotExist / os.IsExist,
+      # which do not unwrap, so a wrapped error would read as a different failure.
+      - path: ^go/foundation/fsys/fsys\.go$
         linters:
           - wrapcheck
-          - exhaustive
-          - perfsprint
-          - sloglint
+      # The OpenTelemetry adapter starts a span and hands it to its caller, who ends it
+      # (the interfaces.Tracer contract). spancheck checks End only within the starting
+      # function and cannot follow that ownership transfer.
+      - path: ^go/foundation/tracer/oteltracer/tracer\.go$
+        linters:
           - spancheck
-          - prealloc
-          - noctx
-          - protogetter
-          - funlen
       # A struct tag is a single string literal that Go cannot wrap, so a field whose
       # tag pushes it past the column limit has no compliant spelling.
       - linters:

@@ -118,7 +118,7 @@ func (s *Server) RegisterFunc(pattern string, handler http.HandlerFunc) {
 // serve lifetime — call Stop (or Shutdown) to drain the server; the caller blocks on
 // its own shutdown signal. This satisfies the interfaces.Lifecycle "return when
 // ready" contract so a lifecycle.Manager can coordinate it.
-func (s *Server) Start(_ context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	// h2c (HTTP/2 Cleartext) via net/http's native Protocols; the
 	// golang.org/x/net/http2/h2c handler wrapper is deprecated.
 	protocols := new(http.Protocols)
@@ -147,12 +147,12 @@ func (s *Server) Start(_ context.Context) error {
 	// ready only once we are actually listening. Then serve in the background so Start
 	// returns once the server is listening (the interfaces.Lifecycle "return when ready"
 	// contract, so a lifecycle.Manager can start it in sequence without hanging).
-	ln, err := net.Listen("tcp", addr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
 		return coreerrors.Wrap(
 			err,
 			coreerrors.CodeInternal,
-			fmt.Sprintf("connect server listen on %s", addr),
+			"connect server listen on "+addr,
 		)
 	}
 	s.httpServer.Store(srv)
@@ -175,7 +175,14 @@ func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
 	defer cancel()
 	s.logger.Info("Connect server shutting down")
-	return srv.Shutdown(ctx)
+	if err := srv.Shutdown(ctx); err != nil {
+		return coreerrors.Wrap(
+			err,
+			coreerrors.ContextCode(err, coreerrors.CodeInternal),
+			"shut down connect server",
+		)
+	}
+	return nil
 }
 
 // Mux returns the underlying ServeMux for direct handler registration.

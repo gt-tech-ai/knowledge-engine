@@ -19,7 +19,8 @@ func HasPathsChanged(
 	to string,
 	paths ...string,
 ) (bool, error) {
-	args := []string{"diff", "--quiet", from, to, "--"}
+	args := make([]string, 0, 5+len(paths))
+	args = append(args, "diff", "--quiet", from, to, "--")
 	args = append(args, paths...)
 
 	result := r.RunBuffered(ctx, root, "git", args...)

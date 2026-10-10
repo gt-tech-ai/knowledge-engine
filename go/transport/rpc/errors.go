@@ -44,6 +44,11 @@ func Sanitize(err error) (code connect.Code, message string) {
 		return connect.CodeDeadlineExceeded, "deadline exceeded"
 	case apperr.CodeResourceExhausted:
 		return connect.CodeResourceExhausted, "resource exhausted"
+	case apperr.CodeUnknown,
+		apperr.CodeInternal,
+		apperr.CodeIngestion,
+		apperr.CodeQualityFailed:
+		return connect.CodeInternal, "internal server error"
 	default:
 		return connect.CodeInternal, "internal server error"
 	}

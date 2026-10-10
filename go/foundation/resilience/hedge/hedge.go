@@ -133,7 +133,11 @@ func (h *delayHedger) Hedge(ctx context.Context, op func() error) error {
 	case err := <-results:
 		return err // first attempt beat the delay — no backup needed
 	case <-ctx.Done():
-		return ctx.Err()
+		return coreerr.Wrap(
+			ctx.Err(),
+			coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+			"hedged call canceled",
+		)
 	case <-timer.C:
 		run() // delay elapsed — fire the backup and race the two attempts
 	}
@@ -142,6 +146,10 @@ func (h *delayHedger) Hedge(ctx context.Context, op func() error) error {
 	case err := <-results:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		return coreerr.Wrap(
+			ctx.Err(),
+			coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+			"hedged call canceled",
+		)
 	}
 }

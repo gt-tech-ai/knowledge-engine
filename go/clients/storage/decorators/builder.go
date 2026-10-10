@@ -20,6 +20,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	clientstack "github.com/gt-tech-ai/knowledge-engine/go/clients/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 )
 
@@ -182,7 +183,11 @@ type cleanupReadCloser struct {
 func (c *cleanupReadCloser) Close() error {
 	err := c.ReadCloser.Close()
 	c.once.Do(c.cleanup)
-	return err
+	return apperr.Wrap(
+		err,
+		apperr.CodeOr(err, apperr.CodeInternal),
+		"close download stream",
+	)
 }
 
 // Delete removes an object; idempotent, so retryable.

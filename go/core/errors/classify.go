@@ -11,6 +11,10 @@ func IsTransient(err error) bool {
 	switch code {
 	case ErrTimeout, ErrUnavailable:
 		return true
+	case CodeUnknown, CodeInternal, CodeNotFound, CodeUnauthorized, CodeForbidden,
+		CodeInvalidInput, CodeConflict, CodeCanceled, CodeIngestion, CodeQualityFailed,
+		CodeUpstream, CodeResourceExhausted:
+		return false
 	default:
 		return false
 	}
@@ -25,6 +29,9 @@ func IsPermanent(err error) bool {
 	switch code {
 	case ErrNotFound, ErrInvalidInput, ErrUnauthorized, ErrForbidden, ErrConflict:
 		return true
+	case CodeUnknown, CodeInternal, CodeTimeout, CodeCanceled, CodeUnavailable,
+		CodeIngestion, CodeQualityFailed, CodeUpstream, CodeResourceExhausted:
+		return false
 	default:
 		return false
 	}
@@ -53,6 +60,8 @@ func ToHTTPStatus(code ErrorCode) int {
 		return http.StatusBadGateway
 	case CodeResourceExhausted:
 		return http.StatusTooManyRequests
+	case CodeUnknown, CodeCanceled, CodeIngestion, CodeQualityFailed:
+		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
 	}

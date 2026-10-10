@@ -251,7 +251,7 @@ func (s *AnalyticsCassandraSuite) TestCassandra_PushdownMatchesFullScan() {
 	for d := first; d.Before(end); d = d.AddDate(0, 0, 1) {
 		days = append(days, d)
 	}
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 80)
 	for i := range 80 {
 		at := days[r.Intn(len(days))].Add(time.Duration(r.Intn(24*60)) * time.Minute)
 		facts = append(facts, fact(
@@ -333,7 +333,7 @@ func (s *AnalyticsCassandraSuite) TestCassandra_RedeliveredFactIsNoop() {
 func (s *AnalyticsCassandraSuite) TestCassandra_PagingResumeToken() {
 	store := s.newStore(s.session, 2)
 	org := "org-paging"
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 5)
 	for i := range 5 {
 		facts = append(
 			facts,
@@ -486,7 +486,7 @@ func (s *AnalyticsCassandraSuite) writeCompactionFacts(
 	org string,
 ) map[string][]float64 {
 	values := map[string][]float64{}
-	var facts []types.Fact
+	facts := make([]types.Fact, 0, 43)
 	for i := range 43 {
 		team := "t-1"
 		if i >= 40 {

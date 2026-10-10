@@ -260,7 +260,11 @@ func retryDo(
 		if attempt > 0 && delay > 0 {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return coreerr.Wrap(
+					ctx.Err(),
+					coreerr.ContextCode(ctx.Err(), coreerr.CodeCanceled),
+					"retry wait canceled",
+				)
 			case <-time.After(delay):
 			}
 		}

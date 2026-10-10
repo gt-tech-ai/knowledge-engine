@@ -321,13 +321,13 @@ func (c *Cache) GetOrLoad(
 // Ping checks the Redis connection. This is an extended method available only
 // on the concrete *Cache type.
 func (c *Cache) Ping(ctx context.Context) error {
-	return c.client.Ping(ctx).Err()
+	return errors.Wrap(c.client.Ping(ctx).Err(), errors.CodeUnavailable, "redis ping")
 }
 
 // Close closes the Redis client connection. Implements io.Closer for resource
 // cleanup.
 func (c *Cache) Close() error {
-	return c.client.Close()
+	return errors.Wrap(c.client.Close(), errors.CodeInternal, "close redis client")
 }
 
 // Client returns the underlying Redis client for metrics/health checks. This

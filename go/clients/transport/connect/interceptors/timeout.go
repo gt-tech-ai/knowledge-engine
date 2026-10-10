@@ -48,6 +48,9 @@ func TimeoutInterceptor(timeout time.Duration) connect.UnaryInterceptorFunc {
 					connect.CodeCanceled,
 					coreerr.Wrap(ctx.Err(), coreerr.CodeCanceled, "request canceled"),
 				)
+			case interceptorcore.TimeoutNone:
+				// The context is still live: the error is the handler's own.
+				return resp, err
 			default:
 				return resp, err
 			}

@@ -63,6 +63,15 @@ func defaultIsRetryable(err error) bool {
 		apperrors.CodeUnauthorized,
 		apperrors.CodeResourceExhausted:
 		return false
+	case apperrors.CodeUnknown,
+		apperrors.CodeInternal,
+		apperrors.CodeTimeout,
+		apperrors.CodeCanceled,
+		apperrors.CodeUnavailable,
+		apperrors.CodeIngestion,
+		apperrors.CodeQualityFailed,
+		apperrors.CodeUpstream:
+		return true
 	default:
 		return true
 	}

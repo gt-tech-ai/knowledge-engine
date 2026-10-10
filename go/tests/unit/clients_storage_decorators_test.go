@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	storagedecorators "github.com/gt-tech-ai/knowledge-engine/go/clients/storage/decorators"
+	apperr "github.com/gt-tech-ai/knowledge-engine/go/core/errors"
 	"github.com/gt-tech-ai/knowledge-engine/go/core/interfaces"
 	"github.com/gt-tech-ai/knowledge-engine/go/foundation/resilience/retry"
 	"github.com/gt-tech-ai/knowledge-engine/go/tests/fixtures"
@@ -117,7 +118,7 @@ func TestStorageDecorator_DownloadStreamSurvivesTimeout(t *testing.T) {
 	body := mocks.NewMockReadCloser(ctrl)
 	body.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (int, error) {
 		if err := streamCtx.Err(); err != nil {
-			return 0, err
+			return 0, apperr.Wrap(err, apperr.CodeCanceled, "stream read")
 		}
 		if pos >= len(streamData) {
 			return 0, io.EOF
